@@ -1,0 +1,9 @@
+.idea
+.vscode
+.claude
+target
+logs
+.env
+.env.docker
+.env.local
+.env.production
