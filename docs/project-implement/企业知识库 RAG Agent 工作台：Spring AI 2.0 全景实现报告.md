@@ -207,7 +207,7 @@ Order 300  → InputSanitizeAdvisor   (输入脱敏/Prompt注入检测)
 Order 400  → MessageChatMemoryAdvisor (多轮记忆)
 Order 500  → PrefetchRagAdvisor     (RAG 检索+证据注入，核心)
 Order 1000 → ToolCallingAdvisor     (工具调用，最靠近模型)
-Order 100  → OutputGuardrailAdvisor (输出护栏)
+Order 110  → OutputGuardrailAdvisor (输出护栏)
 Order  50  → AuditTraceAdvisor      (审计埋点，覆盖全链路)
 Order  10  → TokenBudgetAdvisor     (成本追踪)
 ```
@@ -705,16 +705,20 @@ kb-etl     kb-ai-core ← 依赖 kb-infrastructure + kb-domain
 ### 7.1 PostgreSQL 核心表设计
 
 ```sql
+-- ============================================
+-- PostgreSQL 16 DDL（所有建表语句后执行独立 CREATE INDEX）
+-- ============================================
+
 -- 1. 文档主表
 CREATE TABLE kb_document (
     id              VARCHAR(36) PRIMARY KEY,
-    tenant_id       VARCHAR(36) NOT NULL,          -- 租户隔离
+    tenant_id       VARCHAR(36) NOT NULL,
     name            VARCHAR(255) NOT NULL,
     original_name   VARCHAR(500),
     type            VARCHAR(20) NOT NULL,           -- PDF, DOCX, MD, TXT
     size            BIGINT,
-    oss_path        VARCHAR(500),                  -- MinIO 存储路径
-    status          VARCHAR(20) DEFAULT 'UPLOADING', -- UPLOADING, PARSING, SUCCESS, FAILED
+    oss_path        VARCHAR(500),
+    status          VARCHAR(20) DEFAULT 'UPLOADING',
     parse_route     VARCHAR(20),                   -- NATIVE, OCR
     page_count      INT,
     table_count     INT,
@@ -723,45 +727,46 @@ CREATE TABLE kb_document (
     error_message   TEXT,
     created_by      VARCHAR(50),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_tenant_status (tenant_id, status),
-    INDEX idx_created_at (created_at)
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_tenant_status ON kb_document (tenant_id, status);
+CREATE INDEX idx_created_at ON kb_document (created_at);
 
 -- 2. 章节表
 CREATE TABLE kb_section (
     id              VARCHAR(36) PRIMARY KEY,
     doc_id          VARCHAR(36) NOT NULL REFERENCES kb_document(id) ON DELETE CASCADE,
-    parent_id       VARCHAR(36),                   -- 父章节（层级结构）
+    parent_id       VARCHAR(36),
     title           VARCHAR(500),
-    level           INT DEFAULT 1,                 -- 层级深度
-    order_index     INT,                           -- 排序序号
+    level           INT DEFAULT 1,
+    order_index     INT,
     page_start      INT,
-    page_end        INT,
-    INDEX idx_doc_section (doc_id, order_index)
+    page_end        INT
 );
+CREATE INDEX idx_doc_section ON kb_section (doc_id, order_index);
 
 -- 3. 切分块表（核心业务表）
 CREATE TABLE kb_chunk (
     id              VARCHAR(36) PRIMARY KEY,
     doc_id          VARCHAR(36) NOT NULL REFERENCES kb_document(id) ON DELETE CASCADE,
     section_id      VARCHAR(36),
-    chunk_index     INT NOT NULL,                  -- 在文档中的顺序
-    content         TEXT NOT NULL,                 -- 切分后文本（支持人工编辑）
-    original_content TEXT,                         -- 原始内容（编辑前备份）
+    chunk_index     INT NOT NULL,
+    content         TEXT NOT NULL,
+    original_content TEXT,
     page_num        INT,
     token_count     INT,
-    metadata        JSONB DEFAULT '{}',            -- 灵活元数据
+    metadata        JSONB DEFAULT '{}',
     chunk_type      VARCHAR(20) DEFAULT 'TEXT',    -- TEXT, TABLE, IMAGE
-    vector_id       VARCHAR(100),                  -- 对应 Milvus 中的向量 ID
-    is_deleted      BOOLEAN DEFAULT FALSE,         -- 软删除标记
+    vector_id       VARCHAR(100),
+    is_deleted      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_doc_chunk (doc_id, chunk_index),
-    INDEX idx_vector_id (vector_id),
-    INDEX idx_chunk_type (chunk_type),
-    FULLTEXT INDEX idx_ft_content (content)        -- PG 全文检索（备用 BM25）
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_doc_chunk ON kb_chunk (doc_id, chunk_index);
+CREATE INDEX idx_vector_id ON kb_chunk (vector_id);
+CREATE INDEX idx_chunk_type ON kb_chunk (chunk_type);
+-- PG 全文检索 GIN 索引（admin 管理后台查询用，非检索主路径）
+CREATE INDEX idx_ft_content ON kb_chunk USING GIN (to_tsvector('simple', content));
 
 -- 4. 会话表
 CREATE TABLE kb_session (
@@ -769,51 +774,51 @@ CREATE TABLE kb_session (
     tenant_id       VARCHAR(36) NOT NULL,
     user_id         VARCHAR(50) NOT NULL,
     title           VARCHAR(255),
-    knowledge_base  VARCHAR(100),                  -- 关联的知识库
-    status          VARCHAR(20) DEFAULT 'ACTIVE',  -- ACTIVE, ARCHIVED
+    knowledge_base  VARCHAR(100),
+    status          VARCHAR(20) DEFAULT 'ACTIVE',
     message_count   INT DEFAULT 0,
     total_tokens    BIGINT DEFAULT 0,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user_session (user_id, updated_at DESC)
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_user_session ON kb_session (user_id, updated_at DESC);
 
 -- 5. 消息表
 CREATE TABLE kb_message (
     id              VARCHAR(36) PRIMARY KEY,
     session_id      VARCHAR(36) NOT NULL REFERENCES kb_session(id) ON DELETE CASCADE,
-    role            VARCHAR(20) NOT NULL,          -- USER, ASSISTANT, SYSTEM
+    role            VARCHAR(20) NOT NULL,
     content         TEXT,
-    citations       JSONB,                         -- 引用的溯源信息
-    token_usage     JSONB,                         -- {prompt_tokens, completion_tokens, total_tokens}
+    citations       JSONB,
+    token_usage     JSONB,
     metadata        JSONB DEFAULT '{}',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_session_msg (session_id, created_at)
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_session_msg ON kb_message (session_id, created_at);
 
 -- 6. 审计日志表
 CREATE TABLE kb_audit_log (
     id              BIGSERIAL PRIMARY KEY,
-    trace_id        VARCHAR(100),                  -- OpenTelemetry Trace ID
+    trace_id        VARCHAR(100),
     session_id      VARCHAR(36),
     user_id         VARCHAR(50),
     tenant_id       VARCHAR(36),
     query_text      TEXT NOT NULL,
-    rewritten_query TEXT,                          -- 改写后的查询
-    retrieval_type  VARCHAR(30),                   -- VECTOR, HYBRID, KEYWORD
-    retrieved_chunks JSONB,                        -- 召回的 chunk 详情
-    reranked_chunks  JSONB,                        -- 重排序后结果
+    rewritten_query TEXT,
+    retrieval_type  VARCHAR(30),
+    retrieved_chunks JSONB,
+    reranked_chunks  JSONB,
     final_answer    TEXT,
     model_name      VARCHAR(100),
     latency_ms      INT,
     token_usage     JSONB,
-    feedback        VARCHAR(10),                   -- LIKE, DISLIKE, null
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_trace (trace_id),
-    INDEX idx_session (session_id),
-    INDEX idx_user (user_id),
-    INDEX idx_created (created_at DESC)
+    feedback        VARCHAR(10),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_audit_trace ON kb_audit_log (trace_id);
+CREATE INDEX idx_audit_session ON kb_audit_log (session_id);
+CREATE INDEX idx_audit_user ON kb_audit_log (user_id);
+CREATE INDEX idx_audit_created ON kb_audit_log (created_at DESC);
 
 -- 7. 用户反馈表
 CREATE TABLE kb_feedback (
@@ -821,9 +826,9 @@ CREATE TABLE kb_feedback (
     message_id      VARCHAR(36) NOT NULL REFERENCES kb_message(id),
     audit_log_id    BIGINT REFERENCES kb_audit_log(id),
     user_id         VARCHAR(50),
-    rating          VARCHAR(10) NOT NULL,          -- LIKE, DISLIKE
-    expected_answer TEXT,                          -- 用户期望的正确回答
-    feedback_tags   JSONB,                         -- 反馈标签: ["hallucination", "irrelevant", ...]
+    rating          VARCHAR(10) NOT NULL,
+    expected_answer TEXT,
+    feedback_tags   JSONB,
     resolved        BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -831,16 +836,16 @@ CREATE TABLE kb_feedback (
 -- 8. Prompt 模板表
 CREATE TABLE kb_prompt_template (
     id              VARCHAR(36) PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL UNIQUE,  -- 模板名称
-    version         VARCHAR(20) NOT NULL,           -- 版本号
-    template_text   TEXT NOT NULL,                 -- 模板内容（支持占位符）
-    variables       JSONB,                         -- 变量定义
-    status          VARCHAR(20) DEFAULT 'DRAFT',   -- DRAFT, ACTIVE, ARCHIVED, AB_TESTING
-    ab_test_group   VARCHAR(20),                   -- A/B 测试分组
+    name            VARCHAR(100) NOT NULL,
+    version         VARCHAR(20) NOT NULL,
+    template_text   TEXT NOT NULL,
+    variables       JSONB,
+    status          VARCHAR(20) DEFAULT 'DRAFT',
+    ab_test_group   VARCHAR(20),
     created_by      VARCHAR(50),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_name_version (name, version)
+    CONSTRAINT uk_name_version UNIQUE (name, version)
 );
 ```
 
@@ -1148,6 +1153,33 @@ Phase 1 (W1-W3)     Phase 2 (W4-W7)      Phase 3 (W8-W12)     Phase 4 (W13-W16) 
 
 ## 第九章：知识入库 ETL 管道
 
+### 9.0 ETL 异步执行器配置
+
+```java
+package com.enterprise.kb.etl.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
+@Configuration
+@EnableAsync
+public class EtlExecutorConfig {
+
+    /**
+     * ETL 专用虚拟线程执行器 —— 文档解析和向量化是 I/O 密集型任务，
+     * 虚拟线程是最佳选择，避免传统线程池耗尽 Web 线程
+     */
+    @Bean("etlExecutor")
+    public Executor etlExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
+}
+```
+
 ### 9.1 SmartOcrRoutingReader
 
 ```java
@@ -1176,7 +1208,6 @@ public class SmartOcrRoutingReader implements DocumentReader {
     private static final double TEXT_DENSITY_THRESHOLD = 0.05; // 文本密度阈值
     private static final int PROBE_PAGES = 3;                  // 探测页数
     
-    private final TikaDocumentReaderFactory tikaFactory;
     private final OcrApiClient ocrApiClient;
     private final TextDensityAnalyzer densityAnalyzer;
     
@@ -1197,7 +1228,7 @@ public class SmartOcrRoutingReader implements DocumentReader {
     }
     
     private List<Document> parseViaTika(Resource resource) {
-        TikaDocumentReader tikaReader = tikaFactory.create(resource);
+        TikaDocumentReader tikaReader = new TikaDocumentReader(resource);
         List<Document> docs = tikaReader.get();
         // 注入元数据
         docs.forEach(doc -> {
@@ -1453,7 +1484,9 @@ public class DocumentEtlPipeline {
                     List.of(new Document(entity.getContent(), 
                         Map.of("chunk_id", entity.getId(), 
                                "doc_id", docId,
-                               "chunk_type", entity.getChunkType())))
+                               "chunk_type", entity.getChunkType(),
+                               "tenant_id", entity.getTenantId(),
+                               "is_deleted", entity.isDeleted())))
                 ).get(0);
                 entity.setVectorId(vectorId);
             }
@@ -1508,6 +1541,7 @@ import java.util.concurrent.StructuredTaskScope;
  * - 两路都失败才降级
  */
 @Service
+@Slf4j
 public class HybridRetrievalService {
     
     private final VectorStore milvusVectorStore;
@@ -1515,7 +1549,7 @@ public class HybridRetrievalService {
     private final RrfFusionReranker rrfReranker;
     private final RerankClient rerankClient;
     
-    private static final int TOP_K_MULTIPLIER = 2; // 召回数 = topK * multiplier
+    private static final int TOP_K_MULTIPLIER = 2;
     
     /**
      * 混合检索主方法
@@ -1531,10 +1565,12 @@ public class HybridRetrievalService {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var vectorFuture = executor.submit(() -> {
                 try {
-                    SearchRequest request = SearchRequest.query(query)
-                        .withTopK(recallSize)
-                        .withSimilarityThreshold(0.5)
-                        .filterExpression(filterExpression);
+                    SearchRequest request = SearchRequest.builder()
+                        .query(query)
+                        .topK(recallSize)
+                        .similarityThreshold(0.5)
+                        .filterExpression(filterExpression)
+                        .build();
                     return milvusVectorStore.similaritySearch(request);
                 } catch (Exception e) {
                     log.warn("向量检索失败: {}", e.getMessage());
@@ -1704,6 +1740,22 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+
+/**
+ * ES 检索结果记录
+ */
+public record EsHit(String id, String content, String chunkType, double score) {}
+
+/**
+ * ES 文档映射类
+ */
+@Data
+public class EsChunkDoc {
+    private String chunkId;
+    private String content;
+    private String chunkType;
+    private String docId;
+}
 
 @Component
 public class ElasticsearchRetrievalService {
@@ -2621,8 +2673,8 @@ public class OutputGuardrailAdvisor extends BaseAdvisor {
     
     private static final String SAFE_RESPONSE = "抱歉，由于合规要求，无法提供该信息。";
     
-    // 敏感词/竞品黑名单
-    private final Set<String> blacklist = Set.of(/* 配置中心加载 */);
+    // 敏感词/竞品黑名单（生产环境从配置中心动态加载）
+    private final Set<String> blacklist = Set.of("competitor_x", "competitor_y");
     
     @Override
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
@@ -2661,29 +2713,56 @@ public class TokenBudgetAdvisor extends BaseAdvisor {
     
     private final MeterRegistry meterRegistry;
     private final Counter tokenCounter;
+    private final RedissonClient redissonClient;
     
-    private static final long DAILY_BUDGET = 1_000_000;
-    private static final long SINGLE_REQUEST_BUDGET = 50_000;
+    private static final long DAILY_BUDGET = 1_000_000; // 日预算 100万 Token
+    private static final long SINGLE_REQUEST_BUDGET = 50_000; // 单次 5万
+    
+    public TokenBudgetAdvisor(MeterRegistry registry, RedissonClient redisson) {
+        this.meterRegistry = registry;
+        this.redissonClient = redisson;
+        this.tokenCounter = Counter.builder("rag.token.total")
+            .description("AI Token 总消耗").register(registry);
+    }
     
     @Override
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         String tenantId = (String) request.context().get("tenant_id");
-        // ... 检查日预算和单次预算
+        String todayKey = "token:budget:" + tenantId + ":" + LocalDate.now();
+        
+        long dailyUsed = redissonClient.getAtomicLong(todayKey).get();
+        if (dailyUsed >= DAILY_BUDGET) {
+            throw new TokenBudgetExceededException(
+                "日 Token 预算已耗尽 (已用: " + dailyUsed + " / 上限: " + DAILY_BUDGET + ")");
+        }
         return request;
     }
     
     @Override
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
-        // 从响应中提取 Token 消耗并累计
+        String tenantId = (String) response.response().getMetadata().get("tenant_id");
         Long tokensUsed = extractTokenUsage(response);
         if (tokensUsed != null) {
+            String todayKey = "token:budget:" + tenantId + ":" + LocalDate.now();
+            redissonClient.getAtomicLong(todayKey).addAndGet(tokensUsed);
             tokenCounter.increment(tokensUsed);
         }
         return response;
     }
     
+    private Long extractTokenUsage(ChatClientResponse response) {
+        return response.response().getMetadata().getUsage().getTotalTokens();
+    }
+    
     @Override
     public int getOrder() { return 10; }
+}
+
+/**
+ * Token 预算耗尽异常
+ */
+public class TokenBudgetExceededException extends RuntimeException {
+    public TokenBudgetExceededException(String message) { super(message); }
 }
 ```
 
