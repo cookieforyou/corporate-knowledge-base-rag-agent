@@ -98,9 +98,9 @@ Dify、阿里云百炼 Knowledge Studio、Microsoft Copilot Studio 等平台以"
 │                                                                      │
 │   不只是"能回答"          不只是"算法模型"      不只是"一个项目"     │
 │   ─────────────            ──────────────        ─────────────       │
-│   ✓ 答得准（混合检索）     ✓ 工程闭环            ✓ 可复用组件库   │
-│   ✓ 答得有依据（溯源）     ✓ 可视化调试          ✓ 标准化架构     │
-│   ✓ 答得稳定（证据注入）   ✓ 持续迭代            ✓ 团队能力沉淀   │
+│   ✓ 答得准（混合检索）    ✓ 工程闭环           ✓ 可复用组件库     │
+│   ✓ 答得有依据（溯源）    ✓ 可视化调试         ✓ 标准化架构       │
+│   ✓ 答得稳定（证据注入）  ✓ 持续迭代           ✓ 团队能力沉淀     │
 │                                                                      │
 │   战略目标：打造企业级"可解释、可运维、可进化"的 AI 知识中枢         │
 └──────────────────────────────────────────────────────────────────────┘
@@ -1466,45 +1466,56 @@ public class DocumentEtlPipeline {
         progress.setStage(EtlStage.PERSISTING);
         List<KbChunkEntity> entities = persistToPg(docId, docs);
         
-        // Stage 4: Embed & Write to Milvus
+        // Stage 4: Embed & Write to Milvus（利用 VectorStore 内置的 EmbeddingModel 一次批量写入）
         progress.setStage(EtlStage.EMBEDDING);
-        int batchSize = 50;
-        for (int i = 0; i < entities.size(); i += batchSize) {
-            int end = Math.min(i + batchSize, entities.size());
-            List<KbChunkEntity> batch = entities.subList(i, end);
-            
-            // 批量向量化
-            List<String> texts = batch.stream().map(KbChunkEntity::getContent).toList();
-            List<float[]> embeddings = embeddingModel.embed(texts);
-            
-            // 批量写入 Milvus
-            for (int j = 0; j < batch.size(); j++) {
-                KbChunkEntity entity = batch.get(j);
-                String vectorId = vectorStore.add(
-                    List.of(new Document(entity.getContent(), 
-                        Map.of("chunk_id", entity.getId(), 
-                               "doc_id", docId,
-                               "chunk_type", entity.getChunkType(),
-                               "tenant_id", entity.getTenantId(),
-                               "is_deleted", entity.isDeleted())))
-                ).get(0);
-                entity.setVectorId(vectorId);
-            }
-            chunkRepository.saveAll(batch);
-            
-            progress.setProcessedChunks(end);
-            progress.setPercentage((double) end / entities.size() * 100);
-            progressCallback.accept(progress);
+        List<Document> vectorDocs = entities.stream()
+            .map(e -> new Document(e.getContent(),
+                Map.of("chunk_id", e.getId(),
+                       "doc_id", docId,
+                       "chunk_type", e.getChunkType(),
+                       "tenant_id", e.getTenantId(),
+                       "is_deleted", e.isDeleted())))
+            .toList();
+        
+        // Spring AI VectorStore.add() 批量接受 Document 列表，内部自动向量化
+        List<String> vectorIds = vectorStore.add(vectorDocs);
+        for (int i = 0; i < entities.size(); i++) {
+            entities.get(i).setVectorId(vectorIds.get(i));
         }
+        chunkRepository.saveAll(entities);
+        
+        progress.setProcessedChunks(entities.size());
+        progress.setPercentage(100);
+        progressCallback.accept(progress);
         
         progress.setStage(EtlStage.COMPLETED);
         progress.setPercentage(100);
         progressCallback.accept(progress);
     }
+    
+    private List<KbChunkEntity> persistToPg(String docId, List<Document> chunks) {
+        List<KbChunkEntity> entities = new ArrayList<>();
+        for (int i = 0; i < chunks.size(); i++) {
+            Document chunk = chunks.get(i);
+            KbChunkEntity entity = new KbChunkEntity();
+            entity.setId(UUID.randomUUID().toString());
+            entity.setDocId(docId);
+            entity.setChunkIndex(i);
+            entity.setContent(chunk.getText());
+            entity.setPageNum((Integer) chunk.getMetadata().get("page_num"));
+            entity.setChunkType((String) chunk.getMetadata().getOrDefault("chunk_type", "TEXT"));
+            entities.add(entity);
+        }
+        chunkRepository.saveAll(entities);
+        return entities;
+    }
 }
 
+/**
+ * ETL 进度追踪对象（建议拆分到独立文件 EtlProgress.java）
+ */
 @Data
-public class EtlProgress {
+class EtlProgress {
     private String docId;
     private EtlStage stage;
     private int documentCount;
@@ -1555,7 +1566,8 @@ public class HybridRetrievalService {
      * 混合检索主方法
      */
     public List<RetrievalResult> hybridSearch(String query, int topK, 
-                                               Filter.Expression filterExpression) {
+                                               Filter.Expression filterExpression,
+                                               String tenantId) {
         int recallSize = topK * TOP_K_MULTIPLIER;
         
         List<Document> vectorResults = List.of();
@@ -1580,7 +1592,7 @@ public class HybridRetrievalService {
             
             var bm25Future = executor.submit(() -> {
                 try {
-                    return esClient.search(query, recallSize, filterExpression);
+                    return esClient.search(query, recallSize, filterExpression, tenantId);
                 } catch (Exception e) {
                     log.warn("BM25 检索失败: {}", e.getMessage());
                     return List.<EsHit>of();
@@ -1674,10 +1686,10 @@ public class RrfFusionReranker {
 }
 
 /**
- * 检索结果统一模型
+ * 检索结果统一模型（建议拆分到独立文件 RetrievalResult.java）
  */
 @Data
-public class RetrievalResult {
+class RetrievalResult {
     private String chunkId;
     private String docId;
     private String content;
@@ -1763,16 +1775,14 @@ public class ElasticsearchRetrievalService {
     private final ElasticsearchClient esClient;
     private static final String INDEX_NAME = "kb_chunks";
     
-    public List<EsHit> search(String query, int topK, Filter.Expression filter) {
+    public List<EsHit> search(String query, int topK, Filter.Expression filter, String tenantId) {
         var searchRequest = co.elastic.clients.elasticsearch.core.SearchRequest.of(s -> s
             .index(INDEX_NAME)
             .query(q -> q
                 .bool(b -> {
                     b.must(m -> m.match(mm -> mm.field("content").query(query)));
-                    // 注入权限过滤
-                    if (filter != null) {
-                        applyFilter(b, filter);
-                    }
+                    // 注入权限过滤（tenantId 从 Advisor 上下文传入，不是从 Filter.Expression 提取）
+                    b.filter(f -> f.term(t -> t.field("tenant_id").value(tenantId)));
                     return b;
                 })
             )
@@ -1790,11 +1800,6 @@ public class ElasticsearchRetrievalService {
                 hit.score() != null ? hit.score() : 0.0
             ))
             .toList();
-    }
-    
-    private void applyFilter(BoolQuery.Builder b, Filter.Expression filter) {
-        // 将 Filter.Expression 转换为 ES filter 子句
-        b.filter(f -> f.term(t -> t.field("tenant_id").value(filter.getTenantId())));
     }
 }
 ```
@@ -1961,9 +1966,10 @@ public class PrefetchRagAdvisor extends BaseAdvisor {
         String userQuery = request.userText();
 
         // 2. 执行混合检索
+        String tenantId = (String) request.context().get("tenant_id");
         Filter.Expression filter = buildSecurityFilter(request.context());
         List<RetrievalResult> results = retrievalService.hybridSearch(
-            userQuery, DEFAULT_TOP_K, filter);
+            userQuery, DEFAULT_TOP_K, filter, tenantId);
 
         // 3. 构建带溯源标记的证据上下文
         String evidence = buildGroundedEvidence(results);
@@ -2759,9 +2765,9 @@ public class TokenBudgetAdvisor extends BaseAdvisor {
 }
 
 /**
- * Token 预算耗尽异常
+ * Token 预算耗尽异常（建议拆分到独立文件 TokenBudgetExceededException.java）
  */
-public class TokenBudgetExceededException extends RuntimeException {
+class TokenBudgetExceededException extends RuntimeException {
     public TokenBudgetExceededException(String message) { super(message); }
 }
 ```
@@ -2842,8 +2848,8 @@ public class AuditTraceAdvisor extends BaseAdvisor {
         return response;
     }
     
-    @Async
-    private void saveAuditLog(String traceId, ChatClientResponse response, long latency) {
+    @Async("etlExecutor")
+    protected void saveAuditLog(String traceId, ChatClientResponse response, long latency) {
         KbAuditLogEntity log = KbAuditLogEntity.builder()
             .traceId(traceId)
             .finalAnswer(response.response().getResult().getOutput().getText())
@@ -3132,7 +3138,7 @@ class HybridRetrievalServiceIntegrationTest {
         
         // When: 执行混合检索
         List<RetrievalResult> results = retrievalService.hybridSearch(
-            "如何配置 Spring Boot 数据源？", 5, null);
+            "如何配置 Spring Boot 数据源？", 5, null, "test-tenant");
         
         // Then: 验证结果
         assertThat(results).hasSizeGreaterThanOrEqualTo(1);
