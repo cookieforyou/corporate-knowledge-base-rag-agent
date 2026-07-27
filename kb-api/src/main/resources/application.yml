@@ -1,0 +1,102 @@
+spring:
+  application:
+    name: kb-rag-agent
+
+  profiles:
+    active: dev
+
+  # 虚拟线程
+  threads:
+    virtual:
+      enabled: true
+
+  # 数据源 (覆盖 dev profile 中的默认值)
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kb_rag_agent
+    username: ${DB_USERNAME:kbadmin}
+    password: ${DB_PASSWORD:kbpass123}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  # AI 配置 (Spring AI 2.0 扁平化风格)
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: gpt-4o-mini
+        temperature: 0.1
+        max-tokens: 4096
+    ollama:
+      chat:
+        model: qwen2.5:14b
+        temperature: 0.1
+    vectorstore:
+      milvus:
+        host: ${MILVUS_HOST:localhost}
+        port: ${MILVUS_PORT:19530}
+        database-name: kb_rag_agent
+        collection-name: kb_chunks
+        embedding-dimension: 1024
+        index-type: HNSW
+        metric-type: COSINE
+    observations:
+      enabled: true
+      include-prompt: false
+      include-response: false
+
+  # Elasticsearch
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
+    connection-timeout: 5s
+    socket-timeout: 30s
+
+  # Redis
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 3s
+
+# MinIO
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: kb-documents
+
+# 日志
+logging:
+  level:
+    com.enterprise.kb: DEBUG
+    org.springframework.ai: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: kb-rag-agent
+  tracing:
+    sampling:
+      probability: 1.0
+
+# 服务器
+server:
+  port: ${SERVER_PORT:8080}
