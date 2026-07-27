@@ -1700,9 +1700,175 @@ public class RetrievalResult {
 }
 ```
 
----
+### 10.3 Elasticsearch BM25 检索实现
 
-## 第十一章：Agent 对话链路
+```java
+package com.enterprise.kb.ai.retriever;
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+public class ElasticsearchRetrievalService {
+    
+    private final ElasticsearchClient esClient;
+    private static final String INDEX_NAME = "kb_chunks";
+    
+    public List<EsHit> search(String query, int topK, FilterExpression filter) {
+        var searchRequest = co.elastic.clients.elasticsearch.core.SearchRequest.of(s -> s
+            .index(INDEX_NAME)
+            .query(q -> q
+                .bool(b -> {
+                    b.must(m -> m.match(mm -> mm.field("content").query(query)));
+                    // 注入权限过滤
+                    if (filter != null) {
+                        applyFilter(b, filter);
+                    }
+                    return b;
+                })
+            )
+            .size(topK)
+            .sort(sort -> sort.score(sc -> sc))
+        );
+        
+        SearchResponse<EsChunkDoc> response = esClient.search(searchRequest, EsChunkDoc.class);
+        
+        return response.hits().hits().stream()
+            .map(hit -> new EsHit(
+                hit.source().getChunkId(),
+                hit.source().getContent(),
+                hit.source().getChunkType(),
+                hit.score() != null ? hit.score() : 0.0
+            ))
+            .toList();
+    }
+    
+    private void applyFilter(BoolQuery.Builder b, FilterExpression filter) {
+        // 将 FilterExpression 转换为 ES filter 子句
+        b.filter(f -> f.term(t -> t.field("tenant_id").value(filter.getTenantId())));
+    }
+}
+```
+
+### 10.4 查询改写服务
+
+```java
+package com.enterprise.kb.ai.retriever;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.stereotype.Service;
+
+/**
+ * 查询改写 —— 结合历史对话上下文，将用户的简短/指代性查询改写为独立完整的检索查询
+ * 
+ * 例如：
+ * - 用户: "它的配置参数是什么？" (上文在讨论某个产品)
+ * - 改写后: "XX产品的安装配置参数是什么？"
+ */
+@Service
+public class QueryRewriter {
+    
+    private final ChatClient rewriteClient;
+    
+    private static final String REWRITE_PROMPT = """
+        你是一个查询改写助手。根据对话历史和用户最新问题，生成一个独立、完整、适合用于知识库检索的查询。
+        
+        对话历史：
+        %s
+        
+        用户最新问题：%s
+        
+        请输出改写后的检索查询（只输出查询文本，不要加任何解释）：""";
+    
+    public String rewrite(String userQuery, List<ChatMessage> history) {
+        if (history == null || history.isEmpty()) {
+            return userQuery; // 首轮对话无需改写
+        }
+        
+        String historyText = history.stream()
+            .map(m -> m.role() + ": " + m.content())
+            .collect(Collectors.joining("\n"));
+        
+        String prompt = String.format(REWRITE_PROMPT, historyText, userQuery);
+        return rewriteClient.prompt().user(prompt).call().content().trim();
+    }
+}
+```
+
+### 10.5 重排序集成
+
+```java
+package com.enterprise.kb.ai.retriever;
+
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 重排序客户端 —— 支持本地 BGE-Reranker-v2 和 Cohere Rerank API 两种模式
+ */
+@Component
+public class RerankClient {
+    
+    private final RestClient restClient;
+    private final String rerankEndpoint;
+    private final boolean available;
+    
+    public RerankClient(@Value("${rag.rerank.endpoint:}") String endpoint) {
+        this.available = (endpoint != null && !endpoint.isEmpty());
+        this.rerankEndpoint = endpoint;
+        this.restClient = RestClient.create();
+    }
+    
+    public boolean isAvailable() { return available; }
+    
+    /**
+     * 对检索结果进行重排序
+     */
+    public List<RetrievalResult> rerank(String query, List<RetrievalResult> candidates, int topK) {
+        if (!available || candidates.isEmpty()) {
+            return candidates.stream().limit(topK).toList();
+        }
+        
+        // 调用 Cohere Rerank API (或本地 BGE-Reranker)
+        var requestBody = Map.of(
+            "model", "rerank-multilingual-v3.0",  // Cohere Rerank
+            "query", query,
+            "documents", candidates.stream().map(RetrievalResult::getContent).toList(),
+            "top_n", topK
+        );
+        
+        RerankResponse response = restClient.post()
+            .uri(rerankEndpoint)
+            .body(requestBody)
+            .retrieve()
+            .body(RerankResponse.class);
+        
+        // 将重排序分数映射回 RetrievalResult
+        for (int i = 0; i < response.results().size(); i++) {
+            RerankResult rr = response.results().get(i);
+            candidates.get(rr.index()).setRerankScore(rr.relevanceScore());
+            candidates.get(rr.index()).setRerankRank(i + 1);
+        }
+        
+        return candidates.stream()
+            .filter(r -> r.getRerankScore() != null)
+            .sorted(Comparator.comparingDouble(RetrievalResult::getRerankScore).reversed())
+            .limit(topK)
+            .toList();
+    }
+    
+    record RerankResponse(List<RerankResult> results) {}
+    record RerankResult(int index, double relevanceScore) {}
+}
+```
 
 ### 11.1 PrefetchRagAdvisor（核心 Advisor）
 
@@ -1892,6 +2058,325 @@ public class AgentChatClientConfig {
             .build();
     }
 }
+```
+
+### 11.2.1 @Tool 注解工具调用
+
+Spring AI 2.0 中，`@Tool` 注解是定义 Agent 工具的核心方式。`ToolCallingAdvisor` 会自动扫描并编排工具调用循环。
+
+```java
+package com.enterprise.kb.ai.tool;
+
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 企业知识库 Agent 工具集 —— 对接内部 OA/ERP 系统
+ */
+@Component
+public class EnterpriseTools {
+
+    private final ErpService erpService;
+    private final OaService oaService;
+    
+    public EnterpriseTools(ErpService erpService, OaService oaService) {
+        this.erpService = erpService;
+        this.oaService = oaService;
+    }
+    
+    /**
+     * 查询员工信息 —— 读操作，自动执行
+     */
+    @Tool(description = "根据员工姓名或工号查询员工基本信息，包括部门、职位、入职日期")
+    public EmployeeInfo queryEmployee(
+            @ToolParam(description = "员工姓名或工号") String keyword) {
+        return erpService.findEmployee(keyword);
+    }
+    
+    /**
+     * 查询部门人员列表 —— 读操作，自动执行
+     */
+    @Tool(description = "查询指定部门的所有在职员工列表")
+    public List<EmployeeInfo> listDepartmentMembers(
+            @ToolParam(description = "部门名称") String department) {
+        return erpService.findByDepartment(department);
+    }
+    
+    /**
+     * 提交请假申请 —— 写操作，需要 Human-in-the-Loop 审批
+     */
+    @Tool(description = "提交员工请假申请。⚠️ 此操作需要用户二次确认后才能执行")
+    public String submitLeaveRequest(
+            @ToolParam(description = "员工工号") String employeeId,
+            @ToolParam(description = "请假开始日期 (yyyy-MM-dd)") String startDate,
+            @ToolParam(description = "请假结束日期 (yyyy-MM-dd)") String endDate,
+            @ToolParam(description = "请假类型: 年假/事假/病假") String leaveType,
+            ToolContext context) {
+        
+        // Human-in-the-Loop: 写操作需要审批确认
+        if (!context.isApproved()) {
+            context.requestApproval("确认要为员工 " + employeeId + 
+                " 提交 " + leaveType + " 请假申请吗？(" + startDate + " 至 " + endDate + ")");
+            return "⏳ 等待用户确认...";
+        }
+        return oaService.submitLeave(employeeId, startDate, endDate, leaveType);
+    }
+    
+    /**
+     * 查询知识库统计信息 —— 读操作
+     */
+    @Tool(description = "查询企业知识库的统计信息，包括文档总数、Chunk总数、最近更新日期")
+    public KnowledgeStats queryKnowledgeStats() {
+        return erpService.getKnowledgeStats();
+    }
+}
+```
+
+### 11.2.2 SmartRoutingChatModel 多模型智能路由
+
+```java
+package com.enterprise.kb.ai.chat;
+
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 企业级多模型智能路由器
+ * 
+ * 核心策略：
+ * - 简单查询（无工具调用、短文本）→ 经济模型 (gpt-4o-mini)
+ * - 中等复杂度（含工具调用、中等长度）→ 标准模型 (claude-sonnet)
+ * - 高复杂度（多工具编排、长文本推理）→ 旗舰模型 (gpt-4.1)
+ * - 敏感数据场景 → 本地部署 vLLM (Ollama)
+ * - 主模型故障时自动 Fallback 到备用模型（含熔断器保护）
+ */
+@Component
+public class SmartRoutingChatModel implements ChatModel {
+    
+    private final Map<ModelTier, List<ChatModel>> modelPool;
+    private final Map<String, CircuitBreaker> circuitBreakers;
+    private final AtomicInteger roundRobinIndex = new AtomicInteger(0);
+    
+    public enum ModelTier {
+        ECONOMY,    // 经济型: gpt-4o-mini, claude-haiku
+        STANDARD,   // 标准型: claude-sonnet, gpt-4o
+        PREMIUM,    // 旗舰型: gpt-4.1, claude-opus
+        LOCAL       // 本地型: ollama/qwen2.5
+    }
+    
+    public SmartRoutingChatModel(Map<ModelTier, List<ChatModel>> modelPool) {
+        this.modelPool = modelPool;
+        this.circuitBreakers = new HashMap<>();
+        modelPool.values().stream().flatMap(List::stream)
+            .forEach(m -> circuitBreakers.put(m.toString(), new CircuitBreaker(5, 30_000)));
+    }
+    
+    @Override
+    public ChatResponse call(Prompt prompt) {
+        // 1. 分析查询复杂度
+        ModelTier tier = analyzeComplexity(prompt);
+        
+        // 2. 获取该层级的健康模型
+        List<ChatModel> candidates = modelPool.get(tier).stream()
+            .filter(m -> circuitBreakers.get(m.toString()).isHealthy())
+            .toList();
+        
+        // 3. 该层全部不健康 → 降级到下一层
+        if (candidates.isEmpty()) {
+            tier = fallbackTier(tier);
+            candidates = modelPool.get(tier);
+        }
+        
+        // 4. 轮询选择 + 熔断保护
+        for (int attempt = 0; attempt < candidates.size(); attempt++) {
+            int idx = Math.abs(roundRobinIndex.getAndIncrement() % candidates.size());
+            ChatModel model = candidates.get(idx);
+            
+            try {
+                ChatResponse response = model.call(prompt);
+                circuitBreakers.get(model.toString()).recordSuccess();
+                return response;
+            } catch (Exception e) {
+                circuitBreakers.get(model.toString()).recordFailure();
+                if (attempt == candidates.size() - 1) throw e;
+            }
+        }
+        throw new IllegalStateException("所有模型不可用");
+    }
+    
+    private ModelTier analyzeComplexity(Prompt prompt) {
+        String text = prompt.getInstructions().stream()
+            .map(Object::toString).reduce("", String::concat);
+        boolean hasTools = text.contains("toolCall") || text.contains("function");
+        int estimatedTokens = text.length() / 4;
+        
+        if (hasTools && estimatedTokens > 4000) return ModelTier.PREMIUM;
+        if (hasTools || estimatedTokens > 2000) return ModelTier.STANDARD;
+        return ModelTier.ECONOMY;
+    }
+    
+    private ModelTier fallbackTier(ModelTier tier) {
+        return switch (tier) {
+            case PREMIUM -> ModelTier.STANDARD;
+            case STANDARD -> ModelTier.ECONOMY;
+            case ECONOMY -> ModelTier.LOCAL;
+            case LOCAL -> throw new IllegalStateException("无可用模型");
+        };
+    }
+    
+    /**
+     * 简易熔断器：连续失败 5 次熔断 30 秒
+     */
+    static class CircuitBreaker {
+        private final int failureThreshold;
+        private final long recoveryMs;
+        private int failureCount = 0;
+        private long lastFailureTime = 0;
+        private boolean open = false;
+        
+        CircuitBreaker(int threshold, long recoveryMs) {
+            this.failureThreshold = threshold;
+            this.recoveryMs = recoveryMs;
+        }
+        
+        boolean isHealthy() {
+            if (open && System.currentTimeMillis() - lastFailureTime > recoveryMs) {
+                open = false; failureCount = 0; // 半开恢复
+            }
+            return !open;
+        }
+        
+        void recordSuccess() { failureCount = 0; }
+        
+        void recordFailure() {
+            failureCount++;
+            if (failureCount >= failureThreshold) {
+                open = true;
+                lastFailureTime = System.currentTimeMillis();
+            }
+        }
+    }
+}
+```
+
+### 11.2.3 MCP Client 配置（企业外部工具集成）
+
+Spring AI 2.0 原生支持 MCP SDK 2.0 协议，通过 YAML 配置即可对接外部 MCP Server：
+
+```yaml
+# application.yml - MCP Client 配置
+spring:
+  ai:
+    mcp:
+      client:
+        enabled: true
+        connections:
+          # 内部 ERP 系统 MCP Server
+          erp-server:
+            type: SSE
+            url: http://erp-mcp.internal:8080/sse
+            api-key: ${ERP_MCP_API_KEY}
+            timeout: 30s
+          # 内部 OA 系统 MCP Server  
+          oa-server:
+            type: SSE
+            url: http://oa-mcp.internal:8080/sse
+            api-key: ${OA_MCP_API_KEY}
+          # 本地 Stdio MCP Server
+          local-tools:
+            type: STDIO
+            command: java
+            args: ["-jar", "/opt/mcp/local-tools-server.jar"]
+```
+
+```java
+// MCP Client Bean 配置（可选，YAML 配置已足够自动装配）
+@Configuration
+public class McpClientConfig {
+    
+    @Bean
+    public ToolCallingAdvisor toolCallingAdvisor(
+            ToolRegistry toolRegistry,
+            McpToolRegistry mcpToolRegistry) {
+        
+        // 合并 @Tool 注解注册的工具和 MCP 协议引入的工具
+        ToolRegistry merged = ToolRegistry.merge(toolRegistry, mcpToolRegistry);
+        
+        return ToolCallingAdvisor.builder()
+            .toolRegistry(merged)
+            .maxToolCalls(10)           // 最大工具调用次数，防止无限循环
+            .toolCallApprovalRequired(true) // 写操作需要人类审批
+            .build();
+    }
+}
+```
+
+### 11.2.4 结构化输出 `.entity()` 调用示例
+
+Spring AI 2.0 的结构化输出能力将 LLM 响应自动映射为 Java Record/Pojo：
+
+```java
+// 1. 定义结构化输出模型
+public record AnswerWithCitations(
+    String answer,                        // 回答正文
+    List<Citation> citations,             // 引用列表
+    ConfidenceLevel confidence            // 置信度
+) {}
+
+public record Citation(
+    int refNumber,       // [ref-N] 编号
+    String sourceFile,   // 来源文件
+    Integer pageNumber,  // 页码
+    String excerpt       // 引用原文片段
+) {}
+
+public enum ConfidenceLevel { HIGH, MEDIUM, LOW, UNCERTAIN }
+
+// 2. 调用方式
+@RestController
+public class StructuredOutputController {
+    
+    private final ChatClient chatClient;
+    
+    @PostMapping("/api/v1/agent/chat/structured")
+    public AnswerWithCitations chatStructured(@RequestBody ChatRequest request) {
+        return chatClient.prompt()
+            .user(request.query())
+            .advisors(/* ... */)
+            .call()
+            .entity(AnswerWithCitations.class);  // ★ 自动 JSON Schema → POJO 映射
+    }
+    
+    // 列表结构化输出
+    @PostMapping("/api/v1/agent/chat/extract-faqs")
+    public List<FaqItem> extractFaqs(@RequestBody String documentText) {
+        return chatClient.prompt()
+            .user("从以下文档提取常见问答对：\n" + documentText)
+            .call()
+            .entity(new ParameterizedTypeReference<List<FaqItem>>() {}); // 列表映射
+    }
+}
+
+public record FaqItem(String question, String answer, String category) {}
+```
+
+**自校正机制**：当 JSON 解析失败时，Spring AI 2.0 的 `StructuredOutputValidationAdvisor` 会自动将错误反馈给模型并要求重新生成，默认最多重试 3 次。业务代码应始终对输出做 `@Valid` 校验：
+
+```java
+public record AnswerWithCitations(
+    @NotBlank String answer,
+    @NotEmpty List<@Valid Citation> citations,
+    @NotNull ConfidenceLevel confidence
+) {}
 ```
 
 ### 11.3 SSE 流式事件推送
@@ -2869,20 +3354,18 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   
-  # AI 配置
+  # AI 配置 (Spring AI 2.0 扁平化配置风格，已移除 1.x 的 .options 嵌套层级)
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
       chat:
-        options:
-          model: gpt-4o
-          temperature: 0.1
-          max-tokens: 4096
+        model: gpt-4o
+        temperature: 0.1
+        max-tokens: 4096
     ollama:
       chat:
-        options:
-          model: qwen2.5:14b
-          temperature: 0.1
+        model: qwen2.5:14b
+        temperature: 0.1
     vectorstore:
       milvus:
         host: localhost
@@ -2970,6 +3453,14 @@ spring:
 | 10 | Milvus 连接不调优 | 高并发下连接耗尽 | 配置连接池参数，设置合理的超时时间 |
 | 11 | SSE 代理无超时配置 | 长连接被网关切断 | 配置心跳保活 + `proxy_read_timeout` 延长 |
 | 12 | 向量库替代所有检索 | 专有名词命中率低 | 混合检索（向量 + BM25）是必经之路 |
+| 13 | 信任模型输出直接执行写操作 | 模型幻觉导致数据污染 | 写操作通过 `ToolContext.requestApproval()` 要求人工确认 |
+| 14 | 流式响应中工具调用未处理异常 | 前端 UI 卡死或状态混乱 | SSE 推送专用 ERROR 事件 + 前端 `onError` 优雅降级 |
+| 15 | 结构化输出不做 `@Valid` 校验 | 字段缺失/类型错误未被发现 | 对 `.entity()` 输出施加 Bean Validation 约束 |
+| 16 | 工具定义 Schema 膨胀导致上下文溢出 | Agent 携带大量工具时 Context Window 不够 | 使用 `ToolSearchToolCallingAdvisor` 按需检索工具，只注入相关 Schema |
+| 17 | 向量库选型不考虑数据规模 | 千万级以内用专用库造成运维负担 | 千万级 Chunk 以下优先 PGVector，降低架构复杂度；上亿级选 Milvus |
+| 18 | 测试环境调用真实 LLM | 测试不稳定、成本高、速度慢 | 单元测试和 CI 中使用 `@Primary` Mock ChatModel，E2E 才调用真实 API |
+| 19 | 上下文压缩机制缺失 | 长文档场景检索后直接注入全量内容导致溢出 | 使用轻量模型或 `TokenTextSplitter` 先压缩证据再注入 Prompt |
+| 20 | 多模型路由缺少熔断保护 | 故障模型反复重试拖垮整体服务 | 在 `SmartRoutingChatModel` 中集成熔断器，连续失败后自动隔离降级 |
 
 ---
 
