@@ -92,18 +92,18 @@ Dify、阿里云百炼 Knowledge Studio、Microsoft Copilot Studio 等平台以"
 ### 1.3 项目战略定位：三个"不只是"
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    项目战略定位三维模型                         │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│   不只是"能回答"          不只是"算法模型"      不只是"一个项目"    │
-│   ─────────────          ──────────────       ─────────────  │
-│   ✓ 答得准（混合检索）     ✓ 工程闭环            ✓ 可复用组件库    │
-│   ✓ 答得有依据（溯源）     ✓ 可视化调试           ✓ 标准化架构     │
-│   ✓ 答得稳定（证据注入）   ✓ 持续迭代             ✓ 团队能力沉淀    │
-│                                                              │
+┌──────────────────────────────────────────────────────────────────────┐
+│                    项目战略定位三维模型                              │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│   不只是"能回答"          不只是"算法模型"      不只是"一个项目"     │
+│   ─────────────            ──────────────        ─────────────       │
+│   ✓ 答得准（混合检索）     ✓ 工程闭环            ✓ 可复用组件库   │
+│   ✓ 答得有依据（溯源）     ✓ 可视化调试          ✓ 标准化架构     │
+│   ✓ 答得稳定（证据注入）   ✓ 持续迭代            ✓ 团队能力沉淀   │
+│                                                                      │
 │   战略目标：打造企业级"可解释、可运维、可进化"的 AI 知识中枢         │
-└──────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 **核心价值主张**：
@@ -178,16 +178,16 @@ spring-ai-advisors-vector-store ← Advisor 桥接 (QuestionAnswerAdvisor)
 #### 决策 2：Milvus + PostgreSQL 双库解耦
 
 ```
-PostgreSQL (主数据)          Milvus (向量副本)
-┌─────────────────┐         ┌──────────────────┐
-│ kb_document      │         │ kb_chunks        │
-│ kb_section       │◄────────│  .vector_id      │
-│ kb_chunk (主数据) │ 外键关联 │  .embedding       │
+ PostgreSQL (主数据)           Milvus (向量副本)
+┌──────────────────┐         ┌───────────────────┐
+│ kb_document      │         │ kb_chunks         │
+│ kb_section       │◄────────│  .vector_id       │
+│ kb_chunk (主数据)│ 外键关联│  .embedding       │
 │ kb_session       │         │  .doc_id (标量)   │
-│ kb_message       │         │  .tenant_id (标量) │
+│ kb_message       │         │  .tenant_id (标量)│
 │ kb_audit_log     │         │  .is_deleted      │
 │ kb_feedback      │         │  .chunk_type      │
-└─────────────────┘         └──────────────────┘
+└──────────────────┘         └───────────────────┘
 ```
 
 **优势**：
@@ -315,15 +315,15 @@ Order  10  → TokenBudgetAdvisor     (成本追踪)
 **核心流程**：文档上传 → 格式检测 → 解析路由 → 保护式切分 → 元数据增强 → PG 持久化 → 向量化 → Milvus 写入
 
 ```
-┌──────────┐    ┌──────────────┐    ┌─────────────────┐    ┌──────────────┐
-│ 文档上传  │───→│ 格式检测与    │───→│ 解析路由决策     │───→│ 内容提取     │
-│ (Multipart)│   │ 文本密度探测  │    │ (NATIVE / OCR)   │    │ (Tika/OCR)   │
-└──────────┘    └──────────────┘    └─────────────────┘    └──────┬───────┘
-                                                                  │
-┌──────────┐    ┌──────────────┐    ┌─────────────────┐    ┌──────▼───────┐
-│ Milvus   │←───│ Embedding    │←───│ PG 持久化        │←───│ 保护式切分   │
-│ 向量写入  │    │ Model 向量化  │    │ (kb_chunk)       │    │ (HTML保护)   │
-└──────────┘    └──────────────┘    └─────────────────┘    └──────────────┘
+┌────────────┐    ┌──────────────┐    ┌────────────────┐    ┌──────────────┐
+│ 文档上传   │───→│ 格式检测与   │───→│ 解析路由决策   │───→│ 内容提取     │
+│ (Multipart)│    │ 文本密度探测 │    │ (NATIVE / OCR) │    │ (Tika/OCR)   │
+└────────────┘    └──────────────┘    └────────────────┘    └──────┬───────┘
+                                                                   │
+┌──────────┐    ┌──────────────┐    ┌─────────────┐         ┌──────▼───────┐
+│ Milvus   │←───│ Embedding    │←───│ PG 持久化   │←────────│ 保护式切分   │
+│ 向量写入 │    │ Model 向量化 │    │ (kb_chunk)  │         │ (HTML保护)   │
+└──────────┘    └──────────────┘    └─────────────┘         └──────────────┘
 ```
 
 **详细功能点**：
@@ -348,32 +348,32 @@ Order  10  → TokenBudgetAdvisor     (成本追踪)
 
 ```
                           ┌──────────────────┐
-                          │   用户 Query      │
+                          │   用户 Query     │
                           └────────┬─────────┘
                                    │
                           ┌────────▼─────────┐
-                          │   查询改写/扩展    │ (可选：同义词扩展、HyDE)
+                          │   查询改写/扩展  │ (可选：同义词扩展、HyDE)
                           └────────┬─────────┘
                                    │
               ┌────────────────────┼────────────────────┐
               │                    │                    │
-    ┌─────────▼─────────┐ ┌───────▼─────────┐ ┌────────▼────────┐
-    │ Milvus 向量检索    │ │ ES BM25 检索     │ │ 元数据过滤       │
-    │ (语义 Top-K*2)    │ │ (关键词 Top-K*2) │ │ (tenant/权限)    │
-    └─────────┬─────────┘ └───────┬─────────┘ └────────┬────────┘
+    ┌─────────▼─────────┐ ┌────────▼─────────┐ ┌────────▼────────┐
+    │ Milvus 向量检索   │ │ ES BM25 检索     │ │ 元数据过滤      │
+    │ (语义 Top-K*2)    │ │ (关键词 Top-K*2) │ │ (tenant/权限)   │
+    └─────────┬─────────┘ └────────┬─────────┘ └────────┬────────┘
               │                    │                    │
               └────────────────────┼────────────────────┘
                                    │
                           ┌────────▼─────────┐
-                          │   RRF 融合排序    │  score = 1/(K+rank)
+                          │   RRF 融合排序   │  score = 1/(K+rank)
                           └────────┬─────────┘
                                    │
                           ┌────────▼─────────┐
-                          │   重排序 (Rerank) │  BGE-Reranker / Cohere
+                          │   重排序 (Rerank)│  BGE-Reranker / Cohere
                           └────────┬─────────┘
                                    │
                           ┌────────▼─────────┐
-                          │   Top-K 结果      │  含各项得分和溯源信息
+                          │   Top-K 结果     │  含各项得分和溯源信息
                           └──────────────────┘
 ```
 
@@ -401,16 +401,16 @@ Order  10  → TokenBudgetAdvisor     (成本追踪)
     │
     ▼
 ┌──────────────────────────────────────────────────────┐
-│                  ChatClient.prompt()                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────┐ │
-│  │RateLimit │→│Auth      │→│Sanitize  │→│Memory│ │
-│  │(100)     │ │(200)     │ │(300)     │ │(400) │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──┬───┘ │
-│                                                │     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──▼───┐ │
-│  │Audit     │←│Guardrail │←│LLM Call  │←│RAG   │ │
-│  │(50)      │ │(100)     │ │          │ │(500) │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────┘ │
+│                  ChatClient.prompt()                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────┐  │
+│  │RateLimit │→ │Auth      │→ │Sanitize  │→ │Memory│  │
+│  │(100)     │  │(200)     │  │(300)     │  │(400) │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──┬───┘  │
+│                                               │      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──▼───┐  │
+│  │Audit     │← │Guardrail │← │LLM Call  │← │RAG   │  │
+│  │(50)      │  │(100)     │  │          │  │(500) │  │
+│  └──────────┘  └──────────┘  └──────────┘  └──────┘  │
 └──────────────────────────────────────────────────────┘
     │
     ▼
@@ -522,64 +522,64 @@ public record SourceCitation(
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                      接入层 (Access Layer)                                     │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────────┐ │
-│  │ Vue3 知识库工作台   │  │ Spring Cloud      │  │ 外部系统 (MCP Client)      │ │
-│  │ · 文档管理          │  │ Gateway           │  │ · OA/ERP 系统             │ │
-│  │ · Chunk 观测        │  │ · 限流/鉴权/路由    │  │ · 第三方 AI 平台           │ │
-│  │ · 检索调试台        │  │ · SSE 代理         │  │ · 企业微信/钉钉            │ │
-│  │ · Agent 对话窗      │  │ · 日志聚合         │  │                           │ │
-│  │ · 运维审计看板       │  │                   │  │                           │ │
-│  └───────────────────┘  └───────────────────┘  └───────────────────────────┘ │
+│                      接入层 (Access Layer)                                   │
+│  ┌───────────────────┐  ┌───────────────────┐  ┌──────────────────────────┐  │
+│  │ Vue3 知识库工作台 │  │ Spring Cloud      │  │ 外部系统 (MCP Client)    │  │
+│  │ · 文档管理        │  │ Gateway           │  │ · OA/ERP 系统            │  │
+│  │ · Chunk 观测      │  │ · 限流/鉴权/路由  │  │ · 第三方 AI 平台         │  │
+│  │ · 检索调试台      │  │ · SSE 代理        │  │ · 企业微信/钉钉          │  │
+│  │ · Agent 对话窗    │  │ · 日志聚合        │  │                          │  │
+│  │ · 运维审计看板    │  │                   │  │                          │  │
+│  └───────────────────┘  └───────────────────┘  └──────────────────────────┘  │
 └─────────────────────────────────┬────────────────────────────────────────────┘
                                   │ REST / SSE / WebSocket
 ┌─────────────────────────────────▼────────────────────────────────────────────┐
-│                      AI 编排层 (Orchestration Layer)                           │
-│  ┌─────────────────────────────────────────────────────────────────────────┐ │
-│  │                        ChatClient (Fluent API)                          │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │ │
-│  │  │RateLimit │→│  Auth    │→│ Sanitize │→│  Memory  │→│   RAG    │→...  │ │
-│  │  │  100     │ │  200     │ │  300     │ │  400     │ │  500     │     │ │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘     │ │
-│  │  ...→ ┌──────────┐ ┌──────────┐ ┌──────────┐                          │ │
-│  │       │ToolCall  │→│Guardrail │→│  Audit   │                          │ │
-│  │       │  1000    │ │  100     │ │   50     │                          │ │
-│  │       └──────────┘ └──────────┘ └──────────┘                          │ │
-│  └─────────────────────────────────────────────────────────────────────────┘ │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐   │
-│  │ SmartRouting     │  │ PromptTemplate   │  │ ToolCallingManager       │   │
-│  │ ChatModel        │  │ Manager          │  │ (@Tool + MCP Registry)   │   │
-│  │ (路由+Fallback)   │  │ (版本化+AB测试)   │  │                          │   │
-│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘   │
+│                      AI 编排层 (Orchestration Layer)                         │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │                        ChatClient (Fluent API)                         │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │  │
+│  │  │RateLimit │→│  Auth    │→│ Sanitize │→│  Memory  │→│   RAG    │→...  │  │
+│  │  │  100     │ │  200     │ │  300     │ │  400     │ │   500    │      │  │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘      │  │
+│  │  ...→ ┌──────────┐ ┌──────────┐ ┌──────────┐                           │  │
+│  │       │ToolCall  │→│Guardrail │→│  Audit   │                           │  │
+│  │       │  1000    │ │  110     │ │   50     │                           │  │
+│  │       └──────────┘ └──────────┘ └──────────┘                           │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐    │
+│  │ SmartRouting     │  │ PromptTemplate   │  │ ToolCallingManager       │    │
+│  │ ChatModel        │  │ Manager          │  │ (@Tool + MCP Registry)   │    │
+│  │ (路由+Fallback)  │  │ (版本化+AB测试)  │  │                          │    │
+│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘    │
 └─────────────────────────────────┬────────────────────────────────────────────┘
                                   │
 ┌─────────────────────────────────▼────────────────────────────────────────────┐
-│                      能力层 (Capability Layer)                                 │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐   │
-│  │ DocumentETL      │  │ HybridRetriever  │  │ Rerank Model             │   │
-│  │ Pipeline         │  │                  │  │                          │   │
-│  │ ┌──────────────┐ │  │ ┌──────────────┐ │  │ ┌──────────────────────┐ │   │
-│  │ │SmartOcrRouter│ │  │ │Milvus Vector │ │  │ │BGE-Reranker-v2       │ │   │
-│  │ │Tika + OCR API│ │  │ │ES BM25       │ │  │ │Cohere Rerank API     │ │   │
-│  │ └──────────────┘ │  │ │RRF Fusion    │ │  │ │Cross-Encoder (本地)  │ │   │
-│  │ ┌──────────────┐ │  │ └──────────────┘ │  │ └──────────────────────┘ │   │
-│  │ │HtmlProtecting │ │  └──────────────────┘  └──────────────────────────┘   │
-│  │ │Splitter       │ │                                                       │
-│  │ └──────────────┘ │  ┌──────────────────┐  ┌──────────────────────────┐   │
-│  └──────────────────┘  │ Query Rewriter   │  │ OCR Router               │   │
-│                         │ (同义词/HyDE)     │  │ (Tesseract/Cloud API)    │   │
-│                         └──────────────────┘  └──────────────────────────┘   │
+│                      能力层 (Capability Layer)                               │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐    │
+│  │ DocumentETL      │  │ HybridRetriever  │  │ Rerank Model             │    │
+│  │ Pipeline         │  │                  │  │                          │    │
+│  │ ┌──────────────┐ │  │ ┌──────────────┐ │  │ ┌──────────────────────┐ │    │
+│  │ │SmartOcrRouter│ │  │ │Milvus Vector │ │  │ │BGE-Reranker-v2       │ │    │
+│  │ │Tika + OCR API│ │  │ │ES BM25       │ │  │ │Cohere Rerank API     │ │    │
+│  │ └──────────────┘ │  │ │RRF Fusion    │ │  │ │Cross-Encoder (本地)  │ │    │
+│  │ ┌──────────────┐ │  │ └──────────────┘ │  │ └──────────────────────┘ │    │
+│  │ │HtmlProtecting│ │  └──────────────────┘  └──────────────────────────┘    │
+│  │ │Splitter      │ │                                                        │
+│  │ └──────────────┘ │  ┌──────────────────┐  ┌──────────────────────────┐    │
+│  └──────────────────┘  │ Query Rewriter   │  │ OCR Router               │    │
+│                        │ (同义词/HyDE)    │  │ (Tesseract/Cloud API)    │    │
+│                        └──────────────────┘  └──────────────────────────┘    │
 └─────────────────────────────────┬────────────────────────────────────────────┘
                                   │
 ┌─────────────────────────────────▼────────────────────────────────────────────┐
-│                    基础设施层 (Infrastructure Layer)                            │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
-│  │ Milvus   │ │PostgreSQL│ │  Redis   │ │Elasticsearch│ │ MinIO (OSS)    │   │
-│  │ (向量库)  │ │ (主数据库)│ │(缓存/记忆)│ │ (BM25)    │ │ (文档存储)      │   │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │ OpenTelemetry → Micrometer → Prometheus → Grafana → AlertManager     │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
+│                    基础设施层 (Infrastructure Layer)                         │
+│  ┌──────────┐ ┌───────────┐ ┌───────────┐ ┌─────────────┐ ┌─────────────┐    │
+│  │ Milvus   │ │PostgreSQL │ │  Redis    │ │Elasticsearch│ │ MinIO (OSS) │    │
+│  │ (向量库) │ │ (主数据库)│ │(缓存/记忆)│ │ (BM25)      │ │ (文档存储)  │    │
+│  └──────────┘ └───────────┘ └───────────┘ └─────────────┘ └─────────────┘    │
+│  ┌──────────────────────────────────────────────────────────────────────┐    │
+│  │ OpenTelemetry → Micrometer → Prometheus → Grafana → AlertManager     │    │
+│  └──────────────────────────────────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -587,17 +587,17 @@ public record SourceCitation(
 
 本项目自定义 **8 个 Advisor**，构成完整的请求处理管道：
 
-| Order | Advisor | 类型 | 职责 | 阶段 |
+| Order | Advisor | 接口 | 职责 | 阶段 |
 |-------|---------|------|------|------|
-| **100** | `RateLimitAdvisor` | CallAround | Redisson 令牌桶限流，用户/IP/租户级 | P2 |
-| **200** | `AuthAdvisor` | CallAround | JWT 鉴权，提取用户/租户信息 | P2 |
-| **300** | `InputSanitizeAdvisor` | CallAround | PII 脱敏、Prompt 注入检测、敏感词过滤 | P2 |
-| **400** | `MessageChatMemoryAdvisor` | CallAround + StreamAround | 多轮对话记忆（Redis），历史上下文注入 | P2 |
-| **500** | `PrefetchRagAdvisor` | CallAround + StreamAround | **核心**：混合检索 + 证据注入 + 元数据透传 | P1 |
-| **1000** | `ToolCallingAdvisor` | CallAround | 工具调用循环，@Tool + MCP 工具编排 | P2 |
-| **100** | `OutputGuardrailAdvisor` | CallAround + StreamAround | 输出合规审查、幻觉拦截、竞品过滤 | P2 |
-| **50** | `AuditTraceAdvisor` | CallAround + StreamAround | 全链路审计日志落库 | P2 |
-| **10** | `TokenBudgetAdvisor` | CallAround | Token 消耗统计、成本追踪、预算告警 | P2 |
+| **100** | `RateLimitAdvisor` | `BaseAdvisor` (before) | Redisson 令牌桶限流，用户/IP/租户级 | P2 |
+| **200** | `AuthAdvisor` | `BaseAdvisor` (before) | JWT 鉴权，提取用户/租户信息 | P2 |
+| **300** | `InputSanitizeAdvisor` | `BaseAdvisor` (before) | PII 脱敏、Prompt 注入检测、敏感词过滤 | P2 |
+| **400** | `MessageChatMemoryAdvisor` | `BaseAdvisor` | 多轮对话记忆（Redis），历史上下文注入 | P2 |
+| **500** | `PrefetchRagAdvisor` | `BaseAdvisor` (before) | **核心**：混合检索 + 证据注入 + 元数据透传 | P1 |
+| **1000** | `ToolCallingAdvisor` | `CallAdvisor` | 工具调用循环，@Tool + MCP 工具编排 | P2 |
+| **110** | `OutputGuardrailAdvisor` | `BaseAdvisor` (after) | 输出合规审查、幻觉拦截、竞品过滤 | P2 |
+| **50** | `AuditTraceAdvisor` | `BaseAdvisor` (before+after) | 全链路审计日志落库 | P2 |
+| **10** | `TokenBudgetAdvisor` | `BaseAdvisor` (before+after) | Token 消耗统计、成本追踪、预算告警 | P2 |
 
 ### 5.3 Java 21 虚拟线程应用策略
 
@@ -912,13 +912,13 @@ Search Parameters:
 ```
 Phase 1 (W1-W3)     Phase 2 (W4-W7)      Phase 3 (W8-W12)     Phase 4 (W13-W16)    Phase 5 (W17-W24)
 ───────────────     ───────────────      ────────────────     ─────────────────    ─────────────────
-基础设施 + MVP      知识引擎攻坚           Agent + 企业级        运维观测 + 产品化     高级特性 + 持续进化
-   P0 闭环            P1 核心竞争力          P2 企业级必备         P2 收尾 + 打磨       P3 智能化升级
+基础设施 + MVP      知识引擎攻坚         Agent + 企业级       运维观测 + 产品化    高级特性 + 持续进化
+   P0 闭环          P1 核心竞争力         P2 企业级必备        P2 收尾 + 打磨       P3 智能化升级
 
-  ┌────┐            ┌────────┐           ┌──────────┐         ┌──────────┐         ┌────────────┐
-  │ MVP │──────────→│ 核心引擎 │──────────→│ Agent编排 │────────→│ 可观测性  │────────→│ GraphRAG   │
-  │ 验证 │           │ 差异化   │           │ 安全加固  │         │ 运维闭环  │         │ MultiAgent │
-  └────┘            └────────┘           └──────────┘         └──────────┘         └────────────┘
+  ┌──────┐           ┌─────────┐           ┌──────────┐         ┌──────────┐         ┌────────────┐
+  │ MVP  │──────────→│ 核心引擎│──────────→│ Agent编排│────────→│ 可观测性 │────────→│ GraphRAG   │
+  │ 验证 │           │ 差异化  │           │ 安全加固 │         │ 运维闭环 │         │ MultiAgent │
+  └──────┘           └─────────┘           └──────────┘         └──────────┘         └────────────┘
 ```
 
 ### Phase 1：基础设施与 MVP 验证（第 1-3 周）
@@ -1501,12 +1501,11 @@ import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
 
 /**
- * 混合检索服务 —— 利用 Java 21 结构化并发并行召回
+ * 混合检索服务 —— 利用 Java 21 虚拟线程并行召回
  * 
- * 并发模型：StructuredTaskScope.ShutdownOnFailure
- * - 向量检索和 BM25 检索同时执行
- * - 任一失败则整体失败
- * - 总延迟 = max(向量延迟, BM25延迟)
+ * 容错策略：双路并行，收集成功路径的结果。
+ * - Milvus 和 ES 任一路成功即可返回结果
+ * - 两路都失败才降级
  */
 @Service
 public class HybridRetrievalService {
@@ -1520,61 +1519,55 @@ public class HybridRetrievalService {
     
     /**
      * 混合检索主方法
-     * @param query 用户查询
-     * @param topK 最终返回数量
-     * @param filterExpression 元数据过滤表达式（租户/权限）
      */
     public List<RetrievalResult> hybridSearch(String query, int topK, 
-                                               FilterExpression filterExpression) {
+                                               Filter.Expression filterExpression) {
         int recallSize = topK * TOP_K_MULTIPLIER;
         
-        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
-            
-            // Fork 1: 向量检索
-            var vectorTask = scope.fork(() -> {
-                SearchRequest request = SearchRequest.query(query)
-                    .withTopK(recallSize)
-                    .withSimilarityThreshold(0.5)
-                    .withFilterExpression(filterExpression);
-                return milvusVectorStore.similaritySearch(request);
+        List<Document> vectorResults = List.of();
+        List<EsHit> bm25Results = List.of();
+        
+        // 并行执行双路检索，各自容错
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var vectorFuture = executor.submit(() -> {
+                try {
+                    SearchRequest request = SearchRequest.query(query)
+                        .withTopK(recallSize)
+                        .withSimilarityThreshold(0.5)
+                        .filterExpression(filterExpression);
+                    return milvusVectorStore.similaritySearch(request);
+                } catch (Exception e) {
+                    log.warn("向量检索失败: {}", e.getMessage());
+                    return List.<Document>of();
+                }
             });
             
-            // Fork 2: BM25 关键词检索
-            var bm25Task = scope.fork(() -> 
-                esClient.search(query, recallSize, filterExpression)
-            );
+            var bm25Future = executor.submit(() -> {
+                try {
+                    return esClient.search(query, recallSize, filterExpression);
+                } catch (Exception e) {
+                    log.warn("BM25 检索失败: {}", e.getMessage());
+                    return List.<EsHit>of();
+                }
+            });
             
-            // 等待两个分支完成
-            scope.join();
-            
-            List<Document> vectorResults = vectorTask.get();
-            List<EsHit> bm25Results = bm25Task.get();
-            
-            // RRF 融合排序
-            List<RetrievalResult> fused = rrfReranker.fuse(vectorResults, bm25Results, recallSize);
-            
-            // 重排序（可选，有重排序模型时启用）
-            if (rerankClient.isAvailable()) {
-                fused = rerankClient.rerank(query, fused, topK);
-            } else {
-                fused = fused.subList(0, Math.min(topK, fused.size()));
-            }
-            
-            return fused;
-            
+            vectorResults = vectorFuture.get(5, TimeUnit.SECONDS);
+            bm25Results = bm25Future.get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
-            // Fallback: 结构化并发失败时降级为单路向量检索
-            return fallbackToVector(query, topK, filterExpression);
+            log.error("混合检索超时或全部失败: {}", e.getMessage());
         }
-    }
-    
-    private List<RetrievalResult> fallbackToVector(String query, int topK, 
-                                                    FilterExpression filter) {
-        return milvusVectorStore.similaritySearch(
-            SearchRequest.query(query).withTopK(topK).withFilterExpression(filter)
-        ).stream()
-         .map(doc -> RetrievalResult.fromVectorDoc(doc))
-         .toList();
+        
+        // 双路结果 RRF 融合
+        List<RetrievalResult> fused = rrfReranker.fuse(vectorResults, bm25Results, recallSize);
+        
+        // 重排序
+        if (rerankClient.isAvailable() && !fused.isEmpty()) {
+            fused = rerankClient.rerank(query, fused, topK);
+        } else {
+            fused = fused.subList(0, Math.min(topK, fused.size()));
+        }
+        
+        return fused;
     }
 }
 ```
@@ -1718,7 +1711,7 @@ public class ElasticsearchRetrievalService {
     private final ElasticsearchClient esClient;
     private static final String INDEX_NAME = "kb_chunks";
     
-    public List<EsHit> search(String query, int topK, FilterExpression filter) {
+    public List<EsHit> search(String query, int topK, Filter.Expression filter) {
         var searchRequest = co.elastic.clients.elasticsearch.core.SearchRequest.of(s -> s
             .index(INDEX_NAME)
             .query(q -> q
@@ -1747,8 +1740,8 @@ public class ElasticsearchRetrievalService {
             .toList();
     }
     
-    private void applyFilter(BoolQuery.Builder b, FilterExpression filter) {
-        // 将 FilterExpression 转换为 ES filter 子句
+    private void applyFilter(BoolQuery.Builder b, Filter.Expression filter) {
+        // 将 Filter.Expression 转换为 ES filter 子句
         b.filter(f -> f.term(t -> t.field("tenant_id").value(filter.getTenantId())));
     }
 }
@@ -1875,28 +1868,27 @@ public class RerankClient {
 ```java
 package com.enterprise.kb.ai.advisor;
 
-import org.springframework.ai.chat.advisor.*;
+import org.springframework.ai.chat.client.ChatClientRequest;
+import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.*;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Prefetch RAG Advisor - Spring AI 2.0 Advisor 机制最佳实践
+ * Prefetch RAG Advisor - Spring AI 2.0 BaseAdvisor 最佳实践
  * 
- * 同时实现 CallAroundAdvisor（同步）和 StreamAroundAdvisor（流式）
- * 确保在 LLM 调用前完成知识库检索和证据注入
+ * 继承 BaseAdvisor，重写 before() 方法，在 LLM 调用前完成知识库检索和证据注入。
+ * BaseAdvisor 自动为同步调用（adviseCall）和流式调用（adviseStream）统一调度 before/after。
  */
 @Component
-public class PrefetchRagAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
-    
+public class PrefetchRagAdvisor extends BaseAdvisor {
+
     private final HybridRetrievalService retrievalService;
     private static final int DEFAULT_TOP_K = 5;
-    
+
     // System Prompt 模板
     private static final String GROUNDING_PROMPT = """
         你是企业知识库专家。必须且只能基于【参考资料】回答问题。
@@ -1910,60 +1902,38 @@ public class PrefetchRagAdvisor implements CallAroundAdvisor, StreamAroundAdviso
         【参考资料】
         %s
         """;
-    
+
     @Override
-    public AdvisedResponse aroundCall(AdvisedRequest request, 
-                                       CallAroundAdvisorChain chain) {
+    public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         // 1. 提取用户查询
-        String userQuery = extractUserQuery(request);
-        
+        String userQuery = request.userText();
+
         // 2. 执行混合检索
-        FilterExpression filter = buildSecurityFilter(request.adviseContext());
+        Filter.Expression filter = buildSecurityFilter(request.context());
         List<RetrievalResult> results = retrievalService.hybridSearch(
             userQuery, DEFAULT_TOP_K, filter);
-        
+
         // 3. 构建带溯源标记的证据上下文
         String evidence = buildGroundedEvidence(results);
         String enhancedSystem = String.format(GROUNDING_PROMPT, evidence);
-        
-        // 4. 增强请求
-        AdvisedRequest augmentedRequest = AdvisedRequest.from(request)
-            .withSystemText(enhancedSystem)
-            .withAdviseContext(Map.of(
-                "rag_trace", results,
-                "retrieval_count", results.size(),
-                "top_score", results.isEmpty() ? 0 : results.get(0).getFusionScore()
-            ))
+
+        // 4. 增强请求（注入证据到 System Prompt，透传溯源元数据）
+        Map<String, Object> context = new java.util.HashMap<>(request.context());
+        context.put("rag_trace", results);
+        context.put("retrieval_count", results.size());
+        context.put("top_score", results.isEmpty() ? 0 : results.get(0).getFusionScore());
+
+        return ChatClientRequest.from(request)
+            .systemText(enhancedSystem)
+            .context(context)
             .build();
-        
-        // 5. 继续 Advisor 链
-        return chain.nextAroundCall(augmentedRequest);
     }
-    
-    @Override
-    public Flux<AdvisedResponse> aroundStream(AdvisedRequest request, 
-                                               StreamAroundAdvisorChain chain) {
-        String userQuery = extractUserQuery(request);
-        FilterExpression filter = buildSecurityFilter(request.adviseContext());
-        List<RetrievalResult> results = retrievalService.hybridSearch(
-            userQuery, DEFAULT_TOP_K, filter);
-        
-        String evidence = buildGroundedEvidence(results);
-        String enhancedSystem = String.format(GROUNDING_PROMPT, evidence);
-        
-        AdvisedRequest augmentedRequest = AdvisedRequest.from(request)
-            .withSystemText(enhancedSystem)
-            .withAdviseContext(Map.of("rag_trace", results))
-            .build();
-        
-        return chain.nextAroundStream(augmentedRequest);
-    }
-    
+
     private String buildGroundedEvidence(List<RetrievalResult> results) {
         if (results.isEmpty()) {
             return "（知识库中暂无相关参考资料）";
         }
-        
+
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < results.size(); i++) {
             RetrievalResult r = results.get(i);
@@ -1979,56 +1949,35 @@ public class PrefetchRagAdvisor implements CallAroundAdvisor, StreamAroundAdviso
         }
         return sb.toString();
     }
-    
-    private FilterExpression buildSecurityFilter(Map<String, Object> context) {
+
+    private Filter.Expression buildSecurityFilter(Map<String, Object> context) {
         String tenantId = (String) context.get("tenant_id");
         @SuppressWarnings("unchecked")
         List<String> allowedDocIds = (List<String>) context.get("allowed_doc_ids");
         @SuppressWarnings("unchecked")
         List<String> allowedDeptIds = (List<String>) context.get("allowed_dept_ids");
-        
-        // 1. 租户隔离：强制注入 tenant_id（防止跨租户数据泄露）
-        FilterExpression filter = new FilterExpression(
-            Filter.ExpressionType.EQ,
-            new Filter.Key("tenant_id"),
-            new Filter.Value(tenantId)
-        );
-        
-        // 2. 文档级权限：限制可检索的文档范围
+
+        var b = new FilterExpressionBuilder();
+
+        // 1. 租户隔离：强制注入 tenant_id
+        Filter.Expression filter = b.eq("tenant_id", tenantId).build();
+
+        // 2. 文档级权限
         if (allowedDocIds != null && !allowedDocIds.isEmpty()) {
-            FilterExpression docFilter = new FilterExpression(
-                Filter.ExpressionType.IN,
-                new Filter.Key("doc_id"),
-                new Filter.Value(allowedDocIds)
-            );
-            filter = new FilterExpression(Filter.ExpressionType.AND, filter, docFilter);
+            filter = b.and(filter, b.in("doc_id", allowedDocIds.toArray()).build()).build();
         }
-        
-        // 3. 部门级权限：按可见部门过滤
+
+        // 3. 部门级权限
         if (allowedDeptIds != null && !allowedDeptIds.isEmpty()) {
-            FilterExpression deptFilter = new FilterExpression(
-                Filter.ExpressionType.IN,
-                new Filter.Key("dept_id"),
-                new Filter.Value(allowedDeptIds)
-            );
-            filter = new FilterExpression(Filter.ExpressionType.AND, filter, deptFilter);
+            filter = b.and(filter, b.in("dept_id", allowedDeptIds.toArray()).build()).build();
         }
-        
-        // 4. 软删除过滤：排除已标记删除的 Chunk
-        FilterExpression deletedFilter = new FilterExpression(
-            Filter.ExpressionType.EQ,
-            new Filter.Key("is_deleted"),
-            new Filter.Value(false)
-        );
-        filter = new FilterExpression(Filter.ExpressionType.AND, filter, deletedFilter);
-        
+
+        // 4. 软删除过滤
+        filter = b.and(filter, b.eq("is_deleted", false).build()).build();
+
         return filter;
     }
-    
-    private String extractUserQuery(AdvisedRequest request) {
-        return request.userText();
-    }
-    
+
     @Override
     public int getOrder() {
         return 500; // RAG 在记忆(400)之后，工具调用(1000)之前
@@ -2054,7 +2003,7 @@ import org.springframework.context.annotation.Configuration;
  * 10  → TokenBudgetAdvisor
  * 50  → AuditTraceAdvisor
  * 100 → RateLimitAdvisor
- * 100 → OutputGuardrailAdvisor
+ * 110 → OutputGuardrailAdvisor
  * 200 → AuthAdvisor
  * 300 → InputSanitizeAdvisor
  * 400 → MessageChatMemoryAdvisor
@@ -2310,29 +2259,25 @@ public class SmartRoutingChatModel implements ChatModel {
 Spring AI 2.0 原生支持 MCP SDK 2.0 协议，通过 YAML 配置即可对接外部 MCP Server：
 
 ```yaml
-# application.yml - MCP Client 配置
+# application.yml - MCP Client 配置 (Spring AI 2.0.0 GA)
 spring:
   ai:
     mcp:
       client:
-        enabled: true
-        connections:
-          # 内部 ERP 系统 MCP Server
-          erp-server:
-            type: SSE
-            url: http://erp-mcp.internal:8080/sse
-            api-key: ${ERP_MCP_API_KEY}
-            timeout: 30s
-          # 内部 OA 系统 MCP Server  
-          oa-server:
-            type: SSE
-            url: http://oa-mcp.internal:8080/sse
-            api-key: ${OA_MCP_API_KEY}
-          # 本地 Stdio MCP Server
-          local-tools:
-            type: STDIO
-            command: java
-            args: ["-jar", "/opt/mcp/local-tools-server.jar"]
+        sse:
+          connections:
+            # 内部 ERP 系统 MCP Server
+            erp-server:
+              url: http://erp-mcp.internal:8080/sse
+            # 内部 OA 系统 MCP Server  
+            oa-server:
+              url: http://oa-mcp.internal:8080/sse
+        stdio:
+          connections:
+            # 本地 Stdio MCP Server
+            local-tools:
+              command: java
+              args: ["-jar", "/opt/mcp/local-tools-server.jar"]
 ```
 
 ```java
@@ -2440,9 +2385,8 @@ public class StructuredOutputConfig {
     @Bean
     public StructuredOutputValidationAdvisor validationAdvisor() {
         return StructuredOutputValidationAdvisor.builder()
-            .maxRetryAttempts(3)               // 最大重试 3 次
-            .retryBackoff(Duration.ofMillis(500)) // 重试间隔 500ms
-            .includeRawResponseInError(true)    // 错误中包含原始响应（便于调试）
+            .outputType(AnswerWithCitations.class)   // ★ 必须：指定输出类型，自动生成 JSON Schema
+            .maxRepeatAttempts(3)                    // 最大重复尝试次数（默认3），注意方法名是 repeat 不是 retry
             .build();
     }
 }
@@ -2474,14 +2418,24 @@ public class ToolSearchConfig {
 
     @Bean
     public ToolSearchToolCallingAdvisor toolSearchAdvisor(
-            ToolRegistry toolRegistry,
-            VectorStore toolVectorStore) {
+            ToolIndex toolIndex) {
         
         return ToolSearchToolCallingAdvisor.builder()
-            .toolRegistry(toolRegistry)          // 完整的工具注册表（可能上百个）
-            .toolVectorStore(toolVectorStore)     // 存工具定义 Embedding 的 VectorStore
-            .maxToolsPerRequest(5)              // 每次请求最多注入 5 个工具
-            .similarityThreshold(0.6)            // 语义相似度阈值
+            .toolIndex(toolIndex)              // ToolIndex（如 LuceneToolIndex）用于工具搜索
+            .maxResults(5)                     // 每次请求最多检索 5 个最相关工具
+            .build();
+    }
+
+    /**
+     * 创建 Lucene 工具索引：
+     * 1. 启动时扫描所有 @Tool 方法
+     * 2. 为每个工具的 name + description 建立 Lucene 索引
+     * 3. 运行时按用户 query 检索最相关的 Top-K 工具
+     */
+    @Bean
+    public ToolIndex toolIndex(ToolRegistry toolRegistry) {
+        return LuceneToolIndex.builder()
+            .toolRegistry(toolRegistry)
             .build();
     }
 }
@@ -2606,9 +2560,11 @@ import java.util.regex.Pattern;
 
 /**
  * 输入安全护栏：PII 脱敏 + Prompt 注入检测
+ * 
+ * 继承 BaseAdvisor，仅重写 before() 做请求预处理
  */
 @Component
-public class InputSanitizeAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
+public class InputSanitizeAdvisor extends BaseAdvisor {
     
     // PII 正则模式
     private static final Pattern PHONE_PATTERN = Pattern.compile("1[3-9]\\d{9}");
@@ -2623,8 +2579,7 @@ public class InputSanitizeAdvisor implements CallAroundAdvisor, StreamAroundAdvi
     );
     
     @Override
-    public AdvisedResponse aroundCall(AdvisedRequest request, 
-                                       CallAroundAdvisorChain chain) {
+    public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         String userText = request.userText();
         
         // 1. Prompt 注入检测
@@ -2638,11 +2593,9 @@ public class InputSanitizeAdvisor implements CallAroundAdvisor, StreamAroundAdvi
         sanitized = ID_CARD_PATTERN.matcher(sanitized).replaceAll("******************");
         sanitized = EMAIL_PATTERN.matcher(sanitized).replaceAll("***@***.***");
         
-        AdvisedRequest cleanRequest = AdvisedRequest.from(request)
-            .withUserText(sanitized)
+        return ChatClientRequest.from(request)
+            .userText(sanitized)
             .build();
-        
-        return chain.nextAroundCall(cleanRequest);
     }
     
     private boolean detectInjection(String text) {
@@ -2660,9 +2613,11 @@ public class InputSanitizeAdvisor implements CallAroundAdvisor, StreamAroundAdvi
 ```java
 /**
  * 输出安全护栏：敏感词过滤 + 合规审查 + 幻觉拦截
+ * 
+ * 继承 BaseAdvisor，仅重写 after() 做响应后处理
  */
 @Component
-public class OutputGuardrailAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
+public class OutputGuardrailAdvisor extends BaseAdvisor {
     
     private static final String SAFE_RESPONSE = "抱歉，由于合规要求，无法提供该信息。";
     
@@ -2670,15 +2625,15 @@ public class OutputGuardrailAdvisor implements CallAroundAdvisor, StreamAroundAd
     private final Set<String> blacklist = Set.of(/* 配置中心加载 */);
     
     @Override
-    public AdvisedResponse aroundCall(AdvisedRequest request, 
-                                       CallAroundAdvisorChain chain) {
-        AdvisedResponse response = chain.nextAroundCall(request);
+    public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
         String output = response.response().getResult().getOutput().getText();
         
         // 后置审查
         if (containsBlacklistedTerms(output)) {
-            return AdvisedResponse.from(response)
-                .withModifiedOutput(SAFE_RESPONSE)
+            return ChatClientResponse.from(response)
+                .response(new ChatResponse(List.of(
+                    new Generation(new AssistantMessage(SAFE_RESPONSE))
+                )))
                 .build();
         }
         
@@ -2690,7 +2645,7 @@ public class OutputGuardrailAdvisor implements CallAroundAdvisor, StreamAroundAd
     }
     
     @Override
-    public int getOrder() { return 100; }
+    public int getOrder() { return 110; }
 }
 ```
 
@@ -2699,41 +2654,31 @@ public class OutputGuardrailAdvisor implements CallAroundAdvisor, StreamAroundAd
 ```java
 /**
  * Token 预算控制 Advisor —— 成本追踪 + 超额拦截
+ * 继承 BaseAdvisor，before() 检查预算，after() 记录消耗
  */
 @Component
-public class TokenBudgetAdvisor implements CallAroundAdvisor {
+public class TokenBudgetAdvisor extends BaseAdvisor {
     
-    private final RedissonClient redissonClient;
     private final MeterRegistry meterRegistry;
-    
-    private static final long DAILY_BUDGET = 1_000_000; // 日预算 100万 Token
-    private static final long SINGLE_REQUEST_BUDGET = 50_000; // 单次请求 5万 Token
-    
-    // Prometheus 指标
     private final Counter tokenCounter;
     
+    private static final long DAILY_BUDGET = 1_000_000;
+    private static final long SINGLE_REQUEST_BUDGET = 50_000;
+    
     @Override
-    public AdvisedResponse aroundCall(AdvisedRequest request, 
-                                       CallAroundAdvisorChain chain) {
-        String tenantId = (String) request.adviseContext().get("tenant_id");
-        String todayKey = "token:budget:" + tenantId + ":" + LocalDate.now();
-        
-        // 检查日预算
-        long dailyUsed = redissonClient.getAtomicLong(todayKey).get();
-        if (dailyUsed >= DAILY_BUDGET) {
-            throw new TokenBudgetExceededException("日 Token 预算已耗尽");
-        }
-        
-        // 执行请求
-        AdvisedResponse response = chain.nextAroundCall(request);
-        
-        // 记录 Token 消耗（从响应元数据提取）
+    public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
+        String tenantId = (String) request.context().get("tenant_id");
+        // ... 检查日预算和单次预算
+        return request;
+    }
+    
+    @Override
+    public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
+        // 从响应中提取 Token 消耗并累计
         Long tokensUsed = extractTokenUsage(response);
         if (tokensUsed != null) {
-            redissonClient.getAtomicLong(todayKey).addAndGet(tokensUsed);
             tokenCounter.increment(tokensUsed);
         }
-        
         return response;
     }
     
@@ -2780,57 +2725,48 @@ management:
 
 ```java
 /**
- * 全链路审计 Advisor —— 最内层（Order=50），捕获完整请求/响应上下文
+ * 全链路审计 Advisor —— 继承 BaseAdvisor，before()记录开始时间，after()持久化审计日志
  */
 @Component
-public class AuditTraceAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
+public class AuditTraceAdvisor extends BaseAdvisor {
     
     private final KbAuditLogRepository auditLogRepository;
     private final MeterRegistry meterRegistry;
     
+    // 使用 ThreadLocal 在 before/after 之间传递计时起点
+    private final ThreadLocal<Long> startTimeHolder = new ThreadLocal<>();
+    private final ThreadLocal<String> traceIdHolder = new ThreadLocal<>();
+    
     @Override
-    public AdvisedResponse aroundCall(AdvisedRequest request, 
-                                       CallAroundAdvisorChain chain) {
-        long start = System.currentTimeMillis();
-        String traceId = Span.current().getSpanContext().getTraceId();
+    public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
+        startTimeHolder.set(System.currentTimeMillis());
+        traceIdHolder.set(Span.current().getSpanContext().getTraceId());
+        return request;
+    }
+    
+    @Override
+    public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
+        long latency = System.currentTimeMillis() - startTimeHolder.get();
+        String traceId = traceIdHolder.get();
         
-        try {
-            AdvisedResponse response = chain.nextAroundCall(request);
-            long latency = System.currentTimeMillis() - start;
-            
-            // 异步落库审计日志
-            saveAuditLog(traceId, request, response, latency);
-            
-            // 记录指标
-            Timer.builder("rag.request.latency")
-                .tag("outcome", "success")
-                .register(meterRegistry)
-                .record(latency, TimeUnit.MILLISECONDS);
-            
-            return response;
-        } catch (Exception e) {
-            long latency = System.currentTimeMillis() - start;
-            saveErrorLog(traceId, request, e, latency);
-            
-            Timer.builder("rag.request.latency")
-                .tag("outcome", "error")
-                .register(meterRegistry)
-                .record(latency, TimeUnit.MILLISECONDS);
-            
-            throw e;
-        }
+        // 异步落库审计日志
+        saveAuditLog(traceId, response, latency);
+        
+        // 记录指标
+        Timer.builder("rag.request.latency")
+            .tag("outcome", "success")
+            .register(meterRegistry)
+            .record(latency, TimeUnit.MILLISECONDS);
+        
+        startTimeHolder.remove();
+        traceIdHolder.remove();
+        return response;
     }
     
     @Async
-    private void saveAuditLog(String traceId, AdvisedRequest request, 
-                               AdvisedResponse response, long latency) {
+    private void saveAuditLog(String traceId, ChatClientResponse response, long latency) {
         KbAuditLogEntity log = KbAuditLogEntity.builder()
             .traceId(traceId)
-            .sessionId((String) request.adviseContext().get("session_id"))
-            .userId((String) request.adviseContext().get("user_id"))
-            .tenantId((String) request.adviseContext().get("tenant_id"))
-            .queryText(request.userText())
-            .retrievedChunks(toJson(request.adviseContext().get("rag_trace")))
             .finalAnswer(response.response().getResult().getOutput().getText())
             .latencyMs((int) latency)
             .build();
@@ -3063,19 +2999,19 @@ public class PromptTemplateManager {
 ### 15.1 测试金字塔
 
 ```
-          ┌──────────┐
-          │  E2E 测试  │  ← 关键业务流程（Playwright/Cypress）
-          │  5-10个    │
-          ├──────────┤
-          │ AI 评估    │  ← Golden Dataset 自动化评估（CI 集成）
-          │  200+ 用例  │
-          ├──────────┤
-          │ 集成测试    │  ← Testcontainers (PG+Milvus+ES+Redis)
-          │  50-80个    │
-          ├──────────┤
-          │ 单元测试    │  ← JUnit5 + Mockito, 覆盖率 > 80%
-          │  200+ 个    │
-          └──────────┘
+          ┌───────────┐
+          │  E2E 测试 │  ← 关键业务流程（Playwright/Cypress）
+          │  5-10个   │
+          ├───────────┤
+          │ AI 评估   │  ← Golden Dataset 自动化评估（CI 集成）
+          │  200+ 用例│
+          ├───────────┤
+          │ 集成测试  │  ← Testcontainers (PG+Milvus+ES+Redis)
+          │  50-80个  │
+          ├───────────┤
+          │ 单元测试  │  ← JUnit5 + Mockito, 覆盖率 > 80%
+          │  200+ 个  │
+          └───────────┘
 ```
 
 ### 15.2 Testcontainers 集成测试
@@ -3338,7 +3274,7 @@ spec:
 
 ```
                     ┌──────────────┐
-                    │  SDK / gRPC   │
+                    │  SDK / gRPC  │
                     └──────┬───────┘
                            │
                     ┌──────▼───────┐
@@ -3349,16 +3285,16 @@ spec:
            │               │               │
     ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
     │  Query Node │ │  Data Node  │ │  Index Node │
-    │  (向量检索)  │ │  (数据写入)  │ │  (索引构建)  │
+    │  (向量检索) │ │  (数据写入) │ │  (索引构建) │
     └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
            │               │               │
-    ┌──────▼───────────────────────────────▼──────┐
+    ┌──────▼───────────────▼───────────────▼───────┐
     │              Shared Storage                  │
-    │  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
-    │  │  etcd    │  │  MinIO   │  │  Pulsar  │  │
-    │  │ (元数据)  │  │ (向量存储)│  │ (消息队列)│  │
-    │  └──────────┘  └──────────┘  └──────────┘  │
-    └─────────────────────────────────────────────┘
+    │  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
+    │  │  etcd    │  │  MinIO    │  │  Pulsar   │  │
+    │  │ (元数据) │  │ (向量存储)│  │ (消息队列)│  │
+    │  └──────────┘  └───────────┘  └───────────┘  │
+    └──────────────────────────────────────────────┘
 ```
 
 ---
