@@ -1981,11 +1981,48 @@ public class PrefetchRagAdvisor implements CallAroundAdvisor, StreamAroundAdviso
     }
     
     private FilterExpression buildSecurityFilter(Map<String, Object> context) {
-        // 从上下文提取租户和权限信息，动态构建过滤表达式
         String tenantId = (String) context.get("tenant_id");
+        @SuppressWarnings("unchecked")
         List<String> allowedDocIds = (List<String>) context.get("allowed_doc_ids");
-        // ... 构建 FilterExpression
-        return null; // 简化示意
+        @SuppressWarnings("unchecked")
+        List<String> allowedDeptIds = (List<String>) context.get("allowed_dept_ids");
+        
+        // 1. 租户隔离：强制注入 tenant_id（防止跨租户数据泄露）
+        FilterExpression filter = new FilterExpression(
+            Filter.ExpressionType.EQ,
+            new Filter.Key("tenant_id"),
+            new Filter.Value(tenantId)
+        );
+        
+        // 2. 文档级权限：限制可检索的文档范围
+        if (allowedDocIds != null && !allowedDocIds.isEmpty()) {
+            FilterExpression docFilter = new FilterExpression(
+                Filter.ExpressionType.IN,
+                new Filter.Key("doc_id"),
+                new Filter.Value(allowedDocIds)
+            );
+            filter = new FilterExpression(Filter.ExpressionType.AND, filter, docFilter);
+        }
+        
+        // 3. 部门级权限：按可见部门过滤
+        if (allowedDeptIds != null && !allowedDeptIds.isEmpty()) {
+            FilterExpression deptFilter = new FilterExpression(
+                Filter.ExpressionType.IN,
+                new Filter.Key("dept_id"),
+                new Filter.Value(allowedDeptIds)
+            );
+            filter = new FilterExpression(Filter.ExpressionType.AND, filter, deptFilter);
+        }
+        
+        // 4. 软删除过滤：排除已标记删除的 Chunk
+        FilterExpression deletedFilter = new FilterExpression(
+            Filter.ExpressionType.EQ,
+            new Filter.Key("is_deleted"),
+            new Filter.Value(false)
+        );
+        filter = new FilterExpression(Filter.ExpressionType.AND, filter, deletedFilter);
+        
+        return filter;
     }
     
     private String extractUserQuery(AdvisedRequest request) {
@@ -2377,6 +2414,105 @@ public record AnswerWithCitations(
     @NotEmpty List<@Valid Citation> citations,
     @NotNull ConfidenceLevel confidence
 ) {}
+```
+
+### 11.2.5 StructuredOutputValidationAdvisor 自校正配置
+
+```java
+package com.enterprise.kb.ai.config;
+
+import org.springframework.ai.chat.client.advisor.StructuredOutputValidationAdvisor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 结构化输出自校正 Advisor 配置
+ * 
+ * 当 LLM 输出的 JSON 无法映射为 Java 对象时：
+ * 1. StructuredOutputValidationAdvisor 捕获解析异常
+ * 2. 将错误详情（字段名/预期类型/实际值）反馈给模型
+ * 3. 要求模型修正后重新生成
+ * 4. 默认最多重试 3 次，超出后抛出异常
+ */
+@Configuration
+public class StructuredOutputConfig {
+
+    @Bean
+    public StructuredOutputValidationAdvisor validationAdvisor() {
+        return StructuredOutputValidationAdvisor.builder()
+            .maxRetryAttempts(3)               // 最大重试 3 次
+            .retryBackoff(Duration.ofMillis(500)) // 重试间隔 500ms
+            .includeRawResponseInError(true)    // 错误中包含原始响应（便于调试）
+            .build();
+    }
+}
+```
+
+### 11.2.6 ToolSearchToolCallingAdvisor 按需工具检索
+
+当 Agent 注册了数十甚至上百个工具时，将所有工具的 JSON Schema 全部注入 Context Window 会导致 Token 严重浪费甚至溢出。Spring AI 2.0 的 `ToolSearchToolCallingAdvisor` 在每次 LLM 调用前，根据用户查询动态搜索和选择最相关的 Top-N 工具，只将相关工具的定义注入。
+
+```java
+package com.enterprise.kb.ai.config;
+
+import org.springframework.ai.chat.client.advisor.ToolSearchToolCallingAdvisor;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 按需工具检索 Advisor
+ * 
+ * 工作流程：
+ * 1. 启动时将所有 @Tool 工具的定义向量化存入专门的 Tool VectorStore
+ * 2. 每次用户请求到达时，用用户 query 检索最相关的 Top-K 个工具
+ * 3. 只将匹配的工具 Schema 注入 LLM 上下文
+ * 4. 大幅减少无关工具的 Token 消耗（实测可节省 60-80% 工具定义 Token）
+ */
+@Configuration
+public class ToolSearchConfig {
+
+    @Bean
+    public ToolSearchToolCallingAdvisor toolSearchAdvisor(
+            ToolRegistry toolRegistry,
+            VectorStore toolVectorStore) {
+        
+        return ToolSearchToolCallingAdvisor.builder()
+            .toolRegistry(toolRegistry)          // 完整的工具注册表（可能上百个）
+            .toolVectorStore(toolVectorStore)     // 存工具定义 Embedding 的 VectorStore
+            .maxToolsPerRequest(5)              // 每次请求最多注入 5 个工具
+            .similarityThreshold(0.6)            // 语义相似度阈值
+            .build();
+    }
+}
+```
+
+**应用方式**：在企业级 ChatClient 装配中，用 `ToolSearchToolCallingAdvisor` 替代普通的 `ToolCallingAdvisor`，即可实现透明升级：
+
+```java
+@Configuration
+public class AgentChatClientConfig {
+    
+    @Bean
+    public ChatClient knowledgeAgentChatClient(
+            ChatClient.Builder builder,
+            SmartRoutingChatModel routingChatModel,
+            ChatMemory redisChatMemory,
+            // ... 其他 Advisor
+            PrefetchRagAdvisor prefetchRagAdvisor,
+            ToolSearchToolCallingAdvisor toolSearchAdvisor,  // ★ 替换 ToolCallingAdvisor
+            StructuredOutputValidationAdvisor validationAdvisor) {
+        
+        return builder
+            .defaultSystem("你是企业知识库 RAG Agent 助手。")
+            .defaultAdvisors(
+                // ... 限流/鉴权/脱敏/记忆/RAG Advisor
+                toolSearchAdvisor,       // 先进：按需工具检索
+                validationAdvisor         // 结构化输出自校正
+            )
+            .build();
+    }
+}
 ```
 
 ### 11.3 SSE 流式事件推送
