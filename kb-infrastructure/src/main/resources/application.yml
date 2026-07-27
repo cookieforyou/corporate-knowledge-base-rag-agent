@@ -1,0 +1,50 @@
+# ============================================================
+# kb-infrastructure 基础设施连接默认配置
+# 由 kb-api / kb-etl 等运行时模块继承，可被覆盖
+# ============================================================
+
+spring:
+  # PostgreSQL（依赖由 kb-domain 引入，配置由 kb-infrastructure 承载）
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/kb_rag_agent}
+    username: ${DB_USERNAME:kbadmin}
+    password: ${DB_PASSWORD:kbpass123}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+
+  # Milvus 向量数据库
+  ai:
+    vectorstore:
+      milvus:
+        client:
+          host: ${MILVUS_HOST:localhost}
+          port: ${MILVUS_PORT:19530}
+          username: ${MILVUS_USERNAME:}
+          password: ${MILVUS_PASSWORD:}
+        database-name: ${MILVUS_DATABASE:kb_rag_agent}
+        collection-name: ${MILVUS_COLLECTION:kb_chunks}
+        embedding-dimension: ${MILVUS_EMBEDDING_DIM:1024}
+        index-type: ${MILVUS_INDEX_TYPE:HNSW}
+        metric-type: ${MILVUS_METRIC_TYPE:COSINE}
+
+  # Elasticsearch
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
+    connection-timeout: 5s
+    socket-timeout: 30s
+
+  # Redis
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+
+# MinIO 对象存储
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:kb-documents}
