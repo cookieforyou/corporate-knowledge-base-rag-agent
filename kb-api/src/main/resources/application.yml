@@ -10,9 +10,9 @@ spring:
     virtual:
       enabled: true
 
-  # 数据源 (覆盖 dev profile 中的默认值)
+  # 数据源
   datasource:
-    url: jdbc:postgresql://localhost:5432/kb_rag_agent
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/kb_rag_agent}
     username: ${DB_USERNAME:kbadmin}
     password: ${DB_PASSWORD:kbpass123}
     hikari:
@@ -32,22 +32,25 @@ spring:
     openai:
       api-key: ${OPENAI_API_KEY:}
       chat:
-        model: gpt-4o-mini
+        model: ${OPENAI_MODEL:gpt-4o-mini}
         temperature: 0.1
         max-tokens: 4096
     ollama:
       chat:
-        model: qwen2.5:14b
+        model: ${OLLAMA_MODEL:qwen2.5:14b}
         temperature: 0.1
     vectorstore:
       milvus:
-        host: ${MILVUS_HOST:localhost}
-        port: ${MILVUS_PORT:19530}
-        database-name: kb_rag_agent
-        collection-name: kb_chunks
-        embedding-dimension: 1024
-        index-type: HNSW
-        metric-type: COSINE
+        client:
+          host: ${MILVUS_HOST:localhost}
+          port: ${MILVUS_PORT:19530}
+          username: ${MILVUS_USERNAME:}
+          password: ${MILVUS_PASSWORD:}
+        database-name: ${MILVUS_DATABASE:kb_rag_agent}
+        collection-name: ${MILVUS_COLLECTION:kb_chunks}
+        embedding-dimension: ${MILVUS_EMBEDDING_DIM:1024}
+        index-type: ${MILVUS_INDEX_TYPE:HNSW}
+        metric-type: ${MILVUS_METRIC_TYPE:COSINE}
     observations:
       enabled: true
       include-prompt: false
@@ -64,6 +67,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
       timeout: 3s
 
 # MinIO
@@ -71,7 +75,7 @@ minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
-  bucket: kb-documents
+  bucket: ${MINIO_BUCKET:kb-documents}
 
 # 日志
 logging:
@@ -95,7 +99,7 @@ management:
       application: kb-rag-agent
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${TRACING_SAMPLING:1.0}
 
 # 服务器
 server:
