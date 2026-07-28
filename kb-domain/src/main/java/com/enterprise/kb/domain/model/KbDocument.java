@@ -47,6 +47,12 @@ public class KbDocument {
     @Column(name = "page_count")
     private Integer pageCount;
 
+    @Column(name = "table_count")
+    private Integer tableCount;
+
+    @Column(name = "image_count")
+    private Integer imageCount;
+
     @Column(name = "chunk_count")
     private Integer chunkCount;
 

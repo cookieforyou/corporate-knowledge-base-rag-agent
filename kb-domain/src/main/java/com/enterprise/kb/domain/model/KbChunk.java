@@ -1,0 +1,71 @@
+package com.enterprise.kb.domain.model;
+
+import com.enterprise.kb.domain.enums.ChunkType;
+import jakarta.persistence.*;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+/**
+ * 切分块表（核心业务表）
+ */
+@Data
+@Entity
+@Table(name = "kb_chunk")
+public class KbChunk {
+
+    @Id
+    @Column(name = "id", length = 36)
+    private String id;
+
+    @Column(name = "doc_id", length = 36, nullable = false)
+    private String docId;
+
+    @Column(name = "section_id", length = 36)
+    private String sectionId;
+
+    @Column(name = "chunk_index", nullable = false)
+    private Integer chunkIndex;
+
+    @Column(name = "content", columnDefinition = "TEXT", nullable = false)
+    private String content;
+
+    @Column(name = "original_content", columnDefinition = "TEXT")
+    private String originalContent;
+
+    @Column(name = "page_num")
+    private Integer pageNum;
+
+    @Column(name = "token_count")
+    private Integer tokenCount;
+
+    @Column(name = "metadata", columnDefinition = "JSONB")
+    private String metadata = "{}";
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "chunk_type", length = 20)
+    private ChunkType chunkType = ChunkType.TEXT;
+
+    @Column(name = "vector_id", length = 100)
+    private String vectorId;
+
+    @Column(name = "is_deleted")
+    private Boolean isDeleted = false;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+}

@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-infrastructure</artifactId>
     <name>kb-infrastructure</name>
-    <description>基础设施模块：Milvus、Elasticsearch、Redis、MinIO、OCR 适配</description>
+    <description>基础设施模块：向量库双后端、Elasticsearch、Redis、MinIO、OCR 适配</description>
 
     <dependencies>
         <dependency>
