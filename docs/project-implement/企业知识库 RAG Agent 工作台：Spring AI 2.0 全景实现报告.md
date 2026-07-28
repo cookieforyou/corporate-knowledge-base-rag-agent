@@ -2,7 +2,7 @@
 
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
-> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ Elasticsearch 8.19 + Redis 8
+> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ Elasticsearch 8.19 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
 >
 > **报告性质**：从 0 到 1 的全生命周期落地指南，覆盖战略定位、需求分析、架构设计、分阶段实施、代码实现、测试部署与运维
 >
@@ -130,6 +130,8 @@ Dify、阿里云百炼 Knowledge Studio、Microsoft Copilot Studio 等平台以"
 | **对象存储** | MinIO | 最新稳定版 | S3 兼容，文档 OSS 存储 |
 | **可观测性** | OpenTelemetry + Micrometer + Prometheus + Grafana | - | 全链路 Trace + 业务指标 |
 | **前端** | Vue3 + TypeScript | - | 工作台 UI |
+| **LLM** | DeepSeek V4 | deepseek-v4-flash | `spring-ai-starter-model-deepseek` 原生集成，性价比最高 |
+| **Embedding** | 阿里云百炼 DashScope | qwen3.7-text-embedding | OpenAI 兼容 API，通过 `spring-ai-starter-model-openai` 对接 |
 
 ### 2.2 Spring AI 2.0 核心能力矩阵
 
@@ -152,10 +154,11 @@ spring-ai-advisors-vector-store ← Advisor 桥接 (QuestionAnswerAdvisor)
 | Spring AI 2.0 能力 | 本项目对应模块 | 使用方式 |
 |-------------------|-------------|---------|
 | **ChatClient Fluent API** | Agent 对话 | Builder 模式构建，注入 Advisor 链 |
-| **Advisor 拦截器链** | 全部对话链路 | 自定义 7 个 Advisor（RAG/记忆/安全/审计/限流/溯源/预算） |
+| **Advisor 拦截器链** | 全部对话链路 | 自定义 9 个 Advisor（RAG/记忆/安全/审计/限流/溯源/预算） |
 | **@Tool 注解 + ToolCallingAdvisor** | Agent 工具调用 | 对接 OA/ERP/数据库查询等业务工具 |
+| **DeepSeekChatModel** | Agent 对话 | `spring-ai-starter-model-deepseek` 原生集成，替代 OpenAI |
 | **VectorStore 抽象** | 混合检索 | PgVectorStore / MilvusVectorStore 实现类，通过配置开关切换 |
-| **EmbeddingModel** | ETL 向量化 | 统一 Embedding 接口，可切换模型 |
+| **EmbeddingModel** | ETL 向量化 | DashScope（百炼）OpenAI 兼容接口，模型 qwen3.7-text-embedding |
 | **Document + DocumentReader/Transformer** | ETL 管道 | TikaDocumentReader + 自定义 Transformer |
 | **结构化输出 (.entity())** | 溯源格式化 | Map 到 AgentResponse record |
 | **Flux 流式响应** | SSE 推送 | 流式 Token + Trace 事件推送 |
@@ -284,7 +287,74 @@ public class VectorStoreConfig {
 - 事务一致性由 PG 保证
 - 支持 Chunk 级局部向量更新（delete + add），无需重建整个文档
 
-#### 决策 3：Advisor 链设计原则
+#### 决策 3：国产模型选型 — DeepSeek V4（LLM）+ 阿里云百炼（Embedding）
+
+项目采用 **国产模型 API**，不依赖本地 GPU 部署：
+
+```
+spring.ai.model.chat=deepseek     →  DeepSeekChatModel 原生集成
+spring.ai.model.embedding=openai  →  OpenAiEmbeddingModel → 百炼 DashScope
+
+┌──────────────────────────────────────────────────────────┐
+│                      kb-ai-core                          │
+│  ┌─────────────────────┐  ┌───────────────────────────┐  │
+│  │ DeepSeekChatModel   │  │  OpenAiEmbeddingModel     │  │
+│  │ (spring-ai-starter- │  │  (spring-ai-starter-      │  │
+│  │  model-deepseek)    │  │  model-openai)            │  │
+│  │                     │  │                           │  │
+│  │ model: deepseek-    │  │ base-url: dashscope.      │  │
+│  │        v4-flash     │  │  aliyuncs.com             │  │
+│  │ temp: 0.1           │  │ model: qwen3.7-text-      │  │
+│  │ max-tokens: 4096    │  │  embedding                │  │
+│  └─────────┬───────────┘  └───────────┬───────────────┘  │
+│            │                          │                  │
+└────────────┼──────────────────────────┼──────────────────┘
+             │                          │
+      ┌──────▼──────┐          ┌────────▼────────────┐
+      │ DeepSeek API│          │ 阿里云百炼 DashScope│
+      │ api.deepseek│          │ dashscope.aliyuncs  │
+      │   .com      │          │   .com              │
+      └─────────────┘          └─────────────────────┘
+```
+
+**配置示例**（`kb-api/application.yml`）：
+
+```yaml
+spring:
+  ai:
+    model:
+      chat: deepseek
+      embedding: openai
+
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      chat:
+        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        temperature: 0.1
+        max-tokens: 4096
+
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      embedding:
+        model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
+```
+
+**选型理由**：
+
+| 决策点 | 选择 | 理由 |
+|--------|------|------|
+| LLM | DeepSeek V4 (`deepseek-v4-flash`) | 国产开源标杆，RAG 场景得分 9.8/10；Spring AI 2.0 原生集成；API 价格约为 GPT-4o-mini 的 1/10 |
+| Embedding | 阿里云百炼 (`qwen3.7-text-embedding`) | 1024 维，中文语义理解出色；OpenAI 兼容 API 零额外适配成本；与 DeepSeek API 环境变量隔离 |
+
+**环境变量**：
+
+```bash
+export DEEPSEEK_API_KEY=sk-xxx       # DeepSeek 控制台获取
+export DASHSCOPE_API_KEY=sk-xxx      # 阿里云百炼控制台获取
+```
+
+#### 决策 4：Advisor 链设计原则
 
 Advisor 的执行顺序由 `getOrder()` 决定，本项目设计如下：
 
@@ -738,8 +808,9 @@ kb-rag-agent/                           # 父工程
 ├── kb-ai-core/                         # AI 核心模块
 │   └── src/main/java/com/enterprise/kb/ai/
 │       ├── config/                     # ChatClient 配置、模型 Bean 定义
-│       ├── advisor/                    # 8 个自定义 Advisor
-│       ├── chat/                       # SmartRoutingChatModel
+│       │   └── dashscopeEmbeddingConfig# 百炼 Embedding（OpenAI 兼容）
+│       ├── advisor/                    # 9 个自定义 Advisor
+│       ├── chat/                       # DeepSeekChatModel 集成
 │       ├── tool/                       # @Tool 工具注册
 │       ├── prompt/                     # PromptTemplateManager
 │       ├── retriever/                  # HybridRetrievalService, RrfFusionReranker
@@ -2330,10 +2401,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 企业级多模型智能路由器
  * 
  * 核心策略：
- * - 简单查询（无工具调用、短文本）→ 经济模型 (gpt-4o-mini)
- * - 中等复杂度（含工具调用、中等长度）→ 标准模型 (claude-sonnet)
- * - 高复杂度（多工具编排、长文本推理）→ 旗舰模型 (gpt-4.1)
- * - 敏感数据场景 → 本地部署 vLLM (Ollama)
+ * - 简单查询（无工具调用、短文本）→ 经济模型 (deepseek-v4-flash)
+ * - 中等复杂度（含工具调用、中等长度）→ 标准模型 (deepseek-v4-flash)
+ * - 高复杂度（多工具编排、长文本推理）→ 旗舰模型 (deepseek-v4-pro, 低温度)
  * - 主模型故障时自动 Fallback 到备用模型（含熔断器保护）
  */
 @Component
@@ -2344,10 +2414,10 @@ public class SmartRoutingChatModel implements ChatModel {
     private final AtomicInteger roundRobinIndex = new AtomicInteger(0);
     
     public enum ModelTier {
-        ECONOMY,    // 经济型: gpt-4o-mini, claude-haiku
-        STANDARD,   // 标准型: claude-sonnet, gpt-4o
-        PREMIUM,    // 旗舰型: gpt-4.1, claude-opus
-        LOCAL       // 本地型: ollama/qwen2.5
+        ECONOMY,    // 经济型: deepseek-v4-flash
+        STANDARD,   // 标准型: deepseek-v4-flash
+        PREMIUM,    // 旗舰型: deepseek-v4-pro (低 temperature)
+        LOCAL       // 本地型: 预留
     }
     
     public SmartRoutingChatModel(Map<ModelTier, List<ChatModel>> modelPool) {
@@ -3591,11 +3661,11 @@ spec:
     <!-- 模型提供商 -->
     <dependency>
         <groupId>org.springframework.ai</groupId>
-        <artifactId>spring-ai-starter-model-openai</artifactId>
+        <artifactId>spring-ai-starter-model-deepseek</artifactId>
     </dependency>
     <dependency>
         <groupId>org.springframework.ai</groupId>
-        <artifactId>spring-ai-starter-model-ollama</artifactId>
+        <artifactId>spring-ai-starter-model-openai</artifactId>
     </dependency>
     
     <!-- 向量存储 -->
@@ -3644,18 +3714,22 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   
-  # AI 配置 (Spring AI 2.0 扁平化配置风格，已移除 1.x 的 .options 嵌套层级)
+  # AI 配置 (Spring AI 2.0)
   ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
+    model:
+      chat: deepseek
+      embedding: openai
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
       chat:
-        model: gpt-4o
+        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
         temperature: 0.1
         max-tokens: 4096
-    ollama:
-      chat:
-        model: qwen2.5:14b
-        temperature: 0.1
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      embedding:
+        model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
     vectorstore:
       milvus:
         host: localhost

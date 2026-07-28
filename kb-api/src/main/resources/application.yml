@@ -21,19 +21,29 @@ spring:
 
   # AI 模型配置
   ai:
-    # 禁用 Spring AI 原生 VectorStore auto-config（由 kb-infrastructure VectorStoreConfig 手动装配）
     vectorstore:
       type: custom
-    openai:
-      api-key: ${OPENAI_API_KEY:}
+
+    # ── Model Provider 选择 ──
+    model:
+      chat: deepseek             # DeepSeek V4
+      embedding: openai          # OpenAI 兼容（实际指向百炼）
+
+    # ── DeepSeek V4 Chat ──
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
       chat:
-        model: ${OPENAI_MODEL:gpt-4o-mini}
+        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
         temperature: 0.1
         max-tokens: 4096
-    ollama:
-      chat:
-        model: ${OLLAMA_MODEL:qwen2.5:14b}
-        temperature: 0.1
+
+    # ── 阿里云百炼 Embedding（OpenAI 兼容 API） ──
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      embedding:
+        model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
+
     observations:
       enabled: true
       include-prompt: false
