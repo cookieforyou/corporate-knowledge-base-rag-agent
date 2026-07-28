@@ -21,6 +21,9 @@ spring:
 
   # AI 模型配置
   ai:
+    # 禁用 Spring AI 原生 VectorStore auto-config（由 kb-infrastructure VectorStoreConfig 手动装配）
+    vectorstore:
+      type: custom
     openai:
       api-key: ${OPENAI_API_KEY:}
       chat:

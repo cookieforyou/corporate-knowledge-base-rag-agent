@@ -6,8 +6,8 @@
 
 ## 技术栈
 
-- Java 21 + Spring Boot 4.0.7 + Spring AI 2.0.0 GA
-- PostgreSQL 16（主数据库）+ Milvus 2.4（向量库）+ Elasticsearch 8（BM25）+ Redis 7（缓存）
+- Java 21 + Spring Boot 4.1.0 + Spring AI 2.0.0 GA
+- PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ Elasticsearch 8.19（BM25）+ Redis 8（缓存）
 - Maven 多模块（8 个子模块）+ Docker Compose 本地开发
 
 ## 项目结构

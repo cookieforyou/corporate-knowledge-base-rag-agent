@@ -13,7 +13,8 @@ spring:
       maximum-pool-size: ${DB_POOL_MAX:20}
       minimum-idle: ${DB_POOL_MIN:5}
 
-  # Milvus 向量数据库
+  # @Deprecated: 旧版 Milvus 配置（仅当 spring.ai.vectorstore.type=milvus 且未使用 kb.vector-store 时生效）
+  # 请迁移至下方 kb.vector-store.milvus.* 配置
   ai:
     vectorstore:
       milvus:
@@ -48,3 +49,30 @@ minio:
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket: ${MINIO_BUCKET:kb-documents}
+
+# ============================================================
+# kb.vector-store — 向量库多后端配置（替代 spring.ai.vectorstore.*）
+# 通过 KB_VECTOR_STORE_PROVIDER 环境变量切换: pgvector | milvus
+# ============================================================
+kb:
+  vector-store:
+    provider: ${KB_VECTOR_STORE_PROVIDER:milvus}
+
+    pgvector:
+      table-name: ${KB_PGVECTOR_TABLE:kb_embeddings}
+      schema-name: ${KB_PGVECTOR_SCHEMA:public}
+      dimensions: ${KB_PGVECTOR_DIMENSIONS:1024}
+      distance-type: ${KB_PGVECTOR_DISTANCE:COSINE_DISTANCE}
+      index-type: ${KB_PGVECTOR_INDEX:HNSW}
+      initialize-schema: ${KB_PGVECTOR_INIT_SCHEMA:true}
+
+    milvus:
+      host: ${KB_MILVUS_HOST:localhost}
+      port: ${KB_MILVUS_PORT:19530}
+      username: ${KB_MILVUS_USERNAME:}
+      password: ${KB_MILVUS_PASSWORD:}
+      database-name: ${KB_MILVUS_DATABASE:kb_rag_agent}
+      collection-name: ${KB_MILVUS_COLLECTION:kb_chunks}
+      embedding-dimension: ${KB_MILVUS_EMBEDDING_DIM:1024}
+      index-type: ${KB_MILVUS_INDEX_TYPE:HNSW}
+      metric-type: ${KB_MILVUS_METRIC_TYPE:COSINE}

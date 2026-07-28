@@ -7,11 +7,11 @@
 | 层 | 技术 |
 |---|------|
 | 语言 | Java 21（虚拟线程） |
-| 框架 | Spring Boot 4.0 + Spring AI 2.0.0 GA |
-| 向量库 | Milvus 2.4 |
-| 全文检索 | Elasticsearch 8（BM25） |
-| 数据库 | PostgreSQL 16 |
-| 缓存 | Redis 7 |
+| 框架 | Spring Boot 4.1 + Spring AI 2.0.0 GA |
+| 向量库 | Milvus 2.6 / pgvector |
+| 全文检索 | Elasticsearch 8.19（BM25） |
+| 数据库 | PostgreSQL 18 |
+| 缓存 | Redis 8 |
 | 对象存储 | MinIO |
 | 可观测 | OpenTelemetry + Micrometer + Prometheus + Grafana |
 | 前端 | Vue3 + TypeScript |

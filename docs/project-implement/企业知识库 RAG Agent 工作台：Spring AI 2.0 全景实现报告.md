@@ -2,7 +2,7 @@
 
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
-> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + Milvus + Elasticsearch + PostgreSQL + Redis
+> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ Elasticsearch 8.19 + Redis 8
 >
 > **报告性质**：从 0 到 1 的全生命周期落地指南，覆盖战略定位、需求分析、架构设计、分阶段实施、代码实现、测试部署与运维
 >
@@ -123,10 +123,10 @@ Dify、阿里云百炼 Knowledge Studio、Microsoft Copilot Studio 等平台以"
 | **语言** | Java | 21 LTS | 虚拟线程、结构化并发、Record、Pattern Matching |
 | **框架** | Spring Boot | 4.1.x | Spring AI 2.0 基线要求 |
 | **AI 核心** | Spring AI | 2.0.0 GA | 2026.6.12 发布，企业级 AI 应用开发平台 |
-| **向量数据库** | Milvus | 2.4+ | 分布式、HNSW 索引、十亿级向量规模 |
-| **全文检索** | Elasticsearch | 8.x | BM25 关键词检索 + RRF 原生支持 |
-| **关系数据库** | PostgreSQL | 16+ | 主数据/元数据存储，事务一致性 |
-| **缓存** | Redis | 7.x+ | 会话记忆、限流、Semantic Cache (RediSearch) |
+| **向量数据库** | Milvus / pgvector | 2.6+ / PG18 扩展 | 双后端可切换：小规模用 pgvector（零运维增量），大规模用 Milvus（分布式 HNSW） |
+| **全文检索** | Elasticsearch | 8.19 | BM25 关键词检索 + RRF 原生支持 |
+| **关系数据库** | PostgreSQL | 18+ | 主数据/元数据存储，事务一致性 |
+| **缓存** | Redis | 8.x+ | 会话记忆、限流、Semantic Cache (RediSearch) |
 | **对象存储** | MinIO | 最新稳定版 | S3 兼容，文档 OSS 存储 |
 | **可观测性** | OpenTelemetry + Micrometer + Prometheus + Grafana | - | 全链路 Trace + 业务指标 |
 | **前端** | Vue3 + TypeScript | - | 工作台 UI |
@@ -154,7 +154,7 @@ spring-ai-advisors-vector-store ← Advisor 桥接 (QuestionAnswerAdvisor)
 | **ChatClient Fluent API** | Agent 对话 | Builder 模式构建，注入 Advisor 链 |
 | **Advisor 拦截器链** | 全部对话链路 | 自定义 7 个 Advisor（RAG/记忆/安全/审计/限流/溯源/预算） |
 | **@Tool 注解 + ToolCallingAdvisor** | Agent 工具调用 | 对接 OA/ERP/数据库查询等业务工具 |
-| **VectorStore 抽象** | 混合检索 | MilvusVectorStore 实现类 |
+| **VectorStore 抽象** | 混合检索 | PgVectorStore / MilvusVectorStore 实现类，通过配置开关切换 |
 | **EmbeddingModel** | ETL 向量化 | 统一 Embedding 接口，可切换模型 |
 | **Document + DocumentReader/Transformer** | ETL 管道 | TikaDocumentReader + 自定义 Transformer |
 | **结构化输出 (.entity())** | 溯源格式化 | Map 到 AgentResponse record |
@@ -175,7 +175,96 @@ spring-ai-advisors-vector-store ← Advisor 桥接 (QuestionAnswerAdvisor)
 | **可观测性** | 原生 Micrometer/OTel 集成 | 需手动集成 |
 | **社区与维护** | VMware/Tanzu 官方维护 | 社区驱动 |
 
-#### 决策 2：Milvus + PostgreSQL 双库解耦
+#### 决策 2：向量库双后端策略 — pgvector + Milvus 可切换
+
+项目同时集成 **pgvector**（PostgreSQL 向量扩展）和 **Milvus**（分布式向量数据库），通过配置开关 `kb.vector-store.provider` 让用户按场景选择。
+
+```
+kb.vector-store.provider = pgvector | milvus
+
+┌────────────────────────────────────────────────────────┐
+│                    VectorStore 接口                    │
+│          (Spring AI 统一抽象，上层无感知)              │
+└────────────┬──────────────────────────┬────────────────┘
+             │                          │
+    ┌────────▼────────┐        ┌────────▼────────┐
+    │  PgVectorStore  │        │MilvusVectorStore│
+    │  (小规模场景)   │        │  (大规模场景)   │
+    ├─────────────────┤        ├─────────────────┤
+    │ 基于 PG 原生    │        │ 独立 Milvus 服务│
+    │ pgvector 扩展   │        │ 分布式 HNSW 索引│
+    │ 零运维增量      │        │ 十亿级向量规模  │
+    │ SQL 级过滤      │        │ GPU 加速检索    │
+    └────────┬────────┘        └────────┬────────┘
+             │                          │
+    ┌────────▼────────┐        ┌────────▼────────┐
+    │  PostgreSQL 18  │        │   Milvus 2.6+   │
+    │  + pgvector     │        │   + etcd        │
+    └─────────────────┘        └─────────────────┘
+```
+
+**选型建议**：
+
+| 场景 | 推荐后端 | 理由 |
+|------|---------|------|
+| Chunk < 10万，开发/测试环境 | pgvector | 复用已有 PG，零额外运维 |
+| Chunk 10万-100万 | pgvector 或 Milvus | pgvector 调优后仍可胜任，Milvus 性能更佳 |
+| Chunk > 100万 | Milvus | 分布式架构，查询延迟稳定 |
+| 需要 GPU 加速 | Milvus | 原生 GPU 索引支持 |
+
+**实现方式**：
+
+```java
+// kb-infrastructure/vectorstore/VectorStoreConfig.java
+@Configuration
+@EnableConfigurationProperties(KbVectorStoreProperties.class)
+public class VectorStoreConfig {
+
+    @Bean
+    @ConditionalOnProperty(prefix = "kb.vector-store", name = "provider",
+        havingValue = "pgvector", matchIfMissing = false)
+    public VectorStore pgvectorVectorStore(
+        JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel, ...) {
+        return PgVectorStore.builder(jdbcTemplate, embeddingModel).build();
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "kb.vector-store", name = "provider",
+        havingValue = "milvus", matchIfMissing = true)
+    public VectorStore milvusVectorStore(
+        MilvusServiceClient milvusClient, EmbeddingModel embeddingModel, ...) {
+        return MilvusVectorStore.builder(milvusClient, embeddingModel).build();
+    }
+}
+```
+
+**关键设计**：
+- 上层模块（kb-ai-core、kb-etl）注入 `VectorStore` 接口，完全不感知底层实现
+- `kb.vector-store.provider` 默认 `milvus`，保证向后兼容
+- 通过 `spring.ai.vectorstore.type=custom` 禁用 Spring AI 原生 auto-config，改由 `@ConditionalOnProperty` 自定义条件装配
+- 切换只需一行配置或环境变量：`export KB_VECTOR_STORE_PROVIDER=pgvector`
+
+#### 决策 2b：PostgreSQL 双库解耦（pgvector 模式下天然解耦）
+
+**pgvector 模式**下，向量与主数据共享同一个 PostgreSQL 实例，但逻辑分离：
+
+```
+ PostgreSQL (主数据 + 向量)
+┌──────────────────────────────┐
+│  kb_document                 │
+│  kb_section                  │
+│  kb_chunk (主数据)           │
+│  kb_session / kb_message     │
+│  kb_audit_log / kb_feedback  │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│  kb_embeddings (pgvector)    │  ← 向量表，独立存储
+│    .id / .embedding(1024)    │
+│    .chunk_id (关联 kb_chunk) │
+│    .metadata (JSONB)         │
+└──────────────────────────────┘
+```
+
+**Milvus 模式**下，沿用原有的 PG-Milvus 双库解耦架构：
 
 ```
  PostgreSQL (主数据)           Milvus (向量副本)
@@ -190,10 +279,9 @@ spring-ai-advisors-vector-store ← Advisor 桥接 (QuestionAnswerAdvisor)
 └──────────────────┘         └───────────────────┘
 ```
 
-**优势**：
-- Chunk 可在 PG 中随意编辑，只需异步更新 Milvus 向量
+**两种模式的共同优势**：
+- Chunk 可在 PG 中随意编辑，只需异步更新向量
 - 事务一致性由 PG 保证
-- Milvus 只管"算"（高维向量检索），关系型数据库管"元数据"
 - 支持 Chunk 级局部向量更新（delete + add），无需重建整个文档
 
 #### 决策 3：Advisor 链设计原则
@@ -634,7 +722,8 @@ kb-rag-agent/                           # 父工程
 │       └── enums/                      # 枚举（DocumentStatus, ChunkType, ParseRoute）
 ├── kb-infrastructure/                  # 基础设施模块
 │   └── src/main/java/com/enterprise/kb/infrastructure/
-│       ├── milvus/                     # MilvusVectorStore 配置
+│       ├── vectorstore/                # 向量库双后端配置（pgvector + Milvus 可切换）
+│       ├── milvus/                     # MilvusServiceClient 配置
 │       ├── elasticsearch/              # ElasticsearchClient 配置
 │       ├── redis/                      # Redis 配置 + ChatMemory 实现
 │       ├── minio/                      # MinIO OSS 适配
@@ -706,7 +795,7 @@ kb-etl     kb-ai-core ← 依赖 kb-infrastructure + kb-domain
 
 ```sql
 -- ============================================
--- PostgreSQL 16 DDL（所有建表语句后执行独立 CREATE INDEX）
+-- PostgreSQL 18 DDL（所有建表语句后执行独立 CREATE INDEX）
 -- ============================================
 
 -- 1. 文档主表
@@ -849,7 +938,51 @@ CREATE TABLE kb_prompt_template (
 );
 ```
 
-### 7.2 Milvus Collection 设计
+### 7.2 pgvector 向量表设计（pgvector 模式）
+
+```sql
+-- pgvector 模式下，向量存储在 PostgreSQL 同一实例中
+-- 表由 Spring AI PgVectorStore 自动创建（initialize-schema=true），也可手动执行
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS kb_embeddings (
+    id          VARCHAR(36) PRIMARY KEY,           -- 对应 kb_chunk.id
+    embedding   vector(1024),                      -- 向量（维度与 EmbeddingModel 一致）
+    content     TEXT,                               -- Chunk 原文冗余（可选，便于调试）
+    metadata    JSONB DEFAULT '{}',                -- chunk_id / doc_id / tenant_id / chunk_type
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 向量索引（HNSW，查询性能最优）
+CREATE INDEX IF NOT EXISTS idx_embedding_hnsw
+    ON kb_embeddings USING hnsw (embedding vector_cosine_ops);
+
+-- 元数据查询索引
+CREATE INDEX IF NOT EXISTS idx_emb_metadata
+    ON kb_embeddings USING GIN (metadata);
+```
+
+**pgvector 模式配置**：
+
+```yaml
+kb:
+  vector-store:
+    provider: pgvector
+    pgvector:
+      table-name: kb_embeddings
+      schema-name: public
+      dimensions: 1024
+      distance-type: COSINE_DISTANCE
+      index-type: HNSW
+      initialize-schema: true
+```
+
+- 向量表与主数据表同库，通过 `id = kb_chunk.id` 外键关联
+- pgvector 的 HNSW 索引在小规模（< 10 万向量）下性能与 Milvus 接近
+- 无需额外中间件，减少运维复杂度
+
+### 7.3 Milvus Collection 设计（Milvus 模式）
 
 ```python
 # Milvus Collection Schema (伪代码描述)
@@ -875,7 +1008,7 @@ Search Parameters:
   - metric_type: COSINE
 ```
 
-### 7.3 Elasticsearch 索引设计
+### 7.4 Elasticsearch 索引设计
 
 ```json
 {
@@ -894,7 +1027,7 @@ Search Parameters:
 }
 ```
 
-### 7.4 Redis 缓存策略
+### 7.5 Redis 缓存策略
 
 | Key Pattern | 数据类型 | 用途 | TTL |
 |-------------|---------|------|-----|
@@ -3107,16 +3240,16 @@ public class PromptTemplateManager {
 class HybridRetrievalServiceIntegrationTest {
     
     @Container
-    static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16");
+    static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:18");
     
     @Container
-    static MilvusContainer milvus = new MilvusContainer("milvusdb/milvus:v2.4");
+    static MilvusContainer milvus = new MilvusContainer("milvusdb/milvus:v2.6");
     
     @Container
-    static ElasticsearchContainer es = new ElasticsearchContainer("elasticsearch:8.12.0");
+    static ElasticsearchContainer es = new ElasticsearchContainer("elasticsearch:8.19.0");
     
     @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7.2")
+    static GenericContainer<?> redis = new GenericContainer<>("redis:8.0")
         .withExposedPorts(6379);
     
     @DynamicPropertySource
@@ -3252,7 +3385,7 @@ public class EvalRunner {
 version: '3.8'
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: kb_rag_agent
       POSTGRES_USER: kbadmin
@@ -3261,7 +3394,7 @@ services:
     volumes: [pg_data:/var/lib/postgresql/data]
 
   milvus-standalone:
-    image: milvusdb/milvus:v2.4.0
+    image: milvusdb/milvus:v2.6.0
     command: ["milvus", "run", "standalone"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
@@ -3278,14 +3411,14 @@ services:
     # ... MinIO 配置
 
   elasticsearch:
-    image: elasticsearch:8.12.0
+    image: elasticsearch:8.19.0
     environment:
       discovery.type: single-node
       xpack.security.enabled: false
     ports: ["9200:9200"]
 
   redis:
-    image: redis:7.2-alpine
+    image: redis:8.0-alpine
     ports: ["6379:6379"]
 
   otel-collector:
@@ -3634,7 +3767,7 @@ spring:
 >
 > 的**企业级 AI 知识中枢**。
 >
-> **技术栈检查清单**：Java 21 ✓ | Spring Boot 4.1 ✓ | Spring AI 2.0.0 GA ✓ | Milvus ✓ | Elasticsearch ✓ | PostgreSQL 16 ✓ | Redis 7.2 ✓ | OpenTelemetry ✓ | Vue3 ✓
+> **技术栈检查清单**：Java 21 ✓ | Spring Boot 4.1 ✓ | Spring AI 2.0.0 GA ✓ | Milvus ✓ | Elasticsearch ✓ | PostgreSQL 18 ✓ | Redis 8 ✓ | OpenTelemetry ✓ | Vue3 ✓
 >
 > ---
 >
