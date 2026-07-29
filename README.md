@@ -19,13 +19,10 @@
 ## 快速开始
 
 ```bash
-# 1. 启动基础设施
-docker compose -f docker/docker-compose.yml up -d
-
-# 2. 编译项目
+# 编译项目
 mvn clean compile
 
-# 3. 启动应用
+# 启动应用
 mvn spring-boot:run -pl kb-api
 ```
 
@@ -40,7 +37,6 @@ mvn spring-boot:run -pl kb-api
 ├── kb-api/            # REST + SSE 接口（启动入口）
 ├── kb-admin/          # 运维后台
 ├── kb-eval/           # AI 评估
-├── docker/            # Docker Compose
 └── docs/              # 设计文档 + 进度追踪
 ```
 

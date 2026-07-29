@@ -389,8 +389,8 @@ Order  10  → TokenBudgetAdvisor     (成本追踪)
 
 #### P0 - MVP 必备（Phase 1，第 1-3 周）
 
-| 编号 | 功能点 | 所属子系统 | 核心价值 |
-|------|-------|----------|---------|
+| 编号  | 功能点 | 所属子系统 | 核心价值 |
+|-------|-------|----------|---------|
 | P0-01 | 基础对话 API（同步 + 流式） | Agent 对话 | 跑通 LLM 调用链路 |
 | P0-02 | 文档上传（PDF/Docx/MD/TXT） | 知识采编 | 知识入库入口 |
 | P0-03 | Tika 原生文档解析 | 知识采编 | 基础文档解析能力 |
@@ -400,9 +400,8 @@ Order  10  → TokenBudgetAdvisor     (成本追踪)
 | P0-07 | 前端基础对话界面 | Agent 对话 | 用户交互入口 |
 | P0-08 | 后端基础工程骨架（多模块 Maven） | 工程基础 | 可持续开发的架构 |
 | P0-09 | PostgreSQL 核心表结构 | 数据架构 | 数据持久化 |
-| P0-10 | Docker Compose 本地开发环境 | 部署运维 | 一键启动开发环境 |
-| P0-11 | 基础日志与异常处理 | 可观测性 | 问题排查能力 |
-| P0-12 | 统一 API 响应格式 | 工程基础 | API 规范 |
+| P0-10 | 基础日志与异常处理 | 可观测性 | 问题排查能力 |
+| P0-11 | 统一 API 响应格式 | 工程基础 | API 规范 |
 
 #### P1 - 核心差异化（Phase 2，第 4-7 周）
 
@@ -1136,25 +1135,23 @@ Phase 1 (W1-W3)     Phase 2 (W4-W7)      Phase 3 (W8-W12)     Phase 4 (W13-W16) 
 
 #### 任务清单（12 项）
 
-| # | 任务 | 负责模块 | 工时估算 | 验收标准 |
-|---|------|---------|---------|---------|
-| 1.1 | 搭建 Maven 多模块工程骨架（8 个模块） | 工程基础 | 2d | `mvn clean compile` 通过 |
-| 1.2 | 配置 Spring Boot 4.1 + Spring AI 2.0.0 GA BOM | kb-commons | 0.5d | 依赖解析无冲突 |
-| 1.3 | 实现 PostgreSQL 核心表（DDL + JPA Entity） | kb-domain | 1.5d | 表创建 + Repository CRUD 验证 |
-| 1.4 | 部署 Docker Compose 本地环境（PG + Milvus + Redis + ES + MinIO） | 部署 | 1d | `docker compose up -d` 全部启动 |
-| 1.5 | 实现基础文档上传 API（MultipartFile → MinIO） | kb-api | 1d | Postman 上传成功 |
-| 1.6 | 实现 TikaDocumentReader + TokenTextSplitter 基础 ETL | kb-etl | 2d | PDF/Docx 解析 + 切分验证 |
-| 1.7 | 实现 EmbeddingModel 向量化 + MilvusVectorStore 写入 | kb-etl | 1d | Milvus 中可查向量 |
-| 1.8 | 配置 ChatClient + QuestionAnswerAdvisor 基础 RAG | kb-ai-core | 1d | 知识库问答返回正确 |
-| 1.9 | 实现基础对话 REST API（同步 + 流式 SSE） | kb-api | 1.5d | curl SSE 流式输出 |
-| 1.10 | 实现统一 API 响应格式 + 全局异常处理 | kb-api | 0.5d | 错误响应格式统一 |
-| 1.11 | 搭建 Vue3 前端基础工程 + 对话界面 | 前端 | 2d | 可对话 + 流式渲染 |
-| 1.12 | 配置基础日志（Logback JSON 格式） | 工程基础 | 0.5d | 结构化日志输出 |
+| #    | 任务 | 负责模块 | 工时估算 | 验收标准 |
+|------|------|---------|---------|---------|
+| 1.1  | 搭建 Maven 多模块工程骨架（8 个模块） | 工程基础 | 2d | `mvn clean compile` 通过 |
+| 1.2  | 配置 Spring Boot 4.1 + Spring AI 2.0.0 GA BOM | kb-commons | 0.5d | 依赖解析无冲突 |
+| 1.3  | 实现 PostgreSQL 核心表（DDL + JPA Entity） | kb-domain | 1.5d | 表创建 + Repository CRUD 验证 |
+| 1.4  | 实现基础文档上传 API（MultipartFile → MinIO） | kb-api | 1d | Postman 上传成功 |
+| 1.5  | 实现 TikaDocumentReader + TokenTextSplitter 基础 ETL | kb-etl | 2d | PDF/Docx 解析 + 切分验证 |
+| 1.6  | 实现 EmbeddingModel 向量化 + MilvusVectorStore 写入 | kb-etl | 1d | Milvus 中可查向量 |
+| 1.7  | 配置 ChatClient + QuestionAnswerAdvisor 基础 RAG | kb-ai-core | 1d | 知识库问答返回正确 |
+| 1.8  | 实现基础对话 REST API（同步 + 流式 SSE） | kb-api | 1.5d | curl SSE 流式输出 |
+| 1.9  | 实现统一 API 响应格式 + 全局异常处理 | kb-api | 0.5d | 错误响应格式统一 |
+| 1.10 | 搭建 Vue3 前端基础工程 + 对话界面 | 前端 | 2d | 可对话 + 流式渲染 |
+| 1.11 | 配置基础日志（Logback JSON 格式） | 工程基础 | 0.5d | 结构化日志输出 |
 
 #### 交付物
 
 - [ ] 可运行的多模块 Maven 工程
-- [ ] Docker Compose 一键启动脚本
 - [ ] 文档上传 API（PDF/Docx/MD/TXT）
 - [ ] 基础 ETL 管道（Tika 解析 + Token 切分 + Milvus 入库）
 - [ ] 单路 RAG 问答 API（同步 + SSE 流式）
@@ -3448,55 +3445,7 @@ public class EvalRunner {
 
 ## 第十七章：部署与运维
 
-### 17.1 Docker Compose 本地开发环境
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  postgres:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_DB: kb_rag_agent
-      POSTGRES_USER: kbadmin
-      POSTGRES_PASSWORD: kbpass123
-    ports: ["5432:5432"]
-    volumes: [pg_data:/var/lib/postgresql/data]
-
-  milvus-standalone:
-    image: milvusdb/milvus:v2.6.0
-    command: ["milvus", "run", "standalone"]
-    environment:
-      ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9000
-    ports: ["19530:19530", "9091:9091"]
-    depends_on: [etcd, minio]
-
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    # ... etcd 配置
-
-  minio:
-    image: minio/minio:latest
-    # ... MinIO 配置
-
-  elasticsearch:
-    image: elasticsearch:8.19.0
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: false
-    ports: ["9200:9200"]
-
-  redis:
-    image: redis:8.0-alpine
-    ports: ["6379:6379"]
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    # ... OTEL 配置
-```
-
-### 17.2 Kubernetes 生产部署（关键配置）
+### 17.1 Kubernetes 生产部署（关键配置）
 
 ```yaml
 # kb-api-deployment.yaml
@@ -3558,7 +3507,7 @@ spec:
         averageUtilization: 70
 ```
 
-### 17.3 Milvus 分布式集群架构
+### 17.2 Milvus 分布式集群架构
 
 ```
                     ┌──────────────┐

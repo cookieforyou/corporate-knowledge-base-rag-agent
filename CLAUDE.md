@@ -8,7 +8,7 @@
 
 - Java 21 + Spring Boot 4.1.0 + Spring AI 2.0.0 GA
 - PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ Elasticsearch 8.19（BM25）+ Redis 8（缓存）
-- Maven 多模块（8 个子模块）+ Docker Compose 本地开发
+- Maven 多模块（8 个子模块）
 
 ## 项目结构
 
@@ -21,8 +21,7 @@ kb-rag-agent/
 ├── kb-ai-core/        # ChatClient、Advisor、Prompt、检索
 ├── kb-api/            # REST Controller、SSE（Spring Boot 入口）
 ├── kb-admin/          # 运维后台接口
-├── kb-eval/           # AI 评估测试
-└── docker/            # Docker Compose 本地环境
+└── kb-eval/           # AI 评估测试
 ```
 
 ## 构建与运行
@@ -30,9 +29,6 @@ kb-rag-agent/
 ```bash
 # 编译
 mvn clean compile
-
-# 启动本地基础设施（PG + Milvus + ES + Redis + MinIO）
-docker compose -f docker/docker-compose.yml up -d
 
 # 启动应用（kb-api 模块）
 mvn spring-boot:run -pl kb-api
