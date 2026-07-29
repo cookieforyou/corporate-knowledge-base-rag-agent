@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.controller;
 
+import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.DocumentService;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -17,21 +18,11 @@ import java.util.Map;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final JwtUtils jwtUtils;
 
-    /**
-     * 上传文档
-     *
-     * @param file      文件（PDF/Docx/MD/TXT/HTML）
-     * @param tenantId  租户 ID（Header 传入，Phase 1 默认 "default"）
-     * @param createdBy 创建者（Header 传入，Phase 1 默认 "system"）
-     */
     @PostMapping("/upload")
-    public ApiResponse<Map<String, String>> upload(
-            @RequestParam("file") MultipartFile file,
-            @RequestHeader(value = "X-Tenant-Id", defaultValue = "default") String tenantId,
-            @RequestHeader(value = "X-User-Id", defaultValue = "system") String createdBy) {
-
-        String docId = documentService.upload(file, tenantId, createdBy);
+    public ApiResponse<Map<String, String>> upload(@RequestParam("file") MultipartFile file) {
+        String docId = documentService.upload(file, jwtUtils.getCurrentTenantId(), jwtUtils.getCurrentUsername());
         return ApiResponse.success(Map.of("docId", docId));
     }
 }

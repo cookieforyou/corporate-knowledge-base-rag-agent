@@ -1,10 +1,12 @@
 package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.service.ChatService;
+import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -15,12 +17,14 @@ import java.util.concurrent.Executor;
 /**
  * Agent 对话 Controller — 同步 + SSE 流式
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class AgentController {
 
     private final ChatService chatService;
+    private final JwtUtils jwtUtils;
     private final Executor etlExecutor;
     private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -36,6 +40,7 @@ public class AgentController {
     @PostMapping("/chat")
     public ApiResponse<Map<String, String>> chat(@RequestBody Map<String, String> body) {
         String query = body.get("query");
+        log.info("用户 [{}] 发起问答: {}", jwtUtils.getCurrentUsername(), query);
         String answer = chatService.chat(query);
         return ApiResponse.success(Map.of("answer", answer));
     }
