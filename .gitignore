@@ -3,6 +3,8 @@
 .claude
 target
 logs
+dist
+node_modules
 .env
 .env.docker
 .env.local

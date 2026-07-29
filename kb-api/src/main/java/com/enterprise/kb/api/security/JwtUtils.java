@@ -10,7 +10,7 @@ import java.util.Optional;
 /**
  * JWT 工具 — 从当前请求的 SecurityContext 中提取用户信息
  *
- * <p>基于 Casdoor JWT payload 实际字段映射：</p>
+ * <p>基于 JWT payload 实际字段映射：</p>
  * <pre>
  * sub   → userId  (UUID)
  * name  → username (如 user_10001)
@@ -20,28 +20,28 @@ import java.util.Optional;
 @Component
 public class JwtUtils {
 
-    /** 当前用户 ID（Casdoor sub = UUID） */
+    /** 当前用户 ID（sub = UUID） */
     public String getCurrentUserId() {
         return getJwt()
             .map(jwt -> jwt.getClaimAsString("sub"))
             .orElse("anonymous");
     }
 
-    /** 当前租户 ID（Casdoor owner） */
+    /** 当前租户 ID（owner） */
     public String getCurrentTenantId() {
         return getJwt()
             .map(jwt -> jwt.getClaimAsString("owner"))
             .orElse("default");
     }
 
-    /** 当前用户名（Casdoor name） */
+    /** 当前用户名（name） */
     public String getCurrentUsername() {
         return getJwt()
             .map(jwt -> jwt.getClaimAsString("name"))
             .orElse("anonymous");
     }
 
-    /** 当前用户展示名（Casdoor displayName） */
+    /** 当前用户展示名（displayName） */
     public String getCurrentDisplayName() {
         return getJwt()
             .map(jwt -> jwt.getClaimAsString("displayName"))
