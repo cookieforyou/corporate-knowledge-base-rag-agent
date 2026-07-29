@@ -2,7 +2,7 @@
 
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
-> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ Elasticsearch 8.19 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
+> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 8.19 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
 >
 > **报告性质**：从 0 到 1 的全生命周期落地指南，覆盖战略定位、需求分析、架构设计、分阶段实施、代码实现、测试部署与运维
 >
@@ -1133,7 +1133,7 @@ Phase 1 (W1-W3)     Phase 2 (W4-W7)      Phase 3 (W8-W12)     Phase 4 (W13-W16) 
 
 **目标**：跑通"文档上传 → 基础切分 → 向量入库 → 单路 RAG 问答"闭环
 
-#### 任务清单（12 项）
+#### 任务清单（11 项）
 
 | #    | 任务 | 负责模块 | 工时估算 | 验收标准 |
 |------|------|---------|---------|---------|
@@ -1142,7 +1142,7 @@ Phase 1 (W1-W3)     Phase 2 (W4-W7)      Phase 3 (W8-W12)     Phase 4 (W13-W16) 
 | 1.3  | 实现 PostgreSQL 核心表（DDL + JPA Entity） | kb-domain | 1.5d | 表创建 + Repository CRUD 验证 |
 | 1.4  | 实现基础文档上传 API（MultipartFile → MinIO） | kb-api | 1d | Postman 上传成功 |
 | 1.5  | 实现 TikaDocumentReader + TokenTextSplitter 基础 ETL | kb-etl | 2d | PDF/Docx 解析 + 切分验证 |
-| 1.6  | 实现 EmbeddingModel 向量化 + MilvusVectorStore 写入 | kb-etl | 1d | Milvus 中可查向量 |
+| 1.6  | 实现 EmbeddingModel 向量化 + VectorStore 写入 | kb-etl | 1d | 向量库中可查向量 |
 | 1.7  | 配置 ChatClient + QuestionAnswerAdvisor 基础 RAG | kb-ai-core | 1d | 知识库问答返回正确 |
 | 1.8  | 实现基础对话 REST API（同步 + 流式 SSE） | kb-api | 1.5d | curl SSE 流式输出 |
 | 1.9  | 实现统一 API 响应格式 + 全局异常处理 | kb-api | 0.5d | 错误响应格式统一 |
