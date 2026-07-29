@@ -844,17 +844,14 @@ kb-commons            ← 无依赖（基础层）
     ↑
 kb-domain             ← 依赖 kb-commons
     ↑
-kb-infrastructure     ← 依赖 kb-domain + kb-commons
+kb-infrastructure     ← 依赖 kb-domain（kb-commons 传递可得）
     ↑          ↑
-kb-etl     kb-ai-core ← 依赖 kb-infrastructure + kb-domain
-    ↑          ↑
-    └─────┬────┘
-          ↑
+kb-etl     kb-ai-core ← 依赖 kb-infrastructure（kb-domain + kb-commons 传递可得）
+    ↑          ↑  ↑
+    └─────┬────┘  ├── kb-admin
+          ↑       ├── kb-eval
+          │       └── ← 依赖 kb-ai-core（kb-domain + kb-infrastructure 传递可得）
        kb-api         ← 依赖 kb-etl + kb-ai-core
-          ↑
-       kb-admin       ← 依赖 kb-api + kb-domain
-          ↑
-       kb-eval        ← 依赖 kb-api + kb-ai-core
 ```
 
 ---
