@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.scheduling.annotation.Async;
@@ -24,13 +25,12 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * 文档 ETL 服务 — Tika 解析 → Token 切分 → PG 落库
- *
- * <p>Phase 1 基础版：不包含向量化（1.6 实现），不包含进度推送（WebSocket 延后）。</p>
+ * 文档 ETL 服务 — Tika 解析 → Token 切分 → PG 落库 → 向量化写入
  */
 @Slf4j
 @Service
@@ -40,6 +40,7 @@ public class DocumentEtlService {
     private final MinioClient minioClient;
     private final KbDocumentRepository documentRepository;
     private final KbChunkRepository chunkRepository;
+    private final VectorStore vectorStore;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -80,7 +81,11 @@ public class DocumentEtlService {
 
             // Stage 3: 落 kb_chunk 表
             progressCallback.accept(new EtlProgress(docId, EtlStage.PERSISTING));
-            persistChunks(docId, chunks);
+            List<KbChunk> entities = persistChunks(docId, chunks);
+
+            // Stage 4: 向量化 + 写入 VectorStore
+            progressCallback.accept(new EtlProgress(docId, EtlStage.EMBEDDING));
+            embedAndStore(doc, entities);
 
             // 更新文档状态
             doc.setStatus(DocumentStatus.SUCCESS);
@@ -120,7 +125,7 @@ public class DocumentEtlService {
         return reader.get();
     }
 
-    private void persistChunks(String docId, List<Document> chunks) {
+    private List<KbChunk> persistChunks(String docId, List<Document> chunks) {
         List<KbChunk> entities = new ArrayList<>();
         for (int i = 0; i < chunks.size(); i++) {
             Document chunk = chunks.get(i);
@@ -131,6 +136,33 @@ public class DocumentEtlService {
             entity.setContent(chunk.getText());
             entity.setChunkType(ChunkType.TEXT);
             entities.add(entity);
+        }
+        chunkRepository.saveAll(entities);
+        return entities;
+    }
+
+    /**
+     * 向量化并写入 VectorStore（pgvector 或 Milvus，取决于配置）
+     */
+    private void embedAndStore(KbDocument doc, List<KbChunk> entities) {
+        List<Document> vectorDocs = entities.stream()
+            .map(e -> {
+                Document d = new Document(e.getId(), e.getContent(),
+                    Map.of("chunk_id", e.getId(),
+                           "doc_id", doc.getId(),
+                           "tenant_id", doc.getTenantId(),
+                           "chunk_type", e.getChunkType().name()));
+                return d;
+            })
+            .toList();
+
+        // VectorStore.add() 内部自动调用 EmbeddingModel 完成向量化，以 Document.id 作为 vector_id
+        vectorStore.add(vectorDocs);
+        log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), vectorDocs.size());
+
+        // 回写 vector_id（与 chunk_id 一致）
+        for (KbChunk entity : entities) {
+            entity.setVectorId(entity.getId());
         }
         chunkRepository.saveAll(entities);
     }
