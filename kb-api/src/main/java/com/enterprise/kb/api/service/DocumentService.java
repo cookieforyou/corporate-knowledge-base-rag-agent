@@ -4,6 +4,7 @@ import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
+import com.enterprise.kb.etl.service.DocumentEtlService;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class DocumentService {
 
     private final MinioClient minioClient;
     private final KbDocumentRepository documentRepository;
+    private final DocumentEtlService etlService;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -71,6 +73,11 @@ public class DocumentService {
         documentRepository.save(doc);
 
         log.info("文档元数据已落库: id={}, name={}", docId, file.getOriginalFilename());
+
+        // 3. 触发异步 ETL
+        etlService.process(docId, p -> log.debug("ETL 进度: docId={}, stage={}, pct={}",
+            p.getDocId(), p.getStage(), p.getPercentage()));
+
         return docId;
     }
 
