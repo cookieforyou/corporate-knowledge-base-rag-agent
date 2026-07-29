@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 从 application.yml 继承属性 -->
+    <springProperty name="APP_NAME" source="spring.application.name" defaultValue="kb-rag-agent"/>
+
+    <!-- ═══════ dev 环境：控制台可读格式 ═══════ -->
+    <springProfile name="dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%-40logger{36}) — %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.enterprise.kb" level="DEBUG"/>
+        <logger name="org.springframework.ai" level="INFO"/>
+    </springProfile>
+
+    <!-- ═══════ 非 dev 环境：JSON 结构化输出 ═══════ -->
+    <springProfile name="!dev">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"app":"${APP_NAME}"}</customFields>
+                <includeContext>false</includeContext>
+                <timeZone>Asia/Shanghai</timeZone>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+        <logger name="com.enterprise.kb" level="INFO"/>
+    </springProfile>
+
+</configuration>

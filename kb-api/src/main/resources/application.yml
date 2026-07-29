@@ -55,13 +55,7 @@ spring:
         jwt:
           issuer-uri: ${JWT_ISSUER_URI:}
 
-# 日志
-logging:
-  level:
-    com.enterprise.kb: DEBUG
-    org.springframework.ai: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+# 日志 → 见 logback-spring.xml（dev 彩色控制台 / prod JSON 结构化）
 
 # Actuator + Prometheus
 management:
