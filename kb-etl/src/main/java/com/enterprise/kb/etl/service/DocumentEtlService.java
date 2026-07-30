@@ -133,7 +133,9 @@ public class DocumentEtlService {
         for (int i = 0; i < chunks.size(); i++) {
             Document chunk = chunks.get(i);
             KbChunk entity = new KbChunk();
-            entity.setId(UUID.randomUUID().toString());
+            String chunkId = UUID.randomUUID().toString();
+            entity.setId(chunkId);
+            entity.setVectorId(chunkId);
             entity.setDocId(docId);
             entity.setChunkIndex(i);
             entity.setContent(chunk.getText());
@@ -159,25 +161,15 @@ public class DocumentEtlService {
      */
     private void embedAndStore(KbDocument doc, List<KbChunk> entities) {
         List<Document> vectorDocs = entities.stream()
-            .map(e -> {
-                Document d = new Document(e.getId(), e.getContent(),
-                    Map.of("chunk_id", e.getId(),
-                           "doc_id", doc.getId(),
-                           "tenant_id", doc.getTenantId(),
-                           "chunk_type", e.getChunkType().name(),
-                           "page_num", e.getPageNum() != null ? e.getPageNum() : 0));
-                return d;
-            })
+            .map(e -> new Document(e.getId(), e.getContent(),
+                Map.of("chunk_id", e.getId(),
+                       "doc_id", doc.getId(),
+                       "tenant_id", doc.getTenantId(),
+                       "chunk_type", e.getChunkType().name(),
+                       "page_num", e.getPageNum() != null ? e.getPageNum() : 0)))
             .toList();
 
-        // VectorStore.add() 内部自动调用 EmbeddingModel 完成向量化，以 Document.id 作为 vector_id
         vectorStore.add(vectorDocs);
         log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), vectorDocs.size());
-
-        // 回写 vector_id（与 chunk_id 一致）
-        for (KbChunk entity : entities) {
-            entity.setVectorId(entity.getId());
-        }
-        chunkRepository.saveAll(entities);
     }
 }
