@@ -1,4 +1,9 @@
 spring:
+  config:
+    import:
+      - classpath:application-infra.yml
+      - classpath:application-ai.yml
+
   application:
     name: kb-rag-agent
 

@@ -49,7 +49,7 @@ kb:
       dimensions: ${KB_PGVECTOR_DIMENSIONS:1024}
       distance-type: ${KB_PGVECTOR_DISTANCE:COSINE_DISTANCE}
       index-type: ${KB_PGVECTOR_INDEX:HNSW}
-      initialize-schema: ${KB_PGVECTOR_INIT_SCHEMA:true}
+      initialize-schema: ${KB_PGVECTOR_INIT_SCHEMA:false}
 
     milvus:
       host: ${KB_MILVUS_HOST:localhost}

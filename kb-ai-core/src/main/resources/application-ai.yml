@@ -3,6 +3,9 @@
 # ============================================================
 spring:
   ai:
+    vectorstore:
+      type: custom
+
     # ── Model Provider 选择 ──
     model:
       chat: deepseek                         # DeepSeek V4

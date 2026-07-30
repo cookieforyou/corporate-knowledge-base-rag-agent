@@ -140,3 +140,19 @@ CREATE TABLE IF NOT EXISTS kb_prompt_template (
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_name_version UNIQUE (name, version)
 );
+
+-- ============================================
+-- 9. pgvector 向量表（需先以 superuser 执行: CREATE EXTENSION IF NOT EXISTS vector）
+--    之后以应用用户执行本 DDL 创建表与索引
+-- ============================================
+CREATE TABLE IF NOT EXISTS kb_embeddings (
+    id          VARCHAR(36) PRIMARY KEY,
+    embedding   vector(1024),
+    content     TEXT,
+    metadata    JSONB DEFAULT '{}',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_embedding_hnsw
+    ON kb_embeddings USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_emb_metadata
+    ON kb_embeddings USING GIN (metadata);
