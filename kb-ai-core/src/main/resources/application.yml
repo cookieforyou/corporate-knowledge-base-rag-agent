@@ -1,0 +1,34 @@
+# ============================================================
+# kb-ai-core — AI 模型 & 可观测性配置
+# ============================================================
+spring:
+  ai:
+    # ── Model Provider 选择 ──
+    model:
+      chat: deepseek                         # DeepSeek V4
+      embedding: openai                      # OpenAI 兼容（实际指向百炼）
+
+    # ── DeepSeek V4 Chat ──
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      chat:
+        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        temperature: 0.1
+        max-tokens: 4096
+
+    # ── 阿里云百炼 Embedding（OpenAI 兼容 API） ──
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      embedding:
+        model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
+
+    chat:
+      observations:
+        log-prompt: true
+        log-completion: true
+        include-error-logging: true
+      client:
+        observations:
+          log-prompt: true
+          log-completion: true

@@ -19,36 +19,6 @@ spring:
       hibernate:
         format_sql: true
 
-  # AI 模型配置
-  ai:
-    vectorstore:
-      type: custom
-
-    # ── Model Provider 选择 ──
-    model:
-      chat: deepseek             # DeepSeek V4
-      embedding: openai          # OpenAI 兼容（实际指向百炼）
-
-    # ── DeepSeek V4 Chat ──
-    deepseek:
-      api-key: ${DEEPSEEK_API_KEY:}
-      chat:
-        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-        temperature: 0.1
-        max-tokens: 4096
-
-    # ── 阿里云百炼 Embedding（OpenAI 兼容 API） ──
-    openai:
-      api-key: ${DASHSCOPE_API_KEY:}
-      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
-      embedding:
-        model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
-
-    observations:
-      enabled: true
-      include-prompt: false
-      include-response: false
-
   security:
     oauth2:
       resourceserver:
@@ -64,14 +34,15 @@ management:
       exposure:
         include: health,info,metrics,prometheus
   metrics:
-    export:
-      prometheus:
-        enabled: true
     tags:
       application: kb-rag-agent
   tracing:
     sampling:
       probability: ${TRACING_SAMPLING:1.0}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
 # 服务器
 server:
