@@ -17,6 +17,7 @@ spring:
 
   # JPA 行为配置（连接配置在 kb-infrastructure）
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: false
