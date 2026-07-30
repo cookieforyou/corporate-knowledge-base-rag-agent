@@ -83,6 +83,7 @@ public class VectorStoreConfig {
             ConnectParam.newBuilder()
                 .withHost(cfg.getHost())
                 .withPort(cfg.getPort())
+                .withDatabaseName(cfg.getDatabaseName())
                 .withAuthorization(cfg.getUsername(), cfg.getPassword())
                 .build());
         log.info("创建 MilvusVectorStore → db={}, collection={}, dims={}, index={}, metric={}",
