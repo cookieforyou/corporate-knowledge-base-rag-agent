@@ -23,6 +23,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +73,8 @@ public class DocumentEtlService {
             // Stage 1: 从 MinIO 读取并 Tika 解析
             progressCallback.accept(new EtlProgress(docId, EtlStage.READING));
             List<Document> rawDocs = readAndParse(doc);
+            doc.setParseRoute("NATIVE");
+            doc.setPageCount(rawDocs.size());
             log.info("文档解析完成: docId={}, pages={}", docId, rawDocs.size());
 
             // Stage 2: Token 切分
@@ -135,6 +138,16 @@ public class DocumentEtlService {
             entity.setChunkIndex(i);
             entity.setContent(chunk.getText());
             entity.setChunkType(ChunkType.TEXT);
+            // 从 Tika metadata 提取页码
+            Object page = chunk.getMetadata().get("page_number");
+            if (page instanceof Integer pi) entity.setPageNum(pi);
+            else if (page != null) {
+                try { entity.setPageNum(Integer.valueOf(page.toString())); } catch (Exception ignored) {}
+            }
+            // 估算 token 数（中文约 1.5 字符/token，英文约 4 字符/token）
+            entity.setTokenCount((int) (chunk.getText().length() / 2.5));
+            entity.setCreatedAt(LocalDateTime.now());
+            entity.setUpdatedAt(LocalDateTime.now());
             entities.add(entity);
         }
         chunkRepository.saveAll(entities);
@@ -151,7 +164,8 @@ public class DocumentEtlService {
                     Map.of("chunk_id", e.getId(),
                            "doc_id", doc.getId(),
                            "tenant_id", doc.getTenantId(),
-                           "chunk_type", e.getChunkType().name()));
+                           "chunk_type", e.getChunkType().name(),
+                           "page_num", e.getPageNum() != null ? e.getPageNum() : 0));
                 return d;
             })
             .toList();

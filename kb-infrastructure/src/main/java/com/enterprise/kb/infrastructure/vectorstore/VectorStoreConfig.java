@@ -9,7 +9,6 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -33,28 +32,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Configuration
 @EnableConfigurationProperties(KbVectorStoreProperties.class)
 public class VectorStoreConfig {
-
-    // ═══════════════════════════ MilvusServiceClient ═══════════════════════════
-
-    /**
-     * Milvus 原生客户端 Bean。
-     * 仅 Milvus 路径需要，但创建成本低，无条件注册以保持配置简洁。
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public MilvusServiceClient milvusServiceClient(KbVectorStoreProperties props) {
-        Milvus cfg = props.getMilvus();
-        log.info("初始化 MilvusServiceClient → {}:{}", cfg.getHost(), cfg.getPort());
-        return new MilvusServiceClient(
-            ConnectParam.newBuilder()
-                .withHost(cfg.getHost())
-                .withPort(cfg.getPort())
-                .withAuthorization(cfg.getUsername(), cfg.getPassword())
-                .build()
-        );
-    }
-
-    // ═══════════════════════════ VectorStore Beans ═══════════════════════════
 
     /**
      * PgVectorStore — 当 {@code kb.vector-store.provider=pgvector} 时激活。
@@ -98,11 +75,16 @@ public class VectorStoreConfig {
         matchIfMissing = true
     )
     public VectorStore milvusVectorStore(
-            MilvusServiceClient milvusClient,
             EmbeddingModel embeddingModel,
             KbVectorStoreProperties props) {
 
         Milvus cfg = props.getMilvus();
+        MilvusServiceClient milvusClient = new MilvusServiceClient(
+            ConnectParam.newBuilder()
+                .withHost(cfg.getHost())
+                .withPort(cfg.getPort())
+                .withAuthorization(cfg.getUsername(), cfg.getPassword())
+                .build());
         log.info("创建 MilvusVectorStore → db={}, collection={}, dims={}, index={}, metric={}",
             cfg.getDatabaseName(), cfg.getCollectionName(),
             cfg.getEmbeddingDimension(), cfg.getIndexType(), cfg.getMetricType());
