@@ -3,6 +3,8 @@ package com.enterprise.kb.domain.model;
 import com.enterprise.kb.domain.enums.PromptTemplateStatus;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -27,6 +29,7 @@ public class KbPromptTemplate {
     @Column(name = "template_text", columnDefinition = "TEXT", nullable = false)
     private String templateText;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "variables", columnDefinition = "JSONB")
     private String variables;
 

@@ -2,6 +2,8 @@ package com.enterprise.kb.domain.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -26,12 +28,15 @@ public class KbMessage {
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "citations", columnDefinition = "JSONB")
     private String citations;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "token_usage", columnDefinition = "JSONB")
     private String tokenUsage;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "JSONB")
     private String metadata = "{}";
 

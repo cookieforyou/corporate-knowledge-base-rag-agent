@@ -3,6 +3,8 @@ package com.enterprise.kb.domain.model;
 import com.enterprise.kb.domain.enums.FeedbackRating;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -34,6 +36,7 @@ public class KbFeedback {
     @Column(name = "expected_answer", columnDefinition = "TEXT")
     private String expectedAnswer;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "feedback_tags", columnDefinition = "JSONB")
     private String feedbackTags;
 

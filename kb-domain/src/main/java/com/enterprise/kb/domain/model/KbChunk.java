@@ -3,6 +3,8 @@ package com.enterprise.kb.domain.model;
 import com.enterprise.kb.domain.enums.ChunkType;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -39,6 +41,7 @@ public class KbChunk {
     @Column(name = "token_count")
     private Integer tokenCount;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "JSONB")
     private String metadata = "{}";
 

@@ -2,6 +2,8 @@ package com.enterprise.kb.domain.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -38,9 +40,11 @@ public class KbAuditLog {
     @Column(name = "retrieval_type", length = 30)
     private String retrievalType;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "retrieved_chunks", columnDefinition = "JSONB")
     private String retrievedChunks;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "reranked_chunks", columnDefinition = "JSONB")
     private String rerankedChunks;
 
@@ -53,6 +57,7 @@ public class KbAuditLog {
     @Column(name = "latency_ms")
     private Integer latencyMs;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "token_usage", columnDefinition = "JSONB")
     private String tokenUsage;
 
