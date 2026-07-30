@@ -5,6 +5,7 @@ import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvi
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 public class ChatConfig {
 
     @Bean
-    public ChatClient chatClient(ChatModel chatModel, VectorStore vectorStore) {
+    public ChatClient chatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel, VectorStore vectorStore) {
         return ChatClient.builder(chatModel)
             .defaultAdvisors(QuestionAnswerAdvisor.builder(vectorStore)
                 .searchRequest(SearchRequest.builder()
