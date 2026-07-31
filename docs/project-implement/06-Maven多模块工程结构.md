@@ -29,7 +29,7 @@ kb-rag-agent/                           # 父工程
 │       ├── elasticsearch/              # ElasticsearchClient 配置
 │       ├── redis/                      # Redis 配置 + ChatMemory 实现
 │       ├── minio/                      # MinIO OSS 适配
-│       └── ocr/                        # 解析服务客户端（DocMind / qwen-vl-ocr 解析 API + 云 OCR 兜底，可插拔后端）
+│       └── ocr/                        # 解析服务客户端（DocMind / qwen3.5-ocr 解析 API + 云 OCR 兜底，可插拔后端）
 ├── kb-etl/                             # ETL 管道模块（独立可部署）
 │   └── src/main/java/com/enterprise/kb/etl/
 │       ├── reader/                     # SmartParsingRouter 等

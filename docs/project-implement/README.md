@@ -69,15 +69,15 @@
 v1 设计为「ES BM25 + Milvus 向量 + 手搓并行管道 + 自研 RRF」。经对 Spring AI 2.0.0 GA 源码与 Milvus 2.6 能力的双路核验，裁决如下：
 
 - ❌ **Milvus 原生单引擎方案否决**：`MilvusVectorStore` 源码锁死 4 字段 schema（无 sparse/BM25 Function）、单路 dense 搜索、零扩展点；Spring AI 全仓无 sparse embedding 抽象；且 Milvus jieba 中文分词存在已知质量问题（milvus-io/milvus#36743），对"中文专有名词命中"核心痛点是致命风险。12 个月后可重估。
-- ✅ **采纳方案甲+**：保留 ES ik BM25（中文质量 + 已部署 + 高亮/DSL），但构建于 Spring AI 2.0 **模块化 RAG** 之上而非手搓：`RetrievalAugmentationAdvisor` + 自定义 `HybridDocumentRetriever`（双路虚拟线程并行 + `RrfFusion`）+ 框架内置查询改写/扩展 + `gte-rerank` 重排序 + `ContextualQueryAugmenter` 证据注入。详见[第十章](./10-混合检索引擎.md)。
+- ✅ **采纳方案甲+**：保留 ES ik BM25（中文质量 + 已部署 + 高亮/DSL），但构建于 Spring AI 2.0 **模块化 RAG** 之上而非手搓：`RetrievalAugmentationAdvisor` + 自定义 `HybridDocumentRetriever`（双路虚拟线程并行 + `RrfFusion`）+ 框架内置查询改写/扩展 + `qwen3-rerank` 重排序 + `ContextualQueryAugmenter` 证据注入。详见[第十章](./10-混合检索引擎.md)。
 
 ### 其他修订
 
 1. **虚构 API 清零**：v1 示例代码中 8 处 Spring AI API 不存在（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()`、`spring.ai.vectorstore.type=custom`、指标名 `.duration`、`response.response()`、MCP SSE 传输），已在第九~十三章及附录全部修正为 2.0.0 GA 真实 API。
 2. **评估体系前移**：v1 将评估全部置于 Phase 5，与 Phase 2 验收标准（命中率 > 85%）自相矛盾。v2 将 kb-eval 最小集（Golden Dataset + Top-K 召回/MRR + Faithfulness）前移至 Phase 2，并扩充指标集（+Negative Rejection、Hallucination Rate、Noise Robustness、Citation Attribution）。详见[第十六章](./16-AI评估体系.md)。
-3. **解析路由升级**：深度解析链路调整为 API 化解析——**阿里云文档智能 DocMind 大模型版**为主（ECS 2 核无 GPU 资源约束定案；Docling 同机部署经核验不可行：内存/速度双否决），qwen-vl-ocr 备选，云 OCR 兜底扫描件。详见[第九章](./09-知识入库ETL管道.md) 9.1 决策注记。
+3. **解析路由升级**：深度解析链路调整为 API 化解析——**阿里云文档智能 DocMind 大模型版**为主（ECS 2 核无 GPU 资源约束定案；Docling 同机部署经核验不可行：内存/速度双否决），qwen3.5-ocr 备选，云 OCR 兜底扫描件。详见[第九章](./09-知识入库ETL管道.md) 9.1 决策注记。
 4. **可观测双层化**：Grafana（基础设施层）+ Langfuse（LLM 原生层，Spring AI 官方 OTel 集成）。详见[第十三章](./13-可观测性体系.md)。
-5. **重排序选型**：BGE 本地/Cohere → DashScope gte-rerank API（与 Embedding 同生态、免 GPU）。
+5. **重排序选型**：BGE 本地/Cohere → DashScope qwen3-rerank API（与 Embedding 同生态、免 GPU）。
 
 ### 未修订部分
 
