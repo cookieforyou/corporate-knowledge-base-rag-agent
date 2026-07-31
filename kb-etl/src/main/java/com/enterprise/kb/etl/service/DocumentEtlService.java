@@ -173,7 +173,8 @@ public class DocumentEtlService {
                        "doc_id", doc.getId(),
                        "tenant_id", doc.getTenantId(),
                        "chunk_type", e.getChunkType().name(),
-                       "page_num", e.getPageNum() != null ? e.getPageNum() : 0)))
+                       "page_num", e.getPageNum() != null ? e.getPageNum() : 0,
+                       "is_deleted", java.util.Objects.requireNonNullElse(e.getIsDeleted(), false))))
             .toList();
 
         vectorStore.add(vectorDocs);

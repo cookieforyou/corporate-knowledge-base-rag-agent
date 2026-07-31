@@ -81,7 +81,7 @@ public class EsIndexWriter {
             esClient.update(u -> u
                     .index(EsChunkDoc.INDEX)
                     .id(chunkId)
-                    .doc(java.util.Map.of("isDeleted", true)),
+                    .doc(java.util.Map.of("is_deleted", true)),
                 EsChunkDoc.class);
         } catch (Exception e) {
             log.error("ES 软删除失败: chunkId={}, error={}", chunkId, e.getMessage());

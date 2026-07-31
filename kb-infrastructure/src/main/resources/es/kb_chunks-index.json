@@ -5,15 +5,15 @@
   },
   "mappings": {
     "properties": {
-      "chunkId":    { "type": "keyword" },
-      "docId":      { "type": "keyword" },
-      "tenantId":   { "type": "keyword" },
-      "content":    { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
-      "chunkType":  { "type": "keyword" },
-      "fileName":   { "type": "keyword" },
-      "pageNum":    { "type": "integer" },
-      "isDeleted":  { "type": "boolean" },
-      "createdAt":  { "type": "date" }
+      "chunk_id":    { "type": "keyword" },
+      "doc_id":      { "type": "keyword" },
+      "tenant_id":   { "type": "keyword" },
+      "content":     { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
+      "chunk_type":  { "type": "keyword" },
+      "file_name":   { "type": "keyword" },
+      "page_num":    { "type": "integer" },
+      "is_deleted":  { "type": "boolean" },
+      "created_at":  { "type": "date" }
     }
   }
 }
