@@ -35,3 +35,12 @@ spring:
         observations:
           log-prompt: true
           log-completion: true
+
+# ============================================================
+# 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
+# ============================================================
+rag:
+  rerank:
+    endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank}
+    model: ${RERANK_MODEL:qwen3-rerank}
+    api-key: ${DASHSCOPE_API_KEY:}
