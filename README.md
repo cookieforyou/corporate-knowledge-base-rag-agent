@@ -1,8 +1,8 @@
 # 企业知识库 RAG Agent 工作台
 
-基于 Spring AI 2.0 的企业级 RAG 平台。
+基于 Spring AI 2.0 的企业级 RAG 平台。区别于 Dify/RAGFlow/MaxKB 等通用/平台方案，本项目聚焦 Spring AI 生态内的**深度可溯源（双路得分透明的检索调试台）+ 企业权限集成（Casdoor/RBAC/权限感知检索）+ 运维闭环（评估/审计/可观测）**，适合对审计与溯源有强需求的 Java 技术栈企业。
 
-**当前阶段**：✅ Phase 1（MVP 闭环）已完成 —— 文档上传 → Tika 解析 → Token 切分 → pgvector/Milvus 向量化 → DeepSeek V4 RAG 对话（同步 + SSE 流式）全链路可用；Phase 2（混合检索引擎、来源溯源、OCR 智能路由）待启动。
+**当前阶段**：✅ Phase 1（MVP 闭环）已完成 —— 文档上传 → Tika 解析 → Token 切分 → pgvector/Milvus 向量化 → DeepSeek V4 RAG 对话（同步 + SSE 流式）全链路可用；Phase 2（模块化混合检索、来源溯源、解析路由升级）待启动，设计文档已于 2026-07-31 修订至 v2（检索架构重大调整，见文档索引）。
 
 ## 技术栈
 
@@ -65,8 +65,8 @@ cd frontend && npm install && npm run dev
 
 ## 文档
 
-- [全景实现报告](docs/project-implement/企业知识库%20RAG%20Agent%20工作台：Spring%20AI%202.0%20全景实现报告.md)（设计唯一依据）
-- [进度追踪](docs/project-progress/项目阶段推进任务清单完成记录.md)
+- [全景实现报告 v2（按章拆分版）](docs/project-implement/README.md)（设计唯一依据）
+- [进度追踪](docs/project-progress/项目阶段推进任务清单完成记录.md)（Phase 2 任务清单已与 v2 对齐）
 
 ## Phase 1 已实现
 

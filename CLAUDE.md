@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1（基础设施与 MVP 验证）已全部完成；Phase 2（知识引擎攻坚：OCR 路由、保护式切分、混合检索、PrefetchRagAdvisor、溯源 SSE）尚未开始。进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`，设计唯一依据见 `docs/project-implement/企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告.md`。
+**当前阶段**：Phase 1（基础设施与 MVP 验证）已全部完成；Phase 2（知识引擎攻坚：解析路由、保护式切分、模块化混合检索、溯源 SSE）尚未开始。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版，2026-07-31），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -31,7 +31,7 @@ kb-rag-agent/
 ├── kb-admin/          # 运维后台（空模块，待开发）
 ├── kb-eval/           # AI 评估（空模块，待开发）
 ├── frontend/          # Vue3 前端（Vite 6；Login/Chat 两个视图，SSE 流式对话 + 文档上传）
-└── docs/              # 设计文档（project-implement/）+ 进度追踪（project-progress/）
+└── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
 ```
 
 模块依赖：kb-commons ← kb-domain ← kb-infrastructure ← kb-etl / kb-ai-core ← kb-api；kb-admin、kb-eval 依赖 kb-ai-core。
@@ -58,3 +58,4 @@ kb-rag-agent/
 - JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`（Hibernate 7.x 要求）
 - 父 POM dependencyManagement 已预埋后续阶段依赖：elasticsearch-java 8.14.3、jsoup 1.18.1、redisson 4.6.1、testcontainers 1.20.1
 - pgvector 模式需先以 superuser 执行 `CREATE EXTENSION IF NOT EXISTS vector;`（服务器 PG 若已启用可跳过）
+- Phase 2 检索架构为 Spring AI 2.0 模块化 RAG（`RetrievalAugmentationAdvisor` + 自研 `HybridDocumentRetriever`/`RrfFusion` + ES ik BM25 双路 + gte-rerank）；Milvus 原生混合检索经源码级核验后否决。决策全文见 `docs/project-implement/10-混合检索引擎.md` §10.0
