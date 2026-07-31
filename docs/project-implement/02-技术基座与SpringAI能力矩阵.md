@@ -149,7 +149,7 @@ public class VectorStoreConfig {
 │  kb_chunk (主数据)           │
 │  kb_session / kb_message     │
 │  kb_audit_log / kb_feedback  │
-│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │
 │  kb_embeddings (pgvector)    │  ← 向量表，独立存储
 │    .id / .embedding(1024)    │
 │    .chunk_id (关联 kb_chunk) │
