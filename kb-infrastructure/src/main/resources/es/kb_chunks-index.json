@@ -1,0 +1,19 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "chunkId":    { "type": "keyword" },
+      "docId":      { "type": "keyword" },
+      "tenantId":   { "type": "keyword" },
+      "content":    { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
+      "chunkType":  { "type": "keyword" },
+      "fileName":   { "type": "keyword" },
+      "pageNum":    { "type": "integer" },
+      "isDeleted":  { "type": "boolean" },
+      "createdAt":  { "type": "date" }
+    }
+  }
+}

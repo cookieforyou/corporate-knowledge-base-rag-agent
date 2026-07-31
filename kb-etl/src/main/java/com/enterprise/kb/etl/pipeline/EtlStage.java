@@ -8,6 +8,7 @@ public enum EtlStage {
     TRANSFORMING,
     PERSISTING,
     EMBEDDING,
+    INDEXING,   // v2（2.5）：ES kb_chunks 双写
     COMPLETED,
     FAILED
 }

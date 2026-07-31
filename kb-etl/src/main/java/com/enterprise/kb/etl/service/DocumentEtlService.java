@@ -9,6 +9,7 @@ import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlStage;
+import com.enterprise.kb.etl.writer.EsIndexWriter;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class DocumentEtlService {
     private final KbDocumentRepository documentRepository;
     private final KbChunkRepository chunkRepository;
     private final VectorStore vectorStore;
+    private final EsIndexWriter esIndexWriter;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -89,6 +91,11 @@ public class DocumentEtlService {
             // Stage 4: 向量化 + 写入 VectorStore
             progressCallback.accept(new EtlProgress(docId, EtlStage.EMBEDDING));
             embedAndStore(doc, entities);
+
+            // Stage 5: ES 双写（v2 2.5，混合检索的 BM25 数据源；
+            //          失败不阻断 ETL——PG 为事实源，索引重建任务可兜底）
+            progressCallback.accept(new EtlProgress(docId, EtlStage.INDEXING));
+            esIndexWriter.indexChunks(doc, entities);
 
             // 更新文档状态
             doc.setStatus(DocumentStatus.SUCCESS);

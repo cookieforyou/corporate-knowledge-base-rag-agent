@@ -24,7 +24,12 @@
             <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
         </dependency>
 
-        <!-- Elasticsearch -->
+        <!-- Elasticsearch：starter 提供 ElasticsearchClient 自动装配（spring.elasticsearch.uris）；
+             elasticsearch-java 版本由父 POM dependencyManagement 锁定 8.14.3（匹配服务端 ES 8.19） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-elasticsearch</artifactId>
+        </dependency>
         <dependency>
             <groupId>co.elastic.clients</groupId>
             <artifactId>elasticsearch-java</artifactId>
