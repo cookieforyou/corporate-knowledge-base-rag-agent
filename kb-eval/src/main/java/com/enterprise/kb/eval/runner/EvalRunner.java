@@ -60,14 +60,39 @@ public class EvalRunner {
             log.info("eval.ci.enabled=false，跳过门禁评估（手动运行见 README）");
             return;
         }
+        // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」
+        if (props.getJudge().getApiKey() == null || props.getJudge().getApiKey().isBlank()) {
+            throw new EvalFailedException("DASHSCOPE_API_KEY 未配置，Judge 不可用——门禁拒绝运行");
+        }
         EvalReport report = runFullEval();
-        log.info("\n{}", report.summary());
+        publishReport(report);
         report.assertThresholds(props);
         log.info("✅ 评估门禁通过");
     }
 
+    /**
+     * 报告双通道发布：① stdout 直出（不依赖日志配置，CI 日志必可见）；
+     * ② 落盘 target/eval-report.txt（本地可复查的历史产物）
+     */
+    private void publishReport(EvalReport report) {
+        String summary = report.summary();
+        System.out.println(summary);
+        log.info("\n{}", summary);
+        try {
+            java.nio.file.Path out = java.nio.file.Path.of("target", "eval-report.txt");
+            java.nio.file.Files.createDirectories(out.getParent());
+            java.nio.file.Files.writeString(out, summary + System.lineSeparator());
+            log.info("评估报告已写入: {}", out.toAbsolutePath());
+        } catch (Exception e) {
+            log.warn("评估报告落盘失败（不影响门禁）: {}", e.getMessage());
+        }
+    }
+
     public EvalReport runFullEval() {
         List<GoldenQAPair> dataset = sample(datasetLoader.loadAll());
+        if (dataset.isEmpty()) {
+            throw new EvalFailedException("Golden Dataset 为空（classpath:golden/*.json 无可用用例）");
+        }
         log.info("开始评估：{} 条用例，检索探针 = {}", dataset.size(), retrievalProbe.name());
 
         List<EvalResult> results = new ArrayList<>();
@@ -79,6 +104,11 @@ public class EvalRunner {
             } catch (Exception e) {
                 log.error("[{}/{}] {} 评估失败: {}", i + 1, dataset.size(), pair.id(), e.getMessage());
             }
+        }
+        // 全部用例失败（基础设施不可达/密钥错误等）不得静默「通过」
+        if (results.isEmpty()) {
+            throw new EvalFailedException(
+                "无有效评估结果（全部 " + dataset.size() + " 条用例失败）——请检查 ECS 基础设施连通性与 API Keys");
         }
         return aggregate(retrievalProbe.name(), results);
     }
