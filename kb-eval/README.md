@@ -73,10 +73,18 @@ Golden 用例
 
 | 阶段 | 探针 | order | 度量对象 |
 |---|---|---|---|
-| Phase 2.16（当前） | `VectorStoreRetrievalProbe` | 100 | Phase 1 单路向量检索基线 |
-| Phase 2.7+（未来） | `HybridRetrievalProbe`（待实现） | 0 | 混合检索全链路 |
+| 2.6 之前 | `VectorStoreRetrievalProbe` | 100 | Phase 1 单路向量检索基线 |
+| 簇 B 落地后（当前） | `HybridRetrievalProbe` | 0 | 混合检索全链路（向量+BM25+RRF） |
 
-混合检索探针落地时只需新增一个 Bean（直接注入 `HybridDocumentRetriever`），`VectorStoreRetrievalProbe` 经 `@ConditionalOnMissingBean(name = "hybridRetrievalProbe")` 自动退让——**评估器与数据集零改动，评估结果自动切换为混合检索的度量**，前后对比即调优收益。
+混合探针（order=0）就位后自动顶替单路探针（`VectorStoreRetrievalProbe` 经 `@ConditionalOnMissingBean` 自动退让）——**评估器与数据集零改动，评估结果自动切换为混合检索的度量**。
+
+**A/B 基线对比**：`eval.probe` 显式指定探针（`auto` 默认 / `vector` / `hybrid`），对比 Phase 1 单路基线与混合检索的收益：
+
+```bash
+mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.probe=vector  # 单路基线
+cp kb-eval/target/eval-report.txt baseline-vector.txt                            # 留存（每次运行覆盖）
+mvn spring-boot:run -pl kb-eval                                                  # 混合检索（auto）
+```
 
 探针实现注意：`VectorStoreRetrievalProbe` 使用 `similarityThreshold=0.0`（评估期不做阈值过滤，完整观测排序分布）；chunkId 取 `metadata.chunk_id`（回退 `Document.id`，与 ETL 的 `Document.id = kb_chunk.id` 不变量一致）。
 
@@ -266,6 +274,7 @@ Negative Rejection:  0.8667
 |---|---|---|
 | `eval.top-k` | 5 | 检索探针 Top-K，与主链路 `Constants.DEFAULT_TOP_K` 一致 |
 | `eval.sample-size` | 0 | 每类抽样上限，0=全量（CI 快跑设 10） |
+| `eval.probe` | auto | 探针选择：auto / vector / hybrid（A/B 基线对比，`EVAL_PROBE` 覆盖） |
 | `eval.ci.enabled` | false | ci profile 下 true，启用门禁 |
 | `eval.judge.base-url` | 百炼 OpenAI 兼容端点 | `EVAL_JUDGE_BASE_URL` 覆盖 |
 | `eval.judge.api-key` | `${DASHSCOPE_API_KEY}` | 复用百炼 Key |

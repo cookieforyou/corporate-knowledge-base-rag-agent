@@ -20,6 +20,9 @@ public class EvalProperties {
     /** 每个分类最多抽样条数，0 = 全量（CI 快跑用） */
     private int sampleSize = 0;
 
+    /** 检索探针选择：auto（min order，混合探针就位后默认 hybrid）| vector | hybrid，A/B 基线对比用 */
+    private String probe = "auto";
+
     private final Ci ci = new Ci();
     private final Judge judge = new Judge();
     private final Thresholds thresholds = new Thresholds();

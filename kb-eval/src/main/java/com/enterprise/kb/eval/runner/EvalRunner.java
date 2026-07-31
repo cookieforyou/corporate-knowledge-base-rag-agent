@@ -44,10 +44,9 @@ public class EvalRunner {
                       @Qualifier("judgeChatClient") ChatClient judgeChatClient,
                       EvalProperties props) {
         this.datasetLoader = datasetLoader;
-        // order 最小者胜出：Phase 2.7+ 混合检索探针（order=0）自动替代单路基线（order=100）
-        this.retrievalProbe = probes.stream()
-            .min(Comparator.comparingInt(RetrievalProbe::getOrder))
-            .orElseThrow(() -> new IllegalStateException("无可用 RetrievalProbe"));
+        // 探针选择：auto = order 最小者胜出（混合探针 order=0 自动替代单路基线 order=100）；
+        //          vector/hybrid = 显式指定，用于 A/B 基线对比
+        this.retrievalProbe = selectProbe(probes, props.getProbe());
         this.chatClient = chatClient;
         this.judgeChatClient = judgeChatClient;
         this.props = props;
@@ -142,6 +141,21 @@ public class EvalRunner {
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
             scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason());
+    }
+
+    private static RetrievalProbe selectProbe(List<RetrievalProbe> probes, String mode) {
+        if ("vector".equalsIgnoreCase(mode)) {
+            return probes.stream().filter(p -> "vector-single".equals(p.name())).findFirst()
+                .orElseThrow(() -> new IllegalStateException("eval.probe=vector 但无单路探针"));
+        }
+        if ("hybrid".equalsIgnoreCase(mode)) {
+            return probes.stream().filter(p -> "hybrid".equals(p.name())).findFirst()
+                .orElseThrow(() -> new IllegalStateException("eval.probe=hybrid 但无混合探针"));
+        }
+        // auto：order 最小者胜出
+        return probes.stream()
+            .min(Comparator.comparingInt(RetrievalProbe::getOrder))
+            .orElseThrow(() -> new IllegalStateException("无可用 RetrievalProbe"));
     }
 
     private JudgePrompts.JudgeScore judge(String prompt) {

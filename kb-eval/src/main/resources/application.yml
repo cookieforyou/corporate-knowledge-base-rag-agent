@@ -17,6 +17,7 @@ spring:
 eval:
   top-k: 5
   sample-size: 0                          # CI 快跑可设 10（每类抽样）
+  probe: ${EVAL_PROBE:auto}               # auto | vector | hybrid（A/B 基线对比）
   judge:
     base-url: ${EVAL_JUDGE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     api-key: ${DASHSCOPE_API_KEY:}        # 复用百炼 Key（Judge 默认 qwen3.7-plus，与被测 DeepSeek 跨厂商隔离）
