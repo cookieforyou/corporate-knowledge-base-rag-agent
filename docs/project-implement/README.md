@@ -75,7 +75,7 @@ v1 设计为「ES BM25 + Milvus 向量 + 手搓并行管道 + 自研 RRF」。�
 
 1. **虚构 API 清零**：v1 示例代码中 8 处 Spring AI API 不存在（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()`、`spring.ai.vectorstore.type=custom`、指标名 `.duration`、`response.response()`、MCP SSE 传输），已在第九~十三章及附录全部修正为 2.0.0 GA 真实 API。
 2. **评估体系前移**：v1 将评估全部置于 Phase 5，与 Phase 2 验收标准（命中率 > 85%）自相矛盾。v2 将 kb-eval 最小集（Golden Dataset + Top-K 召回/MRR + Faithfulness）前移至 Phase 2，并扩充指标集（+Negative Rejection、Hallucination Rate、Noise Robustness、Citation Attribution）。详见[第十六章](./16-AI评估体系.md)。
-3. **解析路由升级**：深度解析链路从云 OCR API 调整为 MinerU/Docling 解析服务（HTTP sidecar）为主、云 OCR 兜底。详见[第九章](./09-知识入库ETL管道.md)。
+3. **解析路由升级**：深度解析链路调整为 API 化解析——DashScope 文档解析 API 为主（ECS 2 核无 GPU 资源约束下的定案，与 embedding/rerank 同生态），Docling CPU 模式留作可插拔备选，云 OCR 兜底扫描件。详见[第九章](./09-知识入库ETL管道.md) 9.1 决策注记。
 4. **可观测双层化**：Grafana（基础设施层）+ Langfuse（LLM 原生层，Spring AI 官方 OTel 集成）。详见[第十三章](./13-可观测性体系.md)。
 5. **重排序选型**：BGE 本地/Cohere → DashScope gte-rerank API（与 Embedding 同生态、免 GPU）。
 

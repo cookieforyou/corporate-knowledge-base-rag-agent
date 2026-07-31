@@ -4,7 +4,7 @@
 >
 > [📑 返回目录](./README.md) · 最后更新：2026-07-31
 >
-> **v2 修订**：① 解析路由深度链路从云 OCR API 调整为 MinerU/Docling 解析服务；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
+> **v2 修订**：① 解析路由深度链路调整为 API 化解析（DashScope 文档解析 API 为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 
 ---
 
@@ -46,9 +46,9 @@ public class EtlExecutorConfig {
 | 链路 | v1 设计 | v2 修订 | 理由 |
 |---|---|---|---|
 | 原生链路 | Tika | Tika（不变） | 电子版本文档的最优解 |
-| 深度链路 | 阿里云/百度 OCR API（返回 HTML） | **MinerU / Docling 自托管解析服务**（HTTP sidecar），云 OCR 降为扫描件兜底 | MinerU 布局检测 97.5 mAP、表格结构还原强、对中文文档友好；Docling 生态集成好。两者均开源可自托管，输出 Markdown/HTML+JSON 结构化结果，质量上限高于通用云 OCR |
+| 深度链路 | 阿里云/百度 OCR API（返回 HTML） | **DashScope 文档解析 API**（为主），Docling CPU 模式为可选自托管备选，云 OCR 降为扫描件兜底 | 2026 主流本为 MinerU/Docling 自托管，但本项目 ECS 2 核无 GPU 且承载全部基础设施，不具备本地部署条件；DashScope 解析 API 与 embedding/rerank 同生态（同一 API Key）、零本地算力、零额外运维，中文文档与表格结构还原能力满足需求 |
 
-> MinerU/Docling 均为 Python 实现，以独立 HTTP 服务形态部署（Phase 2.2），kb-infrastructure 侧提供 `ParsingServiceClient` 适配层。
+> **v2.1 资源约束决策注记（2026-07-31）**：ECS 为 2 核无 GPU 且同时承载 PG/Milvus/ES/Redis/MinIO，MinerU/Docling 本地服务无部署空间，深度链路定为 **API 化解析**。权衡记录：① 收益——零本地算力、与 DashScope 账号体系统一、免运维；② 代价——按页 API 成本、解析依赖外网（ETL 为异步链路，延迟不敏感，可接受）；③ 具体服务（阿里云文档智能 / qwen-vl 视觉解析等）于任务 2.2 在 DashScope 控制台核验可用性后选定。`ParsingServiceClient` 设计为**可插拔后端**（`DashScopeParsingClient` / 可选 `DoclingClient` / `OcrApiClient` 兜底），未来资源扩容后可平滑切换自托管 MinerU/Docling，架构不受本次约束影响。
 
 ### 路由决策逻辑
 
@@ -68,7 +68,7 @@ import java.util.List;
  * 决策树：
  * - 文本密度 > 阈值 且 无复杂表格 → NATIVE（Tika）
  * - 文本密度 < 阈值（疑似扫描件） → OCR 兜底链路（云 OCR API）
- * - 密度正常但表格/图片密集     → DEEP（MinerU/Docling 解析服务）
+ * - 密度正常但表格/图片密集     → DEEP（DashScope 解析 API）
  */
 public class SmartParsingRouter implements DocumentReader {
 
@@ -78,7 +78,7 @@ public class SmartParsingRouter implements DocumentReader {
 
     private final Resource resource;
     private final TextDensityAnalyzer densityAnalyzer;   // PDFBox 文本提取 + 启发式
-    private final ParsingServiceClient parsingService;   // MinerU/Docling HTTP 客户端
+    private final ParsingServiceClient parsingService;   // 解析 API 客户端（可插拔后端：DashScope / Docling）
     private final OcrApiClient ocrApiClient;             // 云 OCR 兜底
     private final Map<String, Object> customMetadata;
 
@@ -105,7 +105,7 @@ public class SmartParsingRouter implements DocumentReader {
         return new TikaDocumentReader(resource).get();
     }
 
-    /** 深度链路：MinerU/Docling 服务返回结构化结果（Markdown 正文 + 表格 HTML 块 + 图片描述） */
+    /** 深度链路：DashScope 解析 API 返回结构化结果（Markdown 正文 + 表格 HTML 块 + 图片描述） */
     private List<Document> parseViaService(Resource resource) {
         ParsingResult result = parsingService.parse(resource);
         Document doc = new Document(result.markdownWithHtmlTables());
