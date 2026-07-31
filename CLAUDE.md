@@ -29,7 +29,7 @@ kb-rag-agent/
 ├── kb-ai-core/        # ChatClient 配置（QuestionAnswerAdvisor 基础 RAG）、ChatService（同步 + Flux 流式）
 ├── kb-api/            # REST Controller + SSE + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（空模块，待开发）
-├── kb-eval/           # AI 评估（空模块，待开发）
+├── kb-eval/           # AI 评估（Phase 2.16 最小基线：EvalRunner + Golden Dataset + CI 门禁）
 ├── frontend/          # Vue3 前端（Vite 6；Login/Chat 两个视图，SSE 流式对话 + 文档上传）
 └── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
 ```
@@ -50,7 +50,7 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（/actuator/health|info permitAll，/api/** authenticated，其余 denyAll，无状态会话）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁用 Spring AI 原生 auto-config，`VectorStoreConfig` 按 `@ConditionalOnProperty(kb.vector-store.provider)` 条件创建 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
-- 当前**无任何测试类**；kb-admin / kb-eval 为空模块
+- kb-admin 为空模块；kb-eval 已落地 Phase 2.16 评估最小基线（`mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci` 跑门禁，标注指南见 `kb-eval/src/main/resources/golden/README-标注指南.md`）；业务模块尚无测试类
 
 ## 注意事项
 

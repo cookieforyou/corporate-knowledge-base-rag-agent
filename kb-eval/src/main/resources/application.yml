@@ -1,0 +1,40 @@
+# kb-eval 独立运行配置 —— 复用 kb-infrastructure / kb-ai-core 的配置片段
+spring:
+  config:
+    import:
+      - classpath:application-infra.yml   # PG/ES/Redis/MinIO/向量库（来自 kb-infrastructure jar）
+      - classpath:application-ai.yml      # DeepSeek + Embedding（来自 kb-ai-core jar）
+  application:
+    name: kb-eval
+  main:
+    web-application-type: none            # 非 Web 应用，跑完即退（CI 友好）
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+# ── 评估配置（阈值表对应设计文档 16.4，Phase 2 建基线期从宽）──
+eval:
+  top-k: 5
+  sample-size: 0                          # CI 快跑可设 10（每类抽样）
+  judge:
+    base-url: ${EVAL_JUDGE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    api-key: ${DASHSCOPE_API_KEY:}        # 复用百炼 Key（Judge 默认 qwen-max，与被测 DeepSeek 跨厂商隔离）
+    model: ${EVAL_JUDGE_MODEL:qwen-max}
+    temperature: 0.0
+  thresholds:
+    top-k-recall: 0.85
+    mrr: 0.70
+    faithfulness: 4.0
+    negative-rejection: 0.85
+    regression: 0.03
+
+---
+# CI 门禁：mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci
+spring:
+  config:
+    activate:
+      on-profile: ci
+eval:
+  ci:
+    enabled: true

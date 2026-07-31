@@ -6,12 +6,32 @@
     <parent/>
     <artifactId>kb-eval</artifactId>
     <name>kb-eval</name>
-    <description>AI 评估模块：Golden Dataset、评估指标、CI 自动评估</description>
+    <description>AI 评估模块：Golden Dataset、评估指标、CI 自动评估（Phase 2.16 最小基线）</description>
 
     <dependencies>
         <dependency>
             <groupId>com.enterprise</groupId>
             <artifactId>kb-ai-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
+        <!-- OpenAI Java SDK OkHttp 传输（Judge 模型客户端用；spring-ai BOM 不管理此 artifact，
+             版本与 starter 传递的 openai-java-core 保持一致） -->
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java-client-okhttp</artifactId>
+            <version>4.41.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
@@ -24,4 +44,14 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 可独立运行：mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 </project>

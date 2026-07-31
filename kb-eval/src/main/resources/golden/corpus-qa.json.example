@@ -1,0 +1,22 @@
+[
+  {
+    "id": "factoid-001",
+    "category": "FACTOID",
+    "question": "示例：增值税发票的认证期限是多少天？",
+    "expectedKeywords": "认证,期限",
+    "expectedAnswer": "示例：增值税专用发票应在开具之日起 360 日内完成认证。",
+    "expectedChunkIds": ["<用标注辅助工具获取的真实 chunkId>"]
+  },
+  {
+    "id": "table-001",
+    "category": "TABLE",
+    "question": "示例：产品参数表中 XX 型号的最大功率是多少？",
+    "expectedChunkIds": ["<表格 Chunk 的 chunkId>"]
+  },
+  {
+    "id": "reasoning-001",
+    "category": "REASONING",
+    "question": "示例：对比 A 流程与 B 流程在审批环节上的差异",
+    "expectedChunkIds": ["<chunkId-1>", "<chunkId-2>"]
+  }
+]
