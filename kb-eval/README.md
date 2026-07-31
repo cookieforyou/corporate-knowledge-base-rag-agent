@@ -28,7 +28,7 @@ kb-eval/src/main/java/com/enterprise/kb/eval/
 ├── EvalApplication.java              # 独立启动入口（非 Web，跑完即退，CI 友好）
 ├── config/
 │   ├── EvalProperties.java           # eval.* 配置绑定（阈值表、Judge、抽样）
-│   └── JudgeModelConfig.java         # judgeChatClient Bean（百炼 qwen-max，跨厂商评判）
+│   └── JudgeModelConfig.java         # judgeChatClient Bean（百炼 qwen3.7-plus，跨厂商评判）
 ├── dataset/
 │   ├── QACategory.java               # 用例分类枚举（FACTOID/REASONING/TABLE/MULTI_DOC/NEGATIVE）
 │   ├── GoldenQAPair.java             # 问答对模型（可选字段与指标联动）
@@ -83,11 +83,11 @@ Golden 用例
 ### 2.3 LLM-as-Judge —— 跨厂商隔离
 
 - **被测**：DeepSeek V4（kb-ai-core 链路）
-- **Judge**：默认百炼 **qwen-max**（经 `DASHSCOPE_API_KEY` 复用现有密钥，无需新增）
+- **Judge**：默认百炼 **qwen3.7-plus**（经 `DASHSCOPE_API_KEY` 复用现有密钥，无需新增）
 
 跨厂商评判规避 self-preference 偏差（设计文档 16.3）。Judge Prompt 采用 G-Eval 式 CoT（先推理后打分，缓解长度偏差），结构化输出经 `ChatClient.entity()` 映射为 `JudgeScore(score, reason, verdict)`。
 
-Judge 模型可换：`EVAL_JUDGE_MODEL` 环境变量（如 qwen-plus 降本）。16.3 的完整校准（与人工标注 85-90% 一致率）是 Phase 5 事项。
+Judge 模型可换：`EVAL_JUDGE_MODEL` 环境变量（如 qwen3.7-max 效果更好）。16.3 的完整校准（与人工标注 85-90% 一致率）是 Phase 5 事项。
 
 ### 2.4 指标定义
 
@@ -171,7 +171,7 @@ Judge 模型可换：`EVAL_JUDGE_MODEL` 环境变量（如 qwen-plus 降本）�
 |---|---|
 | ECS 基础设施 | 向量库（Milvus/pgvector）+ PostgreSQL 可达（环境变量 `DB_URL`、`KB_VECTOR_STORE_PROVIDER` / `KB_MILVUS_*` 等，与 kb-api 启动变量同源） |
 | `DEEPSEEK_API_KEY` | 被测链路 LLM |
-| `DASHSCOPE_API_KEY` | Judge 模型（qwen-max） |
+| `DASHSCOPE_API_KEY` | Judge 模型（qwen3.7-plus） |
 | 数据库 schema | 已执行 `kb-domain/src/main/resources/schema.sql`（应用以 `ddl-auto: validate` 启动） |
 | Golden 语料 | 负向用例已内置；正向用例按 3.4 标注（未标注也可跑，检索/生成指标显示"无样本，跳过"） |
 
@@ -262,7 +262,7 @@ Negative Rejection:  0.8667
 | `eval.ci.enabled` | false | ci profile 下 true，启用门禁 |
 | `eval.judge.base-url` | 百炼 OpenAI 兼容端点 | `EVAL_JUDGE_BASE_URL` 覆盖 |
 | `eval.judge.api-key` | `${DASHSCOPE_API_KEY}` | 复用百炼 Key |
-| `eval.judge.model` | qwen-max | `EVAL_JUDGE_MODEL` 覆盖（降本可换 qwen-plus） |
+| `eval.judge.model` | qwen3.7-plus | `EVAL_JUDGE_MODEL` 覆盖（更好效果可换 qwen3.7-max） |
 | `eval.judge.temperature` | 0.0 | Judge 评分确定性 |
 | `eval.thresholds.*` | 见 4.4 | 门禁阈值 |
 
@@ -272,7 +272,7 @@ Negative Rejection:  0.8667
 
 ## 6. 成本与注意事项
 
-- **调用量**：每条正向用例 = 1 次 DeepSeek（被测）+ 2 次 qwen-max（Judge）；负向用例 = 1 + 1。50 条全量约 135 次模型调用，qwen-max 成本可忽略；CI 高频触发时用 `sample-size` 抽样。
+- **调用量**：每条正向用例 = 1 次 DeepSeek（被测）+ 2 次 qwen3.7-plus（Judge）；负向用例 = 1 + 1。50 条全量约 135 次模型调用，qwen3.7-plus 成本可忽略；CI 高频触发时用 `sample-size` 抽样。
 - **Judge 隔离原则**：不要把 Judge 换成与被测相同的 DeepSeek（self-preference 偏差，16.3）；换模型后旧分数不可直接对比。
 - **评估直连 Bean**：EvalRunner 调用的是 kb-ai-core 的 `chatClient`（含 Advisor 链的完整链路），与线上行为一致；不经过 HTTP 层，故不依赖 kb-api 与 JWT。
 - **外部依赖故障**：单条用例 API 超时只记日志跳过；若大面积失败，报告样本数会锐减——先查基础设施再看分数。

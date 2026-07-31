@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Judge 模型装配 —— LLM-as-Judge（设计文档 16.3）
  *
- * <p>被测链路为 DeepSeek V4（kb-ai-core chatClient），Judge 默认走百炼 qwen-max，
+ * <p>被测链路为 DeepSeek V4（kb-ai-core chatClient），Judge 默认走百炼 qwen3.7-plus，
  * 构成**跨厂商评判**，规避 self-preference 偏差（16.3 隔离原则）。
  * 复用现有 DASHSCOPE_API_KEY，无需新增密钥。
  *

@@ -19,8 +19,8 @@ eval:
   sample-size: 0                          # CI 快跑可设 10（每类抽样）
   judge:
     base-url: ${EVAL_JUDGE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
-    api-key: ${DASHSCOPE_API_KEY:}        # 复用百炼 Key（Judge 默认 qwen-max，与被测 DeepSeek 跨厂商隔离）
-    model: ${EVAL_JUDGE_MODEL:qwen-max}
+    api-key: ${DASHSCOPE_API_KEY:}        # 复用百炼 Key（Judge 默认 qwen3.7-plus，与被测 DeepSeek 跨厂商隔离）
+    model: ${EVAL_JUDGE_MODEL:qwen3.7-plus}
     temperature: 0.0
   thresholds:
     top-k-recall: 0.85
