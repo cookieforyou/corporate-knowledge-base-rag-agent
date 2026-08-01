@@ -41,6 +41,6 @@ spring:
 # ============================================================
 rag:
   rerank:
-    endpoint: ${RERANK_ENDPOINT:https://ws-m91v5tutzzmvtji5.cn-beijing.maas.aliyuncs.com/compatible-api/v1/reranks}
+    endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
     model: ${RERANK_MODEL:qwen3-rerank}
     api-key: ${DASHSCOPE_API_KEY:}

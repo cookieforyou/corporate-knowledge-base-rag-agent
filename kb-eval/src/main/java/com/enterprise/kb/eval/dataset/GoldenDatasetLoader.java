@@ -21,12 +21,6 @@ import java.util.List;
 @Component
 public class GoldenDatasetLoader {
 
-    private final ObjectMapper objectMapper;
-
-    public GoldenDatasetLoader(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
-
     public List<GoldenQAPair> loadAll() {
         List<GoldenQAPair> all = new ArrayList<>();
         try {
@@ -34,8 +28,7 @@ public class GoldenDatasetLoader {
                 .getResources("classpath:golden/*.json");
             for (Resource resource : resources) {
                 try (InputStream is = resource.getInputStream()) {
-                    List<GoldenQAPair> pairs =
-                        objectMapper.readValue(is, new TypeReference<List<GoldenQAPair>>() {});
+                    List<GoldenQAPair> pairs = new ObjectMapper().readValue(is, new TypeReference<List<GoldenQAPair>>() {});
                     all.addAll(pairs);
                     log.info("加载 Golden Dataset: {} → {} 条", resource.getFilename(), pairs.size());
                 }
