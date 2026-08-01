@@ -46,6 +46,16 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- victools jsonschema-module-jackson：spring-ai-bom 未管理此件，
+                 openai-java SDK 传递的 4.38.0 会以最短路径优先覆盖 spring-ai 的 5.0.0，
+                 致 .entity() 结构化输出 NoClassDefFoundError: JacksonSchemaModule。
+                 5.0.0 自带旧名 JacksonModule 兼容垫片，且 openai-java 字节码不引用此模块（已核验） -->
+            <dependency>
+                <groupId>com.github.victools</groupId>
+                <artifactId>jsonschema-module-jackson</artifactId>
+                <version>5.0.0</version>
+            </dependency>
+
             <!-- Internal Modules -->
             <dependency>
                 <groupId>com.enterprise</groupId>
