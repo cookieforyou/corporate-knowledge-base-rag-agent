@@ -56,7 +56,7 @@ public record EvalReport(
     }
 
     public String summary() {
-        return String.format("""
+        StringBuilder sb = new StringBuilder(String.format("""
                 ══════════ 评估报告 ══════════
                 检索探针:        %s
                 用例总数:        %d（检索可评 %d / 生成可评 %d / 负向 %d）
@@ -68,12 +68,24 @@ public record EvalReport(
                 Faithfulness:        %s
                 Response Relevancy:  %s
                 ── 鲁棒性 ──
-                Negative Rejection:  %s
-                ══════════════════════════════""",
+                Negative Rejection:  %s""",
             probeName, totalPairs, retrievalEvaluated, generationEvaluated, negativeEvaluated,
             fmt(avgRecall), fmt(avgMrr), fmt(avgContextPrecision),
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
-            negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过");
+            negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
+
+        // 逐用例检索明细：A/B 基线对比的 diff 分析依据（哪些用例收益、哪些持平）
+        List<EvalResult> retrievalCases = results.stream()
+            .filter(r -> !Double.isNaN(r.recall())).toList();
+        if (!retrievalCases.isEmpty()) {
+            sb.append(System.lineSeparator()).append("── 逐用例检索明细 ──");
+            for (EvalResult r : retrievalCases) {
+                sb.append(String.format("%n%-15s R=%.2f  MRR=%.2f  CP=%.2f",
+                    r.pair().id(), r.recall(), r.mrr(), r.contextPrecision()));
+            }
+        }
+        return sb.append(System.lineSeparator())
+            .append("══════════════════════════════").toString();
     }
 
     private static String fmt(double v) {

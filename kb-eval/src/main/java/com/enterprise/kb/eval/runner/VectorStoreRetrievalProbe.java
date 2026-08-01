@@ -3,23 +3,23 @@ package com.enterprise.kb.eval.runner;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 /**
- * 单路向量检索探针 —— Phase 2.16 默认实现
+ * 单路向量检索探针 —— Phase 1 检索形态的度量基线
  *
  * <p>直接调用 Spring AI {@link VectorStore}（即 Phase 1 QuestionAnswerAdvisor 的底层检索），
- * 建立单路检索的质量基线。当更高优先级的 RetrievalProbe Bean（如混合检索探针）出现时，
- * 本 Bean 经 {@link ConditionalOnMissingBean} 自动退让。
+ * 建立单路检索的质量基线。**始终注册**，与混合探针共存：auto 模式经 min-order
+ * 选择混合探针（order 0 &lt; 100），{@code eval.probe=vector} 显式指定本探针——
+ * 二者构成 A/B 基线对比（曾用 @ConditionalOnMissingBean 自动退让，与 A/B 开关
+ * 互斥：混合探针恒在导致本探针永不注册，eval.probe=vector 启动即失败，2026-08-01 修复）。
  *
  * <p>chunkId 约定：ETL 写入时 Document.id = kb_chunk.id（第九章 9.3 不变量），
  * 兼容读取 metadata.chunk_id。
  */
 @Component
-@ConditionalOnMissingBean(name = "hybridRetrievalProbe")
 public class VectorStoreRetrievalProbe implements RetrievalProbe {
 
     private final VectorStore vectorStore;

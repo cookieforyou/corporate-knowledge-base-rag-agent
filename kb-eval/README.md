@@ -74,9 +74,9 @@ Golden 用例
 | 阶段 | 探针 | order | 度量对象 |
 |---|---|---|---|
 | 2.6 之前 | `VectorStoreRetrievalProbe` | 100 | Phase 1 单路向量检索基线 |
-| 簇 B 落地后（当前） | `HybridRetrievalProbe` | 0 | 混合检索全链路（向量+BM25+RRF） |
+| 簇 B 落地后（当前） | 双探针共存 | 0 / 100 | `HybridRetrievalProbe`（混合全链路）+ `VectorStoreRetrievalProbe`（单路基线） |
 
-混合探针（order=0）就位后自动顶替单路探针（`VectorStoreRetrievalProbe` 经 `@ConditionalOnMissingBean` 自动退让）——**评估器与数据集零改动，评估结果自动切换为混合检索的度量**。
+两个探针**始终共存**：auto 模式经 min-order 选择混合探针（0 < 100）——评估器与数据集零改动，评估结果自动切换为混合检索的度量。曾以 `@ConditionalOnMissingBean` 让单路探针自动退让，但与 A/B 开关互斥（混合探针恒在 → 单路探针永不注册 → `eval.probe=vector` 启动即失败），2026-08-01 改为共存。
 
 **A/B 基线对比**：`eval.probe` 显式指定探针（`auto` 默认 / `vector` / `hybrid`），对比 Phase 1 单路基线与混合检索的收益：
 
