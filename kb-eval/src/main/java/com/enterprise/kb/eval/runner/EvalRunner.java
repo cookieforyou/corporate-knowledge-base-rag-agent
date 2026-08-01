@@ -9,6 +9,7 @@ import com.enterprise.kb.eval.metric.RetrievalMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -37,12 +38,14 @@ public class EvalRunner {
     private final ChatClient chatClient;        // 被测链路
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
     private final EvalProperties props;
+    private final ApplicationArguments args;
 
     public EvalRunner(GoldenDatasetLoader datasetLoader,
                       List<RetrievalProbe> probes,
                       @Qualifier("chatClient") ChatClient chatClient,
                       @Qualifier("judgeChatClient") ChatClient judgeChatClient,
-                      EvalProperties props) {
+                      EvalProperties props,
+                      ApplicationArguments args) {
         this.datasetLoader = datasetLoader;
         // 探针选择：auto = order 最小者胜出（混合探针 order=0 自动替代单路基线 order=100）；
         //          vector/hybrid = 显式指定，用于 A/B 基线对比
@@ -50,23 +53,39 @@ public class EvalRunner {
         this.chatClient = chatClient;
         this.judgeChatClient = judgeChatClient;
         this.props = props;
+        this.args = args;
     }
 
-    /** CI 门禁入口：ci profile 下启动即跑，低于阈值抛 EvalFailedException（进程非零退出） */
+    /**
+     * 启动即跑（README §4.2 模式①②）：
+     *
+     * <ul>
+     *   <li>手动模式（默认）：全量评估 + 报告双通道发布，不做门禁判定；</li>
+     *   <li>ci profile：同上，且低于阈值抛出 {@link EvalFailedException}（进程非零退出）；</li>
+     *   <li>标注辅助模式（--eval.annotate-query）：仅由 AnnotationRunner 输出候选 Chunk，
+     *       不跑全量评估——避免标注一条问题白烧一整轮模型调用。</li>
+     * </ul>
+     */
     @EventListener(ApplicationReadyEvent.class)
-    public void runIfCiMode() {
-        if (!props.getCi().isEnabled()) {
-            log.info("eval.ci.enabled=false，跳过门禁评估（手动运行见 README）");
+    public void runOnStartup() {
+        boolean ci = props.getCi().isEnabled();
+        if (!ci && args.containsOption("eval.annotate-query")) {
             return;
         }
         // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」
         if (props.getJudge().getApiKey() == null || props.getJudge().getApiKey().isBlank()) {
-            throw new EvalFailedException("DASHSCOPE_API_KEY 未配置，Judge 不可用——门禁拒绝运行");
+            if (ci) {
+                throw new EvalFailedException("DASHSCOPE_API_KEY 未配置，Judge 不可用——门禁拒绝运行");
+            }
+            log.warn("DASHSCOPE_API_KEY 未配置，跳过评估（Judge 不可用）");
+            return;
         }
         EvalReport report = runFullEval();
         publishReport(report);
-        report.assertThresholds(props);
-        log.info("✅ 评估门禁通过");
+        if (ci) {
+            report.assertThresholds(props);
+            log.info("✅ 评估门禁通过");
+        }
     }
 
     /**
