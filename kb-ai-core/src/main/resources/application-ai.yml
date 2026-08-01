@@ -40,6 +40,12 @@ spring:
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
 # ============================================================
 rag:
+  # 模块化 RAG 检索开关（2.10，设计文档 10.6）
+  retrieval:
+    rewrite:
+      enabled: ${RAG_REWRITE_ENABLED:true}      # 查询改写：多轮指代消解，默认开
+    expansion:
+      enabled: ${RAG_EXPANSION_ENABLED:false}   # 多查询扩展：调用放大 N 倍损 TTFT，默认关
   rerank:
     endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
     model: ${RERANK_MODEL:qwen3-rerank}
