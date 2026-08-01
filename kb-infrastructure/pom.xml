@@ -29,11 +29,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-elasticsearch</artifactId>
         </dependency>
-        <dependency>
-            <groupId>co.elastic.clients</groupId>
-            <artifactId>elasticsearch-java</artifactId>
-            <version>8.19.19</version>
-        </dependency>
 
         <!-- Redis + Redisson -->
         <dependency>

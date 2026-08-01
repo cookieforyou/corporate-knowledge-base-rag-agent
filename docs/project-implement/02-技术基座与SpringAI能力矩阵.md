@@ -14,7 +14,7 @@
 | **框架** | Spring Boot | 4.1.0 | Spring AI 2.0 GA 官方基线为 4.0，4.1 为兼容后续版本 |
 | **AI 核心** | Spring AI | 2.0.0 GA | 2026.6.12 发布，企业级 AI 应用开发平台 |
 | **向量数据库** | Milvus / pgvector | 2.6+ / PG18 扩展 | 双后端可切换：小规模用 pgvector（零运维增量），大规模用 Milvus（分布式 HNSW） |
-| **全文检索** | Elasticsearch | 8.19 | BM25 关键词检索 + RRF 原生支持 |
+| **全文检索** | Elasticsearch | 9.4.2 | BM25 关键词检索 + RRF 原生支持 |
 | **关系数据库** | PostgreSQL | 18+ | 主数据/元数据存储，事务一致性 |
 | **缓存** | Redis | 8.x+ | 会话记忆、限流、Semantic Cache (RediSearch) |
 | **对象存储** | MinIO | 最新稳定版 | S3 兼容，文档 OSS 存储 |

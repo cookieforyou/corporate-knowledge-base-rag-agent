@@ -13,7 +13,7 @@
 | LLM | DeepSeek V4 (`deepseek-v4-flash`) |
 | Embedding | 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) |
 | 向量库 | pgvector / Milvus 2.6（`KB_VECTOR_STORE_PROVIDER` 切换，默认 milvus） |
-| 数据库 | PostgreSQL 18 + Elasticsearch 8.19 + Redis 8 + MinIO |
+| 数据库 | PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO |
 | 认证 | OAuth2 JWT（Casdoor，前端 PKCE 流程） |
 | 前端 | Vue3 + TypeScript + Element Plus + Pinia + Vite 6 |
 

@@ -2,7 +2,7 @@
 
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
-> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 8.19 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
+> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 9.4.2 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
 >
 > **报告性质**：从 0 到 1 的全生命周期落地指南，覆盖战略定位、需求分析、架构设计、分阶段实施、代码实现、测试部署与运维
 >
@@ -124,7 +124,7 @@ Dify、阿里云百炼 Knowledge Studio、Microsoft Copilot Studio 等平台以"
 | **框架** | Spring Boot | 4.1.x | Spring AI 2.0 基线要求 |
 | **AI 核心** | Spring AI | 2.0.0 GA | 2026.6.12 发布，企业级 AI 应用开发平台 |
 | **向量数据库** | Milvus / pgvector | 2.6+ / PG18 扩展 | 双后端可切换：小规模用 pgvector（零运维增量），大规模用 Milvus（分布式 HNSW） |
-| **全文检索** | Elasticsearch | 8.19 | BM25 关键词检索 + RRF 原生支持 |
+| **全文检索** | Elasticsearch | 9.4.2 | BM25 关键词检索 + RRF 原生支持 |
 | **关系数据库** | PostgreSQL | 18+ | 主数据/元数据存储，事务一致性 |
 | **缓存** | Redis | 8.x+ | 会话记忆、限流、Semantic Cache (RediSearch) |
 | **对象存储** | MinIO | 最新稳定版 | S3 兼容，文档 OSS 存储 |
@@ -3310,7 +3310,7 @@ class HybridRetrievalServiceIntegrationTest {
     static MilvusContainer milvus = new MilvusContainer("milvusdb/milvus:v2.6");
     
     @Container
-    static ElasticsearchContainer es = new ElasticsearchContainer("elasticsearch:8.19.0");
+    static ElasticsearchContainer es = new ElasticsearchContainer("elasticsearch:9.4.2");
     
     @Container
     static GenericContainer<?> redis = new GenericContainer<>("redis:8.0")

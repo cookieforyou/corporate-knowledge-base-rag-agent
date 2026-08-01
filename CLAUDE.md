@@ -11,12 +11,12 @@
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
 - LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API)
 - 向量库: pgvector (PG 扩展) / Milvus 2.6（`kb.vector-store.provider` 配置切换，默认 milvus）
-- PostgreSQL 18 + Elasticsearch 8.19 + Redis 8 + MinIO
+- PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO
 - 认证: OAuth2 Resource Server (JWT) · 接入 Casdoor（前端 PKCE 流程）
 - 前端: Vue3 + TypeScript + Element Plus + Pinia + Vite 6
 - Maven 多模块（8 个子模块）
 
-> **版本说明**：文档中的基础设施版本（PG 18、ES 8.19、Milvus 2.6、Redis 8）指 ECS 服务器上的**服务端部署版本**；pom 中对应的是**客户端库版本**，二者独立管理（如 elasticsearch-java 客户端为 8.14.3），不属于不一致。
+> **版本说明**：文档中的基础设施版本（PG 18、ES 9.4.2、Milvus 2.6、Redis 8）指 ECS 服务器上的**服务端部署版本**；pom 中对应的是**客户端库版本**，二者独立管理（如 elasticsearch-java 客户端为 8.14.3），不属于不一致。
 
 ## 项目结构
 
