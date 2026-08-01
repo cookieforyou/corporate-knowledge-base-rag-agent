@@ -2,8 +2,12 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +22,7 @@ class RerankDocumentPostProcessorTest {
 
     /** endpoint 为空 → 禁用态，走降级截断 */
     private final RerankDocumentPostProcessor disabled =
-        new RerankDocumentPostProcessor("", "qwen3-rerank", "");
+        new RerankDocumentPostProcessor("", "qwen3-rerank", "", Mockito.mock(ObjectProvider.class));
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
@@ -63,5 +67,28 @@ class RerankDocumentPostProcessorTest {
 
         // Document.score=0.9 > fusion_score=0.5 → z 排前
         assertEquals("z", result.get(0).getId());
+    }
+
+    /** Web 请求上下文存在时，最终注入序列以 source=final 记入 RetrievalContext（[ref-N] 溯源源，11.1.2） */
+    @Test
+    @SuppressWarnings("unchecked")
+    void recordsFinalTraceEntry_whenRequestScopePresent() {
+        RetrievalContext ctx = new RetrievalContext();
+        ObjectProvider<RetrievalContext> provider = Mockito.mock(ObjectProvider.class);
+        Mockito.when(provider.getObject()).thenReturn(ctx);
+        RerankDocumentPostProcessor processor =
+            new RerankDocumentPostProcessor("", "qwen3-rerank", "", provider);
+
+        RequestContextHolder.setRequestAttributes(Mockito.mock(RequestAttributes.class));
+        try {
+            processor.apply(new Query("q"), List.of(doc("a", 0.9), doc("b", 0.1)));
+
+            assertEquals(1, ctx.getTraceSummary().size());
+            RetrievalContext.TraceEntry entry = ctx.getTraceSummary().get(0);
+            assertEquals("final", entry.source());
+            assertEquals(List.of("a", "b"), entry.documents().stream().map(Document::getId).toList());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 }

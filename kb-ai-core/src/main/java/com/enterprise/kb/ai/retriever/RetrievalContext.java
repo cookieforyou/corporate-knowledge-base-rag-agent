@@ -60,6 +60,23 @@ public class RetrievalContext {
         traceEntries.add(new TraceEntry(source, documents));
     }
 
-    /** 单路检索的 trace 记录：来源标识（vector / bm25）+ 该路命中（含得分元数据） */
+    /** trace 列表快照（SSE TRACE 事件 / 审计数据源；source=final 为重排后最终注入序列，[ref-N] 与其下标对齐） */
+    public List<TraceEntry> getTraceSummary() {
+        return List.copyOf(traceEntries);
+    }
+
+    /** 全 trace 最高融合分（调试/可观测用；无 fusion_score 回退 Document.score，无命中返回 0） */
+    public double getTopFusionScore() {
+        return traceEntries.stream()
+            .flatMap(e -> e.documents().stream())
+            .mapToDouble(d -> {
+                Object fusion = d.getMetadata().get("fusion_score");
+                if (fusion instanceof Number n) return n.doubleValue();
+                return d.getScore() != null ? d.getScore() : 0.0;
+            })
+            .max().orElse(0.0);
+    }
+
+    /** 单路检索的 trace 记录：来源标识（vector / bm25 / final）+ 该路命中（含得分元数据） */
     public record TraceEntry(String source, List<Document> documents) {}
 }
