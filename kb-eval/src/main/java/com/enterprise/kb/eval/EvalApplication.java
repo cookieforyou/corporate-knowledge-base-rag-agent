@@ -4,6 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import com.enterprise.kb.eval.config.EvalProperties;
@@ -28,6 +29,10 @@ import com.enterprise.kb.eval.config.EvalProperties;
 public class EvalApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(EvalApplication.class, args);
+        ConfigurableApplicationContext ctx = SpringApplication.run(EvalApplication.class, args);
+        // 非 Web 应用跑完即退：基础设施客户端（Milvus gRPC / Redisson Netty 等）持有非守护线程，
+        // 不显式退出则 JVM 永远挂起。SpringApplication.exit 先关闭上下文释放连接，
+        // System.exit 兜底强退；门禁失败（EvalFailedException）在 run() 内抛出，进程已非零退出。
+        System.exit(SpringApplication.exit(ctx));
     }
 }
