@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.retriever;
 import com.enterprise.kb.commons.constant.Constants;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
@@ -39,7 +40,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     public RerankDocumentPostProcessor(
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
-            @Value("${rag.rerank.api-key:${DASHSCOPE_API_KEY:}}") String apiKey) {
+            @Value("${rag.rerank.api-key:}") String apiKey) {
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
@@ -52,7 +53,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     }
 
     @Override
-    public List<Document> process(Query query, List<Document> documents) {
+    public @NonNull List<Document> process(@NonNull Query query, @NonNull List<Document> documents) {
         if (!enabled || documents.isEmpty()) {
             return truncateByFusionScore(documents);
         }
