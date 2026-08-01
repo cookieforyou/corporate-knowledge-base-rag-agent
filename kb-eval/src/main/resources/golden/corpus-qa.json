@@ -1,0 +1,74 @@
+[
+  {
+    "id": "factoid-001",
+    "category": "FACTOID",
+    "question": "DDD 是谁在什么时候提出的，出自哪本书？",
+    "expectedChunkIds": ["25a0ca59-49ce-4179-a074-3d7a83930b13"]
+  },
+  {
+    "id": "factoid-002",
+    "category": "FACTOID",
+    "question": "Eric Evans 一共定义了多少种上下文映射模式？",
+    "expectedChunkIds": ["c3423b09-b3bf-4deb-9890-cfe8c675519f"]
+  },
+  {
+    "id": "factoid-003",
+    "category": "FACTOID",
+    "question": "事件风暴是谁提出的，主要用来做什么？",
+    "expectedChunkIds": ["543705de-5613-419f-927e-5313c654de68"]
+  },
+  {
+    "id": "factoid-004",
+    "category": "FACTOID",
+    "question": "六边形架构是谁提出的，它的核心思想是什么？",
+    "expectedChunkIds": ["b4139846-47aa-4961-a6c6-f55807e9ce41"]
+  },
+  {
+    "id": "factoid-005",
+    "category": "FACTOID",
+    "question": "CQRS 是谁提出的，它要解决什么问题？",
+    "expectedChunkIds": ["67a5e04c-b406-45f8-8189-39e9ffa409e4"]
+  },
+  {
+    "id": "factoid-006",
+    "category": "FACTOID",
+    "question": "防腐层 ACL 内部由哪三个角色组成，各自职责是什么？",
+    "expectedChunkIds": ["f110e23a-4903-4e38-ab56-659dfab3dc29"]
+  },
+  {
+    "id": "factoid-007",
+    "category": "FACTOID",
+    "question": "事件风暴工作坊里橙色便签和蓝色便签分别代表什么？",
+    "expectedChunkIds": ["86560487-e007-4974-be75-0912c6ea6e68"]
+  },
+  {
+    "id": "factoid-008",
+    "category": "FACTOID",
+    "question": "什么是大泥球 Big Ball of Mud，DDD 建议怎么应对？",
+    "expectedChunkIds": ["0bae69cd-488d-4404-a28d-a384516979d4"]
+  },
+  {
+    "id": "table-001",
+    "category": "TABLE",
+    "question": "怎么判断一个概念应该建模成实体还是值对象？",
+    "expectedChunkIds": ["f02f389b-743a-45a7-9738-3bb24b4e2594"]
+  },
+  {
+    "id": "table-002",
+    "category": "TABLE",
+    "question": "DDD 落地有哪些常见反模式，正确做法分别是什么？",
+    "expectedChunkIds": ["86560487-e007-4974-be75-0912c6ea6e68", "fe7d4f3d-ec80-420a-8d9f-0cec71b383a0"]
+  },
+  {
+    "id": "reasoning-001",
+    "category": "REASONING",
+    "question": "为什么大型系统不能建立一个全局统一的领域模型？",
+    "expectedChunkIds": ["ef172040-96f1-4384-a0d0-523f2931dddb"]
+  },
+  {
+    "id": "reasoning-002",
+    "category": "REASONING",
+    "question": "绞杀者模式和修缮者模式处理遗留系统的方式有什么区别？",
+    "expectedChunkIds": ["aff3f368-b06f-4947-bbd6-a24ec2f1932d", "543705de-5613-419f-927e-5313c654de68"]
+  }
+]
