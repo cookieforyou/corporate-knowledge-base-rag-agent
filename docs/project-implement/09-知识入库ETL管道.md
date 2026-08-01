@@ -179,7 +179,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         .withChunkSize(800)
         .withMinChunkSizeChars(200)
         .withMinChunkLengthToEmbed(10)
-        .withMaxNumChunks(5)
+        .withMaxNumChunks(10000)   // 切片数上限（官方默认）：非切片大小！超限后尾部剩余并入单个超大块，触发 embedding 输入超长拒绝
         .withKeepSeparator(true)
         .build();
 

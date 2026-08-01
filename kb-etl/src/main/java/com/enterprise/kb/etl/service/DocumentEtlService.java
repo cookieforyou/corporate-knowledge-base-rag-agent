@@ -48,13 +48,28 @@ public class DocumentEtlService {
     @Value("${minio.bucket}")
     private String bucket;
 
-    private final TokenTextSplitter textSplitter = TokenTextSplitter.builder()
-        .withChunkSize(800)
-        .withMinChunkSizeChars(200)
-        .withMinChunkLengthToEmbed(10)
-        .withMaxNumChunks(5)
-        .withKeepSeparator(true)
-        .build();
+    /**
+     * 切分器工厂（包内可见，供回归测试以生产真实配置验证切分分布）
+     *
+     * <p>参数与设计文档 9.2 一致：800 tokens/chunk、最小 200 字符、保留分隔符。
+     *
+     * <p><b>2026-08-01 修复</b>：maxNumChunks 曾被误设为 5。该参数是「单文档最大
+     * <em>切片数</em>」而非「切片大小上限」——Spring AI 的 TokenTextSplitter 在切片数
+     * 触顶后会把全部尾部剩余 token 归入单个尾块，长文档尾块超过 embedding 模型单条
+     * 输入上限（8192×0.9）被 TokenCountBatchingStrategy 前置拒绝，ETL 在 EMBEDDING
+     * 阶段整体失败。改回官方默认 10000。
+     */
+    static TokenTextSplitter newTextSplitter() {
+        return TokenTextSplitter.builder()
+            .withChunkSize(800)
+            .withMinChunkSizeChars(200)
+            .withMinChunkLengthToEmbed(10)
+            .withMaxNumChunks(10000)
+            .withKeepSeparator(true)
+            .build();
+    }
+
+    private final TokenTextSplitter textSplitter = newTextSplitter();
 
     /**
      * 异步执行 ETL 管道
