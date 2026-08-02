@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -136,9 +137,13 @@ public class RetrievalConfig {
         return builder.build();
     }
 
-    /** Advisor 内部并行执行器：虚拟线程（与 ETL/检索路径技术栈一致） */
+    /**
+     * Advisor 内部并行执行器：虚拟线程 + 请求上下文传播（2.12 热修）。
+     * 传播是租户过滤与溯源 trace 在并行检索线程上生效的前提；
+     * 类型取 AsyncTaskExecutor 以复用于 MVC 异步支持（kb-api AsyncMvcConfig）。
+     */
     @Bean
-    public TaskExecutor retrievalExecutor() {
-        return new VirtualThreadTaskExecutor("retrieval-");
+    public AsyncTaskExecutor retrievalExecutor() {
+        return new ContextPropagatingTaskExecutor(new VirtualThreadTaskExecutor("retrieval-"));
     }
 }

@@ -17,6 +17,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -69,14 +70,26 @@ public class AgentController {
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         log.info("用户 [{}] 发起流式问答: {}", jwtUtils.getCurrentUsername(), query);
-        // 请求线程捕获请求级 trace 上下文：Reactor 流跨线程后无法再取请求作用域 Bean（11.3 v2 注）
-        RetrievalContext traceCtx = currentTraceContext();
+        // 请求线程捕获请求属性：RetrievalContext 是请求作用域代理，流末 reactor 线程
+        // 直接解引用必炸（Scope 'request' is not active）——重绑定后方可读取（11.3 v2 注的线程陷阱）
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
 
         return chatService.chatStream(query)
             .filter(token -> token != null && !token.isEmpty())
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
-            .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(buildTraceEvent(traceCtx))
-                .event("TRACE").build()))
+            .concatWith(Mono.fromSupplier(() -> {
+                if (requestAttributes != null) {
+                    RequestContextHolder.setRequestAttributes(requestAttributes);
+                }
+                try {
+                    return ServerSentEvent.<Object>builder(buildTraceEvent(currentTraceContext()))
+                        .event("TRACE").build();
+                } finally {
+                    if (requestAttributes != null) {
+                        RequestContextHolder.resetRequestAttributes();
+                    }
+                }
+            }))
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
             .onErrorResume(e -> {
                 log.error("流式问答失败: {}", e.getMessage());
