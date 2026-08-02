@@ -42,6 +42,26 @@ minio:
 # 通过 KB_VECTOR_STORE_PROVIDER 环境变量切换: pgvector | milvus
 # ============================================================
 kb:
+  # ============================================================
+  # 解析链路配置（2.1/2.2）—— RAM AccessKey 只经环境变量注入，禁止明文入库
+  # ============================================================
+  parsing:
+    provider: ${KB_PARSING_PROVIDER:docmind}        # DEEP 链路后端：docmind | qwen-ocr
+    deep-by-default: ${KB_PARSING_DEEP_BY_DEFAULT:false}   # PDF 默认走 DEEP（否则仅低密度扫描件走 OCR，常规走 NATIVE）
+    docmind:
+      endpoint: ${DOCMIND_ENDPOINT:docmind-api.cn-hangzhou.aliyuncs.com}
+      access-key-id: ${ALIYUN_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET:}
+      llm-enhancement: ${DOCMIND_LLM_ENHANCEMENT:true}   # 大模型增强（解析大模型版）
+      poll-interval-ms: ${DOCMIND_POLL_INTERVAL_MS:3000}
+      max-polls: ${DOCMIND_MAX_POLLS:100}                # 3s × 100 ≈ 5 分钟上限
+    qwen-ocr:
+      base-url: ${QWEN_OCR_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      model: ${QWEN_OCR_MODEL:qwen3.5-ocr}
+      api-key: ${DASHSCOPE_API_KEY:}                     # 复用百炼 Key
+      dpi: ${QWEN_OCR_DPI:150}
+      max-pages: ${QWEN_OCR_MAX_PAGES:50}
+
   vector-store:
     provider: ${KB_VECTOR_STORE_PROVIDER:milvus}
 

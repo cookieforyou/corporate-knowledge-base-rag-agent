@@ -48,5 +48,24 @@
             <artifactId>okhttp</artifactId>
             <version>4.12.0</version>
         </dependency>
+
+        <!-- DocMind 文档解析大模型版（2.2 深度解析链路；RAM AccessKey 鉴权） -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>docmind_api20220711</artifactId>
+        </dependency>
+
+        <!-- PDFBox：qwen-ocr 链路 PDF 按页渲染（版本与 Tika 传递依赖对齐） -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.7</version>
+        </dependency>
+
+        <!-- RestClient：qwen-ocr 多模态调用 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
     </dependencies>
 </project>
