@@ -49,12 +49,14 @@
             <version>4.12.0</version>
         </dependency>
 
-        <!-- DocMind 文档解析大模型版（2.2 深度解析链路；RAM AccessKey 鉴权；
-             版本由父 POM dependencyManagement 锁定 2.0.14——20220711 版本线才含
-             DocParser 三件套 API，20220729 线仅贸易单证抽取） -->
+        <!-- 阿里云文档智能 DocMind 文档解析大模型版官方 SDK（2.2 深度解析链路；RAM AccessKey 鉴权；
+             20220711 版本线才含 DocParser 三件套 API：
+             SubmitDocParserJob/QueryDocParserStatus/GetDocParserResult，
+             20220729 线仅贸易单证抽取）-->
         <dependency>
             <groupId>com.aliyun</groupId>
             <artifactId>docmind_api20220711</artifactId>
+            <version>2.0.14</version>
         </dependency>
 
         <!-- PDFBox：qwen-ocr 链路 PDF 按页渲染（版本与 Tika 传递依赖对齐） -->

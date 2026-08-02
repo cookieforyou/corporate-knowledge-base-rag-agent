@@ -56,15 +56,6 @@
                 <version>5.0.0</version>
             </dependency>
 
-            <!-- 阿里云文档智能 DocMind 官方 SDK（2.2 深度解析链路，含 SubmitDocParserJob/
-                 QueryDocParserStatus/GetDocParserResult 三件套；20220711 版本线才含
-                 DocParser API，20220729 线仅贸易单证抽取） -->
-            <dependency>
-                <groupId>com.aliyun</groupId>
-                <artifactId>docmind_api20220711</artifactId>
-                <version>2.0.14</version>
-            </dependency>
-
             <!-- Internal Modules -->
             <dependency>
                 <groupId>com.enterprise</groupId>
