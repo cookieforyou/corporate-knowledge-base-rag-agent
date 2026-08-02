@@ -3,23 +3,23 @@ package com.enterprise.kb.etl.service;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.enums.DocumentStatus;
+import com.enterprise.kb.domain.enums.ParseRoute;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlStage;
+import com.enterprise.kb.etl.reader.SmartParsingRouter;
+import com.enterprise.kb.etl.transformer.HtmlProtectingSplitter;
 import com.enterprise.kb.etl.writer.EsIndexWriter;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.reader.tika.TikaDocumentReader;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +32,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * 文档 ETL 服务 — Tika 解析 → Token 切分 → PG 落库 → 向量化写入
+ * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3）→ PG 落库 → 向量化 → ES 双写
  */
 @Slf4j
 @Service
@@ -44,41 +44,30 @@ public class DocumentEtlService {
     private final KbChunkRepository chunkRepository;
     private final VectorStore vectorStore;
     private final EsIndexWriter esIndexWriter;
+    private final SmartParsingRouter parsingRouter;
+    private final HtmlProtectingSplitter protectingSplitter;
 
     @Value("${minio.bucket}")
     private String bucket;
 
     /**
-     * 切分器工厂（包内可见，供回归测试以生产真实配置验证切分分布）
-     *
-     * <p>参数与设计文档 9.2 一致：800 tokens/chunk、最小 200 字符、保留分隔符。
-     *
-     * <p><b>2026-08-01 修复</b>：maxNumChunks 曾被误设为 5。该参数是「单文档最大
-     * <em>切片数</em>」而非「切片大小上限」——Spring AI 的 TokenTextSplitter 在切片数
-     * 触顶后会把全部尾部剩余 token 归入单个尾块，长文档尾块超过 embedding 模型单条
-     * 输入上限（8192×0.9）被 TokenCountBatchingStrategy 前置拒绝，ETL 在 EMBEDDING
-     * 阶段整体失败。改回官方默认 10000。
-     */
-    static TokenTextSplitter newTextSplitter() {
-        return TokenTextSplitter.builder()
-            .withChunkSize(800)
-            .withMinChunkSizeChars(200)
-            .withMinChunkLengthToEmbed(10)
-            .withMaxNumChunks(10000)
-            .withKeepSeparator(true)
-            .build();
-    }
-
-    private final TokenTextSplitter textSplitter = newTextSplitter();
-
-    /**
-     * 异步执行 ETL 管道
+     * 异步执行 ETL 管道（自动解析路由）
      *
      * @param docId            文档 ID
      * @param progressCallback 进度回调（可选，Phase 1 传空函数即可）
      */
     @Async("etlExecutor")
     public void process(String docId, Consumer<EtlProgress> progressCallback) {
+        process(docId, progressCallback, null);
+    }
+
+    /**
+     * 异步执行 ETL 管道（可指定解析路由）
+     *
+     * @param forcedRoute 上传参数强制指定的解析路由（null = SmartParsingRouter 自动决策）
+     */
+    @Async("etlExecutor")
+    public void process(String docId, Consumer<EtlProgress> progressCallback, ParseRoute forcedRoute) {
         KbDocument doc = documentRepository.findById(docId)
             .orElseThrow(() -> new BusinessException("DOC_NOT_FOUND", "文档不存在: " + docId));
 
@@ -87,16 +76,17 @@ public class DocumentEtlService {
             doc.setStatus(DocumentStatus.PARSING);
             documentRepository.save(doc);
 
-            // Stage 1: 从 MinIO 读取并 Tika 解析
+            // Stage 1: MinIO 读取 + 智能路由解析（NATIVE/DEEP/OCR，9.1）
             progressCallback.accept(new EtlProgress(docId, EtlStage.READING));
-            List<Document> rawDocs = readAndParse(doc);
-            doc.setParseRoute("NATIVE");
-            doc.setPageCount(rawDocs.size());
-            log.info("文档解析完成: docId={}, pages={}", docId, rawDocs.size());
+            SmartParsingRouter.ParsingOutcome outcome = readAndParse(doc, forcedRoute);
+            List<Document> rawDocs = outcome.documents();
+            doc.setParseRoute(outcome.route().name());
+            doc.setPageCount(pageCountOf(rawDocs));
+            log.info("文档解析完成: docId={}, route={}, pages={}", docId, outcome.route(), doc.getPageCount());
 
-            // Stage 2: Token 切分
+            // Stage 2: 保护式切分（表格/图片保护，无保护标签走快速路径 = Phase 1 行为）
             progressCallback.accept(new EtlProgress(docId, EtlStage.TRANSFORMING));
-            List<Document> chunks = textSplitter.apply(rawDocs);
+            List<Document> chunks = protectingSplitter.apply(rawDocs);
             log.info("文档切分完成: docId={}, chunks={}", docId, chunks.size());
 
             // Stage 3: 落 kb_chunk 表
@@ -136,7 +126,8 @@ public class DocumentEtlService {
 
     // ── 私有方法 ──
 
-    private List<Document> readAndParse(KbDocument doc) throws Exception {
+    private SmartParsingRouter.ParsingOutcome readAndParse(KbDocument doc, ParseRoute forcedRoute)
+            throws Exception {
         // 从 MinIO 下载文件字节
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         minioClient.getObject(GetObjectArgs.builder()
@@ -144,10 +135,19 @@ public class DocumentEtlService {
             .object(doc.getOssPath())
             .build()).transferTo(bos);
 
-        // Tika 自动检测格式并解析
-        TikaDocumentReader reader = new TikaDocumentReader(
-            new ByteArrayResource(bos.toByteArray()));
-        return reader.get();
+        // 智能路由解析（NATIVE=Tika / DEEP=DocMind / OCR=qwen3.5-ocr，9.1）
+        return parsingRouter.read(bos.toByteArray(), doc.getName(), forcedRoute);
+    }
+
+    /** 页数：深度链路经元数据携带（解析服务回报），NATIVE 按 Tika 文档段数 */
+    private static int pageCountOf(List<Document> rawDocs) {
+        if (!rawDocs.isEmpty()) {
+            Object pages = rawDocs.get(0).getMetadata().get("page_count");
+            if (pages instanceof Number n && n.intValue() > 0) {
+                return n.intValue();
+            }
+        }
+        return rawDocs.size();
     }
 
     private List<KbChunk> persistChunks(String docId, List<Document> chunks) {
@@ -161,7 +161,14 @@ public class DocumentEtlService {
             entity.setDocId(docId);
             entity.setChunkIndex(i);
             entity.setContent(chunk.getText());
-            entity.setChunkType(ChunkType.TEXT);
+            // chunk_type 由切分器标注（2.3 保护式切分：TABLE/IMAGE；缺省 TEXT）
+            Object chunkType = chunk.getMetadata().get("chunk_type");
+            entity.setChunkType(parseChunkType(chunkType));
+            // 保护块原文 HTML（TABLE/IMAGE 回显与结构保真，9.2）
+            Object originalHtml = chunk.getMetadata().get("original_html");
+            if (originalHtml != null) {
+                entity.setOriginalContent(originalHtml.toString());
+            }
             // 从 Tika metadata 提取页码
             Object page = chunk.getMetadata().get("page_number");
             if (page instanceof Integer pi) entity.setPageNum(pi);
@@ -197,5 +204,16 @@ public class DocumentEtlService {
 
         vectorStore.add(vectorDocs);
         log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), vectorDocs.size());
+    }
+
+    private static ChunkType parseChunkType(Object value) {
+        if (value == null) {
+            return ChunkType.TEXT;
+        }
+        try {
+            return ChunkType.valueOf(value.toString());
+        } catch (IllegalArgumentException e) {
+            return ChunkType.TEXT;
+        }
     }
 }

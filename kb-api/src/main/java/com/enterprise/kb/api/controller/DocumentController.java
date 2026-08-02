@@ -25,9 +25,13 @@ public class DocumentController {
     private final DocumentService documentService;
     private final JwtUtils jwtUtils;
 
+    /** 上传文档；parseRoute 可选强制路由（NATIVE/DEEP/OCR，缺省自动决策，9.1） */
     @PostMapping("/upload")
-    public ApiResponse<Map<String, String>> upload(@RequestParam("file") MultipartFile file) {
-        String docId = documentService.upload(file, jwtUtils.getCurrentTenantId(), jwtUtils.getCurrentUsername());
+    public ApiResponse<Map<String, String>> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "parseRoute", required = false) String parseRoute) {
+        String docId = documentService.upload(file, jwtUtils.getCurrentTenantId(),
+            jwtUtils.getCurrentUsername(), parseRoute);
         return ApiResponse.success(Map.of("docId", docId));
     }
 

@@ -53,3 +53,8 @@ management:
 # 服务器
 server:
   port: ${SERVER_PORT:8080}
+
+app:
+  ws:
+    allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:5173}
+

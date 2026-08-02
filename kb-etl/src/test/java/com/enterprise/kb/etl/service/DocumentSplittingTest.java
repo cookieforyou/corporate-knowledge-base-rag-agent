@@ -3,6 +3,7 @@ package com.enterprise.kb.etl.service;
 import com.knuddels.jtokkit.Encodings;
 import com.knuddels.jtokkit.api.Encoding;
 import com.knuddels.jtokkit.api.EncodingType;
+import com.enterprise.kb.etl.transformer.HtmlProtectingSplitter;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -35,7 +36,7 @@ class DocumentSplittingTest {
             + "领域驱动设计将领域模型作为软件的核心，通过限界上下文划分边界，聚合根保证一致性边界。".repeat(400);
         int totalTokens = CL100K.countTokens(text);
 
-        List<Document> chunks = DocumentEtlService.newTextSplitter().apply(List.of(new Document(text)));
+        List<Document> chunks = HtmlProtectingSplitter.newTextSplitter().apply(List.of(new Document(text)));
 
         // 切片数不被人为封顶：历史误配下 20K+ tokens 的文档只会得到 6 片（5+1 尾块）
         assertThat(chunks.size())
@@ -58,7 +59,7 @@ class DocumentSplittingTest {
 
     @Test
     void shortDocumentRemainsSingleChunk() {
-        List<Document> chunks = DocumentEtlService.newTextSplitter()
+        List<Document> chunks = HtmlProtectingSplitter.newTextSplitter()
             .apply(List.of(new Document("增值税发票认证期限为三百六十天。")));
         assertThat(chunks).hasSize(1);
     }

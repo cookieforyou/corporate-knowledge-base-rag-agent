@@ -48,8 +48,10 @@ public class DocumentService {
 
     /**
      * 上传文档：写入 MinIO → 落 kb_document 表 → 返回文档 ID
+     *
+     * @param parseRoute 强制指定解析路由（NATIVE/DEEP/OCR，null = 自动决策，9.1）
      */
-    public String upload(MultipartFile file, String tenantId, String createdBy) {
+    public String upload(MultipartFile file, String tenantId, String createdBy, String parseRoute) {
         validateFile(file);
 
         String docId = UUID.randomUUID().toString();
@@ -87,7 +89,8 @@ public class DocumentService {
 
         // 3. 触发异步 ETL（进度双通道：Redis Hash 状态 + Pub/Sub 实时推送 WebSocket，9.6/2.13）
         etlService.process(docId, progressWriter.andThen(p ->
-            log.debug("ETL 进度: docId={}, stage={}, pct={}", p.getDocId(), p.getStage(), p.getPercentage())));
+                log.debug("ETL 进度: docId={}, stage={}, pct={}", p.getDocId(), p.getStage(), p.getPercentage())),
+            parseForcedRoute(parseRoute));
 
         return docId;
     }
@@ -148,6 +151,19 @@ public class DocumentService {
     private void checkOwnership(KbDocument doc, String tenantId) {
         if (!tenantId.equals(doc.getTenantId())) {
             throw new BusinessException("DOC_FORBIDDEN", "无权访问该文档");
+        }
+    }
+
+    /** 解析路由参数解析：非法值视为未指定（自动决策），不阻断上传 */
+    private static com.enterprise.kb.domain.enums.ParseRoute parseForcedRoute(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return com.enterprise.kb.domain.enums.ParseRoute.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("无法识别的解析路由参数（按自动决策处理）: {}", raw);
+            return null;
         }
     }
 
