@@ -80,7 +80,11 @@ public class RetrievalContext {
     }
 
     public void addTraceEntry(String source, List<Document> documents) {
-        traceEntries.add(new TraceEntry(source, documents));
+        traceEntries.add(new TraceEntry(source, documents, null));
+    }
+
+    public void addTraceEntry(String source, List<Document> documents, Long latencyMs) {
+        traceEntries.add(new TraceEntry(source, documents, latencyMs));
     }
 
     /** trace 列表快照（SSE TRACE 事件 / 审计数据源；source=final 为重排后最终注入序列，[ref-N] 与其下标对齐） */
@@ -100,6 +104,9 @@ public class RetrievalContext {
             .max().orElse(0.0);
     }
 
-    /** 单路检索的 trace 记录：来源标识（vector / bm25 / final）+ 该路命中（含得分元数据） */
-    public record TraceEntry(String source, List<Document> documents) {}
+    /**
+     * 单路检索的 trace 记录：来源标识（vector / bm25 / final）+ 该路命中（含得分元数据）
+     * + 该路耗时（10.8 时延观测 / 调试台展示；无埋点为 null）
+     */
+    public record TraceEntry(String source, List<Document> documents, Long latencyMs) {}
 }

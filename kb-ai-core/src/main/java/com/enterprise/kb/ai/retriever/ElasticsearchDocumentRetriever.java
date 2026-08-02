@@ -39,6 +39,7 @@ public class ElasticsearchDocumentRetriever {
     public List<Document> retrieve(Query query, int size) {
         RetrievalContext ctx = RetrievalContext.from(query);
         String tenantId = ctx != null ? ctx.getTenantId() : null;
+        long start = System.currentTimeMillis();
         try {
             SearchResponse<EsChunkDoc> response = esClient.search(s -> s
                 .index(EsChunkDoc.INDEX)
@@ -58,9 +59,10 @@ public class ElasticsearchDocumentRetriever {
                 docs.add(toDocument(hits.get(i), i + 1));
             }
 
-            // 溯源 trace 记录（SSE TRACE 数据源 11.3；无上下文降级跳过）
+            // 溯源 trace 记录（SSE TRACE 数据源 11.3；无上下文降级跳过）；失败时不记录——
+            // 条目缺失即降级信号（调试台 10.7 degradation 判据）
             if (ctx != null) {
-                ctx.addTraceEntry("bm25", docs);
+                ctx.addTraceEntry("bm25", docs, System.currentTimeMillis() - start);
             }
             return docs;
         } catch (IOException e) {

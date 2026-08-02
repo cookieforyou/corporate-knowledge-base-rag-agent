@@ -107,8 +107,8 @@ public class AgentController {
     private static TraceEvent buildTraceEvent(RetrievalContext ctx) {
         return new TraceEvent(ctx.getTraceSummary().stream()
             .map(entry -> new SourceTrace(entry.source(), entry.documents().stream()
-                .map(AgentController::toChunkTrace)
-                .toList()))
+                .map(doc -> toChunkTrace(doc, entry.source()))
+                .toList(), entry.latencyMs()))
             .toList());
     }
 
@@ -116,7 +116,7 @@ public class AgentController {
         List.of("bm25_score", "bm25_rank", "vector_rank", "fusion_score", "rerank_score", "rerank_rank");
 
     /** Chunk 轻量投影（不序列化全文，控制 SSE 帧体积） */
-    private static ChunkTrace toChunkTrace(Document doc) {
+    private static ChunkTrace toChunkTrace(Document doc, String source) {
         Map<String, Object> meta = doc.getMetadata();
         Map<String, Object> scores = new LinkedHashMap<>();
         for (String key : SCORE_KEYS) {
@@ -124,6 +124,10 @@ public class AgentController {
             if (value != null) {
                 scores.put(key, value);
             }
+        }
+        // 向量路原始相似度（簇 C 观察补全：该路元数据无独立得分键）
+        if ("vector".equals(source) && doc.getScore() != null) {
+            scores.put("similarity", doc.getScore());
         }
         String text = doc.getText() == null ? "" : doc.getText().replaceAll("\\s+", " ");
         String snippet = text.length() <= 120 ? text : text.substring(0, 120) + "…";

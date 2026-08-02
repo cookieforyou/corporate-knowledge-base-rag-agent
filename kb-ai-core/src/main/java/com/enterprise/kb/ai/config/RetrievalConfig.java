@@ -73,11 +73,23 @@ public class RetrievalConfig {
      * <p>检索在 before() 内经 taskExecutor 并行执行（源码核验）；租户/溯源上下文
      * 经 Advisor 参数随 Query.context 流入检索组件——与线程模型解耦，同步/流式一致。
      */
+    /**
+     * 查询改写器（多轮指代消解）——独立 Bean 以便检索调试台（2.14）复用，
+     * 与主链路共享同一实例
+     */
+    @Bean
+    public RewriteQueryTransformer rewriteQueryTransformer(ChatClient.Builder chatClientBuilder) {
+        return RewriteQueryTransformer.builder()
+            .chatClientBuilder(chatClientBuilder)
+            .build();
+    }
+
     @Bean
     public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
             ChatClient.Builder chatClientBuilder,
             HybridDocumentRetriever hybridRetriever,
             RerankDocumentPostProcessor rerankPostProcessor,
+            RewriteQueryTransformer rewriteQueryTransformer,
             @Qualifier("retrievalExecutor") TaskExecutor retrievalExecutor,
             @Value("${rag.retrieval.rewrite.enabled:true}") boolean rewriteEnabled,
             @Value("${rag.retrieval.expansion.enabled:false}") boolean expansionEnabled) {
@@ -94,9 +106,7 @@ public class RetrievalConfig {
             .order(500);
 
         if (rewriteEnabled) {
-            builder.queryTransformers(RewriteQueryTransformer.builder()
-                .chatClientBuilder(chatClientBuilder)
-                .build());
+            builder.queryTransformers(rewriteQueryTransformer);
         }
         if (expansionEnabled) {
             builder.queryExpander(MultiQueryExpander.builder()

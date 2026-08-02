@@ -22,6 +22,9 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                // WebSocket 端点放行 filter chain：鉴权在握手层经 JwtHandshakeInterceptor
+                // 复用同一 JwtDecoder 完成（2.13；浏览器 WS API 无法携带 Authorization 头）
+                .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().denyAll()
             )

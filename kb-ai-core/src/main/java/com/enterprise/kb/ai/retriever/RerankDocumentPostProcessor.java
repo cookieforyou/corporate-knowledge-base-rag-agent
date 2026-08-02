@@ -54,9 +54,10 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
 
     @Override
     public @NonNull List<Document> process(@NonNull Query query, @NonNull List<Document> documents) {
+        long start = System.currentTimeMillis();
         List<Document> top = doProcess(query, documents);
         // 最终注入序列 trace（source=final）：[ref-N] 标注与本列表下标一一对应（11.1.2）
-        recordFinalTrace(query, top);
+        recordFinalTrace(query, top, System.currentTimeMillis() - start);
         return top;
     }
 
@@ -122,13 +123,13 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     }
 
     /** 最终序列写入检索上下文 trace（经 Query.context 参数化；无上下文降级跳过） */
-    private void recordFinalTrace(Query query, List<Document> top) {
+    private void recordFinalTrace(Query query, List<Document> top, long latencyMs) {
         if (top.isEmpty()) {
             return;
         }
         RetrievalContext ctx = RetrievalContext.from(query);
         if (ctx != null) {
-            ctx.addTraceEntry("final", top);
+            ctx.addTraceEntry("final", top, latencyMs);
         }
     }
 

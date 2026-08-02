@@ -26,8 +26,8 @@ public sealed interface AgentStreamEvent {
      */
     record TraceEvent(List<SourceTrace> sources) implements AgentStreamEvent {}
 
-    /** 单路 trace：source ∈ {vector, bm25, final} */
-    record SourceTrace(String source, List<ChunkTrace> chunks) {}
+    /** 单路 trace：source ∈ {vector, bm25, final}；latencyMs 该路耗时（10.8 时延观测） */
+    record SourceTrace(String source, List<ChunkTrace> chunks, Long latencyMs) {}
 
     /**
      * Chunk 轻量投影（不序列化全文，控制 SSE 帧体积）：

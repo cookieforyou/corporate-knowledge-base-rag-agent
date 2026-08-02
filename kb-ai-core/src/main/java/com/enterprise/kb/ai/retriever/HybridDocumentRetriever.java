@@ -69,9 +69,15 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         // 虚拟线程并行双路召回；两路各自容错（失败/超时 → 空列表，降级矩阵 10.2）
         List<Document> vectorHits;
         List<Document> bm25Hits;
+        long[] vectorLatency = new long[1];
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<List<Document>> vectorFuture = executor.submit(
-                () -> retrieveSafely(() -> vectorSearch(query, recallSize, ctx), "vector"));
+                () -> retrieveSafely(() -> {
+                    long t0 = System.currentTimeMillis();
+                    List<Document> hits = vectorSearch(query, recallSize, ctx);
+                    vectorLatency[0] = System.currentTimeMillis() - t0;
+                    return hits;
+                }, "vector"));
             Future<List<Document>> bm25Future = executor.submit(
                 () -> retrieveSafely(() -> esRetriever.retrieve(query, recallSize), "bm25"));
             vectorHits = await(vectorFuture, "vector");
@@ -79,9 +85,9 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         }
 
         // 向量路 trace（bm25 路由 ES 检索器自记录；Future.get 建立 happens-before，
-        // 此刻 ES 路写入已可见，CopyOnWriteArrayList 保证快照读安全）
+        // 此刻 ES 路写入与 vectorLatency 赋值均已可见，CopyOnWriteArrayList 保证快照读安全）
         if (ctx != null) {
-            ctx.addTraceEntry("vector", vectorHits);
+            ctx.addTraceEntry("vector", vectorHits, vectorLatency[0]);
         }
 
         List<Document> fused = rrfFusion.fuse(vectorHits, bm25Hits, recallSize);

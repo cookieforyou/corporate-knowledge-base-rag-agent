@@ -188,6 +188,9 @@ public class DocumentEtlService {
                        "doc_id", doc.getId(),
                        "tenant_id", doc.getTenantId(),
                        "chunk_type", e.getChunkType().name(),
+                       // file_name 随向量元数据携带（2.14 调试台/溯源展示；
+                       // 存量向量缺此字段，重新入库后补齐）
+                       "file_name", doc.getName() != null ? doc.getName() : "unknown",
                        "page_num", e.getPageNum() != null ? e.getPageNum() : 0,
                        "is_deleted", java.util.Objects.requireNonNullElse(e.getIsDeleted(), false))))
             .toList();
