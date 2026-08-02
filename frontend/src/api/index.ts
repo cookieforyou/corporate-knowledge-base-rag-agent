@@ -61,9 +61,10 @@ export interface KbChunk {
   createdAt: string
 }
 
-export const uploadDocument = (file: File) => {
+export const uploadDocument = (file: File, parseRoute?: string) => {
   const form = new FormData()
   form.append('file', file)
+  if (parseRoute) form.append('parseRoute', parseRoute)
   return api.post('/documents/upload', form).then(r => r.data.data.docId as string)
 }
 

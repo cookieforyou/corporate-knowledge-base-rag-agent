@@ -89,6 +89,15 @@
 
     <!-- ══ 上传对话框 ══ -->
     <el-dialog v-model="uploadOpen" title="上传知识文档" width="480" :close-on-click-modal="false">
+      <div class="route-row">
+        <span class="route-label">解析路由</span>
+        <el-select v-model="parseRouteChoice" style="width: 300px">
+          <el-option label="自动决策（文本密度探测）" value="" />
+          <el-option label="NATIVE · Tika 原生解析" value="NATIVE" />
+          <el-option label="DEEP · DocMind 大模型解析" value="DEEP" />
+          <el-option label="OCR · qwen3.5-ocr 视觉识别" value="OCR" />
+        </el-select>
+      </div>
       <el-upload drag multiple :show-file-list="true" :before-upload="handleUpload"
         accept=".pdf,.docx,.md,.txt,.html" class="upload-zone">
         <el-icon class="upload-cloud"><UploadFilled /></el-icon>
@@ -134,6 +143,7 @@ import { UploadFilled, Delete, Grid, Loading } from '@element-plus/icons-vue'
 const docs = ref<KbDoc[]>([])
 const loading = ref(false)
 const uploadOpen = ref(false)
+const parseRouteChoice = ref('')
 
 const totalChunks = computed(() =>
   docs.value.reduce((sum, d) => sum + (d.chunkCount ?? 0), 0))
@@ -156,7 +166,7 @@ const sockets: Record<string, WebSocket> = {}
 
 async function handleUpload(file: File) {
   try {
-    const docId = await uploadDocument(file)
+    const docId = await uploadDocument(file, parseRouteChoice.value || undefined)
     liveProgress[docId] = { name: file.name, stage: 'READING', percentage: 5 }
     subscribe(docId, file.name)
   } catch (e: any) {
@@ -297,6 +307,8 @@ const fmtTime = (t: string) => t ? t.replace('T', ' ').slice(0, 16) : '—'
   animation: caret-blink 1.2s ease infinite;
 }
 
+.route-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.route-label { font-size: 13px; color: var(--ink-2); font-weight: 600; flex-shrink: 0; }
 .upload-zone :deep(.el-upload-dragger) { padding: 34px 20px; }
 .upload-cloud { font-size: 46px; color: var(--pine-600); }
 .upload-hint { margin-top: 10px; font-size: 14px; color: var(--ink-2); }
