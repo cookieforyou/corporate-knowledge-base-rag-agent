@@ -12,41 +12,33 @@
 
 RAG 检索与证据注入的完整实现见**第十章**（`RetrievalAugmentationAdvisor` + `HybridDocumentRetriever` + `RrfFusion` + `RerankDocumentPostProcessor` + `ContextualQueryAugmenter`）。本章只定义对话链路上的**溯源透传层**：把检索过程的 trace 数据送到 SSE TRACE 事件与审计日志。
 
-### 11.1.1 RetrievalTraceAdvisor（瘦 Advisor，v2 新增）
+### 11.1.1 RetrievalTraceAdvisor（瘦 Advisor，v2 新增，v2.1 重写）
 
-职责有二：① 在 Advisor 链入口填充请求级 `RetrievalContext`（tenant_id、ACL，供检索过滤器使用，见 10.2.1）；② 在 LLM 调用后将检索 trace 写入响应上下文，供 Controller 层推送 SSE TRACE 事件与审计落库。
+> **v2.1 实现期重写（2026-08-02）**：v2 原稿有两处结构性错误，E2E 实证后推翻：
+> ① **模块边界违反**——草图在 kb-ai-core 引用 kb-api 的 `JwtUtils`（依赖方向 kb-ai-core ← kb-api 不可逆）。身份填充移至 kb-api Controller 的请求线程（JwtUtils 天然可用）；
+> ② **请求作用域填充失效**——草图经 `ObjectProvider.getObject()` 在 Advisor 链填充 `@RequestScope` RetrievalContext。实证：MVC 异步请求（SSE 流式）在请求线程返回后即标记请求完结，作用域代理在整个流式生命周期不可解析（`ScopeNotActiveException`），所有填充/读取被守卫静默降级——**租户过滤与 trace 在流式路径实际全部失效**。RetrievalContext 改为每请求纯实例经 advisor 参数传递（定稿机制见 10.2.1），本 Advisor 随之瘦身为纯上下文 Map 操作。
+
+定稿职责：① before 打检索起始时刻戳（调试 API 10.7 / 时延观测）；② after 将 trace 快照写入响应上下文（供**同步**链路调试 API 消费；流式 TRACE 走 Controller 直读同一实例的旁路，见 11.3）。
 
 ```java
 package com.enterprise.kb.ai.advisor;
 
-import com.enterprise.kb.api.security.JwtUtils;
-import org.springframework.ai.chat.client.advisor.api.*;
-import org.springframework.ai.chat.prompt.Prompt;
+import com.enterprise.kb.ai.retriever.RetrievalContext;
+import org.springframework.ai.chat.client.ChatClientRequest;      // record，位于 chat.client 包（非 advisor.api）
+import org.springframework.ai.chat.client.ChatClientResponse;
+import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
+import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 检索溯源 Advisor —— Order 450（先于 RetrievalAugmentationAdvisor 的 500）
- *
- * <p>v2 注：Spring AI 2.0 的 ChatClientRequest 是不可变 record，
- * 无 v1 文档中的 from() 静态构造器；需要变换请求时经 Prompt 重建。</p>
- */
+/** 检索溯源 Advisor —— Order 450（先于 RetrievalAugmentationAdvisor 的 500） */
 @Component
 public class RetrievalTraceAdvisor implements BaseAdvisor {
 
-    private final ObjectProvider<RetrievalContext> retrievalContextProvider;
-    private final JwtUtils jwtUtils;
-
     @Override
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
-        // 1. 从 SecurityContext 提取 JWT claims 填充请求级检索上下文
-        RetrievalContext ctx = retrievalContextProvider.getObject();
-        ctx.setTenantId(jwtUtils.getCurrentTenantId());   // owner claim
-        ctx.setUserId(jwtUtils.getCurrentUserId());       // sub claim
-
-        // 2. 透传初始 trace 信息到 advisor 上下文
         Map<String, Object> context = new HashMap<>(request.context());
         context.put("trace_start_ms", System.currentTimeMillis());
         // record 重建：new ChatClientRequest(prompt, context)，无 from()
@@ -55,14 +47,17 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 
     @Override
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
-        RetrievalContext ctx = retrievalContextProvider.getObject();
-        // 检索 trace（双路原始命中 + 融合排名 + 重排分）附加到响应上下文
+        // advisor 参数随链路透传于响应上下文；无则原样返回（kb-eval 等非 Web 入口）
+        if (!(response.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx)) {
+            return response;
+        }
+        Map<String, Object> context = new HashMap<>(response.context());
+        context.put("rag_trace", ctx.getTraceSummary());       // List<TraceEntry>：双路原始命中 + final 最终序列
+        context.put("retrieval_count", ctx.getTraceSummary().size());
+        context.put("top_fusion_score", ctx.getTopFusionScore());
         return ChatClientResponse.builder()
-            .chatResponse(response.chatResponse())        // v1 误写为 response.response()
-            .context(Map.of(
-                "rag_trace", ctx.getTraceSummary(),       // List<TraceEntry>：供 SSE TRACE 事件
-                "retrieval_count", ctx.getTraceSummary().size(),
-                "top_score", ctx.getTopFusionScore()))
+            .chatResponse(response.chatResponse())             // v1 误写为 response.response()
+            .context(context)
             .build();
     }
 
@@ -71,10 +66,11 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 }
 ```
 
-> **v1 → v2 API 修正**：
+> **v1 → v2/v2.1 API 修正汇总**：
 > - `ChatClientRequest.from(request).systemText(...).context(...).build()` → **不存在**。`ChatClientRequest` 是 record，仅有 `new ChatClientRequest(Prompt, Map)` 构造器与 `prompt()`/`context()` 访问器；Prompt 级变换用 `Prompt.builder()` / `Prompt.mutate()`。
 > - `response.response()` → 实际访问器为 **`response.chatResponse()`**。
 > - 证据注入（Grounding Prompt 组装）不再手写：由 `ContextualQueryAugmenter` 承担（第十章 10.6）。
+> - 请求状态传递一律经 advisor 参数（`spec.param` → 请求上下文 → Query.context），不用 @RequestScope/ThreadLocal（v2.1 实证，见 10.2.1）。
 
 ### 11.1.2 Grounding 与 [ref-N] 标注
 
@@ -279,12 +275,15 @@ public class AgentStreamController {
             @RequestBody ChatRequest request,
             @RequestParam String sessionId) {
 
-        // 请求级 trace 捕获器（请求作用域 Bean，RetrievalTraceAdvisor 填充）
-        RetrievalContext trace = retrievalContextProvider.getObject();
+        // 每请求 trace 实例：请求线程创建并填充身份（v2.1：绝非请求作用域代理，见下方注），
+        // 经 advisor 参数传入检索组件，流末直读同一实例
+        RetrievalContext trace = newRetrievalContext();   // new RetrievalContext() + JwtUtils 填充 tenantId/userId
 
         return knowledgeAgent.prompt()
             .user(request.query())
-            .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))
+            .advisors(spec -> spec
+                .param(ChatMemory.CONVERSATION_ID, sessionId)
+                .param(RetrievalContext.CONTEXT_KEY, trace))
             .stream()
             .chatResponse()
             .flatMap(response -> {
@@ -322,7 +321,9 @@ record ErrorEvent(String code, String message) implements AgentStreamEvent {}
 record DoneEvent(String sessionId) implements AgentStreamEvent {}
 ```
 
-> **v2 注（流式上下文传递）**：Reactor 流式链路跨线程，Advisor 上下文（`ChatClientResponse.context()`）在流末不易取回，故溯源数据改由请求作用域 `RetrievalContext` 旁路传递——与检索过滤器共用同一机制（10.2.1），一处设计两处复用。前端对 SSE 的消费协议与 Phase 1 兼容（`data: {"token":"..."}` 追加，新增 `event: TRACE` 命名事件，旧前端忽略即可）。
+> **v2 注（流式上下文传递）**：Reactor 流式链路跨线程，Advisor 上下文（`ChatClientResponse.context()`）在流末不易取回，故溯源数据改由 `RetrievalContext` 旁路传递——与检索过滤器共用同一机制（10.2.1），一处设计两处复用。前端对 SSE 的消费协议与 Phase 1 兼容（`data: {"token":"..."}` 追加，新增 `event: TRACE` 命名事件，旧前端忽略即可）。
+>
+> **v2.1 实现期修正（2026-08-02）**：旁路实例必须是 **Controller 请求线程创建的纯对象**，不可经 `ObjectProvider.getObject()` 取请求作用域代理——MVC 异步请求在请求线程返回后即标记请求完结，代理在流末 reactor 线程解引用必抛 `ScopeNotActiveException`（三轮 E2E 实证，详 10.2.1）。参数化传递后该陷阱根除。另：TRACE 供应商须容错降级（溯源失败不得击穿 SSE 流），TOKEN/DONE 照常到达。
 
 ---
 

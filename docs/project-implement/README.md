@@ -3,6 +3,13 @@
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
 > **v2 修订日期**：2026-07-31 · v1 合订本（2026-07-27）归档于 [`archive/`](./archive/)（git 历史可溯）
+>
+> **v2.1 实现期修正（2026-08-02）**：簇 B/C 实现与 E2E 验证中对 v2 草图的源码级/实证修正，已回写各章：
+> 1. **RetrievalContext 请求作用域 → 参数化传递**（10.2.1 重写）：@RequestScope 代理在 MVC 异步请求完结后不可解析，流式路径租户过滤/trace 静默失效——改每请求实例经 advisor 参数→Query.context 传递
+> 2. **RetrievalTraceAdvisor 重写**（11.1.1）：v2 草图跨模块引用 kb-api JwtUtils（依赖方向不可逆）+ 作用域填充失效——瘦身为纯上下文 Map 操作，身份填充移至 Controller 请求线程
+> 3. **ContextualQueryAugmenter 空证据语义**（10.6）：`allowEmptyContext=true` = 模型自由作答（与注释直觉相反），拒答需 `false` + `emptyContextPromptTemplate`（实测 Negative Rejection 0.80→1.00）
+> 4. **Grounding 模板补 `{query}`**（10.6）：augment 渲染传 query+context 双参，缺 {query} 丢用户问题
+> 5. **SSE 流末溯源**（11.3）：Controller 捕获纯实例（非作用域代理），供应商容错降级不击穿流
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 

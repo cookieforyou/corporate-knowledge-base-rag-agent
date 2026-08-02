@@ -63,7 +63,7 @@ Golden 用例
 
 关键设计：
 
-- **被测链路零耦合**：直接注入 kb-ai-core 的 `chatClient` Bean。Phase 1 形态是 `QuestionAnswerAdvisor`；Phase 2.10 替换为 `RetrievalAugmentationAdvisor` 后，**本模块无需任何改动**即自动度量新链路。
+- **被测链路零耦合**：直接注入 kb-ai-core 的 `chatClient` Bean。2.10 已从 Phase 1 的 `QuestionAnswerAdvisor` 切换为 `RetrievalAugmentationAdvisor`（查询改写 + 双路混合检索 + 重排 + Grounding），**本模块零改动**自动度量新链路——切换前后两组数字即链路收益（簇 B/C 验证实证）。
 - **CI 语义天然**：非 Web 应用，评估跑完进程退出——成功 exit 0，门禁失败抛 `EvalFailedException` exit 非 0。
 - **失败隔离**：单条用例异常（API 超时等）记录日志后跳过，不中断整轮评估。
 
@@ -298,6 +298,7 @@ Negative Rejection:  0.8667
 
 | 时点 | 内容 |
 |---|---|
-| Phase 2.7+ | `HybridRetrievalProbe`（order=0）自动替换单路探针，评估无感切换 |
+| ~~Phase 2.7+~~ | ~~`HybridRetrievalProbe`（order=0）自动替换单路探针~~ ✅ 已落地（2026-08-01，双探针共存 + `eval.probe` A/B 开关） |
+| Phase 2 后续 | Golden 语料扩容至 50+（当前 DDD 文档 12 条 + 负向 15 条）；rerank 排序质量调优（簇 C 验证观测：正解 chunk 被 qwen3-rerank 压至 Top-5 末位） |
 | Phase 5 | Answer Correctness（启用 expectedAnswer）/ Citation Attribution / Noise Robustness 指标；Judge 人类校准（85-90% 一致率）；基线回归对比门禁；阈值收紧 |
 | 持续 | 反馈闭环（16.6）：Bad Case → Golden Dataset 增补 → 回归测试 |

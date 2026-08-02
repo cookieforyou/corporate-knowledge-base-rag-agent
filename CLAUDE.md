@@ -4,12 +4,12 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1（基础设施与 MVP 验证）已全部完成；Phase 2（知识引擎攻坚：解析路由、保护式切分、模块化混合检索、溯源 SSE）尚未开始。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版，2026-07-31），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 进行中**——检索主线簇 B（2.5-2.9 混合检索）与对话链路簇 C（2.10-2.12 模块化 RAG + 溯源 SSE）已完成并经端到端验证（A/B 基线：Recall@5 0.917→1.000、MRR 0.806→0.875、Negative Rejection 1.0）；2.16 评估基线框架完成（DDD 文档 12 条 Golden 语料）；簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台）未开始；解析支线（2.1-2.4）待阿里云 RAM AccessKey。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1 实现期修正，2026-07-31/08-02），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API)
+- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) · Rerank: `qwen3-rerank`（百炼专属 MaaS 工作空间端点）· Judge: `qwen3.7-plus`（跨厂商评判）
 - 向量库: pgvector (PG 扩展) / Milvus 2.6（`kb.vector-store.provider` 配置切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO
 - 认证: OAuth2 Resource Server (JWT) · 接入 Casdoor（前端 PKCE 流程）
@@ -24,12 +24,12 @@
 kb-rag-agent/
 ├── kb-commons/        # ApiResponse、BusinessException 体系、Constants（含 RRF_K、DEFAULT_TOP_K）
 ├── kb-domain/         # 8 JPA Entity + 8 Repository + 6 枚举 + schema.sql（8 业务表 + kb_embeddings）
-├── kb-infrastructure/ # vectorstore/（pgvector+Milvus 双后端条件装配）、MinIO；ES/Redis 客户端 Bean 尚未建立
-├── kb-etl/            # 文档 ETL：MinIO 拉取 → Tika 解析 → TokenTextSplitter → PG 落库 → VectorStore 向量化（@Async 虚拟线程）
-├── kb-ai-core/        # ChatClient 配置（QuestionAnswerAdvisor 基础 RAG）、ChatService（同步 + Flux 流式）
-├── kb-api/            # REST Controller + SSE + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
+├── kb-infrastructure/ # vectorstore/（pgvector+Milvus 双后端条件装配）、MinIO、elasticsearch/（kb_chunks 索引模型 + 幂等初始化 EsIndexInitializer）
+├── kb-etl/            # 文档 ETL：MinIO → Tika → TokenTextSplitter → PG 落库 → VectorStore 向量化 → ES 双写（EsIndexWriter，@Async 虚拟线程）
+├── kb-ai-core/        # 模块化 RAG：retriever/（HybridDocumentRetriever 双路并行 + ElasticsearchDocumentRetriever + RrfFusion + RerankDocumentPostProcessor）、advisor/（RetrievalTraceAdvisor）、config/（RetrievalAugmentationAdvisor 组装）、ChatService
+├── kb-api/            # REST Controller + SSE 命名事件 + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（空模块，待开发）
-├── kb-eval/           # AI 评估（Phase 2.16 最小基线：EvalRunner + Golden Dataset + CI 门禁）
+├── kb-eval/           # AI 评估：EvalRunner + 双探针（vector/hybrid A/B）+ Golden Dataset（12 条 DDD 语料 + 15 条负向）+ CI 门禁
 ├── frontend/          # Vue3 前端（Vite 6；Login/Chat 两个视图，SSE 流式对话 + 文档上传）
 └── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
 ```
@@ -43,19 +43,30 @@ kb-rag-agent/
 - 常用环境变量：`SERVER_PORT`、`DB_URL` / `DB_USERNAME` / `DB_PASSWORD`、`KB_VECTOR_STORE_PROVIDER`（pgvector|milvus）及 `KB_MILVUS_*` / `KB_PGVECTOR_*`、`MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` / `MINIO_BUCKET`、`ES_URIS`、`REDIS_HOST`、`JWT_ISSUER_URI`、`DEEPSEEK_API_KEY`、`DASHSCOPE_API_KEY`（默认值见 `application-infra.yml` / `application-ai.yml`）。
 - 启动：后端 `mvn spring-boot:run -pl kb-api`；前端 `cd frontend && npm install && npm run dev`。
 
-## 当前实现要点（Phase 1）
+## 当前实现要点
 
-- 对话：`ChatConfig` 组装 ChatClient + `QuestionAnswerAdvisor`（topK=5，similarityThreshold=0.5）；`AgentController` 提供 `POST /api/v1/chat`（同步）与 `/chat/stream`（SseEmitter，事件 `{"token":...}` / `[DONE]`）
-- 上传：`DocumentService`（类型白名单 PDF/DOCX/MD/TXT/HTML → MinIO → kb_document 落库 → 触发异步 ETL）；`DocumentEtlService`（Tika → TokenTextSplitter 800/200 → kb_chunk 落库 → `VectorStore.add()` 批量向量化，chunkId=vectorId）
-- 认证：`SecurityConfig`（/actuator/health|info permitAll，/api/** authenticated，其余 denyAll，无状态会话）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
-- 双向量库：`spring.ai.vectorstore.type=custom` 禁用 Spring AI 原生 auto-config，`VectorStoreConfig` 按 `@ConditionalOnProperty(kb.vector-store.provider)` 条件创建 PgVectorStore / MilvusVectorStore
+**检索与对话链路（Phase 2 簇 B+C，已 E2E 验证）**
+
+- 对话主链路：`RetrievalConfig` 组装 `RetrievalAugmentationAdvisor`（order=500，替代 Phase 1 QuestionAnswerAdvisor）：`RewriteQueryTransformer` 默认开（`rag.retrieval.rewrite.enabled`）/ `MultiQueryExpander` 默认关 / `HybridDocumentRetriever` 双路 → `RrfFusion`(K=60) → `RerankDocumentPostProcessor`(qwen3-rerank，故障降级 fusion_score 截断) → `ContextualQueryAugmenter` Grounding 模板（[ref-N] 标注 + `allowEmptyContext=false` 空证据拒绝模板）
+- 双路检索：`HybridDocumentRetriever`（虚拟线程并行，单路 5s 超时降级）= 向量路（直连 VectorStore，similarityThreshold=0.5，recallSize=topK×2）+ `ElasticsearchDocumentRetriever`（ik BM25，tenant/is_deleted 过滤）
+- **RetrievalContext 参数化传递**（2026-08-02 重构，重要架构事实）：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填充 tenantId/userId → ChatClient advisor 参数（`RetrievalContext.CONTEXT_KEY`）→ RetrievalAugmentationAdvisor 复制进 Query.context（源码核验）→ 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推送 SSE TRACE。**不使用 @RequestScope**（MVC 异步请求在请求线程返回后标记请求完结，作用域代理在整个流式生命周期不可解析，实证致租户过滤静默失效 + SSE 尾帧崩溃）
+- SSE 协议（2.12，兼容 Phase 1）：`/chat/stream` 返回 `Flux<ServerSentEvent>`（请求线程订阅）；TOKEN/ERROR/DONE 无名事件保持 Phase 1 线形（`{"token":...}` / `{"error":...}` / `[DONE]`），TRACE 为新增命名事件（流末推送 bm25/vector/final 三路溯源，final 下标与 [ref-N] 对齐）
+- 评估：kb-eval 双探针共存（`eval.probe` = auto/vector/hybrid 做 A/B）；`chatClient` Bean 名不变，被测链路切换评估器零感知；Golden 语料 12 条（DDD 文档）+ 15 条负向；报告双通道（stdout + `target/eval-report.txt`，CWD 相对路径——IDEA 运行时落项目根 target/）
+
+**基础设施（Phase 1）**
+
+- 上传/ETL：`DocumentService`（白名单 PDF/DOCX/MD/TXT/HTML → MinIO → kb_document）；`DocumentEtlService`（Tika → TokenTextSplitter 800/200/**maxNumChunks=10000** → kb_chunk → 向量化 → `EsIndexWriter` 双写，INDEXING 阶段失败不阻断）
+- 认证：`SecurityConfig`（/actuator/health|info permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
+- 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，`VectorStoreConfig` 按 `kb.vector-store.provider` 条件创建 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
-- kb-admin 为空模块；kb-eval 已落地 Phase 2.16 评估最小基线（`mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci` 跑门禁，标注指南见 `kb-eval/src/main/resources/golden/README-标注指南.md`）；业务模块尚无测试类
+- 测试：kb-ai-core 23 + kb-eval 12 + kb-etl 2 单测（kb-api/kb-admin 尚无测试类）
 
 ## 注意事项
 
-- Maven 4 reactor 自动解析父子关系，子模块使用 `<parent/>` 即可，无需显式声明父坐标
+- Maven 4 reactor 自动解析父子关系，子模块使用 `<parent/>` 即可；**单模块构建需 `-am`**（兄弟模块不在本地仓库时单 `-pl` 解析失败）
 - JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`（Hibernate 7.x 要求）
-- 父 POM dependencyManagement 已预埋后续阶段依赖：elasticsearch-java 8.14.3、jsoup 1.18.1、redisson 4.6.1、testcontainers 1.20.1
+- 父 POM dependencyManagement 已预埋后续阶段依赖：elasticsearch-java 8.14.3、jsoup 1.18.1、redisson 4.6.1、testcontainers 1.20.1；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递的 4.38.0 以最短路径覆盖 spring-ai 5.0.0 → `.entity()` 结构化输出 NoClassDefFoundError: JacksonSchemaModule）
 - pgvector 模式需先以 superuser 执行 `CREATE EXTENSION IF NOT EXISTS vector;`（服务器 PG 若已启用可跳过）
 - Phase 2 检索架构为 Spring AI 2.0 模块化 RAG（`RetrievalAugmentationAdvisor` + 自研 `HybridDocumentRetriever`/`RrfFusion` + ES ik BM25 双路 + qwen3-rerank）；Milvus 原生混合检索经源码级核验后否决。决策全文见 `docs/project-implement/10-混合检索引擎.md` §10.0
+- **Spring AI 2.0 API 实证坑**（设计稿已回写 v2.1 修正）：① `OpenAiChatModel` 的异步 client 不继承预建同步 client 凭证，baseUrl/apiKey 必须经 `OpenAiChatOptions` 传入；② `ContextualQueryAugmenter.allowEmptyContext=true` 语义是「空证据原样返回问题由模型自由作答」（与直觉相反），拒答需 `false` + `emptyContextPromptTemplate`；③ `TokenTextSplitter.maxNumChunks` 是切片**数**上限（官方默认 10000），触顶后尾部剩余并入单个超大块，长文档会超 embedding 单条输入上限（8192×0.9）致 ETL 失败；④ Spring AI Document metadata 禁 null 值，可空字段须条件写入；⑤ `ChatClientRequest`/`ChatClientResponse` 是 record，位于 `chat.client` 包（非 `advisor.api`）
+- **请求状态传递只用参数链**（RetrievalContext 模式），不用 @RequestScope/ThreadLocal：MVC 异步请求完结后作用域代理不可解析，且 Advisor taskExecutor/Reactor 线程不继承请求属性。ChatMemory 的 CONVERSATION_ID 等同理经 advisor 参数传递
