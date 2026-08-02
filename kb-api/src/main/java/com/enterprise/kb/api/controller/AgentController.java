@@ -77,25 +77,35 @@ public class AgentController {
         return chatService.chatStream(query)
             .filter(token -> token != null && !token.isEmpty())
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
-            .concatWith(Mono.fromSupplier(() -> {
-                if (requestAttributes != null) {
-                    RequestContextHolder.setRequestAttributes(requestAttributes);
-                }
-                try {
-                    return ServerSentEvent.<Object>builder(buildTraceEvent(currentTraceContext()))
-                        .event("TRACE").build();
-                } finally {
-                    if (requestAttributes != null) {
-                        RequestContextHolder.resetRequestAttributes();
-                    }
-                }
-            }))
+            .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(requestAttributes))
+                .event("TRACE").build()))
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
             .onErrorResume(e -> {
-                log.error("流式问答失败: {}", e.getMessage());
+                log.error("流式问答失败", e);
                 return Flux.just(ServerSentEvent.<Object>builder(
                     new ErrorEvent(String.valueOf(e.getMessage()))).build());
             });
+    }
+
+    /**
+     * TRACE 载荷构建（容错）：溯源是旁路增值数据，任何线程/作用域异常都不得击穿 SSE 流——
+     * 失败时返回空溯源并记录完整堆栈（定位线程陷阱用），TOKEN 流与 DONE 不受影响。
+     */
+    private TraceEvent safeBuildTrace(RequestAttributes requestAttributes) {
+        if (requestAttributes != null) {
+            RequestContextHolder.setRequestAttributes(requestAttributes);
+        }
+        try {
+            return buildTraceEvent(currentTraceContext());
+        } catch (Exception e) {
+            log.warn("TRACE 溯源构建失败（thread={}，已降级为空溯源）",
+                Thread.currentThread().getName(), e);
+            return new TraceEvent(List.of());
+        } finally {
+            if (requestAttributes != null) {
+                RequestContextHolder.resetRequestAttributes();
+            }
+        }
     }
 
     // ── 溯源投影（检索组件记录的元数据 → 前端可消费的轻量结构）──
