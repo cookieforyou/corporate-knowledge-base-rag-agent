@@ -47,6 +47,6 @@ rag:
     expansion:
       enabled: ${RAG_EXPANSION_ENABLED:false}   # 多查询扩展：调用放大 N 倍损 TTFT，默认关
   rerank:
-    endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
+    endpoint: ${RERANK_ENDPOINT:https://ws-m91v5tutzzmvtji5.cn-beijing.maas.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank}
     model: ${RERANK_MODEL:qwen3-rerank}
     api-key: ${DASHSCOPE_API_KEY:}

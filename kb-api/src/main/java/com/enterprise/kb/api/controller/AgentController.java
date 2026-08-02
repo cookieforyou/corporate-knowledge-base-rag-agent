@@ -13,12 +13,9 @@ import com.enterprise.kb.commons.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.RequestContextHolder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -29,9 +26,11 @@ import java.util.Map;
 /**
  * Agent 对话 Controller — 同步 + SSE 流式（命名事件，设计文档 11.3）
  *
- * <p>2.12 起流式链路返回 {@code Flux<ServerSentEvent>}：由 MVC 在**请求线程**订阅，
- * Advisor 链（RetrievalTraceAdvisor 填充请求级上下文）因此天然持有请求作用域与
- * SecurityContext——这是 Phase 1 SseEmitter+线程池形态做不到的（跨线程后作用域丢失）。
+ * <p>检索上下文（租户隔离 + 溯源）采用**每请求实例 + Advisor 参数传递**：
+ * Controller 在请求线程创建 {@link RetrievalContext} 并以 JwtUtils 填充身份，
+ * 经 ChatClient advisor 参数随 Query.context 流入检索组件——同步/流式/虚拟线程
+ * 全程线程模型无关（2026-08-02 重构：取代请求作用域代理，其于 MVC 异步请求完结后
+ * 不可解析，曾致流式路径租户过滤与 trace 静默失效、SSE 尾帧崩溃）。
  *
  * <p>事件协议（兼容 Phase 1）：TOKEN/ERROR/DONE 为无名事件且数据形状不变；
  * TRACE 为新增命名事件（流末推送完整溯源），旧前端自动忽略。
@@ -44,7 +43,6 @@ public class AgentController {
 
     private final ChatService chatService;
     private final JwtUtils jwtUtils;
-    private final ObjectProvider<RetrievalContext> retrievalContextProvider;
 
     /**
      * 同步 RAG 问答
@@ -59,7 +57,7 @@ public class AgentController {
     public ApiResponse<Map<String, String>> chat(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         log.info("用户 [{}] 发起问答: {}", jwtUtils.getCurrentUsername(), query);
-        String answer = chatService.chat(query);
+        String answer = chatService.chat(query, newRetrievalContext());
         return ApiResponse.success(Map.of("answer", answer));
     }
 
@@ -70,14 +68,13 @@ public class AgentController {
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         log.info("用户 [{}] 发起流式问答: {}", jwtUtils.getCurrentUsername(), query);
-        // 请求线程捕获请求属性：RetrievalContext 是请求作用域代理，流末 reactor 线程
-        // 直接解引用必炸（Scope 'request' is not active）——重绑定后方可读取（11.3 v2 注的线程陷阱）
-        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例
+        RetrievalContext traceCtx = newRetrievalContext();
 
-        return chatService.chatStream(query)
+        return chatService.chatStream(query, traceCtx)
             .filter(token -> token != null && !token.isEmpty())
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
-            .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(requestAttributes))
+            .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx))
                 .event("TRACE").build()))
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
             .onErrorResume(e -> {
@@ -87,44 +84,27 @@ public class AgentController {
             });
     }
 
-    /**
-     * TRACE 载荷构建（容错）：溯源是旁路增值数据，任何线程/作用域异常都不得击穿 SSE 流——
-     * 失败时返回空溯源并记录完整堆栈（定位线程陷阱用），TOKEN 流与 DONE 不受影响。
-     */
-    private TraceEvent safeBuildTrace(RequestAttributes requestAttributes) {
-        if (requestAttributes != null) {
-            RequestContextHolder.setRequestAttributes(requestAttributes);
-        }
-        try {
-            return buildTraceEvent(currentTraceContext());
-        } catch (Exception e) {
-            log.warn("TRACE 溯源构建失败（thread={}，已降级为空溯源）",
-                Thread.currentThread().getName(), e);
-            return new TraceEvent(List.of());
-        } finally {
-            if (requestAttributes != null) {
-                RequestContextHolder.resetRequestAttributes();
-            }
-        }
+    // ── 检索上下文与溯源投影 ──
+
+    /** 请求线程上创建检索上下文并填充身份（JWT owner→tenantId、sub→userId） */
+    private RetrievalContext newRetrievalContext() {
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId(jwtUtils.getCurrentTenantId());
+        ctx.setUserId(jwtUtils.getCurrentUserId());
+        return ctx;
     }
 
-    // ── 溯源投影（检索组件记录的元数据 → 前端可消费的轻量结构）──
-
-    private RetrievalContext currentTraceContext() {
-        if (RequestContextHolder.getRequestAttributes() == null) {
-            return null;
-        }
+    /** TRACE 载荷构建（容错）：溯源是旁路增值数据，异常降级为空溯源，不击穿 SSE 流 */
+    private static TraceEvent safeBuildTrace(RetrievalContext ctx) {
         try {
-            return retrievalContextProvider.getObject();
+            return buildTraceEvent(ctx);
         } catch (Exception e) {
-            return null;
+            log.warn("TRACE 溯源构建失败，已降级为空溯源", e);
+            return new TraceEvent(List.of());
         }
     }
 
     private static TraceEvent buildTraceEvent(RetrievalContext ctx) {
-        if (ctx == null) {
-            return new TraceEvent(List.of());
-        }
         return new TraceEvent(ctx.getTraceSummary().stream()
             .map(entry -> new SourceTrace(entry.source(), entry.documents().stream()
                 .map(AgentController::toChunkTrace)
@@ -135,6 +115,7 @@ public class AgentController {
     private static final List<String> SCORE_KEYS =
         List.of("bm25_score", "bm25_rank", "vector_rank", "fusion_score", "rerank_score", "rerank_rank");
 
+    /** Chunk 轻量投影（不序列化全文，控制 SSE 帧体积） */
     private static ChunkTrace toChunkTrace(Document doc) {
         Map<String, Object> meta = doc.getMetadata();
         Map<String, Object> scores = new LinkedHashMap<>();

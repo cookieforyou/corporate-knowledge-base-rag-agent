@@ -7,7 +7,6 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -37,17 +36,14 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     private final boolean enabled;
     private final String model;
     private final String apiKey;
-    private final ObjectProvider<RetrievalContext> retrievalContextProvider;
 
     public RerankDocumentPostProcessor(
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
-            @Value("${rag.rerank.api-key:}") String apiKey,
-            ObjectProvider<RetrievalContext> retrievalContextProvider) {
+            @Value("${rag.rerank.api-key:}") String apiKey) {
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
-        this.retrievalContextProvider = retrievalContextProvider;
         this.restClient = enabled
             ? RestClient.builder().baseUrl(endpoint).build()
             : null;
@@ -60,7 +56,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     public @NonNull List<Document> process(@NonNull Query query, @NonNull List<Document> documents) {
         List<Document> top = doProcess(query, documents);
         // 最终注入序列 trace（source=final）：[ref-N] 标注与本列表下标一一对应（11.1.2）
-        recordFinalTrace(top);
+        recordFinalTrace(query, top);
         return top;
     }
 
@@ -125,19 +121,14 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             .toList();
     }
 
-    /** 最终序列写入请求级 trace；非 Web 上下文（kb-eval）无请求作用域，降级跳过 */
-    private void recordFinalTrace(List<Document> top) {
-        if (top.isEmpty() || org.springframework.web.context.request.RequestContextHolder
-                .getRequestAttributes() == null) {
+    /** 最终序列写入检索上下文 trace（经 Query.context 参数化；无上下文降级跳过） */
+    private void recordFinalTrace(Query query, List<Document> top) {
+        if (top.isEmpty()) {
             return;
         }
-        try {
-            RetrievalContext ctx = retrievalContextProvider.getObject();
-            if (ctx != null) {
-                ctx.addTraceEntry("final", top);
-            }
-        } catch (Exception ignored) {
-            // 非请求作用域环境降级：无 final trace（检索本体不受影响）
+        RetrievalContext ctx = RetrievalContext.from(query);
+        if (ctx != null) {
+            ctx.addTraceEntry("final", top);
         }
     }
 

@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ElasticsearchDocumentRetrieverTest {
 
     private final ElasticsearchDocumentRetriever retriever =
-        new ElasticsearchDocumentRetriever(null, null);
+        new ElasticsearchDocumentRetriever(null);
 
     private Hit<EsChunkDoc> hit(EsChunkDoc source, double score) {
         return Hit.of(b -> b

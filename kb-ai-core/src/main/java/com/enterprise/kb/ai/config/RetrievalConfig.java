@@ -2,17 +2,12 @@ package com.enterprise.kb.ai.config;
 
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
-import com.enterprise.kb.ai.retriever.RetrievalContext;
-import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
 import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
-import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,7 +15,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
-import org.springframework.web.context.request.RequestContextHolder;
 
 /**
  * 检索组件 + RetrievalAugmentationAdvisor 装配（设计文档 10.6，任务 2.10）
@@ -70,38 +64,14 @@ public class RetrievalConfig {
         """;
 
     /**
-     * 向量路检索器 —— topK 固化为 recallSize（VectorStoreDocumentRetriever 无实例级
-     * withTopK，构建期定型）；安全过滤表达式按请求从 RetrievalContext 动态读取
-     */
-    @Bean
-    public VectorStoreDocumentRetriever vectorStoreDocumentRetriever(
-            VectorStore vectorStore,
-            ObjectProvider<RetrievalContext> retrievalContextProvider) {
-        return VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(0.5)
-            .topK(Constants.DEFAULT_TOP_K * 2)
-            .filterExpression(() -> {
-                // 非 Web 上下文（kb-eval 等）无请求作用域，降级为不过滤
-                if (RequestContextHolder.getRequestAttributes() == null) {
-                    return null;
-                }
-                try {
-                    RetrievalContext ctx = retrievalContextProvider.getObject();
-                    return ctx != null ? ctx.getSecurityFilter() : null;
-                } catch (Exception e) {
-                    return null;
-                }
-            })
-            .build();
-    }
-
-    /**
      * 模块化 RAG 主 Advisor（10.6）：改写 → 双路检索 → 融合 → 精排 → 证据注入。
      * Order 500：RetrievalTraceAdvisor(450) 之后、工具调用(1000) 之前（11.2 链序表）。
      *
      * <p>多查询扩展默认关闭：检索与 embedding 调用放大 N 倍，对 TTFT（目标 < 1.5s）
      * 不友好；RRF 融合结构已为扩展留好 DocumentJoiner 接口，需要时开配置即可（10.6）。
+     *
+     * <p>检索在 before() 内经 taskExecutor 并行执行（源码核验）；租户/溯源上下文
+     * 经 Advisor 参数随 Query.context 流入检索组件——与线程模型解耦，同步/流式一致。
      */
     @Bean
     public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
@@ -137,13 +107,9 @@ public class RetrievalConfig {
         return builder.build();
     }
 
-    /**
-     * Advisor 内部并行执行器：虚拟线程 + 请求上下文传播（2.12 热修）。
-     * 传播是租户过滤与溯源 trace 在并行检索线程上生效的前提；
-     * 类型取 AsyncTaskExecutor 以复用于 MVC 异步支持（kb-api AsyncMvcConfig）。
-     */
+    /** Advisor 内部并行执行器：虚拟线程（与 ETL/检索路径技术栈一致） */
     @Bean
     public AsyncTaskExecutor retrievalExecutor() {
-        return new ContextPropagatingTaskExecutor(new VirtualThreadTaskExecutor("retrieval-"));
+        return new VirtualThreadTaskExecutor("retrieval-");
     }
 }

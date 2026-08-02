@@ -4,7 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
-import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,7 @@ import static org.mockito.Mockito.*;
  */
 class HybridDocumentRetrieverTest {
 
-    private VectorStoreDocumentRetriever vectorRetriever;
+    private VectorStore vectorStore;
     private ElasticsearchDocumentRetriever esRetriever;
     private HybridDocumentRetriever hybrid;
 
@@ -32,14 +33,14 @@ class HybridDocumentRetrieverTest {
 
     @BeforeEach
     void setUp() {
-        vectorRetriever = mock(VectorStoreDocumentRetriever.class);
+        vectorStore = mock(VectorStore.class);
         esRetriever = mock(ElasticsearchDocumentRetriever.class);
-        hybrid = new HybridDocumentRetriever(vectorRetriever, esRetriever, new RrfFusion());
+        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion());
     }
 
     @Test
     void retrieve_bothPathsOk_fusedResultsFromBoth() {
-        when(vectorRetriever.retrieve(any(Query.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
             .thenReturn(List.of(doc("v1"), doc("shared")));
         when(esRetriever.retrieve(any(Query.class), anyInt()))
             .thenReturn(List.of(doc("b1"), doc("shared")));
@@ -54,7 +55,7 @@ class HybridDocumentRetrieverTest {
 
     @Test
     void retrieve_esPathFails_degradesToVectorOnly() {
-        when(vectorRetriever.retrieve(any(Query.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
             .thenReturn(List.of(doc("v1"), doc("v2")));
         when(esRetriever.retrieve(any(Query.class), anyInt()))
             .thenThrow(new ElasticsearchDocumentRetriever
@@ -69,7 +70,7 @@ class HybridDocumentRetrieverTest {
 
     @Test
     void retrieve_vectorPathFails_degradesToBm25Only() {
-        when(vectorRetriever.retrieve(any(Query.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
             .thenThrow(new RuntimeException("Milvus 连接失败"));
         when(esRetriever.retrieve(any(Query.class), anyInt()))
             .thenReturn(List.of(doc("b1")));
@@ -82,11 +83,30 @@ class HybridDocumentRetrieverTest {
 
     @Test
     void retrieve_bothPathsFail_returnsEmpty() {
-        when(vectorRetriever.retrieve(any(Query.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
             .thenThrow(new RuntimeException("vector down"));
         when(esRetriever.retrieve(any(Query.class), anyInt()))
             .thenThrow(new RuntimeException("es down"));
 
         assertTrue(hybrid.retrieve(query).isEmpty());
+    }
+
+    /** 检索上下文经 Query.context 参数化传入：记录 vector 路 trace（bm25 路由 ES 检索器自记录） */
+    @Test
+    void retrieve_withContextInQuery_recordsVectorTrace() {
+        RetrievalContext ctx = new RetrievalContext();
+        Query ctxQuery = Query.builder().text("q")
+            .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx)).build();
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
+            .thenReturn(List.of(doc("v1")));
+        when(esRetriever.retrieve(any(Query.class), anyInt()))
+            .thenReturn(List.of());
+
+        hybrid.retrieve(ctxQuery);
+
+        List<RetrievalContext.TraceEntry> trace = ctx.getTraceSummary();
+        assertEquals(1, trace.size());
+        assertEquals("vector", trace.get(0).source());
+        assertEquals(List.of("v1"), trace.get(0).documents().stream().map(Document::getId).toList());
     }
 }
