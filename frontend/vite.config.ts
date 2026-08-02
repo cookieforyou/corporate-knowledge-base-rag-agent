@@ -16,8 +16,14 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: env.BACKEND_URL || 'http://localhost:8080',
+          target: env.BACKEND_URL || 'http://localhost:8090',
           changeOrigin: true
+        },
+        // ETL 进度 WebSocket（2.13）：ws 代理至后端
+        '/ws': {
+          target: env.BACKEND_URL || 'http://localhost:8090',
+          changeOrigin: true,
+          ws: true
         }
       }
     }

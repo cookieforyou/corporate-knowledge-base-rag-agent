@@ -1,0 +1,185 @@
+/* ============================================================
+   KB RAG 工作台 · 设计系统
+   视觉基调：松石墨绿 × 鎏金点缀 × 纸白工作面——知识引擎的沉稳与精确
+   字体：Noto Serif SC（品牌/标题）· 系统中文栈（正文）· Space Grotesk/JetBrains Mono（数据）
+   ============================================================ */
+
+:root {
+  /* 品牌色 · 松石墨绿 */
+  --pine-950: #081C18;
+  --pine-900: #0D2B25;
+  --pine-800: #123A32;
+  --pine-700: #175A4C;
+  --pine-600: #1E7260;
+  --pine-100: #DCE9E5;
+  --pine-50:  #EDF4F1;
+
+  /* 点缀 · 鎏金 */
+  --gold-600: #B8862E;
+  --gold-500: #D9A441;
+  --gold-300: #EBC47A;
+  --gold-100: #F7EAD1;
+
+  /* 工作面 */
+  --bg: #F1F4F3;
+  --surface: #FFFFFF;
+  --surface-2: #F7FAF9;
+  --line: #DFE7E4;
+  --line-strong: #C8D5D0;
+
+  /* 墨色 */
+  --ink: #1C2725;
+  --ink-2: #45534F;
+  --ink-3: #7A8985;
+
+  /* 检索路径语义色（调试台/溯源） */
+  --c-vector: #2F6FA3;
+  --c-bm25:   #C2702D;
+  --c-fusion: #175A4C;
+  --c-rerank: #A94F63;
+
+  /* 状态 */
+  --ok: #2E7D5B;
+  --warn: #C08A2D;
+  --danger: #BC4B48;
+  --info: #5F7280;
+
+  /* 字体 */
+  --font-display: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  --font-body: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Helvetica Neue', sans-serif;
+  --font-data: 'Space Grotesk', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* 节奏 */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(13, 43, 37, .06), 0 1px 6px rgba(13, 43, 37, .04);
+  --shadow-md: 0 4px 16px rgba(13, 43, 37, .08), 0 1px 3px rgba(13, 43, 37, .06);
+  --shadow-lg: 0 12px 40px rgba(13, 43, 37, .14);
+  --ease: cubic-bezier(.22, .8, .32, 1);
+}
+
+/* ── Element Plus 主题桥接 ── */
+:root {
+  --el-color-primary: var(--pine-700);
+  --el-color-primary-light-3: var(--pine-600);
+  --el-color-primary-light-5: #4E8B7D;
+  --el-color-primary-light-7: #93BDB2;
+  --el-color-primary-light-8: var(--pine-100);
+  --el-color-primary-light-9: var(--pine-50);
+  --el-color-primary-dark-2: var(--pine-900);
+  --el-border-radius-base: 8px;
+  --el-font-family: var(--font-body);
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background-color: var(--bg);
+  /* 分层环境背景：双色氛围光 + 细点阵网格 */
+  background-image:
+    radial-gradient(900px 480px at 12% -8%, rgba(23, 90, 76, .07), transparent 60%),
+    radial-gradient(720px 420px at 105% 0%, rgba(217, 164, 65, .07), transparent 55%),
+    radial-gradient(rgba(13, 43, 37, .045) 1px, transparent 1px);
+  background-size: auto, auto, 22px 22px;
+  background-attachment: fixed;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 排版层级 ── */
+.t-display { font-family: var(--font-display); font-weight: 900; letter-spacing: .01em; }
+.t-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.t-data { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* ── 通用卡片 ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.panel-lift {
+  transition: transform .28s var(--ease), box-shadow .28s var(--ease), border-color .28s var(--ease);
+}
+.panel-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--line-strong);
+}
+
+/* ── 徽标 ── */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; line-height: 1.6;
+  border: 1px solid transparent;
+}
+.chip-pine  { background: var(--pine-50);  color: var(--pine-700); border-color: var(--pine-100); }
+.chip-gold  { background: var(--gold-100); color: var(--gold-600); border-color: #EBD9B4; }
+.chip-vector{ background: #E8F1F8; color: var(--c-vector); border-color: #CFE2F0; }
+.chip-bm25  { background: #FAEFE4; color: var(--c-bm25);   border-color: #F0DCC4; }
+.chip-fusion{ background: var(--pine-50);  color: var(--c-fusion); border-color: var(--pine-100); }
+.chip-rerank{ background: #F7EAEF; color: var(--c-rerank); border-color: #EED3DC; }
+.chip-ok    { background: #E6F3EC; color: var(--ok);       border-color: #CBE6D8; }
+.chip-warn  { background: #FAF1DD; color: var(--warn);     border-color: #F0E0B8; }
+.chip-danger{ background: #FAE9E8; color: var(--danger);   border-color: #F2CFCD; }
+.chip-mute  { background: #EEF1F0; color: var(--ink-3);    border-color: var(--line); }
+
+/* ── 入场动效（错峰浮现） ── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reveal { animation: fade-up .5s var(--ease) both; animation-delay: var(--d, 0s); }
+
+/* ── 路由切换过渡 ── */
+.view-fade-enter-active { transition: opacity .25s var(--ease), transform .25s var(--ease); }
+.view-fade-leave-active { transition: opacity .15s ease; }
+.view-fade-enter-from { opacity: 0; transform: translateY(8px); }
+.view-fade-leave-to { opacity: 0; }
+
+/* ── 进度条织纹（处理中） ── */
+@keyframes stripe-slide { to { background-position: 24px 0; } }
+.progress-live .el-progress-bar__inner {
+  background-image: linear-gradient(45deg,
+    rgba(255,255,255,.28) 25%, transparent 25%, transparent 50%,
+    rgba(255,255,255,.28) 50%, rgba(255,255,255,.28) 75%, transparent 75%);
+  background-size: 24px 24px;
+  animation: stripe-slide .8s linear infinite;
+}
+
+/* ── 光标 ── */
+@keyframes caret-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.caret {
+  display: inline-block; width: 7px; height: 1.05em; margin-left: 2px;
+  vertical-align: text-bottom; border-radius: 2px;
+  background: var(--gold-500); animation: caret-blink .9s ease infinite;
+}
+
+/* ── Element 细节收敛 ── */
+.el-button { font-weight: 600; }
+.el-table th.el-table__cell {
+  background: var(--surface-2) !important;
+  color: var(--ink-2); font-weight: 600;
+}
+.el-drawer__header { margin-bottom: 0; }
+.el-message-box { border-radius: var(--radius-lg); }
+
+/* ── 滚动条 ── */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb {
+  background: #C3D0CB; border-radius: 8px; border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: #9FB3AC; }
+::-webkit-scrollbar-track { background: transparent; }
