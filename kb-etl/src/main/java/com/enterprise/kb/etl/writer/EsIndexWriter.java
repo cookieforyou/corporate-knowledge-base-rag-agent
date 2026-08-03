@@ -90,14 +90,22 @@ public class EsIndexWriter {
 
     /**
      * 文档物理删除时级联清理（第十四章）
+     *
+     * <p>2026-08-03 修复：查询字段曾为 camelCase "docId"——与 2.6 snake_case 对齐
+     * （索引字段 doc_id）不一致，term 查询恒空匹配、0 删除却按成功记录，
+     * E2E 级联删除测试发现 ES 残留。零匹配改为 WARN，静默失败可观测。
      */
     public void deleteByDocId(String docId) {
         try {
             var response = esClient.deleteByQuery(d -> d
                 .index(EsChunkDoc.INDEX)
-                .query(q -> q.term(t -> t.field("docId").value(docId)))
+                .query(q -> q.term(t -> t.field("doc_id").value(docId)))
                 .refresh(true));
-            log.info("ES 级联删除: docId={}, deleted={}", docId, response.deleted());
+            if (response.deleted() != null && response.deleted() == 0) {
+                log.warn("ES 级联删除匹配 0 条: docId={}（该文档可能无 ES 数据；若预期有数据请排查索引一致性）", docId);
+            } else {
+                log.info("ES 级联删除: docId={}, deleted={}", docId, response.deleted());
+            }
         } catch (Exception e) {
             log.error("ES 级联删除失败: docId={}, error={}", docId, e.getMessage());
         }
