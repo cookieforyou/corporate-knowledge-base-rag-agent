@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
@@ -23,9 +24,14 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>端点鉴权由 {@link JwtHandshakeInterceptor} 在握手层完成，故 SecurityConfig
  * 对 /ws/** 放行（filter chain 不再重复校验）。
+ *
+ * <p><b>2026-08-03 修复</b>：{@code @EnableWebSocket} 缺失——仅实现
+ * WebSocketConfigurer 不会注册 WebSocketHandlerMapping，/ws/** 落空到静态资源
+ * 处理器（NoResourceFoundException），前端握手失败、进度停在首帧。
  */
 @Slf4j
 @Configuration
+@EnableWebSocket
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
 
