@@ -46,8 +46,8 @@ kb:
   # 解析链路配置（2.1/2.2）—— RAM AccessKey 只经环境变量注入，禁止明文入库
   # ============================================================
   parsing:
-    provider: ${KB_PARSING_PROVIDER:docmind}        # DEEP 链路后端：docmind | qwen-ocr
-    deep-by-default: ${KB_PARSING_DEEP_BY_DEFAULT:false}   # PDF 默认走 DEEP（否则仅低密度扫描件走 OCR，常规走 NATIVE）
+    provider: ${KB_PARSING_PROVIDER:docmind}             # DEEP 链路后端：docmind | qwen-ocr
+    deep-by-default: ${KB_PARSING_DEEP_BY_DEFAULT:false} # PDF 默认走 DEEP（否则仅低密度扫描件走 OCR，常规走 NATIVE）
     docmind:
       endpoint: ${DOCMIND_ENDPOINT:docmind-api.cn-hangzhou.aliyuncs.com}
       access-key-id: ${ALIYUN_ACCESS_KEY_ID:}

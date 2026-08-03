@@ -2,6 +2,7 @@ package com.enterprise.kb.api.service;
 
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
+import com.enterprise.kb.domain.enums.ParseRoute;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
@@ -155,12 +156,12 @@ public class DocumentService {
     }
 
     /** 解析路由参数解析：非法值视为未指定（自动决策），不阻断上传 */
-    private static com.enterprise.kb.domain.enums.ParseRoute parseForcedRoute(String raw) {
+    private static ParseRoute parseForcedRoute(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
         try {
-            return com.enterprise.kb.domain.enums.ParseRoute.valueOf(raw.trim().toUpperCase());
+            return ParseRoute.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             log.warn("无法识别的解析路由参数（按自动决策处理）: {}", raw);
             return null;

@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.reader;
 
+import com.enterprise.kb.domain.enums.ParseRoute;
 import com.enterprise.kb.infrastructure.parsing.ParsingProperties;
 import com.enterprise.kb.infrastructure.parsing.ParsingResult;
 import com.enterprise.kb.infrastructure.parsing.ParsingServiceClient;
@@ -55,15 +56,14 @@ public class SmartParsingRouter {
     }
 
     /** 路由结果：解析产物 + 实际路由（落库 kb_document.parse_route） */
-    public record ParsingOutcome(List<Document> documents, com.enterprise.kb.domain.enums.ParseRoute route) {}
+    public record ParsingOutcome(List<Document> documents, ParseRoute route) {}
 
     /**
      * 解析文档字节流。
      *
      * @param forced 上传参数强制指定的路由（null = 自动决策）
      */
-    public ParsingOutcome read(byte[] content, String fileName,
-                               com.enterprise.kb.domain.enums.ParseRoute forced) {
+    public ParsingOutcome read(byte[] content, String fileName, ParseRoute forced) {
         var route = forced != null ? forced : decide(content, fileName);
         log.info("解析路由决策: file={}, route={}{}", fileName, route,
             forced != null ? "（上传参数强制指定）" : "");
@@ -75,20 +75,20 @@ public class SmartParsingRouter {
     }
 
     /** 自动决策：类型 + 密度探测 + 配置开关 */
-    private com.enterprise.kb.domain.enums.ParseRoute decide(byte[] content, String fileName) {
+    private ParseRoute decide(byte[] content, String fileName) {
         if (!isPdf(fileName)) {
-            return com.enterprise.kb.domain.enums.ParseRoute.NATIVE;
+            return ParseRoute.NATIVE;
         }
         if (properties.isDeepByDefault()) {
-            return com.enterprise.kb.domain.enums.ParseRoute.DEEP;   // 显式配置优先于启发式
+            return ParseRoute.DEEP;   // 显式配置优先于启发式
         }
         double density = probeTextDensity(content);
         if (density < TEXT_DENSITY_THRESHOLD) {
             log.info("文本密度 {} 字符/页 < 阈值 {}，判定为扫描件",
                 String.format("%.1f", density), TEXT_DENSITY_THRESHOLD);
-            return com.enterprise.kb.domain.enums.ParseRoute.OCR;
+            return ParseRoute.OCR;
         }
-        return com.enterprise.kb.domain.enums.ParseRoute.NATIVE;
+        return ParseRoute.NATIVE;
     }
 
     private List<Document> parseNative(byte[] content) {
@@ -99,15 +99,13 @@ public class SmartParsingRouter {
         ParsingServiceClient client = clientOf(properties.getProvider());
         try {
             ParsingResult result = client.parse(content, fileName);
-            return new ParsingOutcome(List.of(toDocument(result)),
-                com.enterprise.kb.domain.enums.ParseRoute.DEEP);
+            return new ParsingOutcome(List.of(toDocument(result)), ParseRoute.DEEP);
         } catch (ParsingException e) {
             if (!fallbackToNative) {
                 throw e;   // 显式指定路由：如实上抛
             }
             log.warn("DEEP 解析失败，回落 NATIVE: file={}, {}", fileName, e.getMessage());
-            return new ParsingOutcome(parseNative(content),
-                com.enterprise.kb.domain.enums.ParseRoute.NATIVE);
+            return new ParsingOutcome(parseNative(content), ParseRoute.NATIVE);
         }
     }
 
@@ -115,15 +113,13 @@ public class SmartParsingRouter {
         ParsingServiceClient client = clientOf("qwen-ocr");
         try {
             ParsingResult result = client.parse(content, fileName);
-            return new ParsingOutcome(List.of(toDocument(result)),
-                com.enterprise.kb.domain.enums.ParseRoute.OCR);
+            return new ParsingOutcome(List.of(toDocument(result)), ParseRoute.OCR);
         } catch (ParsingException e) {
             if (!fallbackToNative) {
                 throw e;
             }
             log.warn("OCR 解析失败，回落 NATIVE: file={}, {}", fileName, e.getMessage());
-            return new ParsingOutcome(parseNative(content),
-                com.enterprise.kb.domain.enums.ParseRoute.NATIVE);
+            return new ParsingOutcome(parseNative(content), ParseRoute.NATIVE);
         }
     }
 

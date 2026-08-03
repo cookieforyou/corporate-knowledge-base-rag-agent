@@ -2,7 +2,6 @@ package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.ChatService;
-import com.enterprise.kb.api.dto.AgentStreamEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ErrorEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
