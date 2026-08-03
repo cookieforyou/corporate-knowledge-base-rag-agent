@@ -169,6 +169,7 @@ async function handleUpload(file: File) {
     const docId = await uploadDocument(file, parseRouteChoice.value || undefined)
     liveProgress[docId] = { name: file.name, stage: 'READING', percentage: 5 }
     subscribe(docId, file.name)
+    uploadOpen.value = false
   } catch (e: any) {
     ElMessage.error('上传失败：' + (e.response?.data?.message || e.message))
   }

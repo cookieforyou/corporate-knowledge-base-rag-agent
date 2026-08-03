@@ -35,6 +35,12 @@ public class ParsingProperties {
         private String accessKeySecret;
         /** 大模型增强开关（文档解析大模型版） */
         private boolean llmEnhancement = true;
+        /**
+         * 表格 HTML 输出开关（OutputHtmlTable）：表格版面块的 HTML 解析内容经
+         * llmResult 字段返回，供 2.3 保护式切分识别 {@code <table>}。
+         * 官方约束：须与 llmEnhancement 同时开启，llmEnhancement=false 时自动失效。
+         */
+        private boolean outputHtmlTable = true;
         private long pollIntervalMs = 3000;
         private int maxPolls = 100;
     }

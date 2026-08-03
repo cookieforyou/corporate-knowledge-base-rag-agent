@@ -82,7 +82,10 @@ public class DocumentEtlService {
             List<Document> rawDocs = outcome.documents();
             doc.setParseRoute(outcome.route().name());
             doc.setPageCount(pageCountOf(rawDocs));
-            log.info("文档解析完成: docId={}, route={}, pages={}", docId, outcome.route(), doc.getPageCount());
+            doc.setTableCount(countOf(rawDocs, "table_count"));
+            doc.setImageCount(countOf(rawDocs, "image_count"));
+            log.info("文档解析完成: docId={}, route={}, pages={}, tables={}, images={}",
+                docId, outcome.route(), doc.getPageCount(), doc.getTableCount(), doc.getImageCount());
 
             // Stage 2: 保护式切分（表格/图片保护，无保护标签走快速路径 = Phase 1 行为）
             progressCallback.accept(new EtlProgress(docId, EtlStage.TRANSFORMING));
@@ -148,6 +151,17 @@ public class DocumentEtlService {
             }
         }
         return rawDocs.size();
+    }
+
+    /** 解析统计（table_count/image_count）：深度链路经元数据携带，NATIVE 无则 null */
+    private static Integer countOf(List<Document> rawDocs, String key) {
+        if (!rawDocs.isEmpty()) {
+            Object value = rawDocs.get(0).getMetadata().get(key);
+            if (value instanceof Number n) {
+                return n.intValue();
+            }
+        }
+        return null;
     }
 
     private List<KbChunk> persistChunks(String docId, List<Document> chunks) {
