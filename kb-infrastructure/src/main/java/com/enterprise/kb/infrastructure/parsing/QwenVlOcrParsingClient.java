@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,7 @@ public class QwenVlOcrParsingClient implements ParsingServiceClient {
             PDFRenderer renderer = new PDFRenderer(pdf);
             int pages = Math.min(pdf.getNumberOfPages(), props.getMaxPages());
             StringBuilder text = new StringBuilder();
+            List<ParsingResult.PageSegment> pageSegments = new ArrayList<>();
             int tables = 0;
 
             for (int i = 0; i < pages; i++) {
@@ -74,10 +76,15 @@ public class QwenVlOcrParsingClient implements ParsingServiceClient {
                     tables += countMarkdownTables(pageText);
                 }
                 text.append(pageText).append("\n\n");
+                if (!pageText.isBlank()) {
+                    // 页级块下传 page_number → 落库 kb_chunk.page_num（与 DocMind 链路对齐）
+                    pageSegments.add(new ParsingResult.PageSegment(i + 1, pageText.trim()));
+                }
                 log.debug("OCR 完成: file={}, page={}/{}, chars={}",
                     fileName, i + 1, pages, pageText.length());
             }
-            return new ParsingResult(text.toString().trim(), tables, 0, pdf.getNumberOfPages());
+            return new ParsingResult(text.toString().trim(), pageSegments,
+                tables, 0, pdf.getNumberOfPages());
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

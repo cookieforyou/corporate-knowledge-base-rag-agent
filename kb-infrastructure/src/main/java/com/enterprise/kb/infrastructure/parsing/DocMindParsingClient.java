@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * DocMind 文档解析大模型版客户端（设计文档 9.1 主选，任务 2.2）
@@ -128,10 +129,12 @@ public class DocMindParsingClient implements ParsingServiceClient {
     @SuppressWarnings("unchecked")
     private ParsingResult fetchResult(String jobId) throws Exception {
         StringBuilder markdown = new StringBuilder();
+        Map<Integer, StringBuilder> byPage = new TreeMap<>();
         int tables = 0;
         int images = 0;
         int pageCount = 0;
         int layoutNum = 0;
+        int currentPage = 0;   // layouts 缺 pageNum 时归属最近已知页
 
         while (true) {
             GetDocParserResultResponse response = client().getDocParserResult(
@@ -150,32 +153,26 @@ public class DocMindParsingClient implements ParsingServiceClient {
             }
 
             for (Map<String, ?> layout : layouts) {
-                Object rawType = layout.get("type");
-                String type = rawType == null ? "" : String.valueOf(rawType);
-                if (type.contains("table")) {
-                    tables++;
-                    // 表格 HTML 存放在 llmResult 字段（需 OutputHtmlTable=true），可能包裹
-                    // ``` 代码围栏——剥离后保留 <table> 供 2.3 HtmlProtectingSplitter 保护为
-                    // TABLE Chunk；llmResult 缺失时降级 markdownContent/text（内容不丢、保护失效）
-                    String tableBlock = stripCodeFence(asString(layout.get("llmResult")));
-                    if (tableBlock.isBlank()) {
-                        tableBlock = firstNonBlank(
-                            layout.get("html"), layout.get("markdownContent"),
-                            layout.get("markdown"), layout.get("text"));
-                    }
-                    markdown.append('\n').append(tableBlock).append('\n');
-                } else if (type.contains("image") || type.contains("figure")) {
-                    images++;
-                    // 图片块不产出正文（IMAGE Chunk 的 vision 摘要见 9.2/2.4，默认关闭）
-                } else {
-                    // 正文优先 markdownContent（大模型版实际字段名）→ 防御式回退 markdown/text
-                    markdown.append(firstNonBlank(
-                        layout.get("markdownContent"), layout.get("markdown"),
-                        layout.get("text"))).append('\n');
-                }
                 Object pageNum = layout.get("pageNum");
                 if (pageNum instanceof Number n) {
-                    pageCount = Math.max(pageCount, n.intValue() + 1);
+                    currentPage = n.intValue();          // DocMind pageNum 从 0 起
+                    pageCount = Math.max(pageCount, currentPage + 1);
+                }
+                Object rawType = layout.get("type");
+                String type = rawType == null ? "" : String.valueOf(rawType);
+                if (type.contains("image") || type.contains("figure")) {
+                    images++;
+                    // 图片块不产出正文（IMAGE Chunk 的 vision 摘要见 9.2/2.4，默认关闭）
+                    continue;
+                }
+                if (type.contains("table")) {
+                    tables++;
+                }
+                String content = layoutContent(layout, type);
+                if (!content.isBlank()) {
+                    markdown.append(content).append('\n');
+                    byPage.computeIfAbsent(currentPage, k -> new StringBuilder())
+                        .append(content).append('\n');
                 }
             }
 
@@ -186,7 +183,39 @@ public class DocMindParsingClient implements ParsingServiceClient {
             layoutNum += layouts.size();
         }
 
-        return new ParsingResult(markdown.toString().trim(), tables, images, pageCount);
+        return new ParsingResult(markdown.toString().trim(), toPageSegments(byPage),
+            tables, images, pageCount);
+    }
+
+    /**
+     * 单个版面块正文提取：
+     * <ul>
+     *   <li>表格——优先 llmResult 的 HTML（需 OutputHtmlTable=true，可能包裹 ``` 代码围栏，
+     *       剥离后保留 {@code <table>} 供 2.3 保护切分）；缺失时降级
+     *       html/markdownContent/text（内容不丢、保护失效）；</li>
+     *   <li>正文——优先 markdownContent（大模型版实际字段名），防御式回退 markdown/text。</li>
+     * </ul>
+     */
+    static String layoutContent(Map<String, ?> layout, String type) {
+        if (type.contains("table")) {
+            String html = stripCodeFence(asString(layout.get("llmResult")));
+            if (!html.isBlank()) {
+                return html;
+            }
+            return firstNonBlank(layout.get("html"), layout.get("markdownContent"),
+                layout.get("markdown"), layout.get("text"));
+        }
+        return firstNonBlank(layout.get("markdownContent"), layout.get("markdown"),
+            layout.get("text"));
+    }
+
+    /** DocMind pageNum（0 起）→ PageSegment（1 起，与 kb_chunk.page_num 语义一致），按页排序、空页剔除 */
+    static List<ParsingResult.PageSegment> toPageSegments(Map<Integer, StringBuilder> byPage) {
+        return byPage.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(e -> new ParsingResult.PageSegment(e.getKey() + 1, e.getValue().toString().trim()))
+            .filter(p -> !p.content().isBlank())
+            .toList();
     }
 
     // ── 辅助 ──

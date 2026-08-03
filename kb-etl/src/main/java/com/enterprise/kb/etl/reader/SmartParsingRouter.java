@@ -14,6 +14,7 @@ import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class SmartParsingRouter {
         ParsingServiceClient client = clientOf(properties.getProvider());
         try {
             ParsingResult result = client.parse(content, fileName);
-            return new ParsingOutcome(List.of(toDocument(result)), ParseRoute.DEEP);
+            return new ParsingOutcome(toDocuments(result), ParseRoute.DEEP);
         } catch (ParsingException e) {
             if (!fallbackToNative) {
                 throw e;   // 显式指定路由：如实上抛
@@ -113,7 +114,7 @@ public class SmartParsingRouter {
         ParsingServiceClient client = clientOf("qwen-ocr");
         try {
             ParsingResult result = client.parse(content, fileName);
-            return new ParsingOutcome(List.of(toDocument(result)), ParseRoute.OCR);
+            return new ParsingOutcome(toDocuments(result), ParseRoute.OCR);
         } catch (ParsingException e) {
             if (!fallbackToNative) {
                 throw e;
@@ -130,13 +131,29 @@ public class SmartParsingRouter {
             .orElseThrow(() -> new ParsingException("解析后端不可用: " + providerName));
     }
 
-    /** 深度解析结果 → Document（统计元数据随文档流转，落库 kb_document） */
-    private static Document toDocument(ParsingResult result) {
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("table_count", result.tableCount());
-        meta.put("image_count", result.imageCount());
-        meta.put("page_count", result.pageCount());
-        return Document.builder().text(result.markdown()).metadata(meta).build();
+    /**
+     * 深度解析结果 → Document 列表（统计元数据随文档流转，落库 kb_document）
+     *
+     * <p>有页级信息时按页输出（每页一个 Document，page_number 元数据经
+     * HtmlProtectingSplitter 原样下传 → 落库 kb_chunk.page_num，kb_chunk 溯源定位到页）；
+     * 无页级信息（pages 为空）整篇输出。
+     */
+    private static List<Document> toDocuments(ParsingResult result) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("table_count", result.tableCount());
+        stats.put("image_count", result.imageCount());
+        stats.put("page_count", result.pageCount());
+
+        if (result.pages() == null || result.pages().isEmpty()) {
+            return List.of(Document.builder().text(result.markdown()).metadata(stats).build());
+        }
+        List<Document> documents = new ArrayList<>();
+        for (ParsingResult.PageSegment page : result.pages()) {
+            Map<String, Object> meta = new HashMap<>(stats);
+            meta.put("page_number", page.pageNum());   // ETL persistChunks 读取此键
+            documents.add(Document.builder().text(page.content()).metadata(meta).build());
+        }
+        return documents;
     }
 
     /** PDFBox 文本密度探测：前 PROBE_PAGES 页的平均字符数/页 */

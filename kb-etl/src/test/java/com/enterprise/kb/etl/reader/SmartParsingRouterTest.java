@@ -105,6 +105,25 @@ class SmartParsingRouterTest {
     }
 
     @Test
+    void deepResultWithPages_emitsPerPageDocuments_withPageNumberMetadata() throws Exception {
+        var pages = List.of(
+            new ParsingResult.PageSegment(1, "第一页正文"),
+            new ParsingResult.PageSegment(2, "<table><tr><td>第二页表格</td></tr></table>"));
+        var router = new SmartParsingRouter(props(true),
+            List.of(stub("docmind", new ParsingResult("第一页正文\n<table></table>", pages, 1, 0, 2))));
+
+        var outcome = router.read(emptyPdfBytes(), "paged.pdf", null);
+
+        assertThat(outcome.route()).isEqualTo(ParseRoute.DEEP);
+        assertThat(outcome.documents()).hasSize(2);
+        assertThat(outcome.documents().get(0).getMetadata().get("page_number")).isEqualTo(1);
+        assertThat(outcome.documents().get(1).getMetadata().get("page_number")).isEqualTo(2);
+        // 统计元数据每页携带（DocumentEtlService 读 get(0)）
+        assertThat(outcome.documents().get(0).getMetadata().get("page_count")).isEqualTo(2);
+        assertThat(outcome.documents().get(1).getText()).contains("<table>");
+    }
+
+    @Test
     void forcedRoute_overridesAutoDecision() {
         var router = new SmartParsingRouter(props(false),
             List.of(stub("docmind", new ParsingResult("深度解析结果", 0, 0, 1))));

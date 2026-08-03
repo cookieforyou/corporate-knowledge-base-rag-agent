@@ -2,6 +2,11 @@ package com.enterprise.kb.infrastructure.parsing;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -50,5 +55,54 @@ class DocMindParsingClientTest {
     @Test
     void emptyFence_returnsEmpty() {
         assertThat(DocMindParsingClient.stripCodeFence("```\n```")).isEmpty();
+    }
+
+    // ── layoutContent：版面块正文提取 ──
+
+    @Test
+    void tableLayout_prefersLlmResultHtml() {
+        Map<String, Object> layout = new HashMap<>();
+        layout.put("llmResult", "```html\n<table><tr><td>13%</td></tr></table>\n```");
+        layout.put("markdownContent", "| 管道符降级文本 |");
+        layout.put("text", "纯文本降级");
+
+        assertThat(DocMindParsingClient.layoutContent(layout, "table"))
+            .isEqualTo("<table><tr><td>13%</td></tr></table>");
+    }
+
+    @Test
+    void tableLayout_withoutLlmResult_fallsBackToMarkdownContent() {
+        Map<String, Object> layout = new HashMap<>();
+        layout.put("markdownContent", "| 名称 | 类型 |\n| --- | --- |");
+        layout.put("text", "名称 类型");
+
+        assertThat(DocMindParsingClient.layoutContent(layout, "table"))
+            .contains("| 名称 | 类型 |");
+    }
+
+    @Test
+    void textLayout_prefersMarkdownContentOverText() {
+        Map<String, Object> layout = new HashMap<>();
+        layout.put("markdownContent", "## 调用方式\n正文段落");
+        layout.put("text", "调用方式 正文段落");
+
+        assertThat(DocMindParsingClient.layoutContent(layout, "text"))
+            .isEqualTo("## 调用方式\n正文段落");
+    }
+
+    // ── toPageSegments：0 起 pageNum → 1 起 PageSegment ──
+
+    @Test
+    void pageSegments_zeroBasedToOneBased_sortedAndBlankDropped() {
+        Map<Integer, StringBuilder> byPage = new TreeMap<>();
+        byPage.put(2, new StringBuilder("第三页正文"));
+        byPage.put(0, new StringBuilder("第一页正文"));
+        byPage.put(1, new StringBuilder("   "));   // 空页剔除
+
+        List<ParsingResult.PageSegment> pages = DocMindParsingClient.toPageSegments(byPage);
+
+        assertThat(pages).hasSize(2);
+        assertThat(pages.get(0)).isEqualTo(new ParsingResult.PageSegment(1, "第一页正文"));
+        assertThat(pages.get(1)).isEqualTo(new ParsingResult.PageSegment(3, "第三页正文"));
     }
 }

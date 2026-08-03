@@ -200,24 +200,41 @@ public class DocumentEtlService {
     }
 
     /**
-     * 向量化并写入 VectorStore（pgvector 或 Milvus，取决于配置）
+     * 单批 embedding 条数上限。
+     *
+     * <p><b>2026-08-03 E2E 缺陷</b>：DashScope embedding API（qwen3.7-text-embedding）
+     * 单次请求硬限制 ≤20 条输入（超出 400 InvalidParameter）。VectorStore 内部的
+     * TokenCountBatchingStrategy 只按 token 预算分批、<em>不限制单批条数</em>——
+     * 页级切分（2026-08-03）产出的小 chunk 会被密集打包进同一批超限被拒
+     * （30 chunk 偶发通过、35 chunk 触发，纯随 chunk 大小分布侥幸）。
+     * 故 ETL 侧按固定条数分批，双向量库后端（Milvus/pgvector）统一受保护。
+     */
+    private static final int EMBED_BATCH_SIZE = 10;
+
+    /**
+     * 向量化并写入 VectorStore（pgvector 或 Milvus，取决于配置），按 {@link #EMBED_BATCH_SIZE} 分批
      */
     private void embedAndStore(KbDocument doc, List<KbChunk> entities) {
-        List<Document> vectorDocs = entities.stream()
-            .map(e -> new Document(e.getId(), e.getContent(),
-                Map.of("chunk_id", e.getId(),
-                       "doc_id", doc.getId(),
-                       "tenant_id", doc.getTenantId(),
-                       "chunk_type", e.getChunkType().name(),
-                       // file_name 随向量元数据携带（2.14 调试台/溯源展示；
-                       // 存量向量缺此字段，重新入库后补齐）
-                       "file_name", doc.getName() != null ? doc.getName() : "unknown",
-                       "page_num", e.getPageNum() != null ? e.getPageNum() : 0,
-                       "is_deleted", java.util.Objects.requireNonNullElse(e.getIsDeleted(), false))))
-            .toList();
+        int total = entities.size();
+        for (int from = 0; from < total; from += EMBED_BATCH_SIZE) {
+            List<KbChunk> batch = entities.subList(from, Math.min(from + EMBED_BATCH_SIZE, total));
+            List<Document> vectorDocs = batch.stream()
+                .map(e -> new Document(e.getId(), e.getContent(),
+                    Map.of("chunk_id", e.getId(),
+                           "doc_id", doc.getId(),
+                           "tenant_id", doc.getTenantId(),
+                           "chunk_type", e.getChunkType().name(),
+                           // file_name 随向量元数据携带（2.14 调试台/溯源展示；
+                           // 存量向量缺此字段，重新入库后补齐）
+                           "file_name", doc.getName() != null ? doc.getName() : "unknown",
+                           "page_num", e.getPageNum() != null ? e.getPageNum() : 0,
+                           "is_deleted", java.util.Objects.requireNonNullElse(e.getIsDeleted(), false))))
+                .toList();
 
-        vectorStore.add(vectorDocs);
-        log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), vectorDocs.size());
+            vectorStore.add(vectorDocs);
+            log.debug("向量化分批写入: docId={}, range=[{}, {})", doc.getId(), from, from + batch.size());
+        }
+        log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), total);
     }
 
     private static ChunkType parseChunkType(Object value) {
