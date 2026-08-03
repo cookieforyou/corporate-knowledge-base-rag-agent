@@ -233,10 +233,16 @@ async function confirmDelete(doc: KbDoc) {
     await ElMessageBox.confirm(
       `删除「${doc.name}」将级联清理 Chunk、向量、ES 索引与 MinIO 原件，不可恢复。`,
       '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return /* 用户取消 */ }
+  // 确认后的删除失败必须可见——此前单个 catch 把真实错误与「取消」一并静默吞掉
+  try {
     await deleteDocument(doc.id)
     ElMessage.success('已删除')
+  } catch (e: any) {
+    ElMessage.error('删除失败：' + (e.response?.data?.message || e.message))
+  } finally {
     refresh()
-  } catch { /* 取消 */ }
+  }
 }
 
 // ── 展示辅助 ──

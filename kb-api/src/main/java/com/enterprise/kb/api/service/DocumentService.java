@@ -118,9 +118,18 @@ public class DocumentService {
     /**
      * 删除文档（级联清理）：PG Chunk/文档行 → 向量库 → ES 索引 → MinIO 对象。
      * 下游存储清理为尽力而为（失败告警不阻断主删除——PG 为事实源，残留可离线清理）。
+     *
+     * <p><b>幂等</b>（2026-08-03）：删除不存在的文档静默成功。E2E 实测删除竞态
+     * （重复点击/双 Tab/列表刷新前再删）会产生第二次 DELETE，此前抛 DOC_NOT_FOUND
+     * 业务异常——对删除语义而言「目标已不存在」即「已删除」，不应报错。
      */
     public void delete(String docId, String tenantId) {
-        KbDocument doc = getOwned(docId, tenantId);
+        KbDocument doc = documentRepository.findById(docId).orElse(null);
+        if (doc == null) {
+            log.info("文档不存在或已删除，跳过（幂等）: docId={}", docId);
+            return;
+        }
+        checkOwnership(doc, tenantId);
 
         List<String> chunkIds = chunkRepository.findByDocIdOrderByChunkIndex(docId)
             .stream().map(KbChunk::getId).toList();
