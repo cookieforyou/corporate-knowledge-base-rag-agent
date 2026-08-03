@@ -65,7 +65,7 @@
             <span class="t-data cand-id">{{ c.chunkId.slice(0, 13) }}…</span>
             <span v-if="c.fileName" class="cand-file">{{ c.fileName }}</span>
             <span v-if="c.chunkType" class="chip chip-mute">{{ c.chunkType }}</span>
-            <span v-if="c.pageNum" class="cand-dim t-data">p.{{ c.pageNum }}</span>
+            <span v-if="c.pageNum" class="cand-dim t-data">{{ c.pageNum }}</span>
           </div>
 
           <!-- 全维度得分条 -->

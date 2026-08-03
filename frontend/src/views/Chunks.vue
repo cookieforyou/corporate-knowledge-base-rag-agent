@@ -55,7 +55,7 @@
             <span class="chip" :class="c.chunkType === 'TABLE' ? 'chip-gold' : 'chip-pine'">
               {{ c.chunkType }}
             </span>
-            <span v-if="c.pageNum" class="chunk-dim t-data">p.{{ c.pageNum }}</span>
+            <span v-if="c.pageNum" class="chunk-dim t-data">{{ c.pageNum }}</span>
             <span class="chunk-dim t-data">{{ c.tokenCount ?? '—' }} tokens</span>
             <span class="chunk-id t-data">{{ c.id }}</span>
           </div>

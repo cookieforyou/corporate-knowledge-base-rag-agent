@@ -119,7 +119,7 @@
           <div class="chunk-head">
             <span class="chunk-idx t-data">#{{ c.chunkIndex }}</span>
             <span class="chip chip-mute">{{ c.chunkType }}</span>
-            <span v-if="c.pageNum" class="chunk-dim t-data">p.{{ c.pageNum }}</span>
+            <span v-if="c.pageNum" class="chunk-dim t-data">{{ c.pageNum }}</span>
             <span class="chunk-dim t-data">{{ c.tokenCount ?? '—' }} tokens</span>
             <span class="chunk-id-full t-data">{{ c.id.slice(0, 13) }}…</span>
           </div>

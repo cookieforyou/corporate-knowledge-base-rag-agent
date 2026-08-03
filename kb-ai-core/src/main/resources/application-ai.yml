@@ -28,13 +28,9 @@ spring:
 
     chat:
       observations:
-        log-prompt: true
+        log-prompt: false
         log-completion: true
         include-error-logging: true
-      client:
-        observations:
-          log-prompt: true
-          log-completion: true
 
 # ============================================================
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
