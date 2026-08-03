@@ -1,13 +1,18 @@
 # Golden 语料问题集（待标注）
 
+> **2026-08-03 标注完成**：本表全部问题 + DocMind PDF 新增 11 题 + 5 条对抗性负题已标注 chunkId，
+> 落入 `kb-eval/src/main/resources/golden/`（finance/k8s/product/cross/docmind-qa.json +
+> negative-out-of-kb.json，合计 74 条）。本文件保留为设计工作底稿，数据以 golden/*.json 为准。
+
 > 用途：三份语料文档上传入库后，执行下方 SQL 导出 chunk 映射，据此为每题填写 `expectedChunkIds`，写入 `kb-eval/src/main/resources/golden/` 下的 JSON 文件。
 >
 > **chunk 映射导出 SQL**（IDEA 数据库工具或 psql）：
 >
 > ```sql
-> SELECT d.name AS doc, c.id, c.chunk_index, c.chunk_type, left(c.content, 160) AS snippet
+> SELECT d.name AS doc, c.id, c.chunk_index, c.chunk_type, c.page_num, c.content
 > FROM kb_chunk c JOIN kb_document d ON c.doc_id = d.id
-> WHERE d.name IN ('增值税发票管理实务手册.md','Kubernetes集群运维规范.md','智能硬件产品规格目录.md')
+> WHERE d.name IN ('增值税发票管理实务手册.md','Kubernetes集群运维规范.md',
+> '智能硬件产品规格目录.md','阿里云文档解析（大模型版）介绍.pdf')
 > ORDER BY d.name, c.chunk_index;
 > ```
 >

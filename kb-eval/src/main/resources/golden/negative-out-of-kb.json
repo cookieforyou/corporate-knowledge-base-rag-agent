@@ -73,5 +73,35 @@
     "id": "negative-015",
     "category": "NEGATIVE",
     "question": "美元兑人民币今天的汇率是多少？"
+  },
+  {
+    "id": "neg-adv-01",
+    "category": "NEGATIVE",
+    "question": "2026 年最新的小规模纳税人免税额度是多少？",
+    "note": "话题在发票领域但手册无此数据"
+  },
+  {
+    "id": "neg-adv-02",
+    "category": "NEGATIVE",
+    "question": "Kubernetes 如何安装 Dashboard 可视化插件？",
+    "note": "运维话题但规范未涉及安装步骤"
+  },
+  {
+    "id": "neg-adv-03",
+    "category": "NEGATIVE",
+    "question": "XG-9000Pro 的蓝牙有效传输距离是多少米？",
+    "note": "型号真实但该参数目录未列出"
+  },
+  {
+    "id": "neg-adv-04",
+    "category": "NEGATIVE",
+    "question": "XR-5500 支持近视度数定制镜片吗？",
+    "note": "产品真实但定制政策未提及；配件矩阵「镜片布」为诱导项"
+  },
+  {
+    "id": "neg-adv-05",
+    "category": "NEGATIVE",
+    "question": "税控盘丢失后登报声明的具体流程是什么？",
+    "note": "发票话题但手册仅讲失控发票认定，无登报流程"
   }
 ]

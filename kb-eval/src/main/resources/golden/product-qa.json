@@ -1,0 +1,100 @@
+[
+  {
+    "id": "prd-01",
+    "category": "FACTOID",
+    "question": "XG-9000Pro 的电池容量是多少？",
+    "expectedChunkIds": [
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+    ]
+  },
+  {
+    "id": "prd-02",
+    "category": "FACTOID",
+    "question": "XG-9000Pro 的防护等级是什么？",
+    "expectedChunkIds": [
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+    ]
+  },
+  {
+    "id": "prd-03",
+    "category": "FACTOID",
+    "question": "XR-5500 的续航时间大约多久？",
+    "expectedChunkIds": [
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+    ]
+  },
+  {
+    "id": "prd-04",
+    "category": "FACTOID",
+    "question": "XS-200 网关的最低工作温度是多少？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-05",
+    "category": "FACTOID",
+    "question": "红外热成像模组 XG-TIR-01 支持哪些型号？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-06",
+    "category": "FACTOID",
+    "question": "磁吸充电底座 ACC-MCD-33 兼容哪些型号？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-07",
+    "category": "FACTOID",
+    "question": "XG 系列的整机质保期是多久？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-08",
+    "category": "TABLE",
+    "question": "XG-9000Pro 和 XG-7000 有哪些主要差异？",
+    "expectedChunkIds": [
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+    ]
+  },
+  {
+    "id": "prd-09",
+    "category": "TABLE",
+    "question": "各产品系列的质保政策有什么区别？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46",
+      "c030a19f-df89-4938-b5b7-e60fe4e8cd76"
+    ]
+  },
+  {
+    "id": "prd-10",
+    "category": "FACTOID",
+    "question": "型号命名规则里档位码 9 代表什么？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-11",
+    "category": "REASONING",
+    "question": "户外电力巡检需要厘米级定位和热成像功能，应该选哪款产品，配什么模组？",
+    "expectedChunkIds": [
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-12",
+    "category": "REASONING",
+    "question": "XG 系列设备用了两年半坏了，能免费保修吗？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  }
+]
