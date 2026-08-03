@@ -1,0 +1,1292 @@
+"doc","id","chunk_index","chunk_type","page_num","content"
+"Kubernetes集群运维规范.md","b3f87f72-293a-4cac-bb9d-58b645becc57",0,"TEXT",NULL,"# Kubernetes 集群运维规范
+
+> 生产集群运维标准 · 适用于 v1.28+ 版本的企业级 Kubernetes 集群
+
+## 一、集群架构与节点规划
+
+生产集群采用多可用区部署，控制面节点固定 3 个（etcd 法定人数要求），工作节点按业务域划分节点池：
+
+| 节点池 | 规格 | 数量 | 用途 | 污点（Taint） |
+|-------|------|------|------|--------------|
+| control-plane | 8C16G | 3 | API Server / etcd / 控制器 | node-role.kubernetes.io/control-plane:NoSchedule |
+| app-general | 16C32G | 6 | 无状态业务负载 | 无 |
+| app-stateful | 16C64G + SSD | 4 | 数据库、消息队列等有状态服务 | node.kubernetes.io/stateful=true:NoSchedule |
+| batch-compute | 32C64G | 弹性 2-10 | 离线计算、CI 构建 | node.kubernetes.io/batch=true:NoSchedule |
+
+**etcd 规范**：etcd 副本数固定为 3（容忍单节点故障），数据盘必须使用独立 SSD（IOPS ≥ 3000），禁止与业务负载混部。etcd 每日凌晨 02:00 执行快照备份，保留最近 7 天。
+
+## 二、工作负载选型
+
+三种核心工作负载控制器的适用场景严格区分：
+
+| 控制器 | 适用场景 | 网络标识 | 存储特征 | 典型业务 |
+|-------|---------|---------|---------|---------|
+| Deployment | 无状态服务，副本可互换 | Pod IP 随机 | 无需持久化或共享存储 | Web API、网关、Worker |
+| StatefulSet | 有状态服务，需稳定身份 | 固定 DNS（pod-0.svc） | 每副本独立 PVC | 数据库、Kafka、ZooKeeper |
+| DaemonSet | 每节点单实例的系统服务 | 宿主机网络常见 | 挂载宿主机路径 | 日志采集、监控探针、CNI 插件 |
+
+**StatefulSet 使用约束**：必须配置 `volumeClaimTemplates` 提供稳定的持久化存储；副本按序号顺序启停（0 → N-1），删除 StatefulSet 不会自动删除 PVC，防止数据误删；禁止将无状态服务放入 StatefulSet（滚动更新语义不同，会拖慢发布）。
+
+## 三、资源配额与限制
+
+命名空间级资源配额（ResourceQuota）与容器级限制（LimitRange）双层管控：
+
+| 配额项 | 业务命名空间默认值 | 说明 |
+|-------|------------------|------|"
+"Kubernetes集群运维规范.md","bd38fff7-b15d-4537-84e3-a6e9cc4eb008",1,"TEXT",NULL,"| requests.cpu | 32 核 | 命名空间 CPU 申请总量上限 |
+| requests.memory | 64Gi | 命名空间内存申请总量上限 |
+| limits.cpu | 64 核 | 命名空间 CPU 限制总量上限 |
+| limits.memory | 128Gi | 命名空间内存限制总量上限 |
+| pods | 200 | 最大 Pod 数量 |
+| persistentvolumeclaims | 20 | 最大 PVC 数量 |
+
+**容器级强制规则**：所有容器必须声明 requests 与 limits；limits.cpu 不得超过 requests.cpu 的 2 倍（防止超卖挤兑）；Java 应用 limits.memory 须与 JVM 堆参数（-Xmx）配套设置，建议堆外预留 25%。
+
+## 四、发布策略
+
+| 策略 | 机制 | 回滚速度 | 资源开销 | 适用场景 |
+|-----|------|---------|---------|---------|
+| 滚动更新（RollingUpdate） | 逐批替换旧 Pod，maxSurge=25%、maxUnavailable=25% | 分钟级（kubectl rollout undo） | 低（+25% 峰值） | 绝大多数无状态服务 |
+| 蓝绿发布（Blue-Green） | 新旧两套完整环境，流量一次性切换 | 秒级（切回旧环境） | 高（双倍资源） | 核心交易链路、需即时回滚 |
+| 金丝雀发布（Canary） | 少量 Pod 承接小比例流量，逐步放量 | 秒级（摘除金丝雀） | 中（+少量 Pod） | 高风险变更、需灰度验证 |
+
+**选型原则**：默认滚动更新；核心交易链路采用蓝绿发布保障秒级回滚；用户感知强、影响面大的功能变更采用金丝雀发布，初始流量比例不超过 5%，观察期不少于 30 分钟。
+
+## 五、网络与服务暴露
+
+- **ClusterIP Service**：集群内部服务发现默认方式，通过 kube-dns 提供 `<svc>.<ns>.svc.cluster.local` 域名解析。
+- **Ingress**：南北向流量入口统一由 Ingress 网关承载（生产使用 Nginx Ingress Controller，3 副本跨可用区部署），禁止业务 Service 直接暴露 LoadBalancer 类型。
+- **Ingress 与 Service 的本质区别**：Service 工作在四层（TCP/UDP 转发，kube-proxy 实现），Ingress 工作在七层（HTTP 路由、域名分流、TLS 终结），Ingress 规则最终仍转发到后端 Service。
+- **NetworkPolicy**：生产命名空间默认拒绝所有入向流量（default-deny），按最小权限原则显式放通。"
+"Kubernetes集群运维规范.md","cf61083c-f3ac-4de7-a86b-a1b1f5b97282",2,"TEXT",NULL,"## 六、常见故障排查
+
+| 故障现象 | 常见原因 | 排查命令 | 处置要点 |
+|---------|---------|---------|---------|
+| CrashLoopBackOff | 启动命令错误、探针配置过严、依赖服务未就绪 | `kubectl logs <pod> --previous` | 查看上一周期日志，区分配置错误与依赖问题 |
+| ImagePullBackOff | 镜像不存在、私有仓库凭证失效、网络不通 | `kubectl describe pod <pod>` | 核对镜像 tag 与 imagePullSecrets |
+| Pending | 资源不足、节点污点无对应容忍、PVC 未绑定 | `kubectl describe pod <pod>` | 检查事件（Events）中的调度失败原因 |
+| OOMKilled | 内存 limit 低于实际用量、内存泄漏 | `kubectl top pod` + 监控曲线 | 调大 limit 或排查泄漏 |
+| Evicted | 节点磁盘压力（DiskPressure）触发驱逐 | `kubectl get events --field-selector reason=Evicted` | 清理节点磁盘、检查 emptyDir 用量 |
+
+## 七、服务等级与变更纪律
+
+- **SLA 定义**：核心业务可用性目标 99.95%（月度停机 ≤ 21.6 分钟）；API 网关 P99 延迟 ≤ 500ms。
+- **变更窗口**：生产变更限于工作日 10:00-12:00 与 14:00-17:00；周五下午及节假日前禁止非紧急变更。
+- **发布三件套**：每次发布必须包含回滚方案、监控看板链接、验证用例清单，缺一不得执行。"
+"增值税发票管理实务手册.md","99d075f4-f9bd-4563-aa7e-929baac51d52",0,"TEXT",NULL,"# 增值税发票管理实务手册
+
+> 企业内部财务规范文档 · 适用于一般纳税人与小规模纳税人的日常发票管理
+
+## 一、发票种类与适用场景
+
+现行增值税发票体系包含以下主要种类，各类发票在使用范围、税率与认证要求上存在显著差异：
+
+| 发票种类 | 适用场景 | 常见税率 | 是否需要认证 | 备注 |
+|---------|---------|---------|------------|------|
+| 增值税专用发票 | 一般纳税人购销业务，可抵扣进项税 | 13% / 9% / 6% | 需要勾选认证 | 开票信息要求最严格 |
+| 增值税普通发票 | 小规模纳税人及不可抵扣场景 | 3% / 1% | 无需认证 | 不可抵扣进项税额 |
+| 增值税电子专用发票 | 电子化专票，效力同纸质专票 | 13% / 9% / 6% | 需要勾选认证 | 通过税务 UKey 开具 |
+| 增值税电子普通发票 | 电商、餐饮等高频开票场景 | 3% / 1% | 无需认证 | 可版式文件下载 |
+| 卷式发票 | 超市、加油站等零售场景 | 13% | 无需认证 | 票面幅面窄 |
+
+**税率速查**：销售货物与加工修理修配劳务适用 13% 税率；交通运输、邮政、基础电信、建筑服务适用 9% 税率；现代服务、金融服务、生活服务适用 6% 税率；小规模纳税人默认征收率 3%（优惠政策期间减按 1%）。
+
+## 二、认证与勾选确认
+
+增值税专用发票的认证是进项税额抵扣的前置环节，核心规则如下：
+
+- **认证期限**：增值税专用发票应自**开具之日起 360 日内**完成认证或勾选确认，逾期不得作为合法扣税凭证。该期限自 2020 年 3 月 1 日起由原 180 日延长而来，依据国家税务总局公告 2019 年第 45 号。
+- **办理平台**：认证通过""**增值税发票综合服务平台**""办理（原""增值税发票选择确认平台""已升级合并），纳税人登录后进行发票勾选、统计与确认签名。"
+"增值税发票管理实务手册.md","4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",1,"TEXT",NULL,"- **认证方式**：支持远程勾选认证（平台勾选）、扫描认证（办税服务厅自助终端）两种方式。
+- **确认签名**：每个属期完成勾选后须执行""确认签名""操作，方可在申报期内申报抵扣；未确认签名的勾选不生效。
+
+## 三、开票设备与工具
+
+| 设备/工具 | 用途 | 发行机构 | 适用纳税人 |
+|----------|------|---------|-----------|
+| 金税盘 | 开具增值税发票，白色盘体 | 航天信息 | 一般纳税人（传统） |
+| 税控盘 | 开具增值税发票，黑色盘体 | 百旺金赋 | 一般纳税人（传统） |
+| 税务 UKey | 开具电子发票，免费发放 | 税务机关 | 自愿申领，逐步替代税控盘 |
+| 发票综合服务平台 | 发票勾选认证与统计 | 税务机关 | 全部增值税一般纳税人 |
+
+**税务 UKey 与税控盘的核心区别**：税务 UKey 由税务机关**免费发放**，无年度服务费；税控盘需向服务单位购买并缴纳年度技术维护费（约 280 元/年）。新办纳税人默认申领税务 UKey。
+
+## 四、红字发票与作废处理
+
+- **红字发票信息表**：发生销货退回、开票有误、销售折让等情形，需开具红字专用发票。购买方已认证的，由购买方在发票综合服务平台填开《开具红字增值税专用发票信息表》；未认证的，由销售方填开。
+- **信息表有效期**：红字发票信息表无固定有效期，但填开后应尽快开具对应红字发票；信息表校验通过后方可开具红字发票。
+- **作废条件**：纸质专用发票仅可在**开票当月**且未抄税、未认证的前提下作废；跨月发票只能走红字流程。
+- **电子发票**：电子发票**不支持作废**，发生错误一律开具红字发票。
+
+## 五、异常凭证处理
+
+走逃失联企业开具的发票、涉税风险扫描命中的发票可能被认定为**异常增值税扣税凭证**（俗称""异常凭证""）：
+
+1. 尚未申报抵扣的，**暂不允许抵扣**，需等待税务机关核实；
+2."
+"增值税发票管理实务手册.md","b420f5d4-8b15-46d2-8da3-c5ea9a9006d7",2,"TEXT",NULL,"已申报抵扣的，除另有规定外，**一律作进项税额转出处理**；
+3. 纳税人对认定有异议的，可在收到《税务事项通知书》后向主管税务机关提出核实申请；
+4. 经核实符合规定的，可继续申报抵扣或重新开具发票。
+
+**失控发票**与异常凭证是不同概念：失控发票指防伪税控企业丢失、被盗税控专用设备后未开具的空白发票，以及走逃企业脱离税务机关监管后开具的发票。收到失控发票通知的企业应立即联系主管税务机关核实业务真实性。
+
+## 六、常见问答
+
+**问：小规模纳税人能否自行开具专用发票？**
+答：可以。自 2021 年起，全部小规模纳税人（其他个人除外）均可自愿使用增值税发票管理系统自行开具增值税专用发票，无需再向税务机关申请代开。
+
+**问：发票丢失如何处理？**
+答：同时丢失发票联和抵扣联的，可凭加盖销售方发票专用章的记账联复印件作为记账和抵扣凭证；丢失前已认证的，无需重复认证。
+
+**问：留抵退税与发票管理的关系？**
+答：增值税留抵退税（增量留抵与存量留抵）以进项发票的规范认证抵扣为前提，存在异常凭证、纳税信用等级非 A/B 级等情形的纳税人不得申请留抵退税。"
+"智能硬件产品规格目录.md","b73bbc33-023f-4748-a7c5-2c38a8377cc8",0,"TEXT",NULL,"# 智能硬件产品规格目录
+
+> 2026 年度产品线规格总览 · 型号、参数、配件兼容与售后政策
+
+## 一、产品线概览
+
+本目录覆盖三大产品系列：**XG 系列**（工业级手持巡检终端）、**XR 系列**（消费级 AR 眼镜）与 **XS 系列**（智能传感网关）。各系列定位不同，配件不通用（XS 系列网关配件除外）。
+
+## 二、XG-9000Pro 工业巡检终端
+
+旗舰工业终端，面向电力、石化、轨交巡检场景。
+
+| 参数项 | 规格值 |
+|-------|-------|
+| 型号编码 | XG-9000Pro |
+| 处理器 | 八核 2.8GHz 工业级 SoC（-20℃~60℃ 工作温区） |
+| 内存/存储 | 8GB LPDDR5 / 256GB UFS 3.1 |
+| 显示屏 | 6.2 英寸 AMOLED，1000nit 强光可视 |
+| 电池容量 | 6800mAh，支持 33W 快充与磁吸充电 |
+| 防护等级 | IP68 + 1.8 米六面抗跌落（MIL-STD-810H） |
+| 定位 | GPS + 北斗 + RTK 厘米级差分定位 |
+| 整机重量 | 320g（含电池） |
+| 可选模块 | 红外热成像模组（XG-TIR-01）、RFID 读写模组（XG-RFID-02） |
+
+**XG-9000Pro 与 XG-7000 的差异**：XG-7000 为上一代型号，处理器主频 2.2GHz、电池 5000mAh、防护等级 IP67、无 RTK 定位模块，两者电池与模组**不兼容**。
+
+## 三、XR-5500 AR 眼镜
+
+消费级双目 AR 眼镜，面向远程协作与导览场景。
+
+| 参数项 | 规格值 |
+|-------|-------|
+| 型号编码 | XR-5500 |
+| 光学方案 | 双目衍射光波导，45° 视场角 |
+| 显示分辨率 | 单目 1920×1080，120Hz |
+| 处理器 | 高通 AR2 协处理 + 手机/主机串流 |
+| 电池 | 镜腿内置 1200mAh，续航约 2.5 小时 |
+| 整机重量 | 79g |
+| 交互 | 6DoF 头部追踪 + 手势识别 + 语音唤醒 |
+| 防护等级 | IP54 |"
+"智能硬件产品规格目录.md","276d925e-a646-4356-911f-33909f287b46",1,"TEXT",NULL,"## 四、XS-200 智能传感网关
+
+边缘传感网关，面向厂房环境监测。
+
+| 参数项 | 规格值 |
+|-------|-------|
+| 型号编码 | XS-200 |
+| 接入协议 | Modbus RTU/TCP、MQTT、LoRa（SX1276） |
+| 上行通信 | 千兆以太网 + Wi-Fi 6 + 4G 全网通（可选） |
+| 供电 | DC 12-48V 宽压 + PoE 802.3af |
+| 工作温度 | -40℃~85℃ 工业级 |
+| 本地存储 | 16GB eMMC（断网缓存 30 天） |
+
+## 五、配件兼容矩阵
+
+| 配件名称 | 配件编码 | 兼容型号 | 备注 |
+|---------|---------|---------|------|
+| 磁吸充电底座 | ACC-MCD-33 | XG-9000Pro / XG-7000 | 33W 输出，含状态指示灯 |
+| 红外热成像模组 | XG-TIR-01 | 仅 XG-9000Pro | 测温范围 -20℃~550℃ |
+| RFID 读写模组 | XG-RFID-02 | XG-9000Pro / XG-7000 | 支持 UHF 860-960MHz |
+| AR 眼镜收纳盒 | ACC-XRC-01 | XR-5500 | 硬壳防压，含镜片布 |
+| LoRa 外置天线 | ACC-LRA-05 | XS-200 | 5dBi 增益，SMA 接口 |
+
+## 六、型号命名规则
+
+产品型号遵循 `<系列><档位>-<代次><后缀>` 规则：
+
+- **系列码**：XG = 工业手持终端，XR = AR 眼镜，XS = 传感网关；
+- **档位码**：四位数中首位为档位（9 = 旗舰，7 = 主力，5 = 入门，2 = 基础）；
+- **后缀**：Pro = 增强版，无后缀 = 标准版，Lite = 轻量版（未上市）。
+
+例：XG-9000Pro 表示 XG 系列旗舰档第 000 代增强版；XR-5500 表示 XR 系列入门档第 500 代标准版。
+
+## 七、售后服务政策
+
+| 产品系列 | 整机质保期 | 电池质保期 | 延保服务 | 保修起始日 |
+|---------|-----------|-----------|---------|-----------|
+| XG 系列 | 24 个月 | 12 个月 | 可购 +12 个月 | 购机发票日期 |
+| XR 系列 | 12 个月 | 6 个月 | 可购 +12 个月 | 购机发票日期 |"
+"智能硬件产品规格目录.md","c030a19f-df89-4938-b5b7-e60fe4e8cd76",2,"TEXT",NULL,"| XS 系列 | 36 个月 | 不适用 | 可购 +24 个月 | 购机发票日期 |
+
+**保修排除条款**：进水（超出防护等级使用）、私拆、非授权维修点维修、不可抗力损坏不在保修范围内。XG 系列支持**以换代修**服务（购买延保后生效），换机后质保期延续原机剩余时长，不重新计算。"
+"阿里云文档解析（大模型版）介绍.pdf","b9bcb905-4405-4c59-9464-5ab90b0afd94",0,"TEXT",1,"文档解析(大模型版)接口可进行通用文档抽取和理解,支持多种常见格式的文档, 能从文档中提取出丰富的版面信息等,支持输出Markdown格式的内容。本文介绍如何调用该API,调用前请先阅读API使用指南。  
+
+
+# 调用方式  
+
+
+文档解析(大模型版)接口为异步接口,需要先调用文档解析异步提交服务SubmitDocParserJobAdvance或SubmitDocParserJob接口进行异步任务提交,然后调用文档解析(大模型版)状态查询服务QueryDocParserStatus接口进行处理状态查询,最后根据处理状态,调用GetDocParserResult接口进行结果查询。如下所示为文档解析(大模型版)使用流程图:  
+
+
+## 说明  
+
+
+文档解析(大模型版))免免费额度为每月3000页,用完即止。若您的免费额度或资源包消耗完毕,系统将默认采用按量付费的后付费计费方式。当异步任务处理提交后,用户可以在处理结束后的24小时之内查询处理结果,超过24小时后将无法查询到处理结果。  
+
+
+支持的文档格式: pdf、 word、 ppt、 pptx、xls、xlsx、xlsm和图片, 图片支持jpg、jpeg、 png、 bmp、gif,其余格式支持markdown、html、epub、mobi、rtf、txt。  
+
+
+支持的音视频格式: mp4、mkv、avi、 mov、 wmv、 mp 3、 wav、 aac。  
+
+
+·文档解析(大模型版)支持解析文档中的图片和表格,图表类的图片会接入chart2table, 将图表类的图片转换成表格形式输出。  
+
+
+·)从对文档中表格场景的解析效果来看,文档解析(大模型版)>文档智能解析>电子文档解析,因此推荐优先使用文档解析(大模型版)解析文档。从整体解析速度来看,电子文档解析>文档解析(大模型版)>文档智能解析。  
+
+
+步骤一:调用文档解析(大模型版)异步提交服务SubmitDocParserJob接口"
+"阿里云文档解析（大模型版）介绍.pdf","6edfc5a6-1a46-4e86-a7ce-4111016a9a3f",1,"TEXT",2,"异步提交服务支持本地文件和url文件两种方式:  
+
+
+·本地文件上传的异步提交服务接口为:SubmitDocParserJobAdvance接口。  
+
+
+url文件上传的异步提交服务接口为:SubmitDocParserJob接口。  
+
+
+## 重要  
+
+
+异步处理的时长以实际测试为准,开通电子文档解析服务后我们会提供免费额度供您测试。  
+
+
+FileName、FileNameExtension参数,服务会根据后缀配置解析器,若不确定文档类型,可配置无后缀的文件名后台进行默认路由配置,避免非预期解析结果产生。  
+
+
+## 请求参数"
+"阿里云文档解析（大模型版）介绍.pdf","8b7ddb6a-2cb6-471d-84fe-d68d98c88524",2,"TABLE",2,"<table>
+ <tbody>
+  <tr>
+   <td>名称</td>
+   <td>类型</td>
+   <td>必填</td>
+   <td>描述</td>
+   <td>示例值</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>FileUrl</td>
+   <td>string</td>
+   <td>否</td>
+   <td>以文档url上传方式调用接口时使用。单个文档(支持1.5万页及以内且150MB以内的PDF、Word等文档, 支持20MB以内的单张图片)。</td>
+   <td>https://example.com/example.pdf</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>FileUrlObject</td>
+   <td>stream</td>
+   <td>否</td>
+   <td>以本地文件上传方式调用接口时使用。单个文档(支持1.5万页及以内且150MB以内的PDF、Word等文档, 支持20MB以内的单张图片)。</td>
+   <td>本地文件生成的FileInputStream</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>FileName</td>
+   <td>string</td>
+   <td>否</td>
+   <td>文件名需带文件类型后缀,与FileNameExtension二选一。</td>
+   <td colspan=""2"">example.pdf</td>
+  </tr>
+  <tr>
+   <td>FileNameExtension</td>
+   <td>string</td>
+   <td>否</td>
+   <td>文件类型,与FileName二选一。</td>
+   <td colspan=""2"">pdf</td>
+  </tr>
+  <tr>
+   <td>FormulaEnhancement</td>
+   <td>bool</td>
+   <td>否</td>
+   <td>开启公式识别增强选项,默认为False。</td>
+   <td colspan=""2"">True</td>
+  </tr>
+  <tr>
+   <td>LlmEnhancement</td>
+   <td>bool</td>
+   <td>否</td>
+   <td>开启大模型增强选项,默认为False。注意:若开启,接口响应时间可能会显著增加,请按需开启。开启后,以下2种情况会返回大模型解析结果:-对于PPT文件(包括PPT类型的PDF文件),当解析置信度 (layoutConf)小于等于0.8。-文件中的图表(chart)部分。目前支持3种图表,分别为:标值图、估值图、其它图。</td>
+   <td colspan=""2"">False</td>
+  </tr>
+  <tr>
+   <td>EnhancementMode</td>
+   <td>string</td>
+   <td>否</td>
+   <td>大模型增强模式,默认为空(关闭)。仅当设置LlmEnhancement=true时,此参数才生效。目前支持以下选项:-VLM:使用多模态大模型做版面分析和OCR。可以提升解析效果,包括:版面顺序、类型、坐标更准确;文字内容更准确;多语言效果更好。注意:若开启,接口响应时间可能会显著增加,同时每页费用会增加,请按需开启。</td>
+   <td colspan=""2"">VLM</td>
+  </tr>
+  <tr>
+   <td>Option</td>
+   <td>string</td>
+   <td>否</td>
+   <td>音视频文件解析支持配置选项,默认为Base。 base:基本识别功能,默认值。advance: 加强识别功能,在base结果基础上增加返回剧情解析结果。</td>
+   <td colspan=""2"">Base</td>
+  </tr>
+  <tr>
+   <td>OssBucket</td>
+   <td>string</td>
+   <td>否</td>
+   <td>个人的oss bucket名称,具体可查看OSS托管支持</td>
+   <td colspan=""2"">docmind-trust</td>
+  </tr>
+  <tr>
+   <td>OssEndpoint</td>
+   <td>string</td>
+   <td>否</td>
+   <td>个人的oss endpoint地址,具体可查看OSS托管支持</td>
+   <td colspan=""2"">oss-cn-
+    <br>
+    hangzhou.aliyuncs.com</td>
+  </tr>
+  <tr>
+   <td>PageIndex</td>
+   <td>string</td>
+   <td>否</td>
+   <td>文件解析的页数。注:必须为1-n的格式。</td>
+   <td colspan=""2"">1-5</td>
+  </tr>
+  <tr>
+   <td rowspan=""2"">OutputHtmlTable</td>
+   <td rowspan=""2"">bool</td>
+   <td rowspan=""2"">否</td>
+   <td>是否返回HTML格式的表格内容,默认为False。开启后,对 于表格类型的版面块,会返回此表格的HTML格式解析内容,存放在此版面块的请注</td>
+   <td colspan=""2"" rowspan=""2"">false</td>
+  </tr>
+  <tr>
+   <td>**llmResult**字段中。&gt;!意:若开启此参数,需同步开启LImEnhancement参数,接口响应时间也可能会增加,请按需开启。</td>
+  </tr>
+  <tr>
+   <td>EnableEventCallback</td>
+   <td>bool</td>
+   <td>否</td>
+   <td>是否开启事件回调,默认为False 。具体可查看事件总线支持。</td>
+   <td>false</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>OutputFormat</td>
+   <td>List</td>
+   <td>否</td>
+   <td>解析结果输出格式。</td>
+   <td>markdown</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>MultimediaParameters</td>
+   <td>object</td>
+   <td>否</td>
+   <td>当文件类型为音视频时,可通过本字段设置可选功能。开启此参数后将忽略Option入参。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>- VlParsePrompt</td>
+   <td>string</td>
+   <td>否</td>
+   <td>帧解析prompt(0725已支持)</td>
+   <td>##限制:-不要输出过长的句子,忠实于原 图、捕捉关键信息即可。##限制:-不要输出过长的句子,忠实于原图、捕捉关键信息即可。</td>
+   <td></td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","d5a914f9-c64d-46d9-9244-c87644941ab6",3,"TEXT",3,"### 说明  
+
+
+·PageIndex参数只支持pdf、word、ppt三种格式的文件解析使用。  
+
+
+·OutputFormat参数支持的类型如下:  
+
+
+markdown:状态查询服务中会返回文档的markdown结果。  
+
+
+visualLayoutInfo: QueryDocParserStatus状态查询服务中会返回文档页Page图片信息, GetDocParserResult结果查询服务中会返回layout的坐标信息。  
+
+
+#### ·VLM增强链路开启后支持33种语种:  
+
+
+o中文、日语、韩语、印尼语、越南语、泰语、英语、法语、德语、俄语、葡萄牙语、西班牙语、意大利语、瑞典语、丹麦语、捷克语、挪威语、荷兰语、芬兰语、土耳其语、波兰语、斯瓦希里语、罗马尼亚语、塞尔维亚语、希腊语、哈萨克语、乌兹别克语、宿务语、阿拉伯语、乌尔都语、波斯语、印地语/天城语、希伯来语。  
+
+
+## 返回参数"
+"阿里云文档解析（大模型版）介绍.pdf","a62b2517-a4c4-47ac-9eb4-f8fcf7ccf64d",4,"TABLE",3,"<table>
+ <tbody>
+  <tr>
+   <td>名称</td>
+   <td>类型</td>
+   <td>描述</td>
+   <td>示例值</td>
+  </tr>
+  <tr>
+   <td>RequestId</td>
+   <td>string</td>
+   <td>请求唯一ID。</td>
+   <td>43A29C77-405E-4DC0-BC55-EE694AD0</td>
+  </tr>
+  <tr>
+   <td>Data</td>
+   <td>object</td>
+   <td>返回数据。</td>
+   <td>{""Id"":""docmind-20240712-b15f""}</td>
+  </tr>
+  <tr>
+   <td>Id</td>
+   <td>string</td>
+   <td>业务订单号,用于后续查询接口进行查询的唯一标识。</td>
+   <td>doc-mind-20220712-b15f</td>
+  </tr>
+  <tr>
+   <td>Code</td>
+   <td>string</td>
+   <td>状态码。</td>
+   <td>200</td>
+  </tr>
+  <tr>
+   <td>Message</td>
+   <td>string</td>
+   <td>状态详细信息。</td>
+   <td>Message</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","5ce4a173-dca1-48cf-9a7d-4bd67bc4773c",5,"TEXT",3,"## 使用示例  
+
+
+本接口支持本地文件上传和url文件上传这两种调用方式。  
+
+
+·本地文件上传:以Java SDK为例, 本地文件上传调用方式的请求示例代码如下,调用PDF转Word异步提交服务用SubmitDocParserJobAdvance接口,通过fileUrlObject参数实现本地文档上传。  
+
+
+说明:获取并使用AccessKey信息的方式,可参考SDK概述中不同语言的SDK使用指南。  
+
+
+U url文件上传:以Java SDK为例, 传入文档url调用方式的请求示例代码如下,调用SubmitDocParserJob接口, 通过fileUrl参数实现传入文档url。请注意,您传入的文档url必须为公网可访问下载的url地址,无跨域限制,url不带特殊转义字符。  
+
+
+说明:获取并使用AccessKey信息的方式,可参考SDK概述中不同语言的SDK使用指南。"
+"阿里云文档解析（大模型版）介绍.pdf","e1d42939-684f-4a97-bd65-e7366c2f720b",6,"TEXT",4,"## 返回结果  
+
+
+## 步骤二:调用文档解析(大模型版)状态查询服务QueryDocParserStatus接口  
+
+
+调用查询接口的入参ID就是前面异步任务提交接口返回的出参ID, 查询结果有Status状态和NumberOfSuccessfulParsing已处理的模块数, Status状态有处理中、处理成功、处理失败三种情况。"
+"阿里云文档解析（大模型版）介绍.pdf","521dea40-9a6a-4197-a9d6-62fe064080f7",7,"TABLE",4,"<table>
+ <tbody>
+  <tr>
+   <td>名称</td>
+   <td>类型</td>
+   <td>必填</td>
+   <td>描述</td>
+   <td>示例值</td>
+  </tr>
+  <tr>
+   <td>Id</td>
+   <td>string</td>
+   <td>是</td>
+   <td>需要查询的业务订单号,订单号从提交接口的返回结果中获取。</td>
+   <td>docmind-20220712-b15f</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","a485e6d8-50c9-4107-ba7b-faf53c6efa03",8,"TABLE",4,"<table>
+ <tbody>
+  <tr>
+   <td>名称</td>
+   <td>类型</td>
+   <td>描述</td>
+   <td>示例值</td>
+  </tr>
+  <tr>
+   <td>RequestId</td>
+   <td>string</td>
+   <td>请求唯一ID。</td>
+   <td>43A29C77-405E-4CC0-BC55-EE694AD0</td>
+  </tr>
+  <tr>
+   <td>Data</td>
+   <td>string</td>
+   <td>返回数据。</td>
+   <td>-</td>
+  </tr>
+  <tr>
+   <td>Status</td>
+   <td>string</td>
+   <td>任务处理完成的状态。Success表示处理成功,Fail表示处理失败。</td>
+   <td>success</td>
+  </tr>
+  <tr>
+   <td>NumberOfSuccessfulParsing</td>
+   <td>integer</td>
+   <td>已处理的模块数。</td>
+   <td>166</td>
+  </tr>
+  <tr>
+   <td>Tokens</td>
+   <td>long</td>
+   <td>英文单词数,或中文字数。</td>
+   <td>4429</td>
+  </tr>
+  <tr>
+   <td>ParagraphCount</td>
+   <td>integer</td>
+   <td>段落数量。</td>
+   <td>91</td>
+  </tr>
+  <tr>
+   <td>TableCount</td>
+   <td>integer</td>
+   <td>表格数量。当上传的文档中存在表格时,该参数会返回对应表格数量,否则不返回该参数。</td>
+   <td>2</td>
+  </tr>
+  <tr>
+   <td>ImageCount</td>
+   <td>integer</td>
+   <td>图片数量。当上传的文档中存在图片时,该参数会返回对应图片数量,否则不返回该参数。</td>
+   <td>0</td>
+  </tr>
+  <tr>
+   <td>PageCountEstimate</td>
+   <td>integer</td>
+   <td>当前处理的页码(页码从0开始)。</td>
+   <td>3</td>
+  </tr>
+  <tr>
+   <td>Processing</td>
+   <td>float</td>
+   <td>文件处理进度百分比</td>
+   <td>100.0</td>
+  </tr>
+  <tr>
+   <td>OutputFormatResult</td>
+   <td>array</td>
+   <td>获取指定格式的返回结果, 仅当设置OutputFormat参数后生效。查看outputFormatResult属性详情</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>Code</td>
+   <td>string</td>
+   <td>状态码。</td>
+   <td>200</td>
+  </tr>
+  <tr>
+   <td>Message</td>
+   <td>string</td>
+   <td>详细信息。</td>
+   <td>Message</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","52b02e6f-9c9d-4ea7-89a3-34a9c5e2cc49",9,"TEXT",4,"说明  
+
+
+订单状态Status类型:  
+
+
+1Init:订单处于待处理队列中。"
+"阿里云文档解析（大模型版）介绍.pdf","aff63b4a-bb3a-4965-a909-eea0a1ea13c5",10,"TEXT",5,"F Processing: 正在解析处理。  
+
+
+S success:文件处理成功,此时NumberOfSuccessfulParsing将不再变化。  
+
+
+F Fail:文件处理失败。  
+
+
+## 使用示例  
+
+
+以Java SDK为例, 调用文档解析接口的结果查询类API示例代码如下: 调用接口,通过传入ID参数查询流水号。  
+
+
+说明:获取并使用AccessKey信息的方式,请参见SDK概述中不同语言的SDK使用指南。  
+
+
+### 返回示例:  
+
+
+处理失败的返回示例:  
+
+
+步骤三:调用文档解析(大模型版)结果获取服务GetDocParserResult接口  
+
+
+请求参数  
+
+
+示例值"
+"阿里云文档解析（大模型版）介绍.pdf","b86016d1-c444-407b-ba10-bf00ef421e89",11,"TABLE",5,"<table>
+ <tbody>
+  <tr>
+   <td>名称</td>
+   <td>类型</td>
+   <td>必填</td>
+   <td>描述</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>Id</td>
+   <td>string</td>
+   <td>是</td>
+   <td>需要查询的业务订单号,订单号从提交接口的返回结果中获取。</td>
+   <td>docmind-20220712-b15f</td>
+  </tr>
+  <tr>
+   <td>LayoutStepSize</td>
+   <td>integer</td>
+   <td>是</td>
+   <td>期望查询的Layout的Size大小(步长值)。最小值:1,最大值:3000</td>
+   <td>100</td>
+  </tr>
+  <tr>
+   <td>LayoutNum</td>
+   <td>integer</td>
+   <td>是</td>
+   <td>-查询起始块位置-最小值:0</td>
+   <td>0</td>
+  </tr>
+  <tr>
+   <td>ExcludeFields</td>
+   <td>List</td>
+   <td>否</td>
+   <td>去除结果中不需要返回的属性(目前仅支持一级属性的过滤,可去除属性请参考文件格式处理成功的返回结果中的layout下的一级信
+    <br>
+    息)。o</td>
+   <td>""text"",""firstLinesChars""</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","2f9c3731-bb17-42f2-b8c5-e8833e984723",12,"TEXT",5,"### 重要  
+
+
+使用GetDocParserResult接口, 意味着需要进行多次结果的查询(例如LayoutNum, LayoutNum+ LayoutStepSize获取0~100,100~200块内容),同时能在长文档解析时,能提前获取已解析完内容。  
+
+
+L LayoutStepSize过长会出现报错,可以适当调小  
+
+
+### 说明"
+"阿里云文档解析（大模型版）介绍.pdf","8150e476-d816-464b-b35f-12bdbf273fda",13,"TEXT",6,"GetDocParserResult接口中, 可通过LayoutNum标记值和LayoutStepSize步长,获取layouts, 即当文档处理中时,即可获得已经解析完成的内容;  
+
+
+## 已经解析完成  
+
+
+LayoutNum  
+
+
+### 返回参数"
+"阿里云文档解析（大模型版）介绍.pdf","bcc514e1-50e1-49d9-9055-cc988375e350",14,"TABLE",6,"<table>
+ <tbody>
+  <tr>
+   <td>名称</td>
+   <td>类型</td>
+   <td>描述</td>
+   <td>示例值</td>
+  </tr>
+  <tr>
+   <td>RequestId</td>
+   <td>string</td>
+   <td>请求唯一ID。</td>
+   <td>43A29C77-405E-4CC0-BC55-EE694AD0</td>
+  </tr>
+  <tr>
+   <td>Data</td>
+   <td>string</td>
+   <td>返回数据,文档解析(大模型版)的解析结果。</td>
+   <td>-</td>
+  </tr>
+  <tr>
+   <td>Code</td>
+   <td>string</td>
+   <td>状态码。</td>
+   <td>200</td>
+  </tr>
+  <tr>
+   <td>Message</td>
+   <td>string</td>
+   <td>详细信息。</td>
+   <td>Message</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","708a6890-255d-4d36-b2e2-c89292887e49",15,"TEXT",6,"#### 说明  
+
+
+获取并使用AccessKey信息的方式,请参见SDK概述中不同语言的SDK使用指南。  
+
+
+返回示例:  
+
+
+### 处理失败的返回结果  
+
+
+{  
+
+
+""RequestId"":""A8EF3A36-1380-1116-A39E-B377BE27****"",  
+
+
+""Code"":""UrlNotLegal"",  
+
+
+""Message"":""Failed to process the document.  The document url you provided is not legal."",  
+
+
+""HostId"":""docmind-api.cn-hangzhou.aliyuncs.com"",  
+
+
+""Recommend"":""https://next.api.aliyun.com/troubleshoot?q=IDP.UrlNotLegal&product=docmind-api""  
+
+
+}  
+
+
+如果请求处理失败,会返回失败Code和详细原因Message。详细介绍,请参见错误码。  
+
+
+### 参数说明:"
+"阿里云文档解析（大模型版）介绍.pdf","904b907f-5eb1-4c4b-92f9-8c4fe0b19c7d",16,"TEXT",7,"解析结果  
+
+
+Markdown文本内容。"
+"阿里云文档解析（大模型版）介绍.pdf","f9d6c411-862b-4954-9287-4f66729046e1",17,"TABLE",7,"<table>
+ <tbody>
+  <tr>
+   <td>Data</td>
+   <td>object</td>
+   <td></td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>layouts</td>
+   <td>array</td>
+   <td>版面信息列表。</td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>text</td>
+   <td>string</td>
+   <td colspan=""2"">文本内容。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>markdownContent</td>
+   <td>string</td>
+   <td></td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>index</td>
+   <td>int</td>
+   <td>版面阅读顺序。</td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>uniqueId</td>
+   <td>string</td>
+   <td colspan=""2"">版面信息唯一ld。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>alignment</td>
+   <td>string</td>
+   <td colspan=""3"">间距枚举。</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>pageNum</td>
+   <td>int</td>
+   <td colspan=""4"">版面所在页。</td>
+  </tr>
+  <tr>
+   <td>level</td>
+   <td>int</td>
+   <td>版面层级(最小层级为0,表示根节点)。</td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>type</td>
+   <td>string</td>
+   <td colspan=""4"">版面类型(详见备注版面类型)。</td>
+  </tr>
+  <tr>
+   <td>subType</td>
+   <td>string</td>
+   <td colspan=""3"">版面子类型(详见备注版面类型)。</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>llmResult</td>
+   <td>string</td>
+   <td colspan=""2"">大模型返回的结果(详见IlmResult结果示例)。-对于文件中的图表:-结果包含""标值图""、""估值图""和""其他图""三种,位于输出内容中</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>layoutConf</td>
+   <td>float</td>
+   <td colspan=""2"">解析的置信度。取值范围:[0,1]。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>pos</td>
+   <td>array</td>
+   <td colspan=""2"">坐标。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>x</td>
+   <td>int</td>
+   <td>顶点横坐标。</td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>y</td>
+   <td>int</td>
+   <td>顶点纵坐标。</td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","5f5eea2c-aeba-4f13-88f5-429e17ecc818",18,"TEXT",7,">参数说明:  
+
+
+end_time                 float           segment结束时间(单位: ms)  。  
+
+
+index                   int          segment序号,0~(n-1)。"
+"阿里云文档解析（大模型版）介绍.pdf","bf9dbf83-1852-4d71-b2bc-43f5611df794",19,"TABLE",7,"<table>
+ <tbody>
+  <tr>
+   <td colspan=""2"">Data</td>
+   <td>object</td>
+   <td colspan=""3"">解析结果</td>
+  </tr>
+  <tr>
+   <td colspan=""2"">segments</td>
+   <td>array</td>
+   <td colspan=""3"">分段解析结果数组。</td>
+  </tr>
+  <tr>
+   <td colspan=""2"">start_time
+    <br>
+    end_time
+    <br>
+    index</td>
+   <td>float
+    <br>
+    float
+    <br>
+    int</td>
+   <td colspan=""2"">segment开始时间((单位:ms) 。
+    <br>
+    segment结束时间(单位: ms) 。
+    <br>
+    segment序号,0~(n-1)。</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td></td>
+   <td>file_url</td>
+   <td>string</td>
+   <td>segment文件。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td></td>
+   <td>audio_frames</td>
+   <td>array</td>
+   <td>segment音频解析信息。</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td></td>
+   <td>video_frames</td>
+   <td>array</td>
+   <td></td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td></td>
+   <td>synopsis_result</td>
+   <td>string</td>
+   <td>剧情解析内容(option=advance时返回该字段)。</td>
+   <td></td>
+   <td></td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","39116ea7-9e8a-41bf-a26e-deb7875a760d",20,"TEXT",7,"segment视频帧解析信息。  
+
+
+文档解析(大模型版)返回结果中, 段落音频(audio_frames) 信息如下:"
+"阿里云文档解析（大模型版）介绍.pdf","4de1e8d9-b5b5-4a26-a586-2873afcecd42",21,"TABLE",8,"<table>
+ <tbody>
+  <tr>
+   <td>filed(字段名)</td>
+   <td>类型描述</td>
+  </tr>
+  <tr>
+   <td>start_time</td>
+   <td>音频开始时间(单位: ms)</td>
+  </tr>
+  <tr>
+   <td>end_time</td>
+   <td>音频结束时间(单位:ms)</td>
+  </tr>
+  <tr>
+   <td>file_url</td>
+   <td>音频文件url</td>
+  </tr>
+  <tr>
+   <td>ASR_info</td>
+   <td>音频asr结果</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","d47eda22-02d7-4e14-9b1d-3195ffa98eea",22,"TEXT",8,"字段类型  
+
+
+float  
+
+
+float  
+
+
+string  
+
+
+string  
+
+
+文档解析(大模型版)返回结果中,段落视频帧 (video_frames)信息如下:"
+"阿里云文档解析（大模型版）介绍.pdf","74e370b2-dfd3-4f4b-b131-392ee8f9ddb5",23,"TABLE",8,"<table>
+ <tbody>
+  <tr>
+   <td>filed(字段名)</td>
+   <td>类型描述</td>
+   <td>字段类型</td>
+  </tr>
+  <tr>
+   <td>start_time</td>
+   <td>视频开始时间(单位:ms)</td>
+   <td>float</td>
+  </tr>
+  <tr>
+   <td>end_time</td>
+   <td>视频结束时间(单位:ms)</td>
+   <td>float</td>
+  </tr>
+  <tr>
+   <td>file_url</td>
+   <td>视频文件url</td>
+   <td>string</td>
+  </tr>
+  <tr>
+   <td>text_info</td>
+   <td>视频帧大模型解析结果</td>
+   <td>string</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","2af78cef-815c-474c-88f6-c030b8d17b1a",24,"TEXT",8,"文档解析(大模型版)返回结果中,IlmResult结果示例如下:  
+
+
+1.对于PPT类型文档。  
+
+
+## 版面类型  
+
+
+文档解析大模型版返回结果中,版面的类型type及子类型subType列表如下:"
+"阿里云文档解析（大模型版）介绍.pdf","5195f0d1-651f-4da1-9846-d64ff57e4e78",25,"TABLE",9,"<table>
+ <tbody>
+  <tr>
+   <td>type(类型)</td>
+   <td>类型描述</td>
+   <td>subType(子类型)</td>
+   <td>子类型描述</td>
+  </tr>
+  <tr>
+   <td>title</td>
+   <td>标题</td>
+   <td>doc_name</td>
+   <td>文档名称</td>
+  </tr>
+  <tr>
+   <td>doc_title</td>
+   <td>文档标题</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>doc_subtitle</td>
+   <td>文档副标题</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>para_title</td>
+   <td>段落标题</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>contents_title</td>
+   <td>目录标题</td>
+   <td>cate_title</td>
+   <td>目录标题</td>
+  </tr>
+  <tr>
+   <td>contents</td>
+   <td>目录主体</td>
+   <td>cate</td>
+   <td>目录主体</td>
+  </tr>
+  <tr>
+   <td>text</td>
+   <td>普通文字</td>
+   <td>para</td>
+   <td>段落</td>
+  </tr>
+  <tr>
+   <td>figure</td>
+   <td>图表</td>
+   <td>picture</td>
+   <td>图片</td>
+  </tr>
+  <tr>
+   <td>logo</td>
+   <td>logo</td>
+   <td></td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>figure_name</td>
+   <td>图名</td>
+   <td>pic_title</td>
+   <td>图片标题</td>
+  </tr>
+  <tr>
+   <td>figure_note</td>
+   <td>图注</td>
+   <td>pic_caption</td>
+   <td>图注</td>
+  </tr>
+  <tr>
+   <td>foot</td>
+   <td>页脚</td>
+   <td>page_footer</td>
+   <td>页脚</td>
+  </tr>
+  <tr>
+   <td>head</td>
+   <td>页眉</td>
+   <td>page_header</td>
+   <td>页眉</td>
+  </tr>
+  <tr>
+   <td>head_pagenum</td>
+   <td>页眉页码</td>
+   <td>page</td>
+   <td>页码</td>
+  </tr>
+  <tr>
+   <td>foot_pagenum</td>
+   <td>页脚页码</td>
+   <td>page</td>
+   <td>页码</td>
+  </tr>
+  <tr>
+   <td>corner_note</td>
+   <td>脚注</td>
+   <td>footer_note</td>
+   <td>脚注</td>
+  </tr>
+  <tr>
+   <td>end_note</td>
+   <td>尾注</td>
+   <td>endnode</td>
+   <td>尾注</td>
+  </tr>
+  <tr>
+   <td>side</td>
+   <td>侧栏</td>
+   <td>sidebar</td>
+   <td>侧栏</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","3ede53f6-f0e8-4f63-9898-76769b02737b",26,"TEXT",9,">相同子类型的type如下"
+"阿里云文档解析（大模型版）介绍.pdf","5970f409-dfed-47e5-8398-d62d155b03b9",27,"TABLE",9,"<table>
+ <tbody>
+  <tr>
+   <td>type(类型)</td>
+   <td>类型描述</td>
+  </tr>
+  <tr>
+   <td>table_name</td>
+   <td>表格名称</td>
+  </tr>
+  <tr>
+   <td>table_note</td>
+   <td>表注</td>
+  </tr>
+  <tr>
+   <td>formula</td>
+   <td>公式</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","763458f8-674c-4011-b0ef-e95772c9d533",28,"TABLE",9,"<table>
+ <tbody>
+  <tr>
+   <td>type(类型)</td>
+   <td>类型描述</td>
+  </tr>
+  <tr>
+   <td>multicolumn</td>
+   <td>多栏文字</td>
+  </tr>
+  <tr>
+   <td>table</td>
+   <td>表格</td>
+  </tr>
+  <tr>
+   <td>foot_image</td>
+   <td>页脚图片</td>
+  </tr>
+  <tr>
+   <td>head_image</td>
+   <td>页眉图片</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","86073bdb-a93a-4b63-a5ef-934939b3423e",29,"TEXT",9,"outputFormatResult的属性"
+"阿里云文档解析（大模型版）介绍.pdf","05329c2c-4a8b-4b66-b5b1-d95d3805927b",30,"TABLE",10,"<table>
+ <tbody>
+  <tr>
+   <td>type(类型)</td>
+  </tr>
+  <tr>
+   <td>outputType</td>
+  </tr>
+  <tr>
+   <td>outputFileUrl</td>
+  </tr>
+  <tr>
+   <td>pages</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","bbfba866-a86e-476c-84a0-d8962f3984ec",31,"TEXT",10,"类型描述  
+
+
+返回结果格式输出类型  
+
+
+返回结果格式的文件地址  
+
+
+返回页内图片信息  
+
+
+### outputType的属性  
+
+
+类型描述"
+"阿里云文档解析（大模型版）介绍.pdf","e0852925-c04c-462b-805a-622c23066e52",32,"TABLE",10,"<table>
+ <tbody>
+  <tr>
+   <td>type(类型)</td>
+   <td></td>
+  </tr>
+  <tr>
+   <td>markdown</td>
+   <td>markdown类型格式</td>
+  </tr>
+  <tr>
+   <td>pageImage</td>
+   <td>页内图片类型格式</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","f7a5ad1c-c1f4-46f1-8d48-9a6774bd6296",33,"TABLE",10,"<table>
+ <tbody>
+  <tr>
+   <td>type(类型)</td>
+   <td>类型描述</td>
+  </tr>
+  <tr>
+   <td>imageUrl</td>
+   <td>图片链接</td>
+  </tr>
+  <tr>
+   <td>imageWidth</td>
+   <td>图片长度</td>
+  </tr>
+  <tr>
+   <td>imageHeight</td>
+   <td>图片高度</td>
+  </tr>
+  <tr>
+   <td>pageIdCurDoc</td>
+   <td>文档当前页码</td>
+  </tr>
+ </tbody>
+</table>"
+"阿里云文档解析（大模型版）介绍.pdf","894c2d12-8bd5-40c2-aed1-ae4378dd8680",34,"TEXT",10,"## 参考示例((Python)  
+
+
+解析输出markdown参考(本地文件上传示例)  
+
+
+是否启用VLM增强, enhancement=False关闭  
+
+
+使用方法:  
+
+
+python3 docmind_example_parser.py input_file output_file.md"

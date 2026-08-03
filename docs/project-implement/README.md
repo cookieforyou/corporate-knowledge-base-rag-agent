@@ -10,6 +10,12 @@
 > 3. **ContextualQueryAugmenter 空证据语义**（10.6）：`allowEmptyContext=true` = 模型自由作答（与注释直觉相反），拒答需 `false` + `emptyContextPromptTemplate`（实测 Negative Rejection 0.80→1.00）
 > 4. **Grounding 模板补 `{query}`**（10.6）：augment 渲染传 query+context 双参，缺 {query} 丢用户问题
 > 5. **SSE 流末溯源**（11.3）：Controller 捕获纯实例（非作用域代理），供应商容错降级不击穿流
+>
+> **v2.2 实现期修正（2026-08-03）**：解析支线 2.1-2.3 接入与 E2E 实证修正，已回写第九章：
+> 1. **DocMind 表格 HTML 获取方式**（9.1）：需提交时开启 `OutputHtmlTable`（须同开 `LlmEnhancement`），HTML 存放于表格版面块 `llmResult` 字段（实测 ``` 围栏包裹）——草图假设的 `html` 键不存在
+> 2. **正文字段名 `markdownContent`**（9.1）：草图 `markdown` 键不存在，静默回退 `text` 致 Markdown 结构全失
+> 3. **页级输出与页码下传**（9.1/9.2）：layouts 按页分组为每页一个 Document，`page_number` 经切分器下传落库 `kb_chunk.page_num`；文本不跨页
+> 4. **embedding 单批条数硬限制**（9.3）：DashScope 单次请求 ≤20 条，VectorStore 内部 token 分批不限条数，ETL 侧固定 10 条/批分批调用
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 

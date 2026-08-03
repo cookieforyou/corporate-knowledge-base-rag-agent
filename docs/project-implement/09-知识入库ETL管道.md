@@ -5,6 +5,8 @@
 > [📑 返回目录](./README.md) · 最后更新：2026-07-31
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
+>
+> **v2.2 实现期修正（2026-08-03）**：解析支线 2.1-2.3 E2E 实证修正，已回写本章：① DocMind 表格 HTML 需提交时开启 `OutputHtmlTable`（须同开 `LlmEnhancement`），HTML 存放于表格版面块 **`llmResult`** 字段——v2 草图假设的 `html` 键不存在（9.1 实证注记）；② 正文字段实际为 **`markdownContent`**（草图 `markdown` 键不存在，静默回退 `text` 致结构全失）；③ layouts 按页分组输出（每页一个 Document，`page_number` 元数据经切分器下传 → `kb_chunk.page_num`），文本不跨页；④ embedding 单次请求条数硬限制（DashScope ≤20），VectorStore 内部 TokenCountBatchingStrategy 只按 token 预算分批不限条数，ETL 侧固定条数分批（9.3 注记）。
 
 ---
 
@@ -141,6 +143,13 @@ public class SmartParsingRouter implements DocumentReader {
 
 `ParseRoute` 枚举（kb-domain，v2 扩充）：`NATIVE` / `DEEP` / `OCR`。`kb_document.parse_route` 落库该值，供运维统计各链路占比与质量回溯。
 
+> **v2.2 实证注记（2026-08-03，DocMind 文档解析大模型版真实接入后回写）**：
+> 1. **表格 HTML 的获取方式与 v2 草图不同**：需提交时显式开启 `OutputHtmlTable=true`（官方约束须同时开启 `LlmEnhancement`），表格 HTML 存放在表格版面块的 **`llmResult`** 字段（实测以 ```` ```html ```` 代码围栏包裹，提取时剥离）；草图假设的 `html` 键在该 API 不存在。未开启时表格仅以管道符 Markdown 形态返回，`<table>` 保护失效。
+> 2. **正文字段名为 `markdownContent`**（非草图的 `markdown`）；`text` 为无结构纯文本回退。防御式提取链：表格 `llmResult`→`html`→`markdownContent`→`text`，正文 `markdownContent`→`text`。
+> 3. **图片块**：`figure`/`image` 版面块仅计数不进正文（IMAGE Chunk 的 vision 摘要见 9.2/2.4，默认关闭）；表格密集文档实测 9 页 → 35 chunks（16 TABLE 完整保护 + 19 TEXT，页级切分文本不跨页）。
+> 4. **页码下传**：layouts 携带 `pageNum`（0 起），解析结果按页分组为每页一个 Document，`page_number` 元数据经 HtmlProtectingSplitter 原样下传，落库 `kb_chunk.page_num`（NATIVE 路由 Tika 无页级信息，page_num 为 null 属数据源限制）。
+> 5. **路由决策修正**：草图的「表格区域占比」探测需版面分析引擎、解析前不可得——DEEP 路由改经配置开关（`kb.parsing.deep-by-default`）与上传参数（`parseRoute=DEEP`）显式触发，密度探测仅承担扫描件 OCR 识别；路由结构保留草图形态，未来版面探针可插入 `decide()`。
+
 ---
 
 ## 9.2 HtmlProtectingSplitter（保护式切分）
@@ -271,7 +280,10 @@ TRANSFORMING   HtmlProtectingSplitter 保护式切分（9.2）
    ↓
 PERSISTING     kb_chunk 批量落库（Document.id = chunkId = vectorId，全链路融合键）
    ↓
-EMBEDDING      VectorStore.add() 批量向量化（pgvector / Milvus，内部自动 embed）
+EMBEDDING      VectorStore.add() 批量向量化（pgvector / Milvus，内部自动 embed；
+               ★v2.2：embedding 服务商有单次请求条数硬限制（DashScope ≤20），
+               VectorStore 内部 TokenCountBatchingStrategy 只按 token 预算分批、不限条数，
+               ETL 侧须按固定条数（10/批）分批调用，小 chunk 密集文档否则触发 400）
    ↓
 INDEXING ★新增  ES kb_chunks 索引双写（9.4）
    ↓
