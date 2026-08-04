@@ -24,8 +24,10 @@
 > 4. **sessionId 会话协议**（11.2）：请求体可选 sessionId（前端复用即多轮），同步响应回传；缺省后端生成一次性 ID，兼容 Phase 1 单轮前端
 > 5. **自动配置条件让位陷阱（2026-08-05 E2E 追加）**（11.2）：`RedisChatMemoryAutoConfiguration#redisChatMemory` 的 `@ConditionalOnMissingBean` 检查含 ChatMemory 类型，用户记忆 Bean 致 Redis 仓储静默回退 InMemory（对话表面连贯、Redis 零痕迹、重启失忆）——RedisChatMemoryRepository 改由 `ChatMemoryRedisClientConfig` 显式装配 + `ChatMemoryRedisWiringTest` 防回归
 >
-> **v2.4 实现期补全（2026-08-05）**：任务 3.9+3.10 合并项 fail-closed 安全收敛，已回写第十章：
+> **v2.4 实现期补全（2026-08-05）**：任务 3.9+3.10 合并项 fail-closed 安全收敛与 3.5/3.6 护栏落地，已回写第十/十二章：
 > 1. **fail-open 缺口收敛**（10.2.1）：Phase 2 双路租户过滤为「tenantId 存在则过滤」形态，缺失时静默跳过——两层防线定稿：① 入口身份完整性守卫（AgentController/RetrievalDebugController 校验 tenantId 非空，缺失抛 IDENTITY_INCOMPLETE；SecurityConfig 只保证已认证，owner claim 仍可能缺失）；② HybridDocumentRetriever 防御纵深（有 ctx 无租户 → 空结果零触达双路，拒答模板承接）。kb-eval 无 ctx 评估语义不变；跨租户泄露集成用例归 3.18
+> 2. **护栏草稿失效 API 修正**（12.1/12.2）：`extends BaseAdvisor` → `implements`；`request.userText()` 不存在，改 `prompt().augmentUserMessage(String)`（2.0 GA 源码核验替换末条用户消息）；注入拦截改 BusinessException("PROMPT_INJECTION")；PII 正则加边界断言防长数字串误匹配；黑名单配置化 `rag.guardrail.output.blacklist`
+> 3. **流式输出护栏语义修正（草稿未覆盖）**（12.2）：BaseAdvisor 默认 adviseStream 仅对 onFinishReason 末块执行 after()，已流出违规 token 无法追回——OutputGuardrailAdvisor 覆写为聚合后验（缓冲全答判定：违规→整段替换、合规→原样顺序放行），合规优先于 TTFT
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -66,7 +68,7 @@
 | 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项） |
 | 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛） |
 | 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议） |
-| 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线） |
+| 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验） |
 | 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
 

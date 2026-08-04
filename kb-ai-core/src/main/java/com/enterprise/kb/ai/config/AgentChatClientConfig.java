@@ -1,5 +1,7 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
+import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -60,18 +62,26 @@ public class AgentChatClientConfig {
     }
 
     /**
-     * 生产 Agent 对话链路（多轮记忆 + 溯源 + 混合检索 RAG）。
+     * 生产 Agent 对话链路（护栏 + 多轮记忆 + 溯源 + 混合检索 RAG）。
      * CONVERSATION_ID 由 Controller 经 advisor 参数传入（RetrievalContext 同款
      * 参数链机制，不用 @RequestScope/ThreadLocal）。
+     *
+     * <p>Advisor 链序（11.2）：OutputGuardrail(110，after 拦截) →
+     * InputSanitize(300，先于记忆防 PII 落库) → Memory(400) → Trace(450) →
+     * Retrieval(500)。order 由各 Advisor getOrder() 决定，此处列表顺序不敏感。
      */
     @Bean
     public ChatClient agentChatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel,
                                       ChatMemory agentChatMemory,
+                                      OutputGuardrailAdvisor outputGuardrailAdvisor,
+                                      InputSanitizeAdvisor inputSanitizeAdvisor,
                                       RetrievalTraceAdvisor retrievalTraceAdvisor,
                                       RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(
+                outputGuardrailAdvisor,
+                inputSanitizeAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
                 retrievalTraceAdvisor,
                 retrievalAugmentationAdvisor)

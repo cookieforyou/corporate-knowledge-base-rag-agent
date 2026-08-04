@@ -47,6 +47,11 @@ spring:
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
 # ============================================================
 rag:
+  # 输出安全护栏（3.6，设计文档 12.2）—— 敏感词/竞品黑名单，逗号分隔；
+  # L1 静态词表，生产接配置中心动态加载为升级项（12.2.1）
+  guardrail:
+    output:
+      blacklist: ${RAG_GUARDRAIL_BLACKLIST:competitor_x,competitor_y}
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）
   retrieval:
     rewrite:
