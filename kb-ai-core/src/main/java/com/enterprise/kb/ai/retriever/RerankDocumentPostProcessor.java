@@ -74,12 +74,13 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             // query/documents/top_n 与 model 同层——嵌套 input/parameters 是 gte-rerank 系
             // DashScope 原生端点的旧契约，误用会被拒（400 Field required: input.query）。
             // top_n 超过候选数同样报 InvalidParameter，按候选数收敛。
+            // 契约外参数不传：return_documents（gte 系参数，官方容忍但非契约字段）；
+            // instruct（可选任务指令，默认即问答检索任务，与 RAG 场景契合，显式传值无增益）。
             Map<String, Object> body = Map.of(
                 "model", model,
                 "query", query.text(),
                 "documents", documents.stream().map(Document::getText).toList(),
-                "top_n", Math.min(Constants.DEFAULT_TOP_K, documents.size()),
-                "return_documents", false);
+                "top_n", Math.min(Constants.DEFAULT_TOP_K, documents.size()));
 
             String raw = restClient.post()
                 .headers(h -> h.setBearerAuth(apiKey))
