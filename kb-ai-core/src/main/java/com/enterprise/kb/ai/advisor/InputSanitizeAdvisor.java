@@ -7,10 +7,12 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * 输入安全护栏（设计文档 12.1，任务 3.5）—— PII 脱敏 + Prompt 注入检测
@@ -31,8 +33,8 @@ import java.util.regex.Pattern;
 @Component
 public class InputSanitizeAdvisor implements BaseAdvisor {
 
-    /** Prompt 注入检测关键词（L1 明文攻击模式，12.1） */
-    private static final List<String> INJECTION_PATTERNS = List.of(
+    /** 内置注入检测关键词（L1 明文攻击模式，12.1）——配置项为空时的默认词表 */
+    private static final List<String> DEFAULT_INJECTION_PATTERNS = List.of(
         "ignore previous", "ignore all", "forget everything",
         "system prompt", "you are now", "new instructions",
         "忽略之前的", "忘记所有", "新的指令", "你的系统提示词");
@@ -48,6 +50,25 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
     private static final String PHONE_MASK = "1***-****-****";
     private static final String ID_CARD_MASK = "******************";
     private static final String EMAIL_MASK = "***@***.***";
+
+    /**
+     * 生效词表：{@code rag.guardrail.input.injection-keywords} 配置优先
+     * （逗号分隔，与 3.6 输出黑名单同策），未配置/为空回退内置默认词表。
+     * 词项统一小写化，匹配时对输入取小写——大小写不敏感。
+     */
+    private final List<String> injectionPatterns;
+
+    public InputSanitizeAdvisor(
+            @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv) {
+        List<String> configured = Stream.of(keywordsCsv.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .map(String::toLowerCase)
+            .toList();
+        this.injectionPatterns = configured.isEmpty() ? DEFAULT_INJECTION_PATTERNS : configured;
+        log.info("注入检测词表加载: {} 条（{}）", injectionPatterns.size(),
+            configured.isEmpty() ? "内置默认" : "配置覆盖");
+    }
 
     @Override
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
@@ -82,9 +103,9 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
         return 300;
     }
 
-    private static boolean detectInjection(String text) {
+    private boolean detectInjection(String text) {
         String lower = text.toLowerCase();
-        return INJECTION_PATTERNS.stream().anyMatch(lower::contains);
+        return injectionPatterns.stream().anyMatch(lower::contains);
     }
 
     /**
