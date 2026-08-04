@@ -56,7 +56,7 @@ kb-rag-agent/
 **多轮记忆与 Agent 链路（Phase 3 任务 3.1，代码完成待 E2E，设计 v2.3）**
 
 - **Bean 拆分**：生产对话走独立 `agentChatClient`（MessageChatMemoryAdvisor order=400 → RetrievalTraceAdvisor 450 → RetrievalAugmentationAdvisor 500）；评估共享 `chatClient` 保持纯 RAG 不动——记忆 Advisor 缺失 CONVERSATION_ID 是 Assert 硬断言（非静默跳过），挂共享 Bean 会击穿 kb-eval；Phase 2 基线持续有效
-- **Redis 记忆**：2.0 GA 仓储为 Jedis 形态（starter `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`），自动配置 jedisClient 仅 host/port 无密码；依赖 Redis JSON+Query Engine（Redis 8 内置）；`FaultTolerantChatMemory` 装饰降级（读失败→空历史、写失败→丢弃，Redis 抖动不击穿问答）；窗口 maxMessages=20（`rag.chat.memory.max-messages`）
+- **Redis 记忆**：2.0 GA 仓储为 Jedis 形态（starter `spring-ai-starter-model-chat-memory-repository-redis`）；自动配置 jedisClient 仅 host/port 无密码——`ChatMemoryRedisClientConfig` 覆盖之，host/port/**password**/database 统一取自 `spring.data.redis.*`（与 Redisson 单一来源，REDIS_PASSWORD 环境变量）；`spring.ai.chat.memory.redis.*` 仅记忆专属配置（index/prefix/TTL/init-schema）；依赖 Redis JSON+Query Engine（Redis 8 内置）；`FaultTolerantChatMemory` 装饰降级（读失败→空历史、写失败→丢弃，Redis 抖动不击穿问答）；窗口 maxMessages=20（`rag.chat.memory.max-messages`）
 - **会话协议**：/chat、/chat/stream 请求体可选 `sessionId`（前端复用即多轮），同步响应回传；缺省后端生成一次性 ID（兼容 Phase 1）。CONVERSATION_ID 与 RetrievalContext 同款 advisor 参数链传递
 - **PG 归档旁路**：`ChatSessionService`（kb-api，@Async 虚拟线程 sessionArchiveExecutor）对话完成后异步落 kb_session/kb_message（补齐 kb_feedback 外键与历史列表数据缺口），失败只丢归档不丢对话；kb-eval 侧 `initialize-schema: false` 覆盖，评估进程零 Redis 依赖
 
@@ -73,7 +73,8 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（/actuator/health|info permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，`VectorStoreConfig` 按 `kb.vector-store.provider` 条件创建 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
-- 测试：kb-ai-core 27 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 6 单测（kb-admin 尚无测试类）
+- **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*`（REDIS_HOST/PORT/PASSWORD/DB 环境变量）被两处消费，**不可移除**——① Redisson V4 自动配置（RedissonConnectionFactory + StringRedisTemplate → ETL 进度双通道）；② 会话记忆 Jedis 客户端（ChatMemoryRedisClientConfig 覆盖 Bean，spring-ai 自动配置不支持密码）
+- 测试：kb-ai-core 29 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 6 单测（kb-admin 尚无测试类）
 
 ## 注意事项
 

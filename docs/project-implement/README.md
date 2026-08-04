@@ -18,7 +18,7 @@
 > 4. **embedding 单批条数硬限制**（9.3）：DashScope 单次请求 ≤20 条，VectorStore 内部 token 分批不限条数，ETL 侧固定 10 条/批分批调用
 >
 > **v2.3 实现期修正（2026-08-04）**：3.1 多轮记忆落地对 v2 草图的 2.0 GA 实证修正，已回写第十一章：
-> 1. **Redis 会话记忆仓储形态**（11.2）：2.0 GA 为 Jedis 形态（`RedisChatMemoryConfig`），starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`、前缀 `spring.ai.chat.memory.redis.*`——草图的 RedisTemplate 构造器不存在；自动配置 jedisClient 仅支持 host/port（无密码/库号），依赖 Redis JSON+Query Engine（Redis 8 内置）
+> 1. **Redis 会话记忆仓储形态**（11.2）：2.0 GA 为 Jedis 形态（`RedisChatMemoryConfig`），starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`、前缀 `spring.ai.chat.memory.redis.*`——草图的 RedisTemplate 构造器不存在；自动配置 jedisClient 仅支持 host/port，项目以 `ChatMemoryRedisClientConfig` 覆盖之，连接信息（含 password/database）统一取自 `spring.data.redis.*` 与 Redisson 单一来源；依赖 Redis JSON+Query Engine（Redis 8 内置）
 > 2. **Agent Bean 拆分定稿**（11.2）：记忆 Advisor 缺失 CONVERSATION_ID 为 Assert 硬断言，不可挂评估共享 `chatClient`——生产对话链独立 `agentChatClient`（记忆400/溯源450/检索500），评估继续度量纯 RAG，Phase 2 基线不受影响
 > 3. **记忆容错与 PG 归档**（11.2）：FaultTolerantChatMemory 装饰降级（读失败→空历史、写失败→丢弃，Redis 抖动不击穿问答）+ kb_session/kb_message 异步归档旁路（补齐 kb_feedback 外键与历史会话列表的数据缺口）
 > 4. **sessionId 会话协议**（11.2）：请求体可选 sessionId（前端复用即多轮），同步响应回传；缺省后端生成一次性 ID，兼容 Phase 1 单轮前端

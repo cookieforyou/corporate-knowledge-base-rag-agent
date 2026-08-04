@@ -105,8 +105,11 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > keyPrefix/timeToLive/initializeSchema）构建；制品为
 > `spring-ai-starter-model-chat-memory-repository-redis`（含 Jedis 客户端、Redis 仓储、
 > chat-memory 自动配置），自动配置前缀 `spring.ai.chat.memory.redis.*`。
-> **限制**：自动配置的 jedisClient 仅支持 host/port，无 password/database——ECS Redis
-> 无密码内网形态适配，需密码时自行覆盖 `jedisClient` Bean（全 @ConditionalOnMissingBean）。
+> **密码适配**：自动配置的 jedisClient 仅支持 host/port（无 password/database），
+> ECS Redis 带密码——项目以 `ChatMemoryRedisClientConfig` 覆盖 `jedisClient` Bean
+> （@ConditionalOnMissingBean 让位），连接信息（host/port/password/database）统一取自
+> `spring.data.redis.*`，与 Redisson（ETL 进度通道）单一来源；`spring.ai.chat.memory.redis.*`
+> 仅保留记忆专属配置（index/prefix/TTL/initialize-schema）。
 > 依赖 Redis JSON + Query Engine（Redis 8 内置，首跑 E2E 核验）。
 > ② **Bean 拆分定稿**——记忆 Advisor **不挂**共享 `chatClient` Bean：
 > `BaseChatMemoryAdvisor.getConversationId()` 对缺失 CONVERSATION_ID 是 Assert 硬断言

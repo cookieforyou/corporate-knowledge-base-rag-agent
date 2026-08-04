@@ -32,14 +32,12 @@ spring:
         log-completion: true
         include-error-logging: true
       # ── 会话记忆（3.1）—— Redis 热存储（设计文档 11.2，v2.3 实证修正）──
-      # 2.0 GA 形态为 Jedis 客户端（自动配置仅支持 host/port，无 password/database——
-      # ECS Redis 无密码内网形态适配；如需密码则自行覆盖 jedisClient Bean）。
-      # initialize-schema 首建 FT.CREATE 索引；读/写故障由 FaultTolerantChatMemory
-      # 降级为空记忆，不击穿核心问答链路。
+      # 连接信息（host/port/password/database）统一取自 spring.data.redis.*
+      # （见 ChatMemoryRedisClientConfig 覆盖自动配置 jedisClient，支持密码认证）；
+      # 此处仅记忆专属配置。initialize-schema 首建 FT.CREATE 索引；读/写故障由
+      # FaultTolerantChatMemory 降级为空记忆，不击穿核心问答链路。
       memory:
         redis:
-          host: ${REDIS_HOST:localhost}
-          port: ${REDIS_PORT:6379}
           index-name: ${CHAT_MEMORY_INDEX:kb-chat-memory-idx}
           key-prefix: ${CHAT_MEMORY_KEY_PREFIX:kb:chat-memory:}
           time-to-live: ${CHAT_MEMORY_TTL:24h}
