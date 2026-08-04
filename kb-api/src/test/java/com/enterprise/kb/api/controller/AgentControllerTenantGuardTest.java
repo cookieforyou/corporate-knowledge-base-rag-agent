@@ -72,4 +72,22 @@ class AgentControllerTenantGuardTest {
         assertThat(response).containsEntry("answer", "回答");
         assertThat(response).containsKey("sessionId");
     }
+
+    /** PG 归档与模型上下文同规则脱敏——PII 不得绕过护栏落 kb_message */
+    @Test
+    void chatArchivesSanitizedQuery() {
+        when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
+        when(jwtUtils.getCurrentUserId()).thenReturn("user-1");
+        when(chatService.chat(anyString(), anyString(), any())).thenReturn("回答");
+
+        controller.chat(Map.of("query", "我的手机号是 13911112222", "sessionId", "s-pii"));
+
+        org.mockito.ArgumentCaptor<String> queryCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(chatSessionService).archiveTurn(
+            org.mockito.ArgumentMatchers.eq("s-pii"), anyString(), anyString(),
+            queryCaptor.capture(), anyString());
+        assertThat(queryCaptor.getValue())
+            .contains("1***-****-****")
+            .doesNotContain("13911112222");
+    }
 }

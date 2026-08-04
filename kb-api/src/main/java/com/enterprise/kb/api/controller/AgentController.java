@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.controller;
 
+import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.ChatService;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
@@ -65,11 +66,14 @@ public class AgentController {
     public ApiResponse<Map<String, String>> chat(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         String sessionId = resolveSessionId(body);
+        // 日志/归档走脱敏形态（Advisor 链只保护模型上下文与 Redis 记忆，
+        // PG 归档与访问日志须在入口同规则脱敏）；注入判定仍由 Advisor 链对原文执行
+        String safeQuery = InputSanitizeAdvisor.sanitize(query);
         log.info("用户 [{}] 发起问答: sessionId={}, query={}",
-            jwtUtils.getCurrentUsername(), sessionId, query);
+            jwtUtils.getCurrentUsername(), sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
         String answer = chatService.chat(query, sessionId, ctx);
-        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), query, answer);
+        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), safeQuery, answer);
         return ApiResponse.success(Map.of("answer", answer, "sessionId", sessionId));
     }
 
@@ -80,8 +84,10 @@ public class AgentController {
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         String sessionId = resolveSessionId(body);
+        // 日志/归档走脱敏形态（同同步路径）；注入判定仍由 Advisor 链对原文执行
+        String safeQuery = InputSanitizeAdvisor.sanitize(query);
         log.info("用户 [{}] 发起流式问答: sessionId={}, query={}",
-            jwtUtils.getCurrentUsername(), sessionId, query);
+            jwtUtils.getCurrentUsername(), sessionId, safeQuery);
         // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例
         RetrievalContext traceCtx = newRetrievalContext();
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
@@ -96,7 +102,7 @@ public class AgentController {
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
-                query, answerBuffer.toString()))
+                safeQuery, answerBuffer.toString()))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
                 return Flux.just(ServerSentEvent.<Object>builder(

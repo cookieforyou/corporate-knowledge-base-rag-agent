@@ -87,7 +87,15 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
         return INJECTION_PATTERNS.stream().anyMatch(lower::contains);
     }
 
-    static String sanitize(String text) {
+    /**
+     * PII 掩码（幂等）——公开供 Controller 归档/日志路径复用：
+     * Advisor 链只保护模型上下文与 Redis 记忆，PG 归档（kb_message）与
+     * 访问日志须在入口以同规则脱敏，否则 PII 绕过护栏落库。
+     */
+    public static String sanitize(String text) {
+        if (text == null) {
+            return null;
+        }
         String result = PHONE_PATTERN.matcher(text).replaceAll(PHONE_MASK);
         result = ID_CARD_PATTERN.matcher(result).replaceAll(ID_CARD_MASK);
         result = EMAIL_PATTERN.matcher(result).replaceAll(EMAIL_MASK);
