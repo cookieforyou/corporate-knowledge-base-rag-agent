@@ -1,7 +1,9 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.commons.constant.Constants;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.document.Document;
@@ -31,6 +33,8 @@ import java.util.Map;
 @Slf4j
 @Component
 public class RerankDocumentPostProcessor implements DocumentPostProcessor {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final RestClient restClient;
     private final boolean enabled;
@@ -66,28 +70,40 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             return truncateByFusionScore(documents);
         }
         try {
+            // qwen3-rerank compatible-api/v1/reranks 为扁平契约（2026-08-04 E2E 修正）：
+            // query/documents/top_n 与 model 同层——嵌套 input/parameters 是 gte-rerank 系
+            // DashScope 原生端点的旧契约，误用会被拒（400 Field required: input.query）。
+            // top_n 超过候选数同样报 InvalidParameter，按候选数收敛。
             Map<String, Object> body = Map.of(
                 "model", model,
-                "input", Map.of(
-                    "query", query.text(),
-                    "documents", documents.stream().map(Document::getText).toList()),
-                "parameters", Map.of(
-                    "top_n", Constants.DEFAULT_TOP_K,
-                    "return_documents", false));
+                "query", query.text(),
+                "documents", documents.stream().map(Document::getText).toList(),
+                "top_n", Math.min(Constants.DEFAULT_TOP_K, documents.size()),
+                "return_documents", false);
 
-            RerankResponse response = restClient.post()
+            String raw = restClient.post()
                 .headers(h -> h.setBearerAuth(apiKey))
                 .body(body)
                 .retrieve()
-                .body(RerankResponse.class);
+                .body(String.class);
 
-            if (response == null || response.output() == null || response.output().results() == null) {
-                log.warn("rerank 响应结构异常，降级为 fusion_score 截断");
+            List<RerankResult> results;
+            try {
+                RerankResponse response = MAPPER.readValue(raw, RerankResponse.class);
+                results = response.effectiveResults();
+            } catch (Exception parseError) {
+                log.warn("rerank 响应解析失败，降级为 fusion_score 截断: {}, 原文: {}",
+                    parseError.getMessage(), raw == null ? "null"
+                        : raw.substring(0, Math.min(raw.length(), 500)));
+                return truncateByFusionScore(documents);
+            }
+            if (results == null) {
+                log.warn("rerank 响应结构异常（无 results），降级为 fusion_score 截断，原文: {}",
+                    raw.substring(0, Math.min(raw.length(), 500)));
                 return truncateByFusionScore(documents);
             }
 
             List<Document> reranked = new ArrayList<>();
-            List<RerankResult> results = response.output().results();
             for (int i = 0; i < results.size(); i++) {
                 RerankResult r = results.get(i);
                 if (r.index() < 0 || r.index() >= documents.size()) continue;
@@ -139,11 +155,23 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
         return d.getScore() != null ? d.getScore() : 0.0;
     }
 
-    // ── DashScope rerank API 响应模型（契约以控制台文档为准，2.2/2.9 核验）──
+    // ── rerank API 响应模型（2026-08-04 实证修正）──
+    // qwen3-rerank compatible 端点：results 位于响应顶层；旧 gte-rerank 原生端点在
+    // output.results——双形态兼容解析，切换后端不改代码。
 
-    record RerankResponse(Output output) {}
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record RerankResponse(List<RerankResult> results, Output output) {
+        List<RerankResult> effectiveResults() {
+            if (results != null) {
+                return results;
+            }
+            return output == null ? null : output.results();
+        }
+    }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record Output(List<RerankResult> results) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record RerankResult(int index, @JsonProperty("relevance_score") double relevanceScore) {}
 }

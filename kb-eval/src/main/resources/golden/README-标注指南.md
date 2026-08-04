@@ -40,7 +40,7 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
 
 ```bash
 # 全量评估（需 ECS 基础设施 + DEEPSEEK_API_KEY + DASHSCOPE_API_KEY 环境变量）
-# 用例按 eval.concurrency（默认 6）虚拟线程并行，74 条约 10-15 分钟
+# 用例按 eval.concurrency（默认 5）虚拟线程并行，74 条约 10-15 分钟
 mvn spring-boot:run -pl kb-eval
 
 # 检索-only 快跑：只评 Recall/MRR/Context Precision，跳过生成与 Judge——

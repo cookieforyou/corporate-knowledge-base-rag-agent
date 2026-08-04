@@ -24,7 +24,7 @@ public class EvalProperties {
      * 用例并行度（虚拟线程并发执行）。单用例含 1 次生成 + 至多 2 次 Judge 的串联 LLM 调用，
      * 串行 74 条约 70+ 分钟，并行后约 1/N。1 = 传统串行；过高可能触发 LLM API 限流。
      */
-    private int concurrency = 6;
+    private int concurrency = 5;
 
     /**
      * 检索-only 模式：只跑检索取数 + 检索侧指标（Recall/MRR/Context Precision），
