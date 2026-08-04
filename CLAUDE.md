@@ -87,3 +87,12 @@ kb-rag-agent/
 - Phase 2 检索架构为 Spring AI 2.0 模块化 RAG（`RetrievalAugmentationAdvisor` + 自研 `HybridDocumentRetriever`/`RrfFusion` + ES ik BM25 双路 + qwen3-rerank）；Milvus 原生混合检索经源码级核验后否决。决策全文见 `docs/project-implement/10-混合检索引擎.md` §10.0
 - **Spring AI 2.0 API 实证坑**（设计稿已回写 v2.1 修正）：① `OpenAiChatModel` 的异步 client 不继承预建同步 client 凭证，baseUrl/apiKey 必须经 `OpenAiChatOptions` 传入；② `ContextualQueryAugmenter.allowEmptyContext=true` 语义是「空证据原样返回问题由模型自由作答」（与直觉相反），拒答需 `false` + `emptyContextPromptTemplate`；③ `TokenTextSplitter.maxNumChunks` 是切片**数**上限（官方默认 10000），触顶后尾部剩余并入单个超大块，长文档会超 embedding 单条输入上限（8192×0.9）致 ETL 失败；④ Spring AI Document metadata 禁 null 值，可空字段须条件写入；⑤ `ChatClientRequest`/`ChatClientResponse` 是 record，位于 `chat.client` 包（非 `advisor.api`）；⑥ `MessageChatMemoryAdvisor` 缺失 CONVERSATION_ID 参数是 Assert 硬断言直接抛错（非静默跳过），多 Bean 场景会话 ID 必须由 Controller 保证非空；2.0 GA Redis 会话仓储是 Jedis 形态（`RedisChatMemoryConfig`），v1/v2 文档的 RedisTemplate 构造器不存在；⑦ **自动配置条件让位陷阱（3.1 E2E 实锤）**：`RedisChatMemoryAutoConfiguration#redisChatMemory` 的 `@ConditionalOnMissingBean` 同时检查 {RedisChatMemoryRepository, **ChatMemory**, ChatMemoryRepository}——用户自定义 ChatMemory Bean（agentChatMemory）先于自动配置注册，Redis 仓储静默让位并回退 InMemoryChatMemoryRepository：多轮对话表面连贯（进程内记忆），Redis 零痕迹、重启失忆、全程无报错。修复：用户侧显式装配 RedisChatMemoryRepository Bean（`ChatMemoryRedisClientConfig`，防回归测试 `ChatMemoryRedisWiringTest`）
 - **请求状态传递只用参数链**（RetrievalContext 模式），不用 @RequestScope/ThreadLocal：MVC 异步请求完结后作用域代理不可解析，且 Advisor taskExecutor/Reactor 线程不继承请求属性。ChatMemory 的 CONVERSATION_ID 等同理经 advisor 参数传递
+
+## 开发工作流约定（用户定案）
+
+文档是项目的 DNA，**功能实现/修 bug 完成并校验无误后，第一时间更新文档，再提交代码**，顺序不可颠倒、不可遗漏：
+
+1. **设计回写**：实现期对设计草图的实证修正（失效 API、语义反转、契约差异等）回写 `docs/project-implement/` 对应章节（版本号递增 + 修订注记），与 v2.1-v2.4 先例同格式
+2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行的完成情况 + 顶部日期状态行
+3. **CLAUDE.md 同步**：「当前实现要点」/「注意事项」中受影响的架构事实
+4. **git 提交**：按改动功能点提交（一功能一提交，代码 + 文档同批或紧随其后），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
