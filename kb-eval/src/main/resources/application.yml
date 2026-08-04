@@ -12,6 +12,13 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  ai:
+    chat:
+      memory:
+        redis:
+          # 3.1：评估进程不依赖 Redis——关闭启动期 FT.CREATE（Jedis 惰性建连，
+          # 记忆 Bean 存在但被测 chatClient 链无记忆 Advisor，全程不触碰）
+          initialize-schema: false
 
 # ── 评估配置（阈值表对应设计文档 16.4，Phase 2 建基线期从宽）──
 eval:

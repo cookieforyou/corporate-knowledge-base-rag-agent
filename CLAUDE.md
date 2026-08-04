@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。下一步：Phase 3（Agent 编排与企业级特性）任务清单复审开工。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1/v2.2 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 已开工（2026-08-04）**：任务清单复审完成（3.10 租户隔离主体已在 Phase 2 落地→重写为 fail-closed 加固并与 3.9 合并；3.4 HITL 补 approvalId 三要素；3.2 需先定备用模型）；3.1 多轮记忆代码完成待 E2E。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1/v2.2/v2.3 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -53,6 +53,13 @@ kb-rag-agent/
 - SSE 协议（2.12，兼容 Phase 1）：`/chat/stream` 返回 `Flux<ServerSentEvent>`（请求线程订阅）；TOKEN/ERROR/DONE 无名事件保持 Phase 1 线形（`{"token":...}` / `{"error":...}` / `[DONE]`），TRACE 为新增命名事件（流末推送 bm25/vector/final 三路溯源，final 下标与 [ref-N] 对齐）
 - 评估：kb-eval 双探针共存（`eval.probe` = auto/vector/hybrid 做 A/B）；`chatClient` Bean 名不变，被测链路切换评估器零感知；Golden 语料 74 条（finance/k8s/product/cross/docmind 5 集 54 正向 + 20 负向含 5 对抗性）；提速三件套：用例级虚拟线程并行（`eval.concurrency` 默认 5）+ 检索-only 秒级快跑（`eval.retrieval-only`，免 Judge 免 DASHSCOPE key）+ Milvus 冷启动预热；报告双通道（stdout + `target/eval-report.txt`，CWD 相对路径——IDEA 运行时落项目根 target/）
 
+**多轮记忆与 Agent 链路（Phase 3 任务 3.1，代码完成待 E2E，设计 v2.3）**
+
+- **Bean 拆分**：生产对话走独立 `agentChatClient`（MessageChatMemoryAdvisor order=400 → RetrievalTraceAdvisor 450 → RetrievalAugmentationAdvisor 500）；评估共享 `chatClient` 保持纯 RAG 不动——记忆 Advisor 缺失 CONVERSATION_ID 是 Assert 硬断言（非静默跳过），挂共享 Bean 会击穿 kb-eval；Phase 2 基线持续有效
+- **Redis 记忆**：2.0 GA 仓储为 Jedis 形态（starter `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`），自动配置 jedisClient 仅 host/port 无密码；依赖 Redis JSON+Query Engine（Redis 8 内置）；`FaultTolerantChatMemory` 装饰降级（读失败→空历史、写失败→丢弃，Redis 抖动不击穿问答）；窗口 maxMessages=20（`rag.chat.memory.max-messages`）
+- **会话协议**：/chat、/chat/stream 请求体可选 `sessionId`（前端复用即多轮），同步响应回传；缺省后端生成一次性 ID（兼容 Phase 1）。CONVERSATION_ID 与 RetrievalContext 同款 advisor 参数链传递
+- **PG 归档旁路**：`ChatSessionService`（kb-api，@Async 虚拟线程 sessionArchiveExecutor）对话完成后异步落 kb_session/kb_message（补齐 kb_feedback 外键与历史列表数据缺口），失败只丢归档不丢对话；kb-eval 侧 `initialize-schema: false` 覆盖，评估进程零 Redis 依赖
+
 **解析支线（2.1-2.3，E2E 验证）**
 
 - SmartParsingRouter 三路由：非 PDF→NATIVE(Tika)；`kb.parsing.deep-by-default` 或上传参数 `parseRoute`→DEEP(DocMind)；密度<50 字符/页→OCR(qwen3.5-ocr)；自动路由失败回落 NATIVE，显式路由失败如实上抛
@@ -66,7 +73,7 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（/actuator/health|info permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，`VectorStoreConfig` 按 `kb.vector-store.provider` 条件创建 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
-- 测试：kb-ai-core 23 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 单测（kb-api/kb-admin 尚无测试类）
+- 测试：kb-ai-core 27 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 6 单测（kb-admin 尚无测试类）
 
 ## 注意事项
 
@@ -75,5 +82,5 @@ kb-rag-agent/
 - 父 POM dependencyManagement 已预埋后续阶段依赖：elasticsearch-java 8.14.3、jsoup 1.18.1、redisson 4.6.1、testcontainers 1.20.1；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递的 4.38.0 以最短路径覆盖 spring-ai 5.0.0 → `.entity()` 结构化输出 NoClassDefFoundError: JacksonSchemaModule）
 - pgvector 模式需先以 superuser 执行 `CREATE EXTENSION IF NOT EXISTS vector;`（服务器 PG 若已启用可跳过）
 - Phase 2 检索架构为 Spring AI 2.0 模块化 RAG（`RetrievalAugmentationAdvisor` + 自研 `HybridDocumentRetriever`/`RrfFusion` + ES ik BM25 双路 + qwen3-rerank）；Milvus 原生混合检索经源码级核验后否决。决策全文见 `docs/project-implement/10-混合检索引擎.md` §10.0
-- **Spring AI 2.0 API 实证坑**（设计稿已回写 v2.1 修正）：① `OpenAiChatModel` 的异步 client 不继承预建同步 client 凭证，baseUrl/apiKey 必须经 `OpenAiChatOptions` 传入；② `ContextualQueryAugmenter.allowEmptyContext=true` 语义是「空证据原样返回问题由模型自由作答」（与直觉相反），拒答需 `false` + `emptyContextPromptTemplate`；③ `TokenTextSplitter.maxNumChunks` 是切片**数**上限（官方默认 10000），触顶后尾部剩余并入单个超大块，长文档会超 embedding 单条输入上限（8192×0.9）致 ETL 失败；④ Spring AI Document metadata 禁 null 值，可空字段须条件写入；⑤ `ChatClientRequest`/`ChatClientResponse` 是 record，位于 `chat.client` 包（非 `advisor.api`）
+- **Spring AI 2.0 API 实证坑**（设计稿已回写 v2.1 修正）：① `OpenAiChatModel` 的异步 client 不继承预建同步 client 凭证，baseUrl/apiKey 必须经 `OpenAiChatOptions` 传入；② `ContextualQueryAugmenter.allowEmptyContext=true` 语义是「空证据原样返回问题由模型自由作答」（与直觉相反），拒答需 `false` + `emptyContextPromptTemplate`；③ `TokenTextSplitter.maxNumChunks` 是切片**数**上限（官方默认 10000），触顶后尾部剩余并入单个超大块，长文档会超 embedding 单条输入上限（8192×0.9）致 ETL 失败；④ Spring AI Document metadata 禁 null 值，可空字段须条件写入；⑤ `ChatClientRequest`/`ChatClientResponse` 是 record，位于 `chat.client` 包（非 `advisor.api`）；⑥ `MessageChatMemoryAdvisor` 缺失 CONVERSATION_ID 参数是 Assert 硬断言直接抛错（非静默跳过），多 Bean 场景会话 ID 必须由 Controller 保证非空；2.0 GA Redis 会话仓储是 Jedis 形态（`RedisChatMemoryConfig`），v1/v2 文档的 RedisTemplate 构造器不存在
 - **请求状态传递只用参数链**（RetrievalContext 模式），不用 @RequestScope/ThreadLocal：MVC 异步请求完结后作用域代理不可解析，且 Advisor taskExecutor/Reactor 线程不继承请求属性。ChatMemory 的 CONVERSATION_ID 等同理经 advisor 参数传递

@@ -8,6 +8,7 @@ import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TokenEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TraceEvent;
 import com.enterprise.kb.api.security.JwtUtils;
+import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Mono;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Agent 对话 Controller — 同步 + SSE 流式（命名事件，设计文档 11.3）
@@ -33,6 +35,11 @@ import java.util.Map;
  *
  * <p>事件协议（兼容 Phase 1）：TOKEN/ERROR/DONE 为无名事件且数据形状不变；
  * TRACE 为新增命名事件（流末推送完整溯源），旧前端自动忽略。
+ *
+ * <p><b>会话协议（3.1）</b>：请求体可选 {@code sessionId} 标识多轮会话——
+ * 前端生成并全程复用同一 ID 即获得多轮记忆；缺省时后端生成一次性 ID
+ * （等价 Phase 1 单轮行为）。同步响应回传 sessionId；流式协议不变
+ * （sessionId 由前端自备）。对话完成后异步归档 kb_session/kb_message。
  */
 @Slf4j
 @RestController
@@ -41,23 +48,28 @@ import java.util.Map;
 public class AgentController {
 
     private final ChatService chatService;
+    private final ChatSessionService chatSessionService;
     private final JwtUtils jwtUtils;
 
     /**
-     * 同步 RAG 问答
+     * 同步 RAG 问答（多轮：请求带 sessionId，响应回传）
      *
      * <pre>
      * POST /api/v1/chat
-     * { "query": "什么是增值税发票？" }
-     * → { "code": 200, "data": { "answer": "..." } }
+     * { "query": "什么是增值税发票？", "sessionId": "可选" }
+     * → { "code": 200, "data": { "answer": "...", "sessionId": "..." } }
      * </pre>
      */
     @PostMapping("/chat")
     public ApiResponse<Map<String, String>> chat(@RequestBody Map<String, String> body) {
         String query = body.get("query");
-        log.info("用户 [{}] 发起问答: {}", jwtUtils.getCurrentUsername(), query);
-        String answer = chatService.chat(query, newRetrievalContext());
-        return ApiResponse.success(Map.of("answer", answer));
+        String sessionId = resolveSessionId(body);
+        log.info("用户 [{}] 发起问答: sessionId={}, query={}",
+            jwtUtils.getCurrentUsername(), sessionId, query);
+        RetrievalContext ctx = newRetrievalContext();
+        String answer = chatService.chat(query, sessionId, ctx);
+        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), query, answer);
+        return ApiResponse.success(Map.of("answer", answer, "sessionId", sessionId));
     }
 
     /**
@@ -66,21 +78,35 @@ public class AgentController {
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
         String query = body.get("query");
-        log.info("用户 [{}] 发起流式问答: {}", jwtUtils.getCurrentUsername(), query);
+        String sessionId = resolveSessionId(body);
+        log.info("用户 [{}] 发起流式问答: sessionId={}, query={}",
+            jwtUtils.getCurrentUsername(), sessionId, query);
         // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例
         RetrievalContext traceCtx = newRetrievalContext();
+        // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
+        StringBuilder answerBuffer = new StringBuilder();
 
-        return chatService.chatStream(query, traceCtx)
+        return chatService.chatStream(query, sessionId, traceCtx)
             .filter(token -> token != null && !token.isEmpty())
+            .doOnNext(answerBuffer::append)
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
             .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx))
                 .event("TRACE").build()))
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
+            .doOnComplete(() -> chatSessionService.archiveTurn(
+                sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
+                query, answerBuffer.toString()))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
                 return Flux.just(ServerSentEvent.<Object>builder(
                     new ErrorEvent(String.valueOf(e.getMessage()))).build());
             });
+    }
+
+    /** 会话 ID：请求携带则复用（多轮），缺省生成一次性 ID（兼容 Phase 1 单轮前端） */
+    private static String resolveSessionId(Map<String, String> body) {
+        String sessionId = body.get("sessionId");
+        return sessionId != null && !sessionId.isBlank() ? sessionId : UUID.randomUUID().toString();
     }
 
     // ── 检索上下文与溯源投影 ──

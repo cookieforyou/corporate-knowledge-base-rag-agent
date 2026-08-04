@@ -5,6 +5,8 @@
 > [📑 返回目录](./README.md) · 最后更新：2026-07-31
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
+>
+> **v2.3 修订（2026-08-04，3.1 实现期）**：① Redis 会话记忆仓储修正为 2.0 GA Jedis 形态（`RedisChatMemoryConfig`，starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`）——v2 草图的 RedisTemplate 构造器不存在；② Agent 对话链定稿为独立 `agentChatClient` Bean（记忆 Advisor 缺失 CONVERSATION_ID 为硬断言，不可挂评估共享 Bean）；③ 新增 FaultTolerantChatMemory 容错装饰、kb_session/kb_message PG 归档旁路、sessionId 会话协议。详见 11.2 v2.3 注。
 
 ---
 
@@ -97,58 +99,78 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 | **500** | `RetrievalAugmentationAdvisor` ★ | `BaseAdvisor` | **核心**：查询改写 + 双路检索 + RRF + 重排 + 证据注入（第十章） | **P1** |
 | **1000** | `ToolCallingAdvisor` | `CallAdvisor` | 工具调用循环（@Tool + MCP） | P2 |
 
+> **v2.3 实现期修正（2026-08-04，3.1 落地实证）**：v2 草图两处失效，按 2.0.0 GA 字节码核验回写：
+> ① **Redis 仓储形态**——`new RedisChatMemoryRepository(redisTemplate)` 在 2.0 GA 不存在：
+> Redis 仓储改为 **Jedis 形态**，经 `RedisChatMemoryConfig`/builder（jedisClient/indexName/
+> keyPrefix/timeToLive/initializeSchema）构建；制品为
+> `spring-ai-starter-model-chat-memory-repository-redis`（含 Jedis 客户端、Redis 仓储、
+> chat-memory 自动配置），自动配置前缀 `spring.ai.chat.memory.redis.*`。
+> **限制**：自动配置的 jedisClient 仅支持 host/port，无 password/database——ECS Redis
+> 无密码内网形态适配，需密码时自行覆盖 `jedisClient` Bean（全 @ConditionalOnMissingBean）。
+> 依赖 Redis JSON + Query Engine（Redis 8 内置，首跑 E2E 核验）。
+> ② **Bean 拆分定稿**——记忆 Advisor **不挂**共享 `chatClient` Bean：
+> `BaseChatMemoryAdvisor.getConversationId()` 对缺失 CONVERSATION_ID 是 Assert 硬断言
+> （非静默跳过），kb-eval 注入 `chatClient` 且不传会话 ID，挂上即整体抛错。
+> 定稿为独立 `agentChatClient` Bean 承载生产对话链（记忆+溯源+检索），
+> `chatClient` 保持纯 RAG 供评估度量，Phase 2 基线持续有效。
+> ③ **补充机制**——`FaultTolerantChatMemory` 装饰器：记忆读失败→空历史、写失败→丢弃，
+> Redis 抖动不击穿问答主链路（与检索单路降级/rerank 降级同策）；
+> `kb_session`/`kb_message` PG 归档为独立旁路（ChatSessionService 异步），
+> 补齐 kb_feedback 外键与历史会话列表的数据依赖；消息窗口 maxMessages 默认 20（≈10 轮）。
+> ④ **已知限制**——RewriteQueryTransformer 仅见当前 query 文本（历史在 Prompt 消息中），
+> 多轮指代消解依赖生成侧上下文；检索侧改写注入历史为后续增强项。
+
 ```java
 package com.enterprise.kb.ai.config;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.ai.chat.memory.repository.redis.RedisChatMemoryRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.core.RedisTemplate;
 
 @Configuration
 public class AgentChatClientConfig {
 
     /**
-     * Redis 会话记忆（v2 修正）
-     *
-     * <p>v1 文档中的 RedisChatMemory 类不存在。Spring AI 2.0 的真实形态：
-     * Redis 实现位于仓储层（RedisChatMemoryRepository），
-     * 再包装进标准的消息窗口 ChatMemory。</p>
+     * 会话记忆（v2.3 定稿）：Redis 仓储（starter 自动配置注入 ChatMemoryRepository）
+     * + 滑动窗口 + 容错装饰。显式构建令自动配置的默认 ChatMemory Bean 让位。
      */
     @Bean
-    public ChatMemory redisChatMemory(RedisTemplate<String, Object> redisTemplate) {
-        return MessageWindowChatMemory.builder()
-            .chatMemoryRepository(new RedisChatMemoryRepository(redisTemplate))
-            .build();
+    public ChatMemory agentChatMemory(ChatMemoryRepository chatMemoryRepository) {
+        return new FaultTolerantChatMemory(
+            MessageWindowChatMemory.builder()
+                .chatMemoryRepository(chatMemoryRepository)
+                .maxMessages(20)
+                .build());
     }
 
     @Bean
-    public ChatClient knowledgeAgentChatClient(
-            ChatClient.Builder builder,
-            ChatMemory redisChatMemory,
-            RetrievalAugmentationAdvisor retrievalAugmentationAdvisor,
-            RetrievalTraceAdvisor retrievalTraceAdvisor
+    public ChatClient agentChatClient(
+            ChatModel chatModel,                       // @Qualifier("deepSeekChatModel")
+            ChatMemory agentChatMemory,
+            RetrievalTraceAdvisor retrievalTraceAdvisor,
+            RetrievalAugmentationAdvisor retrievalAugmentationAdvisor
             /* Phase 3 追加：tokenBudgetAdvisor, auditTraceAdvisor, rateLimitAdvisor,
                outputGuardrailAdvisor, authAdvisor, inputSanitizeAdvisor, toolCallingAdvisor */) {
 
-        return builder
+        return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(
-                // Phase 1 形态仅含检索两位（替代 QuestionAnswerAdvisor）
-                retrievalTraceAdvisor,
-                retrievalAugmentationAdvisor,
-                MessageChatMemoryAdvisor.builder(redisChatMemory).build()
+                MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
+                retrievalTraceAdvisor,                 // 450
+                retrievalAugmentationAdvisor           // 500
             )
             .build();
     }
 }
 ```
 
-> **v2 注（会话 ID）**：多轮对话的会话标识通过 advisor 参数传递，键为 `ChatMemory.CONVERSATION_ID`（值 `"chat_memory_conversation_id"`，经核验 2.0 未变）：`.advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))`。`RedisChatMemoryRepository`/`MessageWindowChatMemory` 的构造器形态（builder 参数名）在实现时以 Javadoc 为准。
+> **v2 注（会话 ID）**：多轮对话的会话标识通过 advisor 参数传递，键为 `ChatMemory.CONVERSATION_ID`（值 `"chat_memory_conversation_id"`，经核验 2.0 未变）：`.advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))`。
+>
+> **v2.3 会话协议**：`/chat`、`/chat/stream` 请求体可选 `sessionId`——前端生成并复用即多轮；缺省后端生成一次性 ID（兼容 Phase 1 单轮）。同步响应回传 `sessionId`；流式协议不变（前端自备）。**缺失会话 ID 为硬失败**（Assert 断言），Controller 层必须保证非空。
 
 ### 11.2.1 @Tool 工具调用与 Human-in-the-Loop（v2 重写）
 

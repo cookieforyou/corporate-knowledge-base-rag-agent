@@ -25,6 +25,14 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-rag</artifactId>
         </dependency>
+
+        <!-- Chat Memory（3.1）：Redis 会话记忆仓储 + MessageWindowChatMemory 自动装配。
+             2.0 GA 实证：RedisChatMemoryRepository 为 Jedis 形态（非 v1 文档的 RedisTemplate），
+             starter 含 jedis 客户端 / redis 仓储 / chat-memory 自动配置三件套 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-chat-memory-repository-redis</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-vector-store-advisor</artifactId>
