@@ -95,6 +95,7 @@ class HybridDocumentRetrieverTest {
     @Test
     void retrieve_withContextInQuery_recordsVectorTrace() {
         RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
         Query ctxQuery = Query.builder().text("q")
             .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx)).build();
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
@@ -108,5 +109,21 @@ class HybridDocumentRetrieverTest {
         assertEquals(1, trace.size());
         assertEquals("vector", trace.get(0).source());
         assertEquals(List.of("v1"), trace.get(0).documents().stream().map(Document::getId).toList());
+    }
+
+    /**
+     * fail-closed 防御纵深（3.9+3.10）：ctx 存在但租户身份缺失（身份异常态）→
+     * 空结果且双路完全不触达，杜绝过滤缺失致跨租户全量可见。
+     * 空证据由 ContextualQueryAugmenter 拒答模板承接（allowEmptyContext=false）。
+     */
+    @Test
+    void retrieve_contextWithoutTenantId_failsClosedWithEmptyResult() {
+        RetrievalContext ctx = new RetrievalContext();   // tenantId 未填充
+        Query ctxQuery = Query.builder().text("q")
+            .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx)).build();
+
+        assertTrue(hybrid.retrieve(ctxQuery).isEmpty());
+        verifyNoInteractions(vectorStore);
+        verifyNoInteractions(esRetriever);
     }
 }

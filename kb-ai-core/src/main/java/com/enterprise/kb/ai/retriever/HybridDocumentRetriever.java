@@ -64,6 +64,14 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     public List<Document> retrieve(Query query) {
         int recallSize = Constants.DEFAULT_TOP_K * RECALL_MULTIPLIER;
         RetrievalContext ctx = RetrievalContext.from(query);
+        // fail-closed 防御纵深（3.9+3.10 安全收敛）：Web 入口已保证 ctx 存在且 tenantId
+        // 非空（AgentController 身份守卫）；若出现「有 ctx 无租户」的身份异常态，宁可
+        // 返回空证据走拒答路径，绝不允许过滤缺失致跨租户全量可见。
+        // kb-eval 等非 Web 入口（ctx==null）保持无过滤的评估语义，不受影响。
+        if (ctx != null && (ctx.getTenantId() == null || ctx.getTenantId().isBlank())) {
+            log.warn("检索上下文缺失租户身份，fail-closed 返回空结果（拒绝跨租户风险）");
+            return List.of();
+        }
         long start = System.currentTimeMillis();
 
         // 虚拟线程并行双路召回；两路各自容错（失败/超时 → 空列表，降级矩阵 10.2）

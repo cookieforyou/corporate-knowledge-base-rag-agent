@@ -10,6 +10,7 @@ import com.enterprise.kb.api.dto.AgentStreamEvent.TraceEvent;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.dto.ApiResponse;
+import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -111,11 +112,22 @@ public class AgentController {
 
     // ── 检索上下文与溯源投影 ──
 
-    /** 请求线程上创建检索上下文并填充身份（JWT owner→tenantId、sub→userId） */
+    /**
+     * 请求线程上创建检索上下文并填充身份（JWT owner→tenantId、sub→userId）
+     *
+     * <p><b>身份完整性守卫（3.9+3.10 安全收敛，fail-closed）</b>：HTTP 层
+     * SecurityConfig 只保证「已认证」，不保证 token 携带租户身份（owner claim
+     * 可能缺失）。tenantId 缺失意味着检索层无法做租户过滤——直接拒绝，
+     * 绝不允许以无过滤形态进入检索链路（跨租户全量可见）。检索层另有
+     * 同语义防御纵深（HybridDocumentRetriever）。
+     */
     private RetrievalContext newRetrievalContext() {
         RetrievalContext ctx = new RetrievalContext();
         ctx.setTenantId(jwtUtils.getCurrentTenantId());
         ctx.setUserId(jwtUtils.getCurrentUserId());
+        if (ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
+            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+        }
         return ctx;
     }
 

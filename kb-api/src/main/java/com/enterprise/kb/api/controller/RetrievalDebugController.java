@@ -8,6 +8,7 @@ import com.enterprise.kb.api.dto.RetrievalDebugResult.Candidate;
 import com.enterprise.kb.api.dto.RetrievalDebugResult.Latency;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.commons.dto.ApiResponse;
+import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -50,6 +51,11 @@ public class RetrievalDebugController {
         RetrievalContext ctx = new RetrievalContext();
         ctx.setTenantId(jwtUtils.getCurrentTenantId());
         ctx.setUserId(jwtUtils.getCurrentUserId());
+        // 身份完整性守卫（3.9+3.10，与 AgentController 同策）：调试台可见双路原始命中，
+        // 无租户过滤时泄露面更大，tenantId 缺失直接拒绝
+        if (ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
+            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+        }
         Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, ctx);
 
         long t0 = System.currentTimeMillis();
