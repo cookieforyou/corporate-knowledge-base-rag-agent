@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 全部完成；**Phase 2 收尾中**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料扩容至 74 条（发票/K8s/产品/DocMind 介绍 PDF 四语料，54 正向+20 负向全量锚点标注，DDD 旧标注随文档删除移除）。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级（2026-08-04 全量评估暴露）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1/v2.2 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。下一步：Phase 3（Agent 编排与企业级特性）任务清单复审开工。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1/v2.2 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -51,7 +51,7 @@ kb-rag-agent/
 - 双路检索：`HybridDocumentRetriever`（虚拟线程并行，单路 5s 超时降级）= 向量路（直连 VectorStore，similarityThreshold=0.5，recallSize=topK×2）+ `ElasticsearchDocumentRetriever`（ik BM25，tenant/is_deleted 过滤）
 - **RetrievalContext 参数化传递**（2026-08-02 重构，重要架构事实）：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填充 tenantId/userId → ChatClient advisor 参数（`RetrievalContext.CONTEXT_KEY`）→ RetrievalAugmentationAdvisor 复制进 Query.context（源码核验）→ 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推送 SSE TRACE。**不使用 @RequestScope**（MVC 异步请求在请求线程返回后标记请求完结，作用域代理在整个流式生命周期不可解析，实证致租户过滤静默失效 + SSE 尾帧崩溃）
 - SSE 协议（2.12，兼容 Phase 1）：`/chat/stream` 返回 `Flux<ServerSentEvent>`（请求线程订阅）；TOKEN/ERROR/DONE 无名事件保持 Phase 1 线形（`{"token":...}` / `{"error":...}` / `[DONE]`），TRACE 为新增命名事件（流末推送 bm25/vector/final 三路溯源，final 下标与 [ref-N] 对齐）
-- 评估：kb-eval 双探针共存（`eval.probe` = auto/vector/hybrid 做 A/B）；`chatClient` Bean 名不变，被测链路切换评估器零感知；Golden 语料 12 条（DDD 文档）+ 15 条负向；报告双通道（stdout + `target/eval-report.txt`，CWD 相对路径——IDEA 运行时落项目根 target/）
+- 评估：kb-eval 双探针共存（`eval.probe` = auto/vector/hybrid 做 A/B）；`chatClient` Bean 名不变，被测链路切换评估器零感知；Golden 语料 74 条（finance/k8s/product/cross/docmind 5 集 54 正向 + 20 负向含 5 对抗性）；提速三件套：用例级虚拟线程并行（`eval.concurrency` 默认 5）+ 检索-only 秒级快跑（`eval.retrieval-only`，免 Judge 免 DASHSCOPE key）+ Milvus 冷启动预热；报告双通道（stdout + `target/eval-report.txt`，CWD 相对路径——IDEA 运行时落项目根 target/）
 
 **解析支线（2.1-2.3，E2E 验证）**
 
