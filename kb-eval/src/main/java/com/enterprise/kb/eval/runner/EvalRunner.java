@@ -73,7 +73,9 @@ public class EvalRunner {
             return;
         }
         // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」
-        if (props.getJudge().getApiKey() == null || props.getJudge().getApiKey().isBlank()) {
+        // （检索-only 模式不触发 Judge，豁免此检查）
+        if (!props.isRetrievalOnly()
+                && (props.getJudge().getApiKey() == null || props.getJudge().getApiKey().isBlank())) {
             if (ci) {
                 throw new EvalFailedException("DASHSCOPE_API_KEY 未配置，Judge 不可用——门禁拒绝运行");
             }
@@ -94,6 +96,10 @@ public class EvalRunner {
      */
     private void publishReport(EvalReport report) {
         String summary = report.summary();
+        if (props.isRetrievalOnly()) {
+            summary = "【检索-only 模式】生成侧与 Judge 已跳过，仅检索侧指标有效"
+                + System.lineSeparator() + summary;
+        }
         System.out.println(summary);
         log.info("\n{}", summary);
         try {
@@ -111,16 +117,38 @@ public class EvalRunner {
         if (dataset.isEmpty()) {
             throw new EvalFailedException("Golden Dataset 为空（classpath:golden/*.json 无可用用例）");
         }
-        log.info("开始评估：{} 条用例，检索探针 = {}", dataset.size(), retrievalProbe.name());
+        int concurrency = Math.max(1, props.getConcurrency());
+        log.info("开始评估：{} 条用例，检索探针 = {}，并行度 = {}{}", dataset.size(),
+            retrievalProbe.name(), concurrency, props.isRetrievalOnly() ? "（检索-only 模式）" : "");
 
+        warmupRetrieval();
+
+        // 并行执行（2026-08-03 提速）：单用例 = 检索 + 1 次生成 + 至多 2 次 Judge 的串联 LLM 调用，
+        // 纯 IO 等待、用例间无共享状态（探针/ChatClient 均线程安全），并发后时延约 1/N。
+        // Semaphore 限流 concurrency 个在飞用例（虚拟线程无上限，不限流会击穿 LLM API 速率限制）；
+        // concurrency=1 退化为串行。结果按数据集顺序收集，报告逐用例明细顺序不变。
         List<EvalResult> results = new ArrayList<>();
-        for (int i = 0; i < dataset.size(); i++) {
-            GoldenQAPair pair = dataset.get(i);
-            try {
-                results.add(evaluateOne(pair));
-                log.info("[{}/{}] {} ✓", i + 1, dataset.size(), pair.id());
-            } catch (Exception e) {
-                log.error("[{}/{}] {} 评估失败: {}", i + 1, dataset.size(), pair.id(), e.getMessage());
+        var inflight = new java.util.concurrent.Semaphore(concurrency);
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = dataset.stream()
+                .map(pair -> executor.submit(() -> {
+                    inflight.acquire();
+                    try {
+                        return evaluateOne(pair);
+                    } finally {
+                        inflight.release();
+                    }
+                }))
+                .toList();
+            for (int i = 0; i < futures.size(); i++) {
+                GoldenQAPair pair = dataset.get(i);
+                try {
+                    results.add(futures.get(i).get());
+                    log.info("[{}/{}] {} ✓", i + 1, dataset.size(), pair.id());
+                } catch (Exception e) {
+                    log.error("[{}/{}] {} 评估失败: {}", i + 1, dataset.size(), pair.id(),
+                        e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+                }
             }
         }
         // 全部用例失败（基础设施不可达/密钥错误等）不得静默「通过」
@@ -129,6 +157,20 @@ public class EvalRunner {
                 "无有效评估结果（全部 " + dataset.size() + " 条用例失败）——请检查 ECS 基础设施连通性与 API Keys");
         }
         return aggregate(retrievalProbe.name(), results);
+    }
+
+    /**
+     * 检索链路预热（2026-08-04）：Milvus gRPC 首次调用需建连 + 加载 collection，
+     * 耗时超过检索路 5s 超时——并行评估时首批用例集体命中冷启动、向量路降级空结果，
+     * 污染首批用例 Recall（实测 15 次超时）。一次性探针查询吸收建连成本，失败不阻断。
+     */
+    private void warmupRetrieval() {
+        try {
+            retrievalProbe.probe("预热查询 warmup", 1);
+            log.info("检索链路预热完成");
+        } catch (Exception e) {
+            log.warn("检索链路预热失败（不阻断评估）: {}", e.getMessage());
+        }
     }
 
     private EvalResult evaluateOne(GoldenQAPair pair) {
@@ -140,6 +182,13 @@ public class EvalRunner {
         double recall = RetrievalMetrics.recallAtK(hitIds, pair.expectedChunkIds());
         double mrr = RetrievalMetrics.reciprocalRank(hitIds, pair.expectedChunkIds());
         double precision = RetrievalMetrics.contextPrecision(hitIds, pair.expectedChunkIds());
+
+        // 检索-only 模式：到此为止——跳过被测生成与 Judge（生成侧指标 null，聚合自动跳过；
+        // 负向用例无生成即无拒答判定，同样跳过）。语料标注核验/检索回归的秒级通道。
+        if (props.isRetrievalOnly()) {
+            return new EvalResult(pair, hits, null, recall, mrr, precision,
+                null, null, null, null, null);
+        }
 
         // 3. 被测链路生成
         String answer = chatClient.prompt().user(pair.question()).call().content();

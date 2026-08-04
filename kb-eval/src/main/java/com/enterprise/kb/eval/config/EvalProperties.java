@@ -20,6 +20,19 @@ public class EvalProperties {
     /** 每个分类最多抽样条数，0 = 全量（CI 快跑用） */
     private int sampleSize = 0;
 
+    /**
+     * 用例并行度（虚拟线程并发执行）。单用例含 1 次生成 + 至多 2 次 Judge 的串联 LLM 调用，
+     * 串行 74 条约 70+ 分钟，并行后约 1/N。1 = 传统串行；过高可能触发 LLM API 限流。
+     */
+    private int concurrency = 6;
+
+    /**
+     * 检索-only 模式：只跑检索取数 + 检索侧指标（Recall/MRR/Context Precision），
+     * 跳过被测生成与 Judge——语料标注核验/检索回归的秒级快跑通道。
+     * 生成侧/负向指标该模式下无样本，聚合与门禁自动跳过；不依赖 DASHSCOPE_API_KEY。
+     */
+    private boolean retrievalOnly = false;
+
     /** 检索探针选择：auto（min order，混合探针就位后默认 hybrid）| vector | hybrid，A/B 基线对比用 */
     private String probe = "auto";
 

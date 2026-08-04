@@ -40,7 +40,15 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
 
 ```bash
 # 全量评估（需 ECS 基础设施 + DEEPSEEK_API_KEY + DASHSCOPE_API_KEY 环境变量）
+# 用例按 eval.concurrency（默认 6）虚拟线程并行，74 条约 10-15 分钟
 mvn spring-boot:run -pl kb-eval
+
+# 检索-only 快跑：只评 Recall/MRR/Context Precision，跳过生成与 Judge——
+# 标注核验/检索回归用，秒级完成，不依赖 DASHSCOPE_API_KEY
+mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.retrieval-only=true
+
+# 调并行度（API 限流时下调；网络与配额富余可上调至 8-10）
+mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.concurrency=8
 
 # CI 门禁模式（低于阈值进程非零退出）
 mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci
