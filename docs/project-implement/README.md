@@ -22,6 +22,7 @@
 > 2. **Agent Bean 拆分定稿**（11.2）：记忆 Advisor 缺失 CONVERSATION_ID 为 Assert 硬断言，不可挂评估共享 `chatClient`——生产对话链独立 `agentChatClient`（记忆400/溯源450/检索500），评估继续度量纯 RAG，Phase 2 基线不受影响
 > 3. **记忆容错与 PG 归档**（11.2）：FaultTolerantChatMemory 装饰降级（读失败→空历史、写失败→丢弃，Redis 抖动不击穿问答）+ kb_session/kb_message 异步归档旁路（补齐 kb_feedback 外键与历史会话列表的数据缺口）
 > 4. **sessionId 会话协议**（11.2）：请求体可选 sessionId（前端复用即多轮），同步响应回传；缺省后端生成一次性 ID，兼容 Phase 1 单轮前端
+> 5. **自动配置条件让位陷阱（2026-08-05 E2E 追加）**（11.2）：`RedisChatMemoryAutoConfiguration#redisChatMemory` 的 `@ConditionalOnMissingBean` 检查含 ChatMemory 类型，用户记忆 Bean 致 Redis 仓储静默回退 InMemory（对话表面连贯、Redis 零痕迹、重启失忆）——RedisChatMemoryRepository 改由 `ChatMemoryRedisClientConfig` 显式装配 + `ChatMemoryRedisWiringTest` 防回归
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 

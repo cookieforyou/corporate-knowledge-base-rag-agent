@@ -6,7 +6,7 @@
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
-> **v2.3 修订（2026-08-04，3.1 实现期）**：① Redis 会话记忆仓储修正为 2.0 GA Jedis 形态（`RedisChatMemoryConfig`，starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`）——v2 草图的 RedisTemplate 构造器不存在；② Agent 对话链定稿为独立 `agentChatClient` Bean（记忆 Advisor 缺失 CONVERSATION_ID 为硬断言，不可挂评估共享 Bean）；③ 新增 FaultTolerantChatMemory 容错装饰、kb_session/kb_message PG 归档旁路、sessionId 会话协议。详见 11.2 v2.3 注。
+> **v2.3 修订（2026-08-04，3.1 实现期）**：① Redis 会话记忆仓储修正为 2.0 GA Jedis 形态（`RedisChatMemoryConfig`，starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`）——v2 草图的 RedisTemplate 构造器不存在；② Agent 对话链定稿为独立 `agentChatClient` Bean（记忆 Advisor 缺失 CONVERSATION_ID 为硬断言，不可挂评估共享 Bean）；③ 新增 FaultTolerantChatMemory 容错装饰、kb_session/kb_message PG 归档旁路、sessionId 会话协议；④ 2026-08-05 E2E 追加：自动配置条件让位陷阱（用户 ChatMemory Bean 致 Redis 仓储静默回退 InMemory）——RedisChatMemoryRepository 改为显式装配，详见 11.2 v2.3 注 ⑤。
 
 ---
 
@@ -122,6 +122,13 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > 补齐 kb_feedback 外键与历史会话列表的数据依赖；消息窗口 maxMessages 默认 20（≈10 轮）。
 > ④ **已知限制**——RewriteQueryTransformer 仅见当前 query 文本（历史在 Prompt 消息中），
 > 多轮指代消解依赖生成侧上下文；检索侧改写注入历史为后续增强项。
+> ⑤ **自动配置条件让位陷阱（2026-08-05 E2E 实锤）**：`RedisChatMemoryAutoConfiguration#redisChatMemory`
+> 的 `@ConditionalOnMissingBean` 同时检查 {RedisChatMemoryRepository, ChatMemory, ChatMemoryRepository}
+> 三类型——用户定义的 `agentChatMemory`（ChatMemory 型）先于自动配置注册，Redis 仓储 Bean
+> 静默让位，`ChatMemoryAutoConfiguration` 回退 **InMemoryChatMemoryRepository**：多轮对话表面连贯
+> （进程内记忆），Redis 无索引无键、重启失忆、全程零报错。定稿：`ChatMemoryRedisClientConfig`
+> **显式装配 RedisChatMemoryRepository**（用户 Bean 不参与条件让位评估），防回归测试
+> `ChatMemoryRedisWiringTest`（ApplicationContextRunner 复刻生产拓扑断言仓储类型）。
 
 ```java
 package com.enterprise.kb.ai.config;
