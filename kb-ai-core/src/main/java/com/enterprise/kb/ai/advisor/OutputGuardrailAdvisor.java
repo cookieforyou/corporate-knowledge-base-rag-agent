@@ -42,7 +42,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
     private final Set<String> blacklist;
 
     public OutputGuardrailAdvisor(
-            @Value("${rag.guardrail.output.blacklist:competitor_x,competitor_y}") String blacklistCsv) {
+            @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv) {
         this.blacklist = Stream.of(blacklistCsv.split(","))
             .map(String::trim)
             .filter(s -> !s.isEmpty())

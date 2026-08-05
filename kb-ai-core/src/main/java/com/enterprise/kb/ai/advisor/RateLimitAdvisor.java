@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.ratelimiter.RateLimiterArgs;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
@@ -84,7 +85,7 @@ public class RateLimitAdvisor implements BaseAdvisor {
             RRateLimiter limiter = redissonClient.getRateLimiter(KEY_PREFIX + tenantId);
             if (configuredTenants.add(tenantId)) {
                 // 覆盖式写入：配置（yml/环境变量）为单一事实源，刷新 Redis 残留旧配置
-                limiter.setRate(RateType.OVERALL, rate, Duration.ofSeconds(intervalSeconds));
+                limiter.setRate(RateLimiterArgs.of(RateType.OVERALL, rate, Duration.ofSeconds(intervalSeconds)));
             }
             if (!limiter.tryAcquire(1)) {
                 log.warn("租户 [{}] 触发限流（{} 次/{}s），请求拒绝", tenantId, rate, intervalSeconds);
