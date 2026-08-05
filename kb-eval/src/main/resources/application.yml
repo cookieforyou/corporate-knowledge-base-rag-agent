@@ -30,6 +30,9 @@ eval:
     api-key: ${DASHSCOPE_API_KEY:}        # 复用百炼 Key（Judge 默认 qwen3.7-plus，与被测 DeepSeek 跨厂商隔离）
     model: ${EVAL_JUDGE_MODEL:qwen3.7-plus}
     temperature: 0.0
+    # qwen 商业版默认思考模式：评估 Judge 调用密集，默认关闭提速省 token
+    # （注：Phase 2 基线为思考开启形态度量，复跑分数可能漂移，属评估校准范畴）
+    enable-thinking: ${EVAL_JUDGE_ENABLE_THINKING:false}
   thresholds:
     top-k-recall: 0.85
     mrr: 0.70

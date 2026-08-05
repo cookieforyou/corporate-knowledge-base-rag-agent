@@ -56,6 +56,13 @@ public class EvalProperties {
         /** 16.3：Judge 模型须与被测模型隔离（被测 DeepSeek V4，Judge 默认 qwen3.7-plus） */
         private String model = "qwen3.7-plus";
         private Double temperature = 0.0;
+        /**
+         * qwen3.5/3.6/3.7 商业版默认开思考模式（enable_thinking=true，官方文档实证）——
+         * 评估期每条用例多次 Judge 调用，思维链大幅拉长耗时与 token，默认显式关闭。
+         * 注意：Phase 2 基线（74 条）为思考开启形态下度量，关闭后 Judge 形态变化，
+         * 全量复跑分数可能漂移，属评估校准范畴（16 章基线对比机制）。
+         */
+        private boolean enableThinking = false;
     }
 
     @Getter

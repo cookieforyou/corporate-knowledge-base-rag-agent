@@ -7,6 +7,8 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Map;
+
 /**
  * Judge 模型装配 —— LLM-as-Judge（设计文档 16.3）
  *
@@ -38,6 +40,9 @@ public class JudgeModelConfig {
                 .apiKey(cfg.getApiKey())
                 .model(cfg.getModel())
                 .temperature(cfg.getTemperature())
+                // qwen 商业版默认思考模式（见 EvalProperties.Judge.enableThinking 注记）——
+                // extraBody 经 createRequest 透传请求体顶层（源码核验），默认显式关闭
+                .extraBody(Map.of("enable_thinking", cfg.isEnableThinking()))
                 .build())
             .build();
 
