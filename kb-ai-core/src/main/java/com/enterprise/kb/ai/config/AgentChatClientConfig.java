@@ -2,7 +2,9 @@ package com.enterprise.kb.ai.config;
 
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
+import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
+import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -31,8 +33,10 @@ import org.springframework.context.annotation.Configuration;
  *       Phase 3 后续 Advisor（护栏/限流/审计/工具）按 11.2 链序增量挂载</li>
  * </ul>
  *
- * <p>Advisor 链序（11.2）：MessageChatMemoryAdvisor(400) → RetrievalTraceAdvisor(450)
- * → RetrievalAugmentationAdvisor(500)。记忆先于检索注入历史消息。
+ * <p>Advisor 链序（11.2 v2 表增量挂载）：TokenBudget(30) → RateLimit(100) →
+ * OutputGuardrail(110) → InputSanitize(300) → Memory(400) → Trace(450) →
+ * Retrieval(500)。记忆先于检索注入历史消息；配额类护栏居最前，被拒请求
+ * 零下游消耗。
  *
  * <p>会话记忆形态（v2.3 实证修正，见 11 章）：2.0 GA 无 RedisTemplate 构造器，
  * Redis 仓储经 {@code spring-ai-starter-model-chat-memory-repository-redis}
@@ -62,17 +66,21 @@ public class AgentChatClientConfig {
     }
 
     /**
-     * 生产 Agent 对话链路（护栏 + 多轮记忆 + 溯源 + 混合检索 RAG）。
-     * CONVERSATION_ID 由 Controller 经 advisor 参数传入（RetrievalContext 同款
-     * 参数链机制，不用 @RequestScope/ThreadLocal）。
+     * 生产 Agent 对话链路（预算 + 限流 + 护栏 + 多轮记忆 + 溯源 + 混合检索 RAG）。
+     * CONVERSATION_ID 与 RetrievalContext 均由 Controller 经 advisor 参数传入
+     * （参数链机制，不用 @RequestScope/ThreadLocal）。
      *
-     * <p>Advisor 链序（11.2）：OutputGuardrail(110，after 拦截) →
-     * InputSanitize(300，先于记忆防 PII 落库) → Memory(400) → Trace(450) →
-     * Retrieval(500)。order 由各 Advisor getOrder() 决定，此处列表顺序不敏感。
+     * <p>Advisor 链序（11.2 v2 表）：TokenBudget(30) → RateLimit(100) →
+     * OutputGuardrail(110，after 拦截) → InputSanitize(300，先于记忆防 PII 落库) →
+     * Memory(400) → Trace(450) → Retrieval(500)。order 由各 Advisor getOrder()
+     * 决定，此处列表顺序不敏感。预算/限流先于护栏与记忆：被拒请求不消耗
+     * 下游任何资源（v2 链序重排原则）。
      */
     @Bean
     public ChatClient agentChatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel,
                                       ChatMemory agentChatMemory,
+                                      TokenBudgetAdvisor tokenBudgetAdvisor,
+                                      RateLimitAdvisor rateLimitAdvisor,
                                       OutputGuardrailAdvisor outputGuardrailAdvisor,
                                       InputSanitizeAdvisor inputSanitizeAdvisor,
                                       RetrievalTraceAdvisor retrievalTraceAdvisor,
@@ -80,6 +88,8 @@ public class AgentChatClientConfig {
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(
+                tokenBudgetAdvisor,
+                rateLimitAdvisor,
                 outputGuardrailAdvisor,
                 inputSanitizeAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),

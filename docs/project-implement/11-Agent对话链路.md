@@ -129,6 +129,30 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > （进程内记忆），Redis 无索引无键、重启失忆、全程零报错。定稿：`ChatMemoryRedisClientConfig`
 > **显式装配 RedisChatMemoryRepository**（用户 Bean 不参与条件让位评估），防回归测试
 > `ChatMemoryRedisWiringTest`（ApplicationContextRunner 复刻生产拓扑断言仓储类型）。
+>
+> **v2.6 实现期修正（2026-08-05，3.7/3.8 配额护栏落地）**：
+> ① **租户身份来源**——表注「AuthAdvisor(20) 写入 tenant_id」的前提不成立（3.9 落地形态为
+> Controller 入口身份守卫，非 Advisor）：RateLimit/TokenBudget 直接从请求/响应上下文读取
+> `RetrievalContext.CONTEXT_KEY` 取 tenantId——与检索/记忆同款参数链（advisor 参数双向透传，
+> RetrievalTraceAdvisor.after() 读响应上下文为同源先例）；
+> ② **Redis 故障 fail-open**——限流/预算是可用性管控与成本追踪，不是安全边界：Redis 故障
+> before 降级放行 / after 丢弃计数 + 告警日志，不击穿问答（FaultTolerantChatMemory / rerank
+> 降级同策）；缺租户上下文同样放行——生产链路 Controller fail-closed 守卫保证此处必有租户，
+> 该分支仅为防御纵深；
+> ③ **令牌桶配置写入**——进程对每租户首次触达以 `setRate` 覆盖式写入（配置为单一事实源，
+> Redis 残留旧配置随重启刷新），弃草稿 `trySetRate` 形态（配置变更后 Redis 旧速率滞留）；
+> 桶口径 `RateType.OVERALL`（同租户多实例共享配额），key `rag:ratelimit:tenant:{tenantId}`；
+> ④ **HTTP 状态码定稿**——`RATE_LIMITED`/`TOKEN_BUDGET_EXCEEDED` 统一 **429**
+> （GlobalExceptionHandler 配额码集合，区别于一般业务错误 400）；流式路径不经异常处理器，
+> 由 AgentController onErrorResume 承接为 SSE ERROR 事件（与 PROMPT_INJECTION 同形态）；
+> ⑤ **草图 SINGLE_REQUEST_BUDGET 不实现**——单次请求 token 上限已由模型侧 max-tokens
+> （application-ai.yml）硬约束，重复设限无增益；
+> ⑥ **Usage 形态实证**——2.0 GA `Usage.getTotalTokens()` 返回 **Integer 可空**（非原始 long），
+> 计量须判空；流式 usage 需 `stream_options.include_usage` 随末块下发，当前自动装配的
+> deepSeekChatModel 未开启——**流式消耗暂不计账**（同步路径计量完整），开启涉及模型装配
+> 变更，列为后续增强项；
+> ⑦ **指标形态**——`rag.token.total` / `rag.token.budget.rejected` 不带租户标签（避免指标基数
+> 膨胀），租户级观测经 Redis 账本键；3.13 AiBusinessMetrics 落地后可迁移。
 
 ```java
 package com.enterprise.kb.ai.config;
@@ -161,14 +185,21 @@ public class AgentChatClientConfig {
     public ChatClient agentChatClient(
             ChatModel chatModel,                       // @Qualifier("deepSeekChatModel")
             ChatMemory agentChatMemory,
+            TokenBudgetAdvisor tokenBudgetAdvisor,     // 3.8（30）
+            RateLimitAdvisor rateLimitAdvisor,         // 3.7（100）
+            OutputGuardrailAdvisor outputGuardrailAdvisor,   // 3.6（110）
+            InputSanitizeAdvisor inputSanitizeAdvisor,       // 3.5（300）
             RetrievalTraceAdvisor retrievalTraceAdvisor,
             RetrievalAugmentationAdvisor retrievalAugmentationAdvisor
-            /* Phase 3 追加：tokenBudgetAdvisor, auditTraceAdvisor, rateLimitAdvisor,
-               outputGuardrailAdvisor, authAdvisor, inputSanitizeAdvisor, toolCallingAdvisor */) {
+            /* Phase 3 待挂：auditTraceAdvisor(10), authAdvisor(20), toolCallingAdvisor(1000) */) {
 
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(
+                tokenBudgetAdvisor,                    // 30
+                rateLimitAdvisor,                      // 100
+                outputGuardrailAdvisor,                // 110
+                inputSanitizeAdvisor,                  // 300
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
                 retrievalTraceAdvisor,                 // 450
                 retrievalAugmentationAdvisor           // 500

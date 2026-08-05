@@ -5,10 +5,13 @@ import com.enterprise.kb.commons.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Set;
 
 /**
  * 全局异常处理 — 将业务异常和系统异常统一转换为 {@link ApiResponse}
@@ -21,14 +24,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     /**
-     * 业务异常 — 提取 errorCode 和 message，返回 HTTP 400
+     * 配额类拒绝错误码 — 限流/预算耗尽语义为「请求过量」，映射 HTTP 429
+     * （区别于一般业务错误的 400）。流式路径不经此处：由 AgentController
+     * onErrorResume 承接为 SSE ERROR 事件（与 PROMPT_INJECTION 同形态）。
+     */
+    private static final Set<String> QUOTA_ERROR_CODES = Set.of("RATE_LIMITED", "TOKEN_BUDGET_EXCEEDED");
+
+    /**
+     * 业务异常 — 提取 errorCode 和 message；配额类（RATE_LIMITED /
+     * TOKEN_BUDGET_EXCEEDED）返回 HTTP 429，其余返回 HTTP 400
      */
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleBusinessException(BusinessException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
+        HttpStatus status = QUOTA_ERROR_CODES.contains(e.getErrorCode())
+            ? HttpStatus.TOO_MANY_REQUESTS
+            : HttpStatus.BAD_REQUEST;
         log.warn("业务异常 [{}] {} {}: {}", e.getErrorCode(), request.getMethod(),
             request.getRequestURI(), e.getMessage());
-        return ApiResponse.error(400, e.getMessage());
+        return ResponseEntity.status(status).body(ApiResponse.error(status.value(), e.getMessage()));
     }
 
     /**

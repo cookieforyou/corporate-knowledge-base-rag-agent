@@ -30,12 +30,3 @@ class ResourceNotFoundException extends BusinessException {
         super("RESOURCE_NOT_FOUND", message);
     }
 }
-
-/**
- * Token 预算耗尽异常
- */
-class TokenBudgetExceededException extends BusinessException {
-    public TokenBudgetExceededException(String message) {
-        super("TOKEN_BUDGET_EXCEEDED", message);
-    }
-}
