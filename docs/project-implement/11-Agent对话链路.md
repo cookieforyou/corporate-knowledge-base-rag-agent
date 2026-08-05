@@ -273,7 +273,30 @@ ToolCallingAdvisor.builder()
 
 ### 11.2.2 SmartRoutingChatModel 多模型智能路由
 
-（v1 设计保持不变——仅依赖 `ChatModel`/`ChatResponse`/`Prompt` 真实接口，无虚构 API。要点复述：按查询复杂度分级 ECONOMY/STANDARD/PREMIUM，轮询 + 熔断器保护（连续失败 5 次熔断 30 秒），层级降级 PREMIUM→STANDARD→ECONOMY。Phase 3.2 实现。）
+> **v2.7 实现期定稿（2026-08-05，任务 3.2 落地，用户拍板）**：
+> ① **实用形态**——v1 设计的 ECONOMY/STANDARD/PREMIUM 三级复杂度路由在「主 + 备」
+> 双模型现状下三档形同虚设，且复杂度分类器引入误路由风险——**复杂度分级移交
+> Phase 5.4 查询意图识别统一做**；本期落地验收相关形态：主模型故障自动切换备用
+> （验收「Failover 切换时间 < 5s」）+ 熔断器保护（v1 的轮询/层级降级不实现）；
+> ② **备用模型定稿 qwen3.7-plus**——百炼 OpenAI 兼容端点，跨厂商容灾（DeepSeek
+> 平台级故障也能扛），装配与 kb-eval JudgeModelConfig 同款实证形态（baseUrl/apiKey
+> 经 OpenAiChatOptions 传入，坑位①），凭据经 `rag.routing.fallback.api-key` 默认回落
+> DASHSCOPE_API_KEY（yml 单一回落链，注解层不重复嵌套占位符）；
+> ③ **拓扑**——`SmartRoutingChatModel implements ChatModel` 包装主模型
+> （deepseek starter 自动装配的 deepSeekChatModel）与 `fallbackChatModel` Bean；
+> `chatClient`/`agentChatClient` 统一改注 `smartRoutingChatModel` 替代主模型直注——
+> 生产链与评估链同时获得容灾，kb-eval 度量语义常态不变；
+> ④ **熔断器三态（无锁原子）**——CLOSED（连续失败 < 阈值）→ OPEN（≥ 阈值且窗口内，
+> 请求直发备用、主模型零触达）→ HALF_OPEN（窗口结束后首请求试探主模型：成功闭合
+> 清零、失败立即重开窗口续期）；成功即清零失败计数；
+> ⑤ **失败即切不丢请求**——CLOSED/HALF_OPEN 态主模型调用抛错时当次请求立即转发
+> 备用作答（切换耗时 = 主模型失败暴露耗时 + 备用调用，快速失败类故障远低于 5s）；
+> 备用自身失败如实上抛（双模型俱损已无路由可做）；
+> ⑥ **流式语义**——主模型流错误经 onErrorResume 切备用流整段重发：首 token 前错误
+> （连接/鉴权/配额类故障常态形态）用户无感；极少数已流出部分 token 后中断会内容
+> 重复——已知取舍，优于流中断报错；
+> ⑦ **配置与降级**——`rag.routing.fallback.enabled=false` 时备用 Bean 不装配，路由
+> Bean 透传主模型，单模型形态零行为变化；熔断参数 `rag.routing.circuit.*`。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 

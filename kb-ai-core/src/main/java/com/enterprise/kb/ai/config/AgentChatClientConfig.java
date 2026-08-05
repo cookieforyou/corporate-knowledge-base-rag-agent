@@ -77,7 +77,7 @@ public class AgentChatClientConfig {
      * 下游任何资源（v2 链序重排原则）。
      */
     @Bean
-    public ChatClient agentChatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel,
+    public ChatClient agentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
                                       ChatMemory agentChatMemory,
                                       TokenBudgetAdvisor tokenBudgetAdvisor,
                                       RateLimitAdvisor rateLimitAdvisor,

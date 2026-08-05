@@ -23,7 +23,7 @@ import org.springframework.context.annotation.Configuration;
 public class ChatConfig {
 
     @Bean
-    public ChatClient chatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel,
+    public ChatClient chatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
                                  RetrievalTraceAdvisor retrievalTraceAdvisor,
                                  RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
         return ChatClient.builder(chatModel)

@@ -47,6 +47,19 @@ spring:
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
 # ============================================================
 rag:
+  # 多模型路由（3.2，设计文档 11.2.2）—— 主模型 DeepSeek V4 + 备用 qwen3.7-plus
+  # 熔断切换（连续失败 failure-threshold 次 → OPEN open-seconds 秒直发备用，
+  # 窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，复用 DASHSCOPE_API_KEY
+  routing:
+    fallback:
+      enabled: ${RAG_ROUTING_FALLBACK_ENABLED:true}
+      model: ${RAG_ROUTING_FALLBACK_MODEL:qwen3.7-plus}
+      base-url: ${RAG_ROUTING_FALLBACK_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${RAG_ROUTING_FALLBACK_API_KEY:${DASHSCOPE_API_KEY:}}
+      temperature: ${RAG_ROUTING_FALLBACK_TEMPERATURE:0.1}
+    circuit:
+      failure-threshold: ${RAG_ROUTING_FAILURE_THRESHOLD:5}   # 连续失败熔断阈值
+      open-seconds: ${RAG_ROUTING_OPEN_SECONDS:30}             # 熔断窗口（秒）
   # 租户级限流（3.7，设计文档 11.2）—— Redisson 令牌桶，每租户独立桶
   # （rag:ratelimit:tenant:{tenantId}）；进程对每租户首次触达覆盖式写入配置
   ratelimit:
