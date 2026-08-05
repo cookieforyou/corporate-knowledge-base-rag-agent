@@ -88,13 +88,15 @@ public class AgentController {
         log.info("用户 [{}] 发起问答: mode={}, sessionId={}, query={}",
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
-        String answer;
-        if (MODE_TOOL.equals(mode)) {
-            answer = toolChatService.chatTool(query, sessionId, ctx, approvedToolCallId);
-        } else {
+
+        boolean toolMode = MODE_TOOL.equals(mode);
+        if (!toolMode) {
             warnIfStrayApprovalId(approvedToolCallId);
-            answer = ragChatService.chatRag(query, sessionId, ctx);
         }
+        String answer = toolMode
+                ? toolChatService.chatTool(query, sessionId, ctx, approvedToolCallId)
+                : ragChatService.chatRag(query, sessionId, ctx);
+
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), safeQuery, answer);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", answer);
