@@ -141,6 +141,7 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > 该分支仅为防御纵深；
 > ③ **令牌桶配置写入**——进程对每租户首次触达以 `setRate` 覆盖式写入（配置为单一事实源，
 > Redis 残留旧配置随重启刷新），弃草稿 `trySetRate` 形态（配置变更后 Redis 旧速率滞留）；
+> 调用形态定稿 `RateLimiterArgs.of(RateType, rate, interval)`（4.6.1 E2E 实证）；
 > 桶口径 `RateType.OVERALL`（同租户多实例共享配额），key `rag:ratelimit:tenant:{tenantId}`；
 > ④ **HTTP 状态码定稿**——`RATE_LIMITED`/`TOKEN_BUDGET_EXCEEDED` 统一 **429**
 > （GlobalExceptionHandler 配额码集合，区别于一般业务错误 400）；流式路径不经异常处理器，

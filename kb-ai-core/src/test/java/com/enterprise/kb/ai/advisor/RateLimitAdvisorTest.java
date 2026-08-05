@@ -4,9 +4,12 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.ratelimiter.RateLimiterArgs;
+import org.redisson.api.ratelimiter.RateLimiterParams;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -19,9 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -62,7 +63,13 @@ class RateLimitAdvisorTest {
         ChatClientRequest request = requestWithTenant("tenant-a");
 
         assertThat(advisor.before(request, chain)).isSameAs(request);
-        verify(limiter).setRate(eq(RateType.OVERALL), eq(60L), eq(Duration.ofSeconds(60)));
+        // setRate 经 RateLimiterArgs 形态写入（Redisson 4.6.1 E2E 实证定稿）
+        ArgumentCaptor<RateLimiterArgs> captor = ArgumentCaptor.forClass(RateLimiterArgs.class);
+        verify(limiter).setRate(captor.capture());
+        RateLimiterParams params = (RateLimiterParams) captor.getValue();
+        assertThat(params.getMode()).isEqualTo(RateType.OVERALL);
+        assertThat(params.getRate()).isEqualTo(60L);
+        assertThat(params.getRateInterval()).isEqualTo(Duration.ofSeconds(60));
     }
 
     @Test
@@ -84,7 +91,7 @@ class RateLimitAdvisorTest {
         advisor.before(request, chain);
 
         // 进程内每租户仅首次触达写配置；每请求都要消耗令牌
-        verify(limiter, times(1)).setRate(any(RateType.class), anyLong(), any(Duration.class));
+        verify(limiter, times(1)).setRate(any(RateLimiterArgs.class));
         verify(limiter, times(2)).tryAcquire(1);
     }
 
