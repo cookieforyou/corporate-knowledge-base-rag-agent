@@ -38,30 +38,44 @@ public class ChatService {
         this.chatClient = chatClient;
     }
 
+    /**
+     * 确认轮系统指令（3.4 E2E 加固）：工具调用是模型的自主决策，approvedToolCallId
+     * 仅经 toolContext 对工具可见、模型上下文不可见——E2E 实测确认轮存在模型不调
+     * 工具（被检索上下文带偏成普通 RAG 作答）的概率。携带审批凭证时注入本指令，
+     * 令写工具复调确定化；指令不落记忆（system 消息不进记忆窗口）。
+     */
+    private static final String APPROVAL_CONFIRM_HINT =
+        "用户已确认上一轮挂起的写操作。审批凭证（approvedToolCallId）已经审批通道下发至工具上下文，"
+            + "请立即调用对应的写工具并携带该凭证完成执行；若工具返回凭证无效或已过期，请如实告知用户重新发起。";
+
     /** 同步多轮 RAG 问答（approvedToolCallId 为 HITL 确认回传，可空） */
     public String chat(String query, String sessionId, RetrievalContext retrievalContext,
                        @Nullable String approvedToolCallId) {
-        return chatClient.prompt()
+        var request = chatClient.prompt()
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
-            .toolContext(buildToolContext(retrievalContext, approvedToolCallId))
-            .call()
-            .content();
+            .toolContext(buildToolContext(retrievalContext, approvedToolCallId));
+        if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
+            request.system(APPROVAL_CONFIRM_HINT);
+        }
+        return request.call().content();
     }
 
     /** 流式多轮 RAG 问答（approvedToolCallId 为 HITL 确认回传，可空） */
     public Flux<String> chatStream(String query, String sessionId, RetrievalContext retrievalContext,
                                    @Nullable String approvedToolCallId) {
-        return chatClient.prompt()
+        var request = chatClient.prompt()
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
-            .toolContext(buildToolContext(retrievalContext, approvedToolCallId))
-            .stream()
-            .content();
+            .toolContext(buildToolContext(retrievalContext, approvedToolCallId));
+        if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
+            request.system(APPROVAL_CONFIRM_HINT);
+        }
+        return request.stream().content();
     }
 
     /**

@@ -244,7 +244,13 @@ public class AgentChatClientConfig {
 > 读工具不经审批服务不受影响；
 > ⑤ **工具调用记录**经 toolContext 写回 RetrievalContext（与 trace 同款参数链），
 > Controller 流末投影 TOOL_CALL / 同步响应 toolCalls；审批 API
-> `POST /api/v1/tools/approvals/{approvalId}/approve`（身份守卫同 3.9）。
+> `POST /api/v1/tools/approvals/{approvalId}/approve`（身份守卫同 3.9）；
+> ⑥ **确认轮确定化加固（E2E 实测发现）**——工具调用是模型的自主决策，
+> approvedToolCallId 仅经 toolContext 对工具可见、模型上下文不可见——实测确认轮
+> 存在模型不调工具（被检索上下文带偏成普通 RAG 作答）的概率，「凭证无效」等
+> 沙箱分支因此无机会触发（安全不变量不受影响：未 approve 的写操作未执行）。
+> 加固：携带 approvedToolCallId 时 ChatService 注入 system 指令提示模型调用写
+> 工具完成执行（指令不落记忆，system 消息不进记忆窗口）。
 
 ```java
 package com.enterprise.kb.ai.tool;
