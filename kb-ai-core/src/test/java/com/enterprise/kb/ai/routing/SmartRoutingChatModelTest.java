@@ -2,7 +2,9 @@ package com.enterprise.kb.ai.routing;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -67,7 +69,7 @@ class SmartRoutingChatModelTest {
     @Test
     void fallbackServesImmediatelyOnPrimaryFailure() {
         when(primary.call(prompt)).thenThrow(new RuntimeException("connection refused"));
-        when(fallback.call(prompt)).thenReturn(response("备用模型回答"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用模型回答"));
 
         assertThat(textOf(router.call(prompt))).isEqualTo("备用模型回答");
     }
@@ -75,7 +77,7 @@ class SmartRoutingChatModelTest {
     @Test
     void circuitOpensAfterThresholdAndBypassesPrimary() {
         when(primary.call(prompt)).thenThrow(new RuntimeException("boom"));
-        when(fallback.call(prompt)).thenReturn(response("备用"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
 
         // 阈值 3：前三次均尝试主模型（失败即切备用），第三次触发熔断
         router.call(prompt);
@@ -85,13 +87,13 @@ class SmartRoutingChatModelTest {
         router.call(prompt);
 
         verify(primary, times(3)).call(prompt);
-        verify(fallback, times(4)).call(prompt);
+        verify(fallback, times(4)).call(any(Prompt.class));
     }
 
     @Test
     void halfOpenProbeSuccessClosesCircuit() {
         when(primary.call(prompt)).thenThrow(new RuntimeException("boom"));
-        when(fallback.call(prompt)).thenReturn(response("备用"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
         router.call(prompt);
         router.call(prompt);
         router.call(prompt);                       // 熔断 OPEN
@@ -102,13 +104,13 @@ class SmartRoutingChatModelTest {
         assertThat(textOf(router.call(prompt))).isEqualTo("主模型恢复");  // 试探成功
         // 计数清零，后续稳定走主模型
         assertThat(textOf(router.call(prompt))).isEqualTo("主模型恢复");
-        verify(fallback, times(3)).call(prompt);   // 仅熔断期三次
+        verify(fallback, times(3)).call(any(Prompt.class));   // 仅熔断期三次
     }
 
     @Test
     void halfOpenProbeFailureReopensCircuitImmediately() {
         when(primary.call(prompt)).thenThrow(new RuntimeException("boom"));
-        when(fallback.call(prompt)).thenReturn(response("备用"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
         router.call(prompt);
         router.call(prompt);
         router.call(prompt);                       // 熔断 OPEN
@@ -117,7 +119,7 @@ class SmartRoutingChatModelTest {
         router.call(prompt);                       // 应直发备用，主模型零触达
 
         verify(primary, times(4)).call(prompt);    // 3 次熔断前 + 1 次试探
-        verify(fallback, times(5)).call(prompt);
+        verify(fallback, times(5)).call(any(Prompt.class));
     }
 
     @Test
@@ -128,7 +130,7 @@ class SmartRoutingChatModelTest {
         router.call(prompt);                       // 失败 1/3
         router.call(prompt);                       // 成功，计数清零
         when(primary.call(prompt)).thenThrow(new RuntimeException("again"));
-        when(fallback.call(prompt)).thenReturn(response("备用"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
         router.call(prompt);                       // 重新计数 1/3，未熔断
         router.call(prompt);                       // 2/3
 
@@ -152,7 +154,7 @@ class SmartRoutingChatModelTest {
     @Test
     void streamPrimaryErrorFallsBackToFullStream() {
         when(primary.stream(prompt)).thenReturn(Flux.error(new RuntimeException("boom")));
-        when(fallback.stream(prompt)).thenReturn(Flux.just(response("备用完整回答")));
+        when(fallback.stream(any(Prompt.class))).thenReturn(Flux.just(response("备用完整回答")));
 
         List<String> texts = router.stream(prompt).map(SmartRoutingChatModelTest::textOf)
             .collectList().block();
@@ -163,18 +165,18 @@ class SmartRoutingChatModelTest {
     @Test
     void streamCircuitOpenDirectsToFallback() {
         when(primary.call(prompt)).thenThrow(new RuntimeException("boom"));
-        when(fallback.call(prompt)).thenReturn(response("备用"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
         router.call(prompt);
         router.call(prompt);
         router.call(prompt);                       // 熔断 OPEN
-        when(fallback.stream(prompt)).thenReturn(Flux.just(response("备用流")));
+        when(fallback.stream(any(Prompt.class))).thenReturn(Flux.just(response("备用流")));
 
         router.stream(prompt).collectList().block();
 
         verify(primary, never()).stream(any(Prompt.class));
     }
 
-    // ── options 委托 ──
+    // ── options 委托与跨厂商转发屏障 ──
 
     @Test
     void optionsDelegateToPrimary() {
@@ -182,6 +184,25 @@ class SmartRoutingChatModelTest {
         when(primary.getOptions()).thenReturn(options);
 
         assertThat(router.getOptions()).isSameAs(options);
+    }
+
+    @Test
+    void fallbackReceivesPromptRetargetedWithItsOwnOptions() {
+        // E2E 缺陷回归：Prompt 携带主模型 options（跨厂商强转必炸），
+        // 转发备用时必须换入备用模型自身 options
+        ChatOptions primaryOptions = mock(ChatOptions.class);
+        ChatOptions fallbackOptions = mock(ChatOptions.class);
+        when(fallback.getOptions()).thenReturn(fallbackOptions);
+        Prompt promptWithPrimaryOptions =
+            new Prompt(List.of(new UserMessage("什么是增值税发票？")), primaryOptions);
+        when(primary.call(promptWithPrimaryOptions)).thenThrow(new RuntimeException("boom"));
+
+        router.call(promptWithPrimaryOptions);
+
+        ArgumentCaptor<Prompt> captor = ArgumentCaptor.forClass(Prompt.class);
+        verify(fallback).call(captor.capture());
+        assertThat(captor.getValue().getOptions()).isSameAs(fallbackOptions);
+        assertThat(captor.getValue().getInstructions()).hasSize(1);
     }
 
     /** 可推进的测试时钟 */

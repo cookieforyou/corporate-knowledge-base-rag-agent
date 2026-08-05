@@ -299,7 +299,13 @@ ToolCallingAdvisor.builder()
 > （连接/鉴权/配额类故障常态形态）用户无感；极少数已流出部分 token 后中断会内容
 > 重复——已知取舍，优于流中断报错；
 > ⑦ **配置与降级**——`rag.routing.fallback.enabled=false` 时备用 Bean 不装配，路由
-> Bean 透传主模型，单模型形态零行为变化；熔断参数 `rag.routing.circuit.*`。
+> Bean 透传主模型，单模型形态零行为变化；熔断参数 `rag.routing.circuit.*`；
+> ⑧ **跨厂商 options 屏障（E2E 缺陷实证）**——流入路由模型的 Prompt 携带主模型
+> options（ChatClient 装配期经路由模型 getOptions() 注入 DeepSeekChatOptions），
+> 备用 `OpenAiChatModel.createRequest` 对 `prompt.getOptions()` 是
+> `(OpenAiChatOptions)` 强转 + 非空断言（源码核验）——直接转发 ClassCastException。
+> 定稿：转发备用前以 `new Prompt(instructions, fallback.getOptions())` 重建换装；
+> 代价为请求级自定义 options 转发时丢弃（当前链路无此调用方，已知取舍）。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 

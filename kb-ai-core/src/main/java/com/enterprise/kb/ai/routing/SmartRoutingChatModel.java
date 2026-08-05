@@ -71,7 +71,7 @@ public class SmartRoutingChatModel implements ChatModel {
     @Override
     public ChatResponse call(Prompt prompt) {
         if (primaryBypassed()) {
-            return fallback.call(prompt);
+            return fallback.call(retargetToFallback(prompt));
         }
         try {
             ChatResponse response = primary.call(prompt);
@@ -79,21 +79,34 @@ public class SmartRoutingChatModel implements ChatModel {
             return response;
         } catch (RuntimeException e) {
             recordFailure(e);
-            return fallback.call(prompt);
+            return fallback.call(retargetToFallback(prompt));
         }
     }
 
     @Override
     public Flux<ChatResponse> stream(Prompt prompt) {
         if (primaryBypassed()) {
-            return fallback.stream(prompt);
+            return fallback.stream(retargetToFallback(prompt));
         }
         return primary.stream(prompt)
             .doOnNext(ignored -> recordSuccess())
             .onErrorResume(e -> {
                 recordFailure(e);
-                return fallback.stream(prompt);
+                return fallback.stream(retargetToFallback(prompt));
             });
+    }
+
+    /**
+     * 跨厂商转发屏障（2026-08-05 E2E 缺陷实证修正）：流入的 Prompt 携带主模型
+     * options（ChatClient 装配期经路由模型 getOptions() 注入 DeepSeekChatOptions），
+     * 备用 OpenAiChatModel.createRequest 对 prompt.getOptions() 是
+     * {@code (OpenAiChatOptions)} 强转 + 非空断言（源码核验）——直接转发
+     * ClassCastException。重建 Prompt 换入备用模型自身 options（类型正确、
+     * 含 baseUrl/apiKey/model）。代价：请求级自定义 options 转发时丢弃——
+     * 当前链路无此调用方，已知取舍。
+     */
+    private Prompt retargetToFallback(Prompt prompt) {
+        return new Prompt(prompt.getInstructions(), fallback.getOptions());
     }
 
     @Override
