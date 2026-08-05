@@ -57,6 +57,9 @@ rag:
       base-url: ${RAG_ROUTING_FALLBACK_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       api-key: ${RAG_ROUTING_FALLBACK_API_KEY:${DASHSCOPE_API_KEY:}}
       temperature: ${RAG_ROUTING_FALLBACK_TEMPERATURE:0.1}
+      # qwen3.5/3.6/3.7 商业版默认开思考模式（enable_thinking=true）：每次调用先生成
+      # 大量思维链，E2E 实测单调用 20-60s——故障接管场景默认显式关闭
+      enable-thinking: ${RAG_ROUTING_FALLBACK_ENABLE_THINKING:false}
     circuit:
       failure-threshold: ${RAG_ROUTING_FAILURE_THRESHOLD:5}   # 连续失败熔断阈值
       open-seconds: ${RAG_ROUTING_OPEN_SECONDS:30}             # 熔断窗口（秒）

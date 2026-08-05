@@ -282,6 +282,11 @@ ToolCallingAdvisor.builder()
 > 平台级故障也能扛），装配与 kb-eval JudgeModelConfig 同款实证形态（baseUrl/apiKey
 > 经 OpenAiChatOptions 传入，坑位①），凭据经 `rag.routing.fallback.api-key` 默认回落
 > DASHSCOPE_API_KEY（yml 单一回落链，注解层不重复嵌套占位符）；
+> **思考模式显式关闭（E2E 延迟实证）**：qwen3.5/3.6/3.7 商业版默认开思考模式
+> （`enable_thinking=true`，官方文档实证），每次调用先生成大量思维链——E2E 实测
+> 单调用 20-60s，故障接管场景不可接受；以 `extraBody("enable_thinking", false)`
+> 经 createRequest 透传请求体顶层（`rag.routing.fallback.enable-thinking` 配置化，
+> 默认 false）；
 > ③ **拓扑**——`SmartRoutingChatModel implements ChatModel` 包装主模型
 > （deepseek starter 自动装配的 deepSeekChatModel）与 `fallbackChatModel` Bean；
 > `chatClient`/`agentChatClient` 统一改注 `smartRoutingChatModel` 替代主模型直注——
@@ -305,7 +310,12 @@ ToolCallingAdvisor.builder()
 > 备用 `OpenAiChatModel.createRequest` 对 `prompt.getOptions()` 是
 > `(OpenAiChatOptions)` 强转 + 非空断言（源码核验）——直接转发 ClassCastException。
 > 定稿：转发备用前以 `new Prompt(instructions, fallback.getOptions())` 重建换装；
-> 代价为请求级自定义 options 转发时丢弃（当前链路无此调用方，已知取舍）。
+> 代价为请求级自定义 options 转发时丢弃（当前链路无此调用方，已知取舍）；
+> ⑨ **手工装配模型的观测接线（E2E 观测实证）**——备用调用不打
+> ChatModelCompletionObservationHandler 的 Completion 日志：自动装配的
+> deepSeekChatModel 由 starter 注入 ObservationRegistry，手工
+> `OpenAiChatModel.builder()` 不继承——builder 显式
+> `.observationRegistry(...)`（ObjectProvider + NOOP 兜底）后恢复。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 

@@ -1,13 +1,17 @@
 package com.enterprise.kb.ai.config;
 
 import com.enterprise.kb.ai.routing.SmartRoutingChatModel;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+
+import java.util.Map;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.lang.Nullable;
@@ -34,10 +38,12 @@ public class SmartRoutingConfig {
     @Bean
     @ConditionalOnProperty(name = "rag.routing.fallback.enabled", havingValue = "true", matchIfMissing = true)
     public ChatModel fallbackChatModel(
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
             @Value("${rag.routing.fallback.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}") String baseUrl,
             @Value("${rag.routing.fallback.api-key:}") String apiKey,
             @Value("${rag.routing.fallback.model:qwen3.7-plus}") String model,
-            @Value("${rag.routing.fallback.temperature:0.1}") Double temperature) {
+            @Value("${rag.routing.fallback.temperature:0.1}") Double temperature,
+            @Value("${rag.routing.fallback.enable-thinking:false}") boolean enableThinking) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException(
                 "DASHSCOPE_API_KEY 未配置——备用模型不可用。关闭路由请设 rag.routing.fallback.enabled=false");
@@ -48,7 +54,15 @@ public class SmartRoutingConfig {
                 .apiKey(apiKey)
                 .model(model)
                 .temperature(temperature)
+                // qwen3.5/3.6/3.7 商业版默认开思考模式（enable_thinking=true，官方文档实证）：
+                // 每次调用先生成大量思维链——E2E 实测单调用 20-60s，故障接管场景不可接受。
+                // 默认显式关闭；extraBody 经 createRequest 透传至请求体顶层（源码核验）
+                .extraBody(Map.of("enable_thinking", enableThinking))
                 .build())
+            // 手工装配的 ChatModel 必须显式挂 ObservationRegistry，否则模型调用无观测、
+            // ChatModelCompletionObservationHandler 不打 Completion 日志（自动装配的
+            // deepSeekChatModel 由 starter 注入，手工 builder 不继承——E2E 观测实证）
+            .observationRegistry(observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP))
             .build();
     }
 
