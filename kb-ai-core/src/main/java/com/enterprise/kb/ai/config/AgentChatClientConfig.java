@@ -6,12 +6,15 @@ import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
+import com.enterprise.kb.ai.tool.EnterpriseMockTools;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,6 +79,25 @@ public class AgentChatClientConfig {
      * 决定，此处列表顺序不敏感。预算/限流先于护栏与记忆：被拒请求不消耗
      * 下游任何资源（v2 链序重排原则）。
      */
+    /**
+     * 工具调用 Advisor（3.3，设计 11.2 链序表 order 1000 位）。
+     *
+     * <p><b>自建而非自动注册（源码级核验定稿）</b>：2.0 GA 的 ChatClient 检测到
+     * 工具回调会自动挂 ToolCallingAdvisor，但其 DEFAULT_ORDER =
+     * HIGHEST_PRECEDENCE+300（链最外层）——工具循环每轮会重新穿越全部内层
+     * Advisor（限流/预算配额按迭代消耗、记忆/检索重复执行）。本表设计位 1000
+     * （最内层）：工具循环只包裹模型调用，护栏/记忆/检索每请求仅执行一次。
+     * 自建 ToolAdvisor 实例后自动注册让位（autoRegisterToolCallingAdvisor
+     * 检测到已有 ToolAdvisor 即跳过，源码核验）。
+     */
+    @Bean
+    public ToolCallingAdvisor agentToolCallingAdvisor(ToolCallingManager toolCallingManager) {
+        return ToolCallingAdvisor.builder()
+            .toolCallingManager(toolCallingManager)
+            .advisorOrder(1000)
+            .build();
+    }
+
     @Bean
     public ChatClient agentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
                                       ChatMemory agentChatMemory,
@@ -84,7 +106,9 @@ public class AgentChatClientConfig {
                                       OutputGuardrailAdvisor outputGuardrailAdvisor,
                                       InputSanitizeAdvisor inputSanitizeAdvisor,
                                       RetrievalTraceAdvisor retrievalTraceAdvisor,
-                                      RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
+                                      RetrievalAugmentationAdvisor retrievalAugmentationAdvisor,
+                                      ToolCallingAdvisor agentToolCallingAdvisor,
+                                      EnterpriseMockTools enterpriseMockTools) {
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(
@@ -94,7 +118,9 @@ public class AgentChatClientConfig {
                 inputSanitizeAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
                 retrievalTraceAdvisor,
-                retrievalAugmentationAdvisor)
+                retrievalAugmentationAdvisor,
+                agentToolCallingAdvisor)
+            .defaultTools(enterpriseMockTools)
             .build();
     }
 }
