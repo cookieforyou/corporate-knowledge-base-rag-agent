@@ -126,7 +126,12 @@ public class SmartRoutingChatModel implements ChatModel {
 
     private void recordFailure(Throwable cause) {
         int failures = consecutiveFailures.incrementAndGet();
-        if (failures >= failureThreshold) {
+        if (failures > failureThreshold) {
+            // 超过阈值只可能来自 HALF_OPEN 试探失败（OPEN 态主模型零触达）
+            openUntilEpochMs.set(clock.millis() + openSeconds * 1000);
+            log.warn("HALF_OPEN 试探失败（主模型累计失败 {} 次），熔断重开 OPEN {}s。最近原因: {}",
+                failures, openSeconds, cause.getMessage());
+        } else if (failures == failureThreshold) {
             openUntilEpochMs.set(clock.millis() + openSeconds * 1000);
             log.warn("主模型连续失败 {} 次（阈值 {}），熔断 OPEN {}s，期间请求直发备用模型。最近原因: {}",
                 failures, failureThreshold, openSeconds, cause.getMessage());
