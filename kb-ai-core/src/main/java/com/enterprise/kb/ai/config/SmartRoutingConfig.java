@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.lang.Nullable;
 
 /**
@@ -54,8 +55,14 @@ public class SmartRoutingConfig {
     /**
      * 路由模型：主 + 备熔断切换，替代各 ChatClient 对 deepSeekChatModel 的直注。
      * 备用未装配（功能关闭）时透传主模型，单模型形态零行为变化。
+     *
+     * <p><b>@Primary 必要性（2026-08-05 启动失败实证）</b>：引入多 ChatModel Bean 后，
+     * Spring AI {@code ChatClientAutoConfiguration#chatClientBuilder} 按类型裸注入
+     * 单一 ChatModel（源码核验），三 Bean 歧义致启动失败——路由模型即应用级模型，
+     * 标记 @Primary 统一消解（显式 @Qualifier 注入点不受影响）。
      */
     @Bean
+    @Primary
     public ChatModel smartRoutingChatModel(
             @Qualifier("deepSeekChatModel") ChatModel primary,
             @Nullable @Qualifier("fallbackChatModel") ChatModel fallback,

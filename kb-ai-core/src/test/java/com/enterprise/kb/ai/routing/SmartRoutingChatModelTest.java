@@ -179,10 +179,8 @@ class SmartRoutingChatModelTest {
     @Test
     void optionsDelegateToPrimary() {
         ChatOptions options = mock(ChatOptions.class);
-        when(primary.getDefaultOptions()).thenReturn(options);
         when(primary.getOptions()).thenReturn(options);
 
-        assertThat(router.getDefaultOptions()).isSameAs(options);
         assertThat(router.getOptions()).isSameAs(options);
     }
 

@@ -97,11 +97,6 @@ public class SmartRoutingChatModel implements ChatModel {
     }
 
     @Override
-    public ChatOptions getDefaultOptions() {
-        return primary.getDefaultOptions();
-    }
-
-    @Override
     public ChatOptions getOptions() {
         return primary.getOptions();
     }

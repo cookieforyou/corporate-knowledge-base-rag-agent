@@ -285,7 +285,10 @@ ToolCallingAdvisor.builder()
 > ③ **拓扑**——`SmartRoutingChatModel implements ChatModel` 包装主模型
 > （deepseek starter 自动装配的 deepSeekChatModel）与 `fallbackChatModel` Bean；
 > `chatClient`/`agentChatClient` 统一改注 `smartRoutingChatModel` 替代主模型直注——
-> 生产链与评估链同时获得容灾，kb-eval 度量语义常态不变；
+> 生产链与评估链同时获得容灾，kb-eval 度量语义常态不变；**@Primary 必要性
+> （启动失败实证）**：Spring AI `ChatClientAutoConfiguration#chatClientBuilder`
+> 按类型裸注入单一 ChatModel（源码核验），多 ChatModel Bean 歧义致启动失败——
+> 路由模型标记 @Primary 统一消解（显式 @Qualifier 注入点不受影响）；
 > ④ **熔断器三态（无锁原子）**——CLOSED（连续失败 < 阈值）→ OPEN（≥ 阈值且窗口内，
 > 请求直发备用、主模型零触达）→ HALF_OPEN（窗口结束后首请求试探主模型：成功闭合
 > 清零、失败立即重开窗口续期）；成功即清零失败计数；
