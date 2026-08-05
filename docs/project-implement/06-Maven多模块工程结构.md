@@ -37,15 +37,21 @@ kb-rag-agent/                           # 父工程
 │       ├── writer/                     # EsIndexWriter（ES 双写）；向量写入经 VectorStore
 │       ├── pipeline/                   # EtlProgress / EtlStage
 │       └── service/                    # DocumentEtlService
-├── kb-ai-core/                         # AI 核心模块
+├── kb-ai-core/                         # AI 核心模块（纯 RAG 核心，3.19 起不含工具链）
 │   └── src/main/java/com/enterprise/kb/ai/
-│       ├── config/                     # ChatClient / RetrievalConfig 配置
-│       ├── advisor/                    # 10 个 Advisor（含 RetrievalTraceAdvisor）
-│       ├── chat/                       # DeepSeekChatModel / SmartRoutingChatModel
-│       ├── tool/                       # @Tool 工具注册
+│       ├── config/                     # ragAgentChatClient / RetrievalConfig / SmartRoutingConfig
+│       ├── advisor/                    # 护栏/配额/溯源 Advisor
+│       ├── routing/                    # SmartRoutingChatModel（主备熔断）
+│       ├── memory/                     # Redis 记忆装配 + FaultTolerantChatMemory
 │       ├── prompt/                     # PromptTemplateManager
 │       ├── retriever/                  # HybridDocumentRetriever, ElasticsearchDocumentRetriever, RrfFusion, RerankDocumentPostProcessor
+│       ├── service/                    # RagChatService（纯检索问答）
 │       └── metrics/                    # AiBusinessMetrics
+├── kb-ai-agent/                        # AI Agent 事务模块（3.19 拆出，Agent 事务域容器）
+│   └── src/main/java/com/enterprise/kb/ai/agent/
+│       ├── config/                     # toolAgentChatClient + ToolCallingAdvisor(1000)
+│       ├── tool/                       # @Tool 工具层 + HITL 审批账本（EnterpriseMockTools / ToolApprovalService）
+│       └── service/                    # ToolChatService（工具事务问答 + toolContext 通道）
 ├── kb-api/                             # 对外 API 模块
 │   └── src/main/java/com/enterprise/kb/api/
 │       ├── controller/                 # REST Controller
@@ -80,8 +86,10 @@ kb-infrastructure     ← 依赖 kb-domain（kb-commons 传递可得）
     ↑          ↑
 kb-etl     kb-ai-core ← 依赖 kb-infrastructure（kb-domain + kb-commons 传递可得）
     ↑          ↑  ↑
-    └─────┬────┘  ├── kb-admin
-          ↑       ├── kb-eval
-          │       └── ← 依赖 kb-ai-core（kb-domain + kb-infrastructure 传递可得）
-       kb-api         ← 依赖 kb-etl + kb-ai-core
+    │          │  ├── kb-admin
+    │          │  ├── kb-eval      ← 依赖 kb-ai-core（kb-domain + kb-infrastructure 传递可得）
+    │          │  └── kb-ai-agent  ← 依赖 kb-ai-core（3.19：工具链/HITL/MCP 事务域）
+    └─────┬────┘        ↑
+          ↑             │
+       kb-api         ← 依赖 kb-etl + kb-ai-core + kb-ai-agent
 ```

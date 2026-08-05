@@ -1,8 +1,9 @@
 package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
+import com.enterprise.kb.ai.agent.service.ToolChatService;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
-import com.enterprise.kb.ai.service.ChatService;
+import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ErrorEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
@@ -51,35 +52,49 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgentController {
 
-    private final ChatService chatService;
+    /** 问答模式（11.5 双链路）：rag=知识库检索问答，tool=工具事务 */
+    private static final String MODE_RAG = "rag";
+    private static final String MODE_TOOL = "tool";
+
+    private final RagChatService ragChatService;
+    private final ToolChatService toolChatService;
     private final ChatSessionService chatSessionService;
     private final JwtUtils jwtUtils;
 
     /**
-     * 同步 RAG 问答（多轮：请求带 sessionId，响应回传）
+     * 同步问答（多轮：请求带 sessionId，响应回传）
      *
      * <pre>
      * POST /api/v1/chat
-     * { "query": "什么是增值税发票？", "sessionId": "可选", "approvedToolCallId": "可选（HITL 确认回传）" }
+     * { "query": "...", "sessionId": "可选", "mode": "rag|tool（可选，缺省 rag）",
+     *   "approvedToolCallId": "可选（tool 模式 HITL 确认回传）" }
      * → { "code": 200, "data": { "answer": "...", "sessionId": "...", "toolCalls": [...] } }
      * </pre>
      *
-     * <p>toolCalls 为本次请求的工具调用记录（3.4）：写工具挂起时含
-     * status=PENDING_APPROVAL 与 approvalId，前端确认后携带 approvedToolCallId
-     * 发起二次请求触发真正执行。
+     * <p><b>双链路分流（11.5）</b>：mode=rag 走 ragAgentChatClient（纯检索、零工具，
+     * toolCalls 恒空）；mode=tool 走 toolAgentChatClient（纯工具事务、零检索）。
+     * toolCalls 为工具调用记录（3.4）：写工具挂起时含 status=PENDING_APPROVAL 与
+     * approvalId，前端确认后携带 approvedToolCallId 发起二次请求触发真正执行。
      */
     @PostMapping("/chat")
     public ApiResponse<Map<String, Object>> chat(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         String sessionId = resolveSessionId(body);
+        String mode = resolveMode(body);
         String approvedToolCallId = body.get("approvedToolCallId");
         // 日志/归档走脱敏形态（Advisor 链只保护模型上下文与 Redis 记忆，
         // PG 归档与访问日志须在入口同规则脱敏）；注入判定仍由 Advisor 链对原文执行
         String safeQuery = InputSanitizeAdvisor.sanitize(query);
-        log.info("用户 [{}] 发起问答: sessionId={}, query={}",
-            jwtUtils.getCurrentUsername(), sessionId, safeQuery);
+        log.info("用户 [{}] 发起问答: mode={}, sessionId={}, query={}",
+            jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
-        String answer = chatService.chat(query, sessionId, ctx, approvedToolCallId);
+        String answer;
+        if (MODE_TOOL.equals(mode)) {
+            answer = toolChatService.chatTool(query, sessionId, ctx, approvedToolCallId);
+        } else {
+            warnIfStrayApprovalId(approvedToolCallId);
+            answer = ragChatService.chatRag(query, sessionId, ctx);
+        }
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), safeQuery, answer);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", answer);
@@ -95,27 +110,41 @@ public class AgentController {
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         String sessionId = resolveSessionId(body);
+        String mode = resolveMode(body);
         String approvedToolCallId = body.get("approvedToolCallId");
         // 日志/归档走脱敏形态（同同步路径）；注入判定仍由 Advisor 链对原文执行
         String safeQuery = InputSanitizeAdvisor.sanitize(query);
-        log.info("用户 [{}] 发起流式问答: sessionId={}, query={}",
-            jwtUtils.getCurrentUsername(), sessionId, safeQuery);
+        log.info("用户 [{}] 发起流式问答: mode={}, sessionId={}, query={}",
+            jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例
         RetrievalContext traceCtx = newRetrievalContext();
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
 
-        return chatService.chatStream(query, sessionId, traceCtx, approvedToolCallId)
+        boolean toolMode = MODE_TOOL.equals(mode);
+        if (!toolMode) {
+            warnIfStrayApprovalId(approvedToolCallId);
+        }
+        Flux<String> tokens = toolMode
+            ? toolChatService.chatStreamTool(query, sessionId, traceCtx, approvedToolCallId)
+            : ragChatService.chatStreamRag(query, sessionId, traceCtx);
+
+        Flux<ServerSentEvent<Object>> sseFlux = tokens
             .filter(token -> token != null && !token.isEmpty())
             .doOnNext(answerBuffer::append)
-            .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
-            // TOOL_CALL（命名事件，3.4）：有工具调用记录才推送，先于 TRACE
-            .concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
+            .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build());
+        // SSE 事件按链路精简（11.5）：tool 链只可能产生 TOOL_CALL（无溯源数据不推空 TRACE）；
+        // rag 链只推 TRACE（零工具不产生 TOOL_CALL）
+        if (toolMode) {
+            sseFlux = sseFlux.concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
                 ? Flux.empty()
                 : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx))
-                    .event("TOOL_CALL").build())))
-            .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx))
-                .event("TRACE").build()))
+                    .event("TOOL_CALL").build())));
+        } else {
+            sseFlux = sseFlux.concatWith(Mono.fromSupplier(() ->
+                ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event("TRACE").build()));
+        }
+        return sseFlux
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
@@ -138,6 +167,27 @@ public class AgentController {
     private static String resolveSessionId(Map<String, String> body) {
         String sessionId = body.get("sessionId");
         return sessionId != null && !sessionId.isBlank() ? sessionId : UUID.randomUUID().toString();
+    }
+
+    /**
+     * 问答模式解析（11.5 双链路）：缺省回落 {@code rag.agent.default-mode}（默认
+     * rag 兼容现状）；大小写归一；非法值 400 INVALID_MODE（协议层错误在请求
+     * 处理期拒绝，不进 SSE 流）。自动意图路由预留 Phase 5.4。
+     */
+    private String resolveMode(Map<String, String> body) {
+        String mode = body.get("mode");
+        mode = mode == null || mode.isBlank() ? MODE_RAG : mode.trim().toLowerCase();
+        if (!MODE_RAG.equals(mode) && !MODE_TOOL.equals(mode)) {
+            throw new BusinessException("INVALID_MODE", "不支持的问答模式: " + mode + "（仅支持 rag|tool）");
+        }
+        return mode;
+    }
+
+    /** rag 模式收到 HITL 凭证：rag 链无工具消费方，忽略并告警（调用方协议误用提示） */
+    private static void warnIfStrayApprovalId(String approvedToolCallId) {
+        if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
+            log.warn("rag 模式收到 approvedToolCallId，已忽略（HITL 凭证仅 tool 模式有效）");
+        }
     }
 
     // ── 检索上下文与溯源投影 ──

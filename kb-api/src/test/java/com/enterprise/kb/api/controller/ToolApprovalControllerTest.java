@@ -1,6 +1,6 @@
 package com.enterprise.kb.api.controller;
 
-import com.enterprise.kb.ai.tool.ToolApprovalService;
+import com.enterprise.kb.ai.agent.tool.ToolApprovalService;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;

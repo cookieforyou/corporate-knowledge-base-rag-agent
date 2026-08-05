@@ -26,7 +26,7 @@ import java.time.Duration;
  * <p><b>redisChatMemoryRepository 显式装配（2026-08-05 E2E 缺陷修复）</b>：
  * RedisChatMemoryAutoConfiguration#redisChatMemory 的 @ConditionalOnMissingBean
  * 同时检查 {RedisChatMemoryRepository, <b>ChatMemory</b>, ChatMemoryRepository}
- * 三类型——AgentChatClientConfig 的用户定义 agentChatMemory（ChatMemory 型）
+ * 三类型——RagAgentChatClientConfig 的用户定义 agentChatMemory（ChatMemory 型）
  * 先于自动配置注册，条件命中 → Redis 仓储 Bean 静默让位 →
  * ChatMemoryAutoConfiguration 回退 <b>InMemoryChatMemoryRepository</b>。
  * 症状极具迷惑性：多轮对话表面连贯（进程内记忆在工作），Redis 却无索引无键、

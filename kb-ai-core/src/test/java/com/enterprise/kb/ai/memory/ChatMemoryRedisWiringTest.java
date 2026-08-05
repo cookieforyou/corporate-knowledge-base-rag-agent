@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 会话记忆装配回归测试（3.1 E2E 缺陷防回归）
  *
- * <p>复刻生产拓扑：用户定义 ChatMemory Bean（AgentChatClientConfig 形态）与
+ * <p>复刻生产拓扑：用户定义 ChatMemory Bean（RagAgentChatClientConfig 形态）与
  * spring-ai 记忆自动配置共存。缺陷形态（2026-08-05 E2E 实锤）：
  * RedisChatMemoryAutoConfiguration#redisChatMemory 的 @ConditionalOnMissingBean
  * 检查 {RedisChatMemoryRepository, ChatMemory, ChatMemoryRepository}，用户
@@ -50,7 +50,7 @@ class ChatMemoryRedisWiringTest {
         });
     }
 
-    /** 与 AgentChatClientConfig 同构的用户侧记忆装配（测试内复刻，避免拉起检索链路 Bean） */
+    /** 与 RagAgentChatClientConfig 同构的用户侧记忆装配（测试内复刻，避免拉起检索链路 Bean） */
     @Configuration
     static class AgentMemoryTestConfig {
 

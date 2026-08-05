@@ -17,6 +17,10 @@
             <groupId>com.enterprise</groupId>
             <artifactId>kb-ai-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.enterprise</groupId>
+            <artifactId>kb-ai-agent</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

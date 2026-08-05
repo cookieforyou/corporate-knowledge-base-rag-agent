@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent/>
+    <artifactId>kb-ai-agent</artifactId>
+    <name>kb-ai-agent</name>
+    <description>AI Agent 事务模块：工具链 ChatClient、@Tool 工具层、HITL 审批（3.19 双链路拆分自 kb-ai-core；未来真实 OA/ERP 工具客户端、MCP 宿主 5.11、Multi-Agent 5.3 落此）</description>
+
+    <dependencies>
+        <!-- 复用 kb-ai-core：护栏/配额/记忆 Advisor、RetrievalContext、smartRoutingChatModel -->
+        <dependency>
+            <groupId>com.enterprise</groupId>
+            <artifactId>kb-ai-core</artifactId>
+        </dependency>
+    </dependencies>
+</project>

@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 10/18）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.6 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 11 项）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）、**3.19 RAG/Tool 双链路拆分 + kb-ai-agent 模块独立**（用户发起的架构改进）；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.9 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -26,7 +26,8 @@ kb-rag-agent/
 ├── kb-domain/         # 8 JPA Entity + 8 Repository + 6 枚举 + schema.sql（8 业务表 + kb_embeddings）
 ├── kb-infrastructure/ # vectorstore/（pgvector+Milvus 双后端条件装配）、MinIO、elasticsearch/（kb_chunks 索引模型 + 幂等初始化 EsIndexInitializer）、parsing/（DocMind 大模型版 + qwen3.5-ocr 解析客户端）
 ├── kb-etl/            # 文档 ETL：MinIO → SmartParsingRouter（NATIVE/DEEP/OCR 三路由）→ HtmlProtectingSplitter（表格/图片保护）→ PG 落库 → VectorStore 向量化（10 条/批）→ ES 双写；ETL 进度 Redis 双通道（@Async 虚拟线程）
-├── kb-ai-core/        # 模块化 RAG：retriever/（HybridDocumentRetriever 双路并行 + ElasticsearchDocumentRetriever + RrfFusion + RerankDocumentPostProcessor）、advisor/（RetrievalTraceAdvisor）、config/（RetrievalAugmentationAdvisor 组装）、ChatService
+├── kb-ai-core/        # 模块化 RAG 核心（3.19 起纯 RAG，不含工具链）：retriever/（HybridDocumentRetriever 双路并行 + ElasticsearchDocumentRetriever + RrfFusion + RerankDocumentPostProcessor）、advisor/（护栏/配额/溯源）、routing/（SmartRoutingChatModel 主备熔断）、memory/、ragAgentChatClient + RagChatService
+├── kb-ai-agent/       # AI Agent 事务模块（3.19 拆出，Agent 事务域容器）：tool/（EnterpriseMockTools + ToolApprovalService HITL 审批账本）、config/（toolAgentChatClient + ToolCallingAdvisor(1000)）、service/（ToolChatService + toolContext 通道）；未来真实 OA/ERP 工具客户端 / MCP（5.11）/ Multi-Agent（5.3）落此
 ├── kb-api/            # REST Controller + SSE 命名事件 + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（空模块，待开发）
 ├── kb-eval/           # AI 评估：EvalRunner + 双探针（vector/hybrid A/B）+ Golden Dataset（12 条 DDD 语料 + 15 条负向）+ CI 门禁
@@ -34,7 +35,7 @@ kb-rag-agent/
 └── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
 ```
 
-模块依赖：kb-commons ← kb-domain ← kb-infrastructure ← kb-etl / kb-ai-core ← kb-api；kb-admin、kb-eval 依赖 kb-ai-core。
+模块依赖：kb-commons ← kb-domain ← kb-infrastructure ← kb-etl / kb-ai-core ← kb-api；kb-ai-agent 依赖 kb-ai-core，kb-api 依赖 kb-ai-core + kb-ai-agent；kb-admin、kb-eval 依赖 kb-ai-core。
 
 ## 运行环境
 
@@ -45,7 +46,9 @@ kb-rag-agent/
 
 ## 当前实现要点
 
-**工具链与 HITL（3.3/3.4，2026-08-05）**：`EnterpriseMockTools` Mock 工具层（契约对齐真实 OA/ERP，后续逐个替换）：读工具 queryEmployee/queryLeaveBalance 自动执行 + 写工具 submitLeaveRequest HITL 三段式（首调挂起返回 PENDING_APPROVAL+approvalId → `POST /api/v1/tools/approvals/{id}/approve` 确认 → 二次对话请求体 `approvedToolCallId` 校验消费后执行 EXECUTED）；`ToolApprovalService` Redis 账本（`rag:tool-approval:{id}` RMap<String,String>，TTL 默认 10 分钟 + 一次性消费 + 创建绑定 tenant/user、approve/consume 校验防重放越权；Redis 故障 fail-closed 抛 APPROVAL_STORE_UNAVAILABLE 拒写）；确认态经 `.toolContext()` 通道（与 advisor 参数独立，ChatService 组装，ChatClient 断言无 null 值）；工具调用记录写回 RetrievalContext 投影 SSE TOOL_CALL 命名事件（流末先于 TRACE）+ 同步响应 toolCalls 字段；**ToolCallingAdvisor 自建 advisorOrder(1000)**——自动注册 DEFAULT_ORDER 为链最外层致工具循环每轮穿越全部内层 Advisor（配额按迭代消耗/记忆检索重复），源码实证后定稿设计链序位；仅挂 agentChatClient（kb-eval 无工具基线不变）
+**双链路架构（3.19，2026-08-05，用户发起）**：单链揉合三痛点实证（HITL 确认轮被检索上下文带偏/工具请求白耗检索+重排/RAG 请求平白带工具 schema）后拆分——`ragAgentChatClient`（kb-ai-core，链 30/100/110/300/400/450/500，零工具）+ `toolAgentChatClient`（kb-ai-agent，链 30/100/110/300/400/1000 + defaultTools，零检索）；共享 smartRoutingChatModel / agentChatMemory（同 sessionId 跨链历史互通）/ 护栏配额 Advisor / RetrievalContext（配额与审批的身份源，两链都传）；**请求体 `mode: rag|tool` 显式分流**（缺省 rag 兼容现状，非法值 400 INVALID_MODE，自动意图路由留 5.4）；SSE 按链精简（rag 只推 TRACE、tool 只推 TOOL_CALL）；toolContext 仅 ToolChatService 组装（RagChatService 签名物理消除 HITL 凭证）；kb-eval 零影响（注入独立 chatClient）；**kb-ai-agent 为 Agent 事务域容器**（未来真实 OA/ERP 客户端/MCP 5.11/Multi-Agent 5.3 落此）
+
+**工具链与 HITL（3.3/3.4，2026-08-05，组件位于 kb-ai-agent）**：`EnterpriseMockTools` Mock 工具层（契约对齐真实 OA/ERP，后续逐个替换）：读工具 queryEmployee/queryLeaveBalance 自动执行 + 写工具 submitLeaveRequest HITL 三段式（首调挂起返回 PENDING_APPROVAL+approvalId → `POST /api/v1/tools/approvals/{id}/approve` 确认 → 二次对话请求体 `approvedToolCallId` 校验消费后执行 EXECUTED）；`ToolApprovalService` Redis 账本（`rag:tool-approval:{id}` RMap<String,String>，TTL 默认 10 分钟 + 一次性消费 + 创建绑定 tenant/user、approve/consume 校验防重放越权；Redis 故障 fail-closed 抛 APPROVAL_STORE_UNAVAILABLE 拒写）；确认态经 `.toolContext()` 通道（与 advisor 参数独立，ChatClient 断言无 null 值）；工具调用记录写回 RetrievalContext 投影 SSE TOOL_CALL 命名事件 + 同步响应 toolCalls 字段；**ToolCallingAdvisor 自建 advisorOrder(1000)**——自动注册 DEFAULT_ORDER 为链最外层致工具循环每轮穿越全部内层 Advisor（配额按迭代消耗/记忆检索重复），源码实证后定稿设计链序位；确认轮携带 approvedToolCallId 时注入 system 指令令写工具复调确定化（工具调用为模型自主决策，凭证仅 toolContext 可见）
 
 **多模型路由（3.2，2026-08-05，实用形态）**：`SmartRoutingChatModel`（implements ChatModel）包装主模型（deepSeekChatModel）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼 OpenAI 兼容端点，跨厂商容灾，JudgeModelConfig 同款装配，凭据经 `rag.routing.fallback.api-key` 回落 DASHSCOPE_API_KEY）；熔断三态无锁原子：连续失败 `rag.routing.circuit.failure-threshold`(5) 次 → OPEN `open-seconds`(30s) 直发备用 → 窗口后 HALF_OPEN 试探（成功闭合/失败重开）；失败即切不丢请求（当次转发备用）；流式错误 onErrorResume 切备用流整段重发（部分 token 后中断重复为已知取舍）；chatClient/agentChatClient 统一注入 `smartRoutingChatModel` 替代主模型直注（kb-eval 链同获容灾）；`rag.routing.fallback.enabled=false` 单模型透传降级；复杂度三级路由移交 Phase 5.4
 
@@ -81,7 +84,8 @@ kb-rag-agent/
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，`VectorStoreConfig` 按 `kb.vector-store.provider` 条件创建 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
 - **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*`（REDIS_HOST/PORT/PASSWORD/DB 环境变量）被两处消费，**不可移除**——① Redisson V4 自动配置（RedissonConnectionFactory + StringRedisTemplate → ETL 进度双通道）；② 会话记忆 Jedis 客户端（ChatMemoryRedisClientConfig 覆盖 Bean，spring-ai 自动配置不支持密码）
-- 测试：kb-ai-core 94 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 14 单测（kb-admin 尚无测试类）
+- **多 ChatClient Bean 纪律（3.19 起）**：容器内已有 chatClient（评估）/ ragAgentChatClient / toolAgentChatClient 三 Bean，所有注入点必须显式 `@Qualifier`（裸类型注入歧义致启动失败，3.2 @Primary 教训）；自建 ChatClient 链新增 Advisor 时核对 order 与链序表（11.2）一致
+- 测试：kb-ai-core 75 + kb-ai-agent 23 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 20 单测（kb-admin 尚无测试类）
 
 ## 注意事项
 
@@ -101,4 +105,6 @@ kb-rag-agent/
 2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行的完成情况 + 顶部日期状态行
 3. **CLAUDE.md 同步**：「当前实现要点」/「注意事项」中受影响的架构事实
 4. **git 提交**：按改动功能点提交（一功能一提交，代码 + 文档同批或紧随其后），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
+5. **落码约束**：写代码前先进行源码级核验（框架 API 形态、契约、默认行为），先核验再落码，避免凭感觉瞎写
+6. **通盘思考优先**：按项目文档推进时不机械照搬——实现每个功能点前先审视设计合理性与架构可维护性，有更优方案（如 3.19 双链路拆分否掉了 3.14 单链全挂形态）先提出与用户讨论定案，再实现并回写设计文档
 5. **落码约束**：写代码前先进行源码级核验（如遇不确定或知识盲区请 Web 搜索以最新官方文档为准），先核验再落码，避免凭感觉瞎写

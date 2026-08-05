@@ -7,6 +7,8 @@
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
 > **v2.3 修订（2026-08-04，3.1 实现期）**：① Redis 会话记忆仓储修正为 2.0 GA Jedis 形态（`RedisChatMemoryConfig`，starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`）——v2 草图的 RedisTemplate 构造器不存在；② Agent 对话链定稿为独立 `agentChatClient` Bean（记忆 Advisor 缺失 CONVERSATION_ID 为硬断言，不可挂评估共享 Bean）；③ 新增 FaultTolerantChatMemory 容错装饰、kb_session/kb_message PG 归档旁路、sessionId 会话协议；④ 2026-08-05 E2E 追加：自动配置条件让位陷阱（用户 ChatMemory Bean 致 Redis 仓储静默回退 InMemory）——RedisChatMemoryRepository 改为显式装配，详见 11.2 v2.3 注 ⑤。
+>
+> **v2.9 双链路拆分定稿（2026-08-05，任务 3.19）**：新增 §11.5——RAG 问答与 Tool 问答双链路拆分 + kb-ai-agent 模块独立（动因三痛点实证、模块/Bean 形态、mode 路由协议、SSE/toolContext 矩阵、与 §11.4 5.4 锚点正交关系、后续演进）；§11.2 单链装配草图标记为历史形态。
 
 ---
 
@@ -213,6 +215,8 @@ public class AgentChatClientConfig {
 > **v2 注（会话 ID）**：多轮对话的会话标识通过 advisor 参数传递，键为 `ChatMemory.CONVERSATION_ID`（值 `"chat_memory_conversation_id"`，经核验 2.0 未变）：`.advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))`。
 >
 > **v2.3 会话协议**：`/chat`、`/chat/stream` 请求体可选 `sessionId`——前端生成并复用即多轮；缺省后端生成一次性 ID（兼容 Phase 1 单轮）。同步响应回传 `sessionId`；流式协议不变（前端自备）。**缺失会话 ID 为硬失败**（Assert 断言），Controller 层必须保证非空。
+>
+> **v2.9 装配形态更新（2026-08-05，任务 3.19）**：上方单 `agentChatClient` 草图已被**双链路拆分**取代——`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索），请求体 `mode: rag|tool` 显式分流；下方草图代码块为历史形态，定稿见 **§11.5**。
 
 ### 11.2.1 @Tool 工具调用与 Human-in-the-Loop（v2 重写）
 
@@ -477,3 +481,71 @@ record DoneEvent(String sessionId) implements AgentStreamEvent {}
 - **度量**：分流比例与两路的回答质量分别进入 kb-eval 统计（第十六章），防止"为省 token 而过度跳过检索"。
 
 > 2026 行业共识：60-70% 的简单查询不需要完整 RAG，但无路由的固定管线同样过时——自适应路由是两者的中道，故不提前到 Phase 2（缺乏评估基线时分流质量不可控，先建 2.16 度量再谈路由）。
+
+---
+
+## 11.5 双链路拆分：RAG 问答与 Tool 问答分离（v2.9 新增，任务 3.19）
+
+> **v2.9 实现期定稿（2026-08-05，用户拍板）**：原 `agentChatClient` 单链揉合 RAG
+> 检索与工具调用（8 Advisor + defaultTools），实证三痛点：① HITL 确认轮模型被检索
+> 上下文带偏不调工具（3.4 E2E 实例，靠 system 指令加固才确定化）；② 工具请求白耗
+> 混合检索 + qwen3-rerank API（延迟与成本）；③ RAG 请求平白携带工具 schema 干扰
+> 模型决策。**定案：拆两条链 + 拆 kb-ai-agent 独立模块**（先理清后不乱，不等工具膨胀）。
+
+### 11.5.1 模块与 Bean 形态
+
+**kb-ai-agent**（第 9 模块，Agent 事务域容器）依赖 kb-ai-core；kb-api 依赖两者；
+kb-eval 只依赖 kb-ai-core 不受影响。
+
+| Bean | 模块 | Advisor 链（order） | tools | system 导向 |
+|---|---|---|---|---|
+| `ragAgentChatClient` | kb-ai-core | TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→Trace(450)→Retrieval(500) | 无 | 基于知识库内容回答 |
+| `toolAgentChatClient` | kb-ai-agent | TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
+
+**共享基座（均留 kb-ai-core）**：smartRoutingChatModel（主备容灾两链同享）、
+agentChatMemory（同 sessionId 跨链历史互通——历史进 prompt 不进检索 query）、
+护栏/配额 Advisor（安全与成本管控不分流）、RetrievalContext（双重角色：检索链
+租户过滤/溯源载体 + 配额护栏与工具审批的身份源，**两链都必须创建传递**）。
+
+**物理隔离收益**：rag 链零工具 schema、tool 链零检索消耗；toolContext 通道仅在
+ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可能组合从
+类型系统层面消除。
+
+### 11.5.2 mode 路由协议
+
+请求体新增 `mode` 字段（`rag`|`tool`）：**缺省 rag（兼容现状）**；大小写归一；
+非法值 400 `INVALID_MODE`（协议层错误在请求处理期拒绝，不进 SSE 流）。
+（实现期简化：草图的 `rag.agent.default-mode` 配置项未保留——缺省值硬编码，
+避免无消费场景的配置面膨胀。）**自动意图路由不实现**——预留 Phase 5.4
+（§11.4 QueryRoutingAdvisor 锚点为正交增量：5.4 是 rag 链内部「简单查询跳过检索」
+的自适应短路，与本次「跨链分流」两个维度）。
+
+### 11.5.3 SSE/响应协议精简
+
+| 事件 | rag 链 | tool 链 |
+|---|---|---|
+| TOKEN*（无名） | ✅ | ✅ |
+| TOOL_CALL（命名，条件） | ❌ 零工具不产生 | ✅ 有记录才推送 |
+| TRACE（命名） | ✅ | ❌ 无溯源数据不推空帧 |
+| [DONE] / ERROR | ✅ | ✅ |
+
+同步响应结构不变（answer/sessionId/toolCalls，rag 模式 toolCalls 恒空）；rag 模式
+收到 approvedToolCallId 忽略 + WARN（调用方协议误用提示）。
+
+### 11.5.4 组件迁移清单（3.19 落地形态）
+
+| 组件 | 位置 |
+|---|---|
+| EnterpriseMockTools / ToolApprovalService / ToolContextKeys | kb-ai-agent `com.enterprise.kb.ai.agent.tool`（自 kb-ai-core git mv） |
+| ToolAgentChatClientConfig（toolAgentChatClient + agentToolCallingAdvisor(1000)） | kb-ai-agent |
+| ToolChatService（chatTool/chatStreamTool + toolContext + 确认指令） | kb-ai-agent |
+| RagAgentChatClientConfig（ragAgentChatClient + agentChatMemory） | kb-ai-core（原 AgentChatClientConfig） |
+| RagChatService（chatRag/chatStreamRag） | kb-ai-core（原 ChatService） |
+| AgentController（mode 解析分发） | kb-api |
+
+### 11.5.5 后续演进（不排期）
+
+kb-ai-agent 为 Agent 事务域容器：真实 OA/ERP/数据库工具客户端（外部 SDK 依赖）、
+MCP Server 宿主（5.11）、Multi-Agent Orchestrator（5.3）均落此模块；kb-ai-core
+保持纯 RAG 核心不受污染。**多 ChatClient Bean 纪律**：所有注入点显式 @Qualifier
+（3.2 @Primary 歧义教训）。

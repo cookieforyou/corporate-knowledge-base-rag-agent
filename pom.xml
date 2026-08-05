@@ -24,6 +24,7 @@
         <module>kb-infrastructure</module>
         <module>kb-etl</module>
         <module>kb-ai-core</module>
+        <module>kb-ai-agent</module>
         <module>kb-api</module>
         <module>kb-admin</module>
         <module>kb-eval</module>
@@ -80,6 +81,11 @@
             <dependency>
                 <groupId>com.enterprise</groupId>
                 <artifactId>kb-ai-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.enterprise</groupId>
+                <artifactId>kb-ai-agent</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

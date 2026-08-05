@@ -1,4 +1,4 @@
-package com.enterprise.kb.ai.tool;
+package com.enterprise.kb.ai.agent.tool;
 
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;

@@ -1,4 +1,4 @@
-package com.enterprise.kb.ai.tool;
+package com.enterprise.kb.ai.agent.tool;
 
 /**
  * toolContext 通道键常量（任务 3.4，复审要素②）

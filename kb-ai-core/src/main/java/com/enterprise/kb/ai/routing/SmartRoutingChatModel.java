@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 首 token 前（连接/鉴权/配额类故障的常态形态）用户无感；极少数已流出部分 token
  * 后中断的场景会出现内容重复，优于流中断报错，已知取舍。
  *
- * <p>模型层路由对上层零感知：chatClient（评估）与 agentChatClient（生产）注入
+ * <p>模型层路由对上层零感知：chatClient（评估）与 ragAgentChatClient/toolAgentChatClient（生产双链）注入
  * 本 Bean 即同时获得容灾；kb-eval 度量链路在模型故障时同样受保护。
  */
 @Slf4j

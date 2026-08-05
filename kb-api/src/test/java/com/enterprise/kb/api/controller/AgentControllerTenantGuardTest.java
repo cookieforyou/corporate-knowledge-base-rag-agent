@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.controller;
 
-import com.enterprise.kb.ai.service.ChatService;
+import com.enterprise.kb.ai.agent.service.ToolChatService;
+import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.exception.BusinessException;
@@ -25,14 +26,15 @@ import static org.mockito.Mockito.when;
  */
 class AgentControllerTenantGuardTest {
 
-    private final ChatService chatService = mock(ChatService.class);
+    private final RagChatService ragChatService = mock(RagChatService.class);
+    private final ToolChatService toolChatService = mock(ToolChatService.class);
     private final ChatSessionService chatSessionService = mock(ChatSessionService.class);
     private final JwtUtils jwtUtils = mock(JwtUtils.class);
     private AgentController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new AgentController(chatService, chatSessionService, jwtUtils);
+        controller = new AgentController(ragChatService, toolChatService, chatSessionService, jwtUtils);
         when(jwtUtils.getCurrentUsername()).thenReturn("user_test");
     }
 
@@ -45,7 +47,8 @@ class AgentControllerTenantGuardTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
             .isEqualTo("IDENTITY_INCOMPLETE");
-        verifyNoInteractions(chatService);
+        verifyNoInteractions(ragChatService);
+        verifyNoInteractions(toolChatService);
         verifyNoInteractions(chatSessionService);
     }
 
@@ -58,14 +61,15 @@ class AgentControllerTenantGuardTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
             .isEqualTo("IDENTITY_INCOMPLETE");
-        verifyNoInteractions(chatService);
+        verifyNoInteractions(ragChatService);
+        verifyNoInteractions(toolChatService);
     }
 
     @Test
     void chatWithTenantIdentity_passesThrough() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(jwtUtils.getCurrentUserId()).thenReturn("user-1");
-        when(chatService.chat(anyString(), anyString(), any(), any())).thenReturn("回答");
+        when(ragChatService.chatRag(anyString(), anyString(), any())).thenReturn("回答");
 
         Map<String, Object> response = controller.chat(Map.of("query", "问题")).data();
 
@@ -78,7 +82,7 @@ class AgentControllerTenantGuardTest {
     void chatArchivesSanitizedQuery() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(jwtUtils.getCurrentUserId()).thenReturn("user-1");
-        when(chatService.chat(anyString(), anyString(), any(), any())).thenReturn("回答");
+        when(ragChatService.chatRag(anyString(), anyString(), any())).thenReturn("回答");
 
         controller.chat(Map.of("query", "我的手机号是 13911112222", "sessionId", "s-pii"));
 
