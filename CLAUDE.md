@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 8/18）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）；任务清单复审完成（3.4 HITL 补 approvalId 三要素）；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.6 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 10/18）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.6 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -45,6 +45,8 @@ kb-rag-agent/
 
 ## 当前实现要点
 
+**工具链与 HITL（3.3/3.4，2026-08-05）**：`EnterpriseMockTools` Mock 工具层（契约对齐真实 OA/ERP，后续逐个替换）：读工具 queryEmployee/queryLeaveBalance 自动执行 + 写工具 submitLeaveRequest HITL 三段式（首调挂起返回 PENDING_APPROVAL+approvalId → `POST /api/v1/tools/approvals/{id}/approve` 确认 → 二次对话请求体 `approvedToolCallId` 校验消费后执行 EXECUTED）；`ToolApprovalService` Redis 账本（`rag:tool-approval:{id}` RMap<String,String>，TTL 默认 10 分钟 + 一次性消费 + 创建绑定 tenant/user、approve/consume 校验防重放越权；Redis 故障 fail-closed 抛 APPROVAL_STORE_UNAVAILABLE 拒写）；确认态经 `.toolContext()` 通道（与 advisor 参数独立，ChatService 组装，ChatClient 断言无 null 值）；工具调用记录写回 RetrievalContext 投影 SSE TOOL_CALL 命名事件（流末先于 TRACE）+ 同步响应 toolCalls 字段；**ToolCallingAdvisor 自建 advisorOrder(1000)**——自动注册 DEFAULT_ORDER 为链最外层致工具循环每轮穿越全部内层 Advisor（配额按迭代消耗/记忆检索重复），源码实证后定稿设计链序位；仅挂 agentChatClient（kb-eval 无工具基线不变）
+
 **多模型路由（3.2，2026-08-05，实用形态）**：`SmartRoutingChatModel`（implements ChatModel）包装主模型（deepSeekChatModel）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼 OpenAI 兼容端点，跨厂商容灾，JudgeModelConfig 同款装配，凭据经 `rag.routing.fallback.api-key` 回落 DASHSCOPE_API_KEY）；熔断三态无锁原子：连续失败 `rag.routing.circuit.failure-threshold`(5) 次 → OPEN `open-seconds`(30s) 直发备用 → 窗口后 HALF_OPEN 试探（成功闭合/失败重开）；失败即切不丢请求（当次转发备用）；流式错误 onErrorResume 切备用流整段重发（部分 token 后中断重复为已知取舍）；chatClient/agentChatClient 统一注入 `smartRoutingChatModel` 替代主模型直注（kb-eval 链同获容灾）；`rag.routing.fallback.enabled=false` 单模型透传降级；复杂度三级路由移交 Phase 5.4
 
 **检索与对话链路（Phase 2 簇 B+C，已 E2E 验证）**
@@ -79,7 +81,7 @@ kb-rag-agent/
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，`VectorStoreConfig` 按 `kb.vector-store.provider` 条件创建 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
 - **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*`（REDIS_HOST/PORT/PASSWORD/DB 环境变量）被两处消费，**不可移除**——① Redisson V4 自动配置（RedissonConnectionFactory + StringRedisTemplate → ETL 进度双通道）；② 会话记忆 Jedis 客户端（ChatMemoryRedisClientConfig 覆盖 Bean，spring-ai 自动配置不支持密码）
-- 测试：kb-ai-core 75 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 11 单测（kb-admin 尚无测试类）
+- 测试：kb-ai-core 94 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 14 单测（kb-admin 尚无测试类）
 
 ## 注意事项
 
@@ -99,3 +101,4 @@ kb-rag-agent/
 2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行的完成情况 + 顶部日期状态行
 3. **CLAUDE.md 同步**：「当前实现要点」/「注意事项」中受影响的架构事实
 4. **git 提交**：按改动功能点提交（一功能一提交，代码 + 文档同批或紧随其后），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
+5. **落码约束**：写代码前先进行源码级核验（如遇不确定或知识盲区请 Web 搜索以最新官方文档为准），先核验再落码，避免凭感觉瞎写

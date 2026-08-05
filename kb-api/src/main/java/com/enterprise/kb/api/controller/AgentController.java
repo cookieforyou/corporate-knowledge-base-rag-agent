@@ -7,6 +7,8 @@ import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ErrorEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TokenEvent;
+import com.enterprise.kb.api.dto.AgentStreamEvent.ToolCallEvent;
+import com.enterprise.kb.api.dto.AgentStreamEvent.ToolCallInfo;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TraceEvent;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
@@ -58,23 +60,32 @@ public class AgentController {
      *
      * <pre>
      * POST /api/v1/chat
-     * { "query": "什么是增值税发票？", "sessionId": "可选" }
-     * → { "code": 200, "data": { "answer": "...", "sessionId": "..." } }
+     * { "query": "什么是增值税发票？", "sessionId": "可选", "approvedToolCallId": "可选（HITL 确认回传）" }
+     * → { "code": 200, "data": { "answer": "...", "sessionId": "...", "toolCalls": [...] } }
      * </pre>
+     *
+     * <p>toolCalls 为本次请求的工具调用记录（3.4）：写工具挂起时含
+     * status=PENDING_APPROVAL 与 approvalId，前端确认后携带 approvedToolCallId
+     * 发起二次请求触发真正执行。
      */
     @PostMapping("/chat")
-    public ApiResponse<Map<String, String>> chat(@RequestBody Map<String, String> body) {
+    public ApiResponse<Map<String, Object>> chat(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         String sessionId = resolveSessionId(body);
+        String approvedToolCallId = body.get("approvedToolCallId");
         // 日志/归档走脱敏形态（Advisor 链只保护模型上下文与 Redis 记忆，
         // PG 归档与访问日志须在入口同规则脱敏）；注入判定仍由 Advisor 链对原文执行
         String safeQuery = InputSanitizeAdvisor.sanitize(query);
         log.info("用户 [{}] 发起问答: sessionId={}, query={}",
             jwtUtils.getCurrentUsername(), sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
-        String answer = chatService.chat(query, sessionId, ctx);
+        String answer = chatService.chat(query, sessionId, ctx, approvedToolCallId);
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), safeQuery, answer);
-        return ApiResponse.success(Map.of("answer", answer, "sessionId", sessionId));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("answer", answer);
+        data.put("sessionId", sessionId);
+        data.put("toolCalls", ctx.getToolCalls());
+        return ApiResponse.success(data);
     }
 
     /**
@@ -84,6 +95,7 @@ public class AgentController {
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
         String query = body.get("query");
         String sessionId = resolveSessionId(body);
+        String approvedToolCallId = body.get("approvedToolCallId");
         // 日志/归档走脱敏形态（同同步路径）；注入判定仍由 Advisor 链对原文执行
         String safeQuery = InputSanitizeAdvisor.sanitize(query);
         log.info("用户 [{}] 发起流式问答: sessionId={}, query={}",
@@ -93,10 +105,15 @@ public class AgentController {
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
 
-        return chatService.chatStream(query, sessionId, traceCtx)
+        return chatService.chatStream(query, sessionId, traceCtx, approvedToolCallId)
             .filter(token -> token != null && !token.isEmpty())
             .doOnNext(answerBuffer::append)
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
+            // TOOL_CALL（命名事件，3.4）：有工具调用记录才推送，先于 TRACE
+            .concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
+                ? Flux.empty()
+                : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx))
+                    .event("TOOL_CALL").build())))
             .concatWith(Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx))
                 .event("TRACE").build()))
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
@@ -108,6 +125,13 @@ public class AgentController {
                 return Flux.just(ServerSentEvent.<Object>builder(
                     new ErrorEvent(String.valueOf(e.getMessage()))).build());
             });
+    }
+
+    /** TOOL_CALL 载荷投影（RetrievalContext.ToolCall → SSE DTO） */
+    private static ToolCallEvent toToolCallEvent(RetrievalContext ctx) {
+        return new ToolCallEvent(ctx.getToolCalls().stream()
+            .map(tc -> new ToolCallInfo(tc.toolName(), tc.status(), tc.approvalId(), tc.summary()))
+            .toList());
     }
 
     /** 会话 ID：请求携带则复用（多轮），缺省生成一次性 ID（兼容 Phase 1 单轮前端） */

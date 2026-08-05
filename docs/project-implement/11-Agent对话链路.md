@@ -217,6 +217,34 @@ public class AgentChatClientConfig {
 ### 11.2.1 @Tool 工具调用与 Human-in-the-Loop（v2 重写）
 
 > **v1 重大错误修正**：`ToolContext.isApproved()` / `ToolContext.requestApproval(String)` **完全虚构**。`ToolContext` 仅有 `getContext()`（不可变 Map）。Spring AI 2.0 没有内建的工具审批 API，HITL 需按下列真实机制组合实现。
+>
+> **v2.8 实现期定稿（2026-08-05，任务 3.3/3.4 落地）**：
+> ① **Mock 工具层先行（复审定稿）**——真实 OA/ERP/数据库开发环境不可达，
+> `EnterpriseMockTools` 契约先行（签名/描述/返回结构对齐真实系统，后续逐个替换
+> 服务客户端不动链与机制）：读工具 queryEmployee/queryLeaveBalance 自动执行 +
+> 写工具 submitLeaveRequest 走 HITL；仅挂生产链 agentChatClient，kb-eval
+> chatClient 无工具、评估基线不受影响；
+> ② **ToolCallingAdvisor 装配实证**——2.0 GA ChatClient 存在工具回调时自动挂
+> ToolCallingAdvisor，但 DEFAULT_ORDER = HIGHEST_PRECEDENCE+300（链**最外层**）——
+> 工具循环每轮重新穿越全部内层 Advisor（限流/预算配额按迭代消耗、记忆/检索重复
+> 执行）；定稿自建实例 **advisorOrder(1000)**（本表设计位，最内层只包裹模型调用），
+> 自建 ToolAdvisor 后 autoRegisterToolCallingAdvisor 检测已有即让位（源码核验）；
+> ③ **复审四要素落地形态**——要素①：approvalId Redis 账本
+> `rag:tool-approval:{approvalId}`（RMap&lt;String,String&gt; 字符串键值规避 codec 依赖）：
+> TTL（`rag.tool.approval.ttl-minutes` 默认 10 分钟，approve 续期）+ **一次性消费**
+> （consume 校验通过即删键）+ 创建时绑定 tenant/user、approve/consume 均校验绑定
+> （跨租户/跨用户不可用，防重放/防越权），弃草稿弱键 `approval:{employeeId}:{leaveType}`；
+> 要素②：确认态经 `.toolContext(Map)` 通道——与 advisor 参数独立的第二条通道
+> （进 ToolCallingChatOptions 随工具执行注入 ToolContext），ChatService 统一组装
+> （身份 + RetrievalContext 实例 + approvedToolCallId 条件写入，ChatClient 断言
+> toolContext 无 null 值）；要素③：SSE 新增 **TOOL_CALL** 命名事件（流末先于 TRACE，
+> 有记录才推送）+ 同步响应追加 toolCalls 字段；要素④：Mock 工具层即本注①；
+> ④ **fail-closed**——身份不完整写工具不创建审批单不落写；Redis 故障 create/consume
+> 抛 APPROVAL_STORE_UNAVAILABLE、写工具拒绝执行（宁可不可用不可绕过审批）；
+> 读工具不经审批服务不受影响；
+> ⑤ **工具调用记录**经 toolContext 写回 RetrievalContext（与 trace 同款参数链），
+> Controller 流末投影 TOOL_CALL / 同步响应 toolCalls；审批 API
+> `POST /api/v1/tools/approvals/{approvalId}/approve`（身份守卫同 3.9）。
 
 ```java
 package com.enterprise.kb.ai.tool;

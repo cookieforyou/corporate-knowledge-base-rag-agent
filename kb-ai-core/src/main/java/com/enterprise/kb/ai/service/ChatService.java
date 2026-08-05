@@ -1,11 +1,16 @@
 package com.enterprise.kb.ai.service;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.ai.tool.ToolContextKeys;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * RAG 对话服务 — 封装 Agent ChatClient 调用
@@ -33,25 +38,51 @@ public class ChatService {
         this.chatClient = chatClient;
     }
 
-    /** 同步多轮 RAG 问答 */
-    public String chat(String query, String sessionId, RetrievalContext retrievalContext) {
+    /** 同步多轮 RAG 问答（approvedToolCallId 为 HITL 确认回传，可空） */
+    public String chat(String query, String sessionId, RetrievalContext retrievalContext,
+                       @Nullable String approvedToolCallId) {
         return chatClient.prompt()
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
+            .toolContext(buildToolContext(retrievalContext, approvedToolCallId))
             .call()
             .content();
     }
 
-    /** 流式多轮 RAG 问答 */
-    public Flux<String> chatStream(String query, String sessionId, RetrievalContext retrievalContext) {
+    /** 流式多轮 RAG 问答（approvedToolCallId 为 HITL 确认回传，可空） */
+    public Flux<String> chatStream(String query, String sessionId, RetrievalContext retrievalContext,
+                                   @Nullable String approvedToolCallId) {
         return chatClient.prompt()
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
+            .toolContext(buildToolContext(retrievalContext, approvedToolCallId))
             .stream()
             .content();
+    }
+
+    /**
+     * toolContext 通道组装（3.4 复审要素②）：与 advisor 参数独立的第二条通道，
+     * 经 ToolCallingChatOptions 注入工具执行的 ToolContext。身份供写工具审批绑定
+     * 校验；RetrievalContext 实例供工具写回调用记录（SSE TOOL_CALL 数据源）。
+     * ChatClient 断言 toolContext 无 null 值——approvedToolCallId 条件写入。
+     */
+    private static Map<String, Object> buildToolContext(RetrievalContext ctx,
+                                                       @Nullable String approvedToolCallId) {
+        Map<String, Object> toolContext = new HashMap<>();
+        toolContext.put(ToolContextKeys.RETRIEVAL_CONTEXT, ctx);
+        // tenantId 由 Controller fail-closed 守卫保证非空；userId 防御性条件写入
+        // （ChatClient 断言 toolContext 无 null 值）
+        toolContext.put(ToolContextKeys.TENANT_ID, ctx.getTenantId());
+        if (ctx.getUserId() != null) {
+            toolContext.put(ToolContextKeys.USER_ID, ctx.getUserId());
+        }
+        if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
+            toolContext.put(ToolContextKeys.APPROVED_TOOL_CALL_ID, approvedToolCallId);
+        }
+        return toolContext;
     }
 }

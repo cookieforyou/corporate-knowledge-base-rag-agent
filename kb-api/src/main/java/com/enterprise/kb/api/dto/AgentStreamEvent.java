@@ -26,6 +26,16 @@ public sealed interface AgentStreamEvent {
      */
     record TraceEvent(List<SourceTrace> sources) implements AgentStreamEvent {}
 
+    /**
+     * 工具调用状态（命名事件 TOOL_CALL，流末先于 TRACE 推送，任务 3.4 复审要素③）：
+     * 写工具挂起时 status=PENDING_APPROVAL 携带 approvalId，前端弹确认卡片；
+     * 用户确认后经 /chat 请求体 approvedToolCallId 回传触发真正执行（EXECUTED）。
+     */
+    record ToolCallEvent(List<ToolCallInfo> toolCalls) implements AgentStreamEvent {}
+
+    /** 工具调用投影：与 RetrievalContext.ToolCall 同形（SSE 载荷独立 record，与 ChunkTrace 投影同策） */
+    record ToolCallInfo(String toolName, String status, String approvalId, String summary) {}
+
     /** 单路 trace：source ∈ {vector, bm25, final}；latencyMs 该路耗时（10.8 时延观测） */
     record SourceTrace(String source, List<ChunkTrace> chunks, Long latencyMs) {}
 

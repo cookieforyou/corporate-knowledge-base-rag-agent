@@ -65,9 +65,9 @@ class AgentControllerTenantGuardTest {
     void chatWithTenantIdentity_passesThrough() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(jwtUtils.getCurrentUserId()).thenReturn("user-1");
-        when(chatService.chat(anyString(), anyString(), any())).thenReturn("回答");
+        when(chatService.chat(anyString(), anyString(), any(), any())).thenReturn("回答");
 
-        Map<String, String> response = controller.chat(Map.of("query", "问题")).data();
+        Map<String, Object> response = controller.chat(Map.of("query", "问题")).data();
 
         assertThat(response).containsEntry("answer", "回答");
         assertThat(response).containsKey("sessionId");
@@ -78,7 +78,7 @@ class AgentControllerTenantGuardTest {
     void chatArchivesSanitizedQuery() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(jwtUtils.getCurrentUserId()).thenReturn("user-1");
-        when(chatService.chat(anyString(), anyString(), any())).thenReturn("回答");
+        when(chatService.chat(anyString(), anyString(), any(), any())).thenReturn("回答");
 
         controller.chat(Map.of("query", "我的手机号是 13911112222", "sessionId", "s-pii"));
 

@@ -59,6 +59,9 @@ public class RetrievalContext {
 
     private final List<TraceEntry> traceEntries = new CopyOnWriteArrayList<>();
 
+    /** 工具调用记录（3.4 HITL）：工具在模型调用线程内写入，Controller 流末读取投影 SSE TOOL_CALL */
+    private final List<ToolCall> toolCalls = new CopyOnWriteArrayList<>();
+
     /**
      * 向量库安全过滤表达式（懒构建，双检锁）：tenant_id 等值 + 软删除过滤。
      * Phase 3 在此追加 allowed_doc_ids / allowed_dept_ids 维度（10.2.1）。
@@ -109,4 +112,20 @@ public class RetrievalContext {
      * + 该路耗时（10.8 时延观测 / 调试台展示；无埋点为 null）
      */
     public record TraceEntry(String source, List<Document> documents, Long latencyMs) {}
+
+    /** 工具经 toolContext 取本实例写入调用记录（与 trace 同款参数链机制） */
+    public void addToolCall(ToolCall toolCall) {
+        toolCalls.add(toolCall);
+    }
+
+    /** 工具调用记录快照（SSE TOOL_CALL 事件 / 同步响应 toolCalls 字段数据源） */
+    public List<ToolCall> getToolCalls() {
+        return List.copyOf(toolCalls);
+    }
+
+    /**
+     * 工具调用记录（3.4 HITL）：工具名 + 状态（PENDING_APPROVAL / EXECUTED / REJECTED）
+     * + 审批 ID（写工具挂起时携带，前端确认后回传）+ 操作摘要（用户可读确认文案）
+     */
+    public record ToolCall(String toolName, String status, String approvalId, String summary) {}
 }

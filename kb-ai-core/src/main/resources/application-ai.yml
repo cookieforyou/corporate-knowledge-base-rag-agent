@@ -47,6 +47,11 @@ spring:
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
 # ============================================================
 rag:
+  # 工具审批（3.4 HITL，设计文档 11.2.1）——审批单 Redis 账本
+  # （rag:tool-approval:{approvalId}，绑定 tenant/user + 一次性消费 + TTL）
+  tool:
+    approval:
+      ttl-minutes: ${RAG_TOOL_APPROVAL_TTL_MINUTES:10}
   # 多模型路由（3.2，设计文档 11.2.2）—— 主模型 DeepSeek V4 + 备用 qwen3.7-plus
   # 熔断切换（连续失败 failure-threshold 次 → OPEN open-seconds 秒直发备用，
   # 窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，复用 DASHSCOPE_API_KEY

@@ -35,6 +35,8 @@
 
 > **v2.7 实现期定稿（2026-08-05，3.2 落地）**：SmartRoutingChatModel 实用形态定稿——三级复杂度路由移交 Phase 5.4，本期落地主（DeepSeek V4）+ 备（qwen3.7-plus 百炼）熔断切换：熔断三态无锁原子实现、失败即切不丢请求、流式 onErrorResume 接管（部分 token 后中断重复为已知取舍）、chatClient/agentChatClient 统一改注路由模型（评估链同获容灾）、`rag.routing.*` 配置与单模型降级形态，详见第十一章 11.2.2。
 
+> **v2.8 实现期定稿（2026-08-05，3.3/3.4 落地）**：Mock 工具层先行（契约对齐真实系统，读工具自动执行 + 写工具 HITL）+ ToolCallingAdvisor 自建 advisorOrder(1000)（自动注册默认序最外层致工具循环重复穿越内层链，源码实证）；HITL 复审四要素落地：approvalId Redis 账本（TTL + 一次性消费 + tenant/user 绑定防重放）、确认态经 toolContext 通道、SSE TOOL_CALL 命名事件、写操作 fail-closed（APPROVAL_STORE_UNAVAILABLE），详见第十一章 11.2.1。
+
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
 ## 目录导航
@@ -73,7 +75,7 @@
 |---|---|---|
 | 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项） |
 | 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛） |
-| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4） |
+| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地） |
 | 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正） |
 | 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
