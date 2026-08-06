@@ -4,7 +4,6 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +22,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.core.task.AsyncTaskExecutor;
 import reactor.core.publisher.Flux;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 import java.util.Map;
@@ -75,7 +75,7 @@ class AuditTraceAdvisorTest {
         repository = mock(KbAuditLogRepository.class);
         callChain = mock(CallAdvisorChain.class);
         streamChain = mock(StreamAdvisorChain.class);
-        advisor = new AuditTraceAdvisor(repository, new ObjectMapper(), SYNC_EXECUTOR, true);
+        advisor = new AuditTraceAdvisor(repository, JsonMapper.builder().build(), SYNC_EXECUTOR, true);
     }
 
     private static RetrievalContext ctxWithTrace() {
@@ -215,8 +215,7 @@ class AuditTraceAdvisorTest {
 
     @Test
     void disabledAdvisorPassesThroughWithoutPersist() {
-        AuditTraceAdvisor disabled = new AuditTraceAdvisor(repository, new ObjectMapper(),
-            SYNC_EXECUTOR, false);
+        AuditTraceAdvisor disabled = new AuditTraceAdvisor(repository, JsonMapper.builder().build(), SYNC_EXECUTOR, false);
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
         disabled.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain);

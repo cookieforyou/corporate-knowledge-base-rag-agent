@@ -1,11 +1,11 @@
 package com.enterprise.kb.eval.dataset;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -21,6 +21,12 @@ import java.util.List;
 @Component
 public class GoldenDatasetLoader {
 
+    private final JsonMapper jsonMapper;
+
+    public GoldenDatasetLoader(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
+    }
+
     public List<GoldenQAPair> loadAll() {
         List<GoldenQAPair> all = new ArrayList<>();
         try {
@@ -28,7 +34,7 @@ public class GoldenDatasetLoader {
                 .getResources("classpath:golden/*.json");
             for (Resource resource : resources) {
                 try (InputStream is = resource.getInputStream()) {
-                    List<GoldenQAPair> pairs = new ObjectMapper().readValue(is, new TypeReference<List<GoldenQAPair>>() {});
+                    List<GoldenQAPair> pairs = jsonMapper.readValue(is, new TypeReference<List<GoldenQAPair>>() {});
                     all.addAll(pairs);
                     log.info("加载 Golden Dataset: {} → {} 条", resource.getFilename(), pairs.size());
                 }

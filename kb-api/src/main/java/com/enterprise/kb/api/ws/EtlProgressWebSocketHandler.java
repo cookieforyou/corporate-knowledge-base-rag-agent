@@ -1,7 +1,5 @@
 package com.enterprise.kb.api.ws;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -9,6 +7,8 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.util.UriComponentsBuilder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +35,11 @@ public class EtlProgressWebSocketHandler extends TextWebSocketHandler {
 
     /** docId → 订阅会话集合 */
     private final Map<String, Set<WebSocketSession>> subscriptions = new ConcurrentHashMap<>();
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private final JsonMapper jsonMapper;
+
+    public EtlProgressWebSocketHandler(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -49,9 +53,9 @@ public class EtlProgressWebSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
-            JsonNode node = MAPPER.readTree(message.getPayload());
-            String action = node.path("action").asText("");
-            String docId = node.path("docId").asText(null);
+            JsonNode node = jsonMapper.readTree(message.getPayload());
+            String action = node.path("action").asString("");
+            String docId = node.path("docId").asString(null);
             if (docId == null || docId.isBlank()) {
                 return;
             }

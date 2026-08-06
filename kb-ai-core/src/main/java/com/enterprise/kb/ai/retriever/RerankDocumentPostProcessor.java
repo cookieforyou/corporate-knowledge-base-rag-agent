@@ -3,7 +3,6 @@ package com.enterprise.kb.ai.retriever;
 import com.enterprise.kb.commons.constant.Constants;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.document.Document;
@@ -12,6 +11,7 @@ import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,17 +34,18 @@ import java.util.Map;
 @Component
 public class RerankDocumentPostProcessor implements DocumentPostProcessor {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
+    private final JsonMapper jsonMapper;
     private final RestClient restClient;
     private final boolean enabled;
     private final String model;
     private final String apiKey;
 
     public RerankDocumentPostProcessor(
+            JsonMapper jsonMapper,
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
             @Value("${rag.rerank.api-key:}") String apiKey) {
+        this.jsonMapper = jsonMapper;
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
@@ -90,7 +91,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
 
             List<RerankResult> results;
             try {
-                RerankResponse response = MAPPER.readValue(raw, RerankResponse.class);
+                RerankResponse response = jsonMapper.readValue(raw, RerankResponse.class);
                 results = response.effectiveResults();
             } catch (Exception parseError) {
                 log.warn("rerank 响应解析失败，降级为 fusion_score 截断: {}, 原文: {}",

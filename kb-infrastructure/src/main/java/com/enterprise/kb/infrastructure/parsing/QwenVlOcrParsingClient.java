@@ -1,7 +1,5 @@
 package com.enterprise.kb.infrastructure.parsing;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -9,6 +7,8 @@ import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -41,10 +41,11 @@ public class QwenVlOcrParsingClient implements ParsingServiceClient {
 
     private final ParsingProperties.QwenOcr props;
     private final RestClient restClient;
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private final JsonMapper jsonMapper;
 
-    public QwenVlOcrParsingClient(ParsingProperties properties) {
+    public QwenVlOcrParsingClient(ParsingProperties properties, JsonMapper jsonMapper) {
         this.props = properties.getQwenOcr();
+        this.jsonMapper = jsonMapper;
         this.restClient = RestClient.builder().baseUrl(props.getBaseUrl()).build();
     }
 
@@ -110,12 +111,12 @@ public class QwenVlOcrParsingClient implements ParsingServiceClient {
             .body(String.class);
 
         try {
-            JsonNode root = MAPPER.readTree(responseJson);
+            JsonNode root = jsonMapper.readTree(responseJson);
             JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
             if (contentNode.isMissingNode() || contentNode.isNull()) {
                 throw new ParsingException("qwen-ocr 响应无内容: file=%s page=%d".formatted(fileName, pageNo));
             }
-            return contentNode.asText();
+            return contentNode.asString();
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

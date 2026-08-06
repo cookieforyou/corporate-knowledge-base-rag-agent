@@ -4,7 +4,6 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -23,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -66,16 +66,16 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     private static final String STATUS_ERROR = "ERROR";
 
     private final KbAuditLogRepository auditLogRepository;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final AsyncTaskExecutor auditExecutor;
     private final boolean enabled;
 
     public AuditTraceAdvisor(KbAuditLogRepository auditLogRepository,
-                             ObjectMapper objectMapper,
+                             JsonMapper jsonMapper,
                              @Qualifier("auditExecutor") AsyncTaskExecutor auditExecutor,
                              @Value("${rag.audit.enabled:true}") boolean enabled) {
         this.auditLogRepository = auditLogRepository;
-        this.objectMapper = objectMapper;
+        this.jsonMapper = jsonMapper;
         this.auditExecutor = auditExecutor;
         this.enabled = enabled;
         log.info("全链路审计 Advisor 装配: enabled={}", enabled);
@@ -257,7 +257,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
 
     private String toJsonOrNull(Object value) {
         try {
-            return objectMapper.writeValueAsString(value);
+            return jsonMapper.writeValueAsString(value);
         } catch (Exception e) {
             log.warn("审计 JSON 序列化失败，字段置空: {}", e.getMessage());
             return null;

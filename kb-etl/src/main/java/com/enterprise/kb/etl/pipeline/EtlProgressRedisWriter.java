@@ -1,10 +1,10 @@
 package com.enterprise.kb.etl.pipeline;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -36,7 +36,7 @@ public class EtlProgressRedisWriter implements Consumer<EtlProgress> {
     private static final Duration TTL = Duration.ofHours(24);
 
     private final StringRedisTemplate redisTemplate;
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private final JsonMapper jsonMapper;
 
     @Override
     public void accept(EtlProgress progress) {
@@ -50,7 +50,7 @@ public class EtlProgressRedisWriter implements Consumer<EtlProgress> {
             fields.put("percentage", String.valueOf(progress.getPercentage()));
             redisTemplate.opsForHash().putAll(key, fields);
             redisTemplate.expire(key, TTL);
-            redisTemplate.convertAndSend(CHANNEL, MAPPER.writeValueAsString(progress));
+            redisTemplate.convertAndSend(CHANNEL, jsonMapper.writeValueAsString(progress));
         } catch (Exception e) {
             log.warn("ETL 进度写入 Redis 失败（不阻断 ETL）: docId={}, {}",
                 progress.getDocId(), e.getMessage());

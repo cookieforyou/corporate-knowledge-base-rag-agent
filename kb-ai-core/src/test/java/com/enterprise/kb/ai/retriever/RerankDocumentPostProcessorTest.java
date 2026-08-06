@@ -4,6 +4,7 @@ import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,7 @@ class RerankDocumentPostProcessorTest {
 
     /** endpoint 为空 → 禁用态，走降级截断 */
     private final RerankDocumentPostProcessor disabled =
-        new RerankDocumentPostProcessor("", "qwen3-rerank", "");
+        new RerankDocumentPostProcessor(JsonMapper.builder().build(), "", "qwen3-rerank", "");
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)

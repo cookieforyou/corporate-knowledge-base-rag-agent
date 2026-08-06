@@ -1,7 +1,6 @@
 package com.enterprise.kb.api.ws;
 
 import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +12,7 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 
@@ -35,14 +35,13 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
 
+    private final JsonMapper jsonMapper;
     private final EtlProgressWebSocketHandler progressHandler;
     private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
 
     /** 允许的前端来源（Vite dev server 默认 5173；生产经 WS_ALLOWED_ORIGINS 注入） */
     @Value("${app.ws.allowed-origins:http://localhost:5173}")
     private String[] allowedOrigins;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
@@ -60,7 +59,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         container.addMessageListener((message, pattern) -> {
             String json = new String(message.getBody(), StandardCharsets.UTF_8);
             try {
-                String docId = MAPPER.readTree(json).path("docId").asText(null);
+                String docId = jsonMapper.readTree(json).path("docId").asText(null);
                 if (docId != null) {
                     progressHandler.broadcast(docId, json);
                 }
