@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 11 项）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）、**3.19 RAG/Tool 双链路拆分 + kb-ai-agent 模块独立**（用户发起的架构改进）；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.9 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 13 项）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）、**3.19 RAG/Tool 双链路拆分 + kb-ai-agent 模块独立**（用户发起的架构改进）、**3.12 全链路审计（3.14 终装随之达成）**；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.10 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -46,6 +46,8 @@ kb-rag-agent/
 
 ## 当前实现要点
 
+**全链路审计（3.12，2026-08-05）**：`AuditTraceAdvisor`(order 10 最外层)挂双链（rag/tool），异步虚拟线程落 kb_audit_log（旁路容错：构建/落库失败告警丢弃不击穿问答）。**被拒请求捕获**：覆写 adviseCall(try/catch)/adviseStream(doOnComplete/doOnError)——内层抛错（限流/注入/预算）同样落库，status 三态 SUCCESS/REJECTED(errorCode)/ERROR；query_text 落库前同款 sanitize 脱敏（order 10 先于 InputSanitize 见原文）；rewritten_query 经 `RewriteCapturingQueryTransformer` 装饰器写回 RetrievalContext 捕获；流式 doOnNext 聚合文本不缓冲 token（不损 TTFT）；mode 经 advisor 参数（MODE_KEY）区分双链；kb_audit_log v2.10 扩展 mode/status/error_code/tool_calls 四列（**存量库须先 ALTER 再启动**）；kb-eval 链不挂；`rag.audit.enabled` 可关
+
 **双链路架构（3.19，2026-08-05，用户发起）**：单链揉合三痛点实证（HITL 确认轮被检索上下文带偏/工具请求白耗检索+重排/RAG 请求平白带工具 schema）后拆分——`ragAgentChatClient`（kb-ai-core，链 30/100/110/300/400/450/500，零工具）+ `toolAgentChatClient`（kb-ai-agent，链 30/100/110/300/400/1000 + defaultTools，零检索）；共享 smartRoutingChatModel / agentChatMemory（同 sessionId 跨链历史互通）/ 护栏配额 Advisor / RetrievalContext（配额与审批的身份源，两链都传）；**请求体 `mode: rag|tool` 显式分流**（缺省 rag 兼容现状，非法值 400 INVALID_MODE，自动意图路由留 5.4）；SSE 按链精简（rag 只推 TRACE、tool 只推 TOOL_CALL）；toolContext 仅 ToolChatService 组装（RagChatService 签名物理消除 HITL 凭证）；kb-eval 零影响（注入独立 chatClient）；**kb-ai-agent 为 Agent 事务域容器**（未来真实 OA/ERP 客户端/MCP 5.11/Multi-Agent 5.3 落此）
 
 **工具链与 HITL（3.3/3.4，2026-08-05，组件位于 kb-ai-agent）**：`EnterpriseMockTools` Mock 工具层（契约对齐真实 OA/ERP，后续逐个替换）：读工具 queryEmployee/queryLeaveBalance 自动执行 + 写工具 submitLeaveRequest HITL 三段式（首调挂起返回 PENDING_APPROVAL+approvalId → `POST /api/v1/tools/approvals/{id}/approve` 确认 → 二次对话请求体 `approvedToolCallId` 校验消费后执行 EXECUTED）；`ToolApprovalService` Redis 账本（`rag:tool-approval:{id}` RMap<String,String>，TTL 默认 10 分钟 + 一次性消费 + 创建绑定 tenant/user、approve/consume 校验防重放越权；Redis 故障 fail-closed 抛 APPROVAL_STORE_UNAVAILABLE 拒写）；确认态经 `.toolContext()` 通道（与 advisor 参数独立，ChatClient 断言无 null 值）；工具调用记录写回 RetrievalContext 投影 SSE TOOL_CALL 命名事件 + 同步响应 toolCalls 字段；**ToolCallingAdvisor 自建 advisorOrder(1000)**——自动注册 DEFAULT_ORDER 为链最外层致工具循环每轮穿越全部内层 Advisor（配额按迭代消耗/记忆检索重复），源码实证后定稿设计链序位；确认轮携带 approvedToolCallId 时注入 system 指令令写工具复调确定化（工具调用为模型自主决策，凭证仅 toolContext 可见）
@@ -85,12 +87,12 @@ kb-rag-agent/
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
 - **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*`（REDIS_HOST/PORT/PASSWORD/DB 环境变量）被两处消费，**不可移除**——① Redisson V4 自动配置（RedissonConnectionFactory + StringRedisTemplate → ETL 进度双通道）；② 会话记忆 Jedis 客户端（ChatMemoryRedisClientConfig 覆盖 Bean，spring-ai 自动配置不支持密码）
 - **多 ChatClient Bean 纪律（3.19 起）**：容器内已有 chatClient（评估）/ ragAgentChatClient / toolAgentChatClient 三 Bean，所有注入点必须显式 `@Qualifier`（裸类型注入歧义致启动失败，3.2 @Primary 教训）；自建 ChatClient 链新增 Advisor 时核对 order 与链序表（11.2）一致
-- 测试：kb-ai-core 75 + kb-ai-agent 23 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 20 单测（kb-admin 尚无测试类）
+- 测试：kb-ai-core 85 + kb-ai-agent 23 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 20 单测（kb-admin 尚无测试类）
 
 ## 注意事项
 
 - Maven 4 reactor 自动解析父子关系，子模块使用 `<parent/>` 即可；**单模块构建需 `-am`**（兄弟模块不在本地仓库时单 `-pl` 解析失败）
-- JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`（Hibernate 7.x 要求）
+- JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`（Hibernate 7.x 要求）；**ddl-auto=validate**：实体新增字段须先在 ECS 执行 ALTER（schema.sql 注释内附升级语句），缺列启动即失败
 - 父 POM dependencyManagement 已预埋后续阶段依赖：elasticsearch-java 8.14.3、jsoup 1.18.1、redisson 4.6.1、testcontainers 1.20.1；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递的 4.38.0 以最短路径覆盖 spring-ai 5.0.0 → `.entity()` 结构化输出 NoClassDefFoundError: JacksonSchemaModule）
 - pgvector 模式需先以 superuser 执行 `CREATE EXTENSION IF NOT EXISTS vector;`（服务器 PG 若已启用可跳过）
 - Phase 2 检索架构为 Spring AI 2.0 模块化 RAG（`RetrievalAugmentationAdvisor` + 自研 `HybridDocumentRetriever`/`RrfFusion` + ES ik BM25 双路 + qwen3-rerank）；Milvus 原生混合检索经源码级核验后否决。决策全文见 `docs/project-implement/10-混合检索引擎.md` §10.0

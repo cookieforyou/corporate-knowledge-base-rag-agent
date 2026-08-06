@@ -9,6 +9,8 @@
 > **v2.3 修订（2026-08-04，3.1 实现期）**：① Redis 会话记忆仓储修正为 2.0 GA Jedis 形态（`RedisChatMemoryConfig`，starter 坐标 `spring-ai-starter-model-chat-memory-repository-redis`，前缀 `spring.ai.chat.memory.redis.*`）——v2 草图的 RedisTemplate 构造器不存在；② Agent 对话链定稿为独立 `agentChatClient` Bean（记忆 Advisor 缺失 CONVERSATION_ID 为硬断言，不可挂评估共享 Bean）；③ 新增 FaultTolerantChatMemory 容错装饰、kb_session/kb_message PG 归档旁路、sessionId 会话协议；④ 2026-08-05 E2E 追加：自动配置条件让位陷阱（用户 ChatMemory Bean 致 Redis 仓储静默回退 InMemory）——RedisChatMemoryRepository 改为显式装配，详见 11.2 v2.3 注 ⑤。
 >
 > **v2.9 双链路拆分定稿（2026-08-05，任务 3.19）**：新增 §11.5——RAG 问答与 Tool 问答双链路拆分 + kb-ai-agent 模块独立（动因三痛点实证、模块/Bean 形态、mode 路由协议、SSE/toolContext 矩阵、与 §11.4 5.4 锚点正交关系、后续演进）；§11.2 单链装配草图标记为历史形态。
+>
+> **v2.10 审计落地定稿（2026-08-05，任务 3.12）**：新增 §11.6——AuditTraceAdvisor(order 10) 被拒请求捕获机制（覆写 adviseCall/adviseStream，草图 before+after 形态无法覆盖内层抛错）、双链路数据面（mode/tool_calls + kb_audit_log 四列扩展）、字段数据源与脱敏（query_text 同款 sanitize、rewritten_query 装饰器捕获、流式聚合不缓冲）、旁路容错与异步落库。
 
 ---
 
@@ -549,3 +551,47 @@ kb-ai-agent 为 Agent 事务域容器：真实 OA/ERP/数据库工具客户端�
 MCP Server 宿主（5.11）、Multi-Agent Orchestrator（5.3）均落此模块；kb-ai-core
 保持纯 RAG 核心不受污染。**多 ChatClient Bean 纪律**：所有注入点显式 @Qualifier
 （3.2 @Primary 歧义教训）。
+
+---
+
+## 11.6 全链路审计日志（v2.10 新增，任务 3.12）
+
+> **v2.10 实现期定稿（2026-08-05）**：AuditTraceAdvisor（order 10 最外层）落
+> kb_audit_log。链序表「审计保持最外层以记录被拒/被限流的攻击请求」的落地机制与
+> 双链路时代的数据面扩展如下。
+
+### 11.6.1 被拒请求捕获机制
+
+`BaseAdvisor` 默认 adviseCall/adviseStream 在内层抛错时**跳过 after()**——草图
+「before+after 记录」形态无法覆盖被拒请求。定稿：覆写 adviseCall（try/catch
+包裹，错误原样上抛）与 adviseStream（doOnComplete/doOnError 旁路）——内层任意
+Advisor 抛错（限流 429 / 注入拦截 / 预算超额 / 工具链异常）均落审计。
+status 三态：`SUCCESS` / `REJECTED`（BusinessException，errorCode 落库）/
+`ERROR`（未预期异常，异常类名落库）。
+
+### 11.6.2 双链路数据面（3.19 后扩展）
+
+- **mode**：RagChatService/ToolChatService 经 advisor 参数（`AuditTraceAdvisor.MODE_KEY`）
+  注入 rag|tool——Advisor 为共享 Bean，链归属经参数区分；
+- **tool_calls**：RetrievalContext.ToolCall 列表 JSON 投影（HITL 审批状态可回溯）；
+- **表结构 v2.10 扩展**：kb_audit_log 新增 mode / status / error_code / tool_calls
+  四列（第七章 DDL 同步；**存量库须先执行 ALTER，ddl-auto=validate 缺列启动失败**）。
+
+### 11.6.3 字段数据源与脱敏
+
+| 字段 | 数据源 |
+|---|---|
+| query_text | Prompt 末条用户消息——order 10 先于 InputSanitize(300)，**落库前经同款 sanitize 规则脱敏**（3.5 PII 不绕过审计落库，与 Controller 归档同策） |
+| rewritten_query | RewriteCapturingQueryTransformer 装饰器写回 RetrievalContext（源码核验：RetrievalAugmentationAdvisor 将 advisor 参数复制进 Query.context，装饰器经 query.context() 读同一实例）；调试台直注原始 transformer Bean 不受影响 |
+| retrieved_chunks / reranked_chunks | RetrievalContext trace（bm25/vector → 原始命中；final → 重排序列），轻量投影（chunk_id/file_name/page_num/score） |
+| model_name / token_usage | 响应 metadata；流式未开 include_usage 为 null（坑位⑧已知限制） |
+| final_answer | 同步取响应文本；流式 doOnNext 累积（**不缓冲 token，审计不得损 TTFT**） |
+| trace_id | 请求级 UUID（OTel trace 接入归 Phase 4.1） |
+| feedback | 留空，3.17 反馈 API 关联回填 |
+
+### 11.6.4 容错与性能
+
+审计是旁路增值数据：构建/落库任何环节失败仅告警丢弃，绝不击穿问答
+（ChatSessionService 归档同款哲学）；落库走 auditExecutor 虚拟线程异步，不占
+响应路径延迟；RetrievalContext 为请求级共享实例，异步落库前先提取快照防竞态。
+kb-eval 评估链不挂本 Advisor（评估流量不污染审计）。`rag.audit.enabled` 可关。

@@ -90,21 +90,31 @@ CREATE TABLE IF NOT EXISTS kb_message (
 CREATE INDEX IF NOT EXISTS idx_session_msg ON kb_message (session_id, created_at);
 
 -- 6. 审计日志表
+-- v2.10 扩展（3.12 审计落地，双链路时代补列）：mode/status/error_code/tool_calls
+-- 存量库升级 DDL：
+--   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS mode VARCHAR(10);
+--   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS status VARCHAR(20);
+--   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS error_code VARCHAR(50);
+--   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS tool_calls JSONB;
 CREATE TABLE IF NOT EXISTS kb_audit_log (
     id              BIGSERIAL PRIMARY KEY,
     trace_id        VARCHAR(100),
     session_id      VARCHAR(36),
     user_id         VARCHAR(50),
     tenant_id       VARCHAR(36),
+    mode            VARCHAR(10),
     query_text      TEXT NOT NULL,
     rewritten_query TEXT,
     retrieval_type  VARCHAR(30),
     retrieved_chunks JSONB,
     reranked_chunks  JSONB,
     final_answer    TEXT,
+    tool_calls      JSONB,
     model_name      VARCHAR(100),
     latency_ms      INT,
     token_usage     JSONB,
+    status          VARCHAR(20),
+    error_code      VARCHAR(50),
     feedback        VARCHAR(10),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

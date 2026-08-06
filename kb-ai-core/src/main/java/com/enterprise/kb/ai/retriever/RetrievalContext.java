@@ -55,6 +55,14 @@ public class RetrievalContext {
     @Getter @Setter
     private String userId;
 
+    /**
+     * 改写后的查询文本（3.12 审计捕获）：由 RewriteCapturingQueryTransformer 在
+     * 检索执行前写入；审计 Advisor 读取落 kb_audit_log.rewritten_query。
+     * volatile：改写在 retrievalExecutor 线程执行，审计读取在响应线程。
+     */
+    @Getter @Setter
+    private volatile String rewrittenQuery;
+
     private volatile Filter.Expression securityFilter;
 
     private final List<TraceEntry> traceEntries = new CopyOnWriteArrayList<>();

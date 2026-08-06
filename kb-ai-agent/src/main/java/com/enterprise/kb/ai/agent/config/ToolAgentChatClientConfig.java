@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.config;
 
+import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
@@ -27,9 +28,10 @@ import org.springframework.context.annotation.Configuration;
  * agentChatMemory（同 sessionId 跨链历史互通）、护栏/配额 Advisor（安全与成本
  * 管控不分流）。
  *
- * <p><b>链序</b>：TokenBudget(30) → RateLimit(100) → OutputGuardrail(110) →
+ * <p><b>链序</b>：Audit(10) → TokenBudget(30) → RateLimit(100) → OutputGuardrail(110) →
  * InputSanitize(300) → Memory(400) → ToolCallingAdvisor(1000)。工具循环只包裹
- * 模型调用（order 1000 最内层，护栏/记忆每请求仅执行一次）。
+ * 模型调用（order 1000 最内层，护栏/记忆每请求仅执行一次）；审计居最外层，
+ * 被拒请求同样落 kb_audit_log（11.6）。
  */
 @Configuration
 public class ToolAgentChatClientConfig {
@@ -50,6 +52,7 @@ public class ToolAgentChatClientConfig {
     @Bean
     public ChatClient toolAgentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
                                           ChatMemory agentChatMemory,
+                                          AuditTraceAdvisor auditTraceAdvisor,
                                           TokenBudgetAdvisor tokenBudgetAdvisor,
                                           RateLimitAdvisor rateLimitAdvisor,
                                           OutputGuardrailAdvisor outputGuardrailAdvisor,
@@ -60,6 +63,7 @@ public class ToolAgentChatClientConfig {
             .defaultSystem("你是企业事务 Agent 助手。根据用户需求调用企业内部工具完成查询和操作，"
                 + "写操作须经用户审批确认后才会真正执行。")
             .defaultAdvisors(
+                auditTraceAdvisor,
                 tokenBudgetAdvisor,
                 rateLimitAdvisor,
                 outputGuardrailAdvisor,

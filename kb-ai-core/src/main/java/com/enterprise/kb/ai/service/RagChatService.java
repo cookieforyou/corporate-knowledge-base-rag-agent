@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.service;
 
+import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -40,7 +41,8 @@ public class RagChatService {
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
-                .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
+                .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
+                .param(AuditTraceAdvisor.MODE_KEY, "rag"))
             .call()
             .content();
     }
@@ -51,7 +53,8 @@ public class RagChatService {
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
-                .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
+                .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
+                .param(AuditTraceAdvisor.MODE_KEY, "rag"))
             .stream()
             .content();
     }

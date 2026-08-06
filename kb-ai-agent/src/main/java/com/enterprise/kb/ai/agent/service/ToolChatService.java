@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.service;
 
+import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import org.springframework.ai.chat.client.ChatClient;
@@ -49,7 +50,8 @@ public class ToolChatService {
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
-                .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
+                .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
+                .param(AuditTraceAdvisor.MODE_KEY, "tool"))
             .toolContext(buildToolContext(retrievalContext, approvedToolCallId));
         if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
             request.system(APPROVAL_CONFIRM_HINT);
@@ -64,7 +66,8 @@ public class ToolChatService {
             .user(query)
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
-                .param(RetrievalContext.CONTEXT_KEY, retrievalContext))
+                .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
+                .param(AuditTraceAdvisor.MODE_KEY, "tool"))
             .toolContext(buildToolContext(retrievalContext, approvedToolCallId));
         if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
             request.system(APPROVAL_CONFIRM_HINT);

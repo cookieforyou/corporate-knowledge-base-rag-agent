@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.config;
 
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
+import com.enterprise.kb.ai.retriever.RewriteCapturingQueryTransformer;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
@@ -106,7 +107,8 @@ public class RetrievalConfig {
             .order(500);
 
         if (rewriteEnabled) {
-            builder.queryTransformers(rewriteQueryTransformer);
+            // 装饰器捕获改写文本供审计落库（3.12）；调试台直注原 Bean 不受影响
+            builder.queryTransformers(new RewriteCapturingQueryTransformer(rewriteQueryTransformer));
         }
         if (expansionEnabled) {
             builder.queryExpander(MultiQueryExpander.builder()

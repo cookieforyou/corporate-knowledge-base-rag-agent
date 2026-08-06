@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
@@ -69,13 +70,15 @@ public class RagAgentChatClientConfig {
      * 纯 RAG 生产对话链（护栏 + 多轮记忆 + 溯源 + 混合检索 RAG，**零工具**）。
      * CONVERSATION_ID 与 RetrievalContext 由 Controller 经 advisor 参数传入。
      *
-     * <p>链序（11.2 v2 表去掉工具位）：TokenBudget(30) → RateLimit(100) →
+     * <p>链序（11.2 v2 表去掉工具位）：Audit(10) → TokenBudget(30) → RateLimit(100) →
      * OutputGuardrail(110) → InputSanitize(300) → Memory(400) → Trace(450) →
      * Retrieval(500)。order 由各 Advisor getOrder() 决定，列表顺序不敏感。
+     * 审计居最外层：被拒/被限流请求同样落 kb_audit_log（11.6）。
      */
     @Bean
     public ChatClient ragAgentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
                                          ChatMemory agentChatMemory,
+                                         AuditTraceAdvisor auditTraceAdvisor,
                                          TokenBudgetAdvisor tokenBudgetAdvisor,
                                          RateLimitAdvisor rateLimitAdvisor,
                                          OutputGuardrailAdvisor outputGuardrailAdvisor,
@@ -85,6 +88,7 @@ public class RagAgentChatClientConfig {
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。基于知识库检索到的内容回答问题。")
             .defaultAdvisors(
+                auditTraceAdvisor,
                 tokenBudgetAdvisor,
                 rateLimitAdvisor,
                 outputGuardrailAdvisor,
