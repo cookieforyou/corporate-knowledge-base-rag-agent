@@ -21,7 +21,11 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                // metrics/prometheus 放行供 Prometheus 抓取（3.13 验收「可采集」）：
+                // 指标不含租户标签与敏感内容（标签纪律见 AiBusinessMetrics）；
+                // 生产加固可选 IP 白名单（独立 SecurityFilterChain），现阶段与 health/info 同级放行
+                .requestMatchers("/actuator/health", "/actuator/info",
+                    "/actuator/metrics", "/actuator/metrics/**", "/actuator/prometheus").permitAll()
                 // WebSocket 端点放行 filter chain：鉴权在握手层经 JwtHandshakeInterceptor
                 // 复用同一 JwtDecoder 完成（2.13；浏览器 WS API 无法携带 Authorization 头）
                 .requestMatchers("/ws/**").permitAll()

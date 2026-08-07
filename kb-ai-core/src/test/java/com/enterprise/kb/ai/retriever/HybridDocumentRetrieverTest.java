@@ -1,5 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -35,7 +37,8 @@ class HybridDocumentRetrieverTest {
     void setUp() {
         vectorStore = mock(VectorStore.class);
         esRetriever = mock(ElasticsearchDocumentRetriever.class);
-        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion());
+        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion(),
+            new AiBusinessMetrics(new SimpleMeterRegistry()));
     }
 
     @Test

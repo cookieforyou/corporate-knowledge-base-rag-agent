@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.TokenBudgetExceededException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +54,7 @@ class TokenBudgetAdvisorTest {
         meterRegistry = new SimpleMeterRegistry();
         chain = mock(AdvisorChain.class);
         when(redisson.getAtomicLong(anyString())).thenReturn(ledger);
-        advisor = new TokenBudgetAdvisor(redisson, meterRegistry, true, DAILY_LIMIT);
+        advisor = new TokenBudgetAdvisor(redisson, new AiBusinessMetrics(meterRegistry), true, DAILY_LIMIT);
     }
 
     private static ChatClientRequest requestWithTenant(String tenantId) {
@@ -118,7 +119,7 @@ class TokenBudgetAdvisorTest {
 
     @Test
     void disabledSkipsBudgetCheck() {
-        TokenBudgetAdvisor disabled = new TokenBudgetAdvisor(redisson, meterRegistry, false, DAILY_LIMIT);
+        TokenBudgetAdvisor disabled = new TokenBudgetAdvisor(redisson, new AiBusinessMetrics(meterRegistry), false, DAILY_LIMIT);
 
         assertThat(disabled.before(requestWithTenant("tenant-a"), chain)).isNotNull();
         verifyNoInteractions(redisson);

@@ -41,6 +41,8 @@
 
 > **v2.10 审计落地定稿（2026-08-05，任务 3.12）**：新增第十一章 §11.6——AuditTraceAdvisor(order 10) 全链路审计：被拒请求捕获机制（覆写 adviseCall/adviseStream，草图 before+after 无法覆盖内层抛错）、双链路数据面（mode/tool_calls 经 advisor 参数与 RetrievalContext）、字段数据源与脱敏（query_text 同款 sanitize、rewritten_query 装饰器捕获、流式聚合不缓冲）、旁路容错异步落库；kb_audit_log 四列扩展（第七章 DDL 同步，存量库先 ALTER——ddl-auto=validate）；链序表全 Advisor 装配完毕（3.14 终装达成）。
 
+> **v2.11 业务指标落地定稿（2026-08-07，任务 3.13）**：AiBusinessMetrics 落 kb-ai-core/metrics（第六章预留包位）统一注册业务指标（反馈/命中率/检索延迟/工具成功率/token 收编），ToolCall 状态常量统一至 RetrievalContext.ToolCall；SecurityConfig 放行 /actuator/prometheus 与 /actuator/metrics/**（此前被 denyAll 拦截——「Prometheus 可采集」验收的真实缺口）；草图 cache.hit/rag.llm.* 依赖未就绪暂不注册，详见第十三章 §13.3。
+
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
 ## 目录导航
@@ -81,7 +83,7 @@
 | 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛） |
 | 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6） |
 | 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正） |
-| 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层） |
+| 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
 
 ### 第六卷：工程质量保障（质量层）

@@ -116,7 +116,7 @@ public class EnterpriseMockTools {
                 return "⚠️ 审批 ID 无效、已过期或已被使用，请重新发起请假申请并等待用户确认";
             }
             // Mock 落写（契约位：真实实现为 OA 系统提交）
-            recordToolCall(retrievalContext, "submitLeaveRequest", "EXECUTED", approvedId, summary);
+            recordToolCall(retrievalContext, "submitLeaveRequest", RetrievalContext.ToolCall.STATUS_EXECUTED, approvedId, summary);
             return "✅ 请假申请已提交：" + summary;
         }
 
@@ -126,7 +126,7 @@ public class EnterpriseMockTools {
         } catch (BusinessException e) {
             return "⚠️ " + e.getMessage();
         }
-        recordToolCall(retrievalContext, "submitLeaveRequest", "PENDING_APPROVAL", approvalId, summary);
+        recordToolCall(retrievalContext, "submitLeaveRequest", RetrievalContext.ToolCall.STATUS_PENDING_APPROVAL, approvalId, summary);
         return "⏳ PENDING_APPROVAL:" + approvalId + " 待用户确认：" + summary
             + "。请将审批 ID 展示给用户，等待用户确认后再执行。";
     }

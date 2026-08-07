@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -68,15 +69,18 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     private final KbAuditLogRepository auditLogRepository;
     private final JsonMapper jsonMapper;
     private final AsyncTaskExecutor auditExecutor;
+    private final AiBusinessMetrics metrics;
     private final boolean enabled;
 
     public AuditTraceAdvisor(KbAuditLogRepository auditLogRepository,
                              JsonMapper jsonMapper,
                              @Qualifier("auditExecutor") AsyncTaskExecutor auditExecutor,
+                             AiBusinessMetrics metrics,
                              @Value("${rag.audit.enabled:true}") boolean enabled) {
         this.auditLogRepository = auditLogRepository;
         this.jsonMapper = jsonMapper;
         this.auditExecutor = auditExecutor;
+        this.metrics = metrics;
         this.enabled = enabled;
         log.info("全链路审计 Advisor 装配: enabled={}", enabled);
     }
@@ -164,6 +168,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                 ctx == null ? List.of() : ctx.getToolCalls(),
                 latency(startMs));
 
+            recordBusinessMetrics(snapshot);
             auditExecutor.execute(() -> persistSafely(snapshot, queryText, answer, chatResponse, error));
         } catch (Exception e) {
             log.warn("审计记录构建失败，丢弃（旁路数据，不影响问答）: {}", e.getMessage());
@@ -203,6 +208,30 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             auditLogRepository.save(audit);
         } catch (Exception e) {
             log.warn("审计落库失败，丢弃（旁路数据，不影响问答）: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 业务指标旁路计数（3.13）：审计 Advisor 天然遍历双链全量请求且可读 trace/
+     * toolCalls 快照，命中率与工具成功率在此统计——
+     * <ul>
+     *   <li>检索命中率：rag 模式且产生过 trace 条目（到达过检索层）计 total，
+     *       final 重排序列非空计 hit；内层护栏/限流提前拒绝未达检索，不计入分母</li>
+     *   <li>工具调用：按 ToolCall.status 分桶（成功/挂起见 AiBusinessMetrics）</li>
+     * </ul>
+     */
+    private void recordBusinessMetrics(AuditSnapshot snapshot) {
+        try {
+            if ("rag".equals(snapshot.mode()) && !snapshot.traceEntries().isEmpty()) {
+                boolean hit = snapshot.traceEntries().stream()
+                    .anyMatch(e -> "final".equals(e.source()) && !e.documents().isEmpty());
+                metrics.recordRetrieval(hit);
+            }
+            for (RetrievalContext.ToolCall toolCall : snapshot.toolCalls()) {
+                metrics.recordToolCall(toolCall.status());
+            }
+        } catch (Exception e) {
+            log.warn("业务指标计数失败，跳过（旁路数据，不影响问答与审计）: {}", e.getMessage());
         }
     }
 

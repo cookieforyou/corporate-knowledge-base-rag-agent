@@ -1,9 +1,8 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.TokenBudgetExceededException;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RAtomicLong;
 import org.redisson.api.RedissonClient;
@@ -50,24 +49,17 @@ public class TokenBudgetAdvisor implements BaseAdvisor {
     private final boolean enabled;
     private final long dailyLimit;
 
-    /** AI Token 总消耗（12.3：rag.token.total）——不带租户标签，避免指标基数膨胀 */
-    private final Counter tokenCounter;
-    /** 预算拒绝次数——攻击/异常用量观测锚点（3.13 指标体系落地后可迁 AiBusinessMetrics） */
-    private final Counter rejectedCounter;
+    /** Token 计量指标统一注册于 AiBusinessMetrics（3.13 收编，原本类分散注册） */
+    private final AiBusinessMetrics metrics;
 
     public TokenBudgetAdvisor(RedissonClient redissonClient,
-                              MeterRegistry meterRegistry,
+                              AiBusinessMetrics metrics,
                               @Value("${rag.token-budget.enabled:true}") boolean enabled,
                               @Value("${rag.token-budget.daily-limit:1000000}") long dailyLimit) {
         this.redissonClient = redissonClient;
+        this.metrics = metrics;
         this.enabled = enabled;
         this.dailyLimit = dailyLimit;
-        this.tokenCounter = Counter.builder("rag.token.total")
-            .description("AI Token 总消耗")
-            .register(meterRegistry);
-        this.rejectedCounter = Counter.builder("rag.token.budget.rejected")
-            .description("Token 预算拒绝次数")
-            .register(meterRegistry);
         log.info("Token 预算护栏装配: enabled={}, dailyLimit={}", enabled, dailyLimit);
     }
 
@@ -86,7 +78,7 @@ public class TokenBudgetAdvisor implements BaseAdvisor {
             ledger.expireIfNotSet(Duration.ofDays(2));
             long used = ledger.get();
             if (used >= dailyLimit) {
-                rejectedCounter.increment();
+                metrics.recordTokenBudgetRejected();
                 log.warn("租户 [{}] 日 Token 预算耗尽（已用 {} / 上限 {}），请求拒绝",
                     tenantId, used, dailyLimit);
                 throw new TokenBudgetExceededException(
@@ -105,7 +97,7 @@ public class TokenBudgetAdvisor implements BaseAdvisor {
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
         long tokens = totalTokensOf(response);
         if (tokens > 0) {
-            tokenCounter.increment(tokens);
+            metrics.addTokens(tokens);
             String tenantId = tenantOf(response);
             if (tenantId != null) {
                 try {

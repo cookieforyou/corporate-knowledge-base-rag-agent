@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 13 项）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）、**3.19 RAG/Tool 双链路拆分 + kb-ai-agent 模块独立**（用户发起的架构改进）、**3.12 全链路审计（3.14 终装随之达成）**；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.10 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
+**当前阶段**：Phase 1 全部完成；**Phase 2 已收尾（2026-08-04 全量基线达标）**——检索簇 B+C、前端簇 D（2.13 ETL 进度 WebSocket / 2.14 检索调试台 / 2.15 Chunk 观测台+文档管理）与解析支线 2.1-2.3（DocMind 大模型版 + 保护式切分 + 页码下传）全部完成并经 E2E 验证；2.4（Contextual 增强+vision，设计即可选）延期，触发条件见进度文档；2.16 Golden 语料 74 条全量基线：Recall@5 0.971 / MRR 0.910 / Faithfulness 4.093 / Negative Rejection 1.00（含 5 条对抗性），全部可测验收项通过。E2E 清理 7 个真跑缺陷：ES 级联删除字段名、@EnableWebSocket 缺失、表格 HTML 未保护（OutputHtmlTable/llmResult）、page_num 缺失、embedding 单批超 20 条、删除幂等、rerank 契约误用旧格式静默降级。**Phase 3 进行中（已完成 14 项）**：3.1 多轮记忆（E2E 定案）、3.9+3.10 fail-closed 租户隔离、3.5/3.6 输入输出护栏、3.7/3.8 配额护栏（限流+Token 预算）、3.2 SmartRouting 主备熔断切换（均经 E2E 回归，3.5-3.10 用户验证通过）、3.3/3.4 工具链（Mock 工具层 + HITL 审批沙箱）、**3.19 RAG/Tool 双链路拆分 + kb-ai-agent 模块独立**（用户发起的架构改进）、**3.12 全链路审计（3.14 终装随之达成）**、**3.13 业务指标（AiBusinessMetrics + Prometheus 采集放行）**；3.11 部门/角色隔离缓做、3.16 权限页面取消（Casdoor 统一管理）；任务清单复审完成；护栏加固路线图已立项不排期（12.4 S1-S9）。设计唯一依据见 `docs/project-implement/README.md`（v2 拆分修订版 + v2.1-v2.10 实现期修正），进度追踪见 `docs/project-progress/项目阶段推进任务清单完成记录.md`。
 
 ## 技术栈
 
@@ -45,6 +45,8 @@ kb-rag-agent/
 - 启动：后端 `mvn spring-boot:run -pl kb-api`；前端 `cd frontend && npm install && npm run dev`。
 
 ## 当前实现要点
+
+**业务指标（3.13，2026-08-07）**：kb-ai-core `metrics/AiBusinessMetrics` 统一注册中心——rag.feedback.like/dislike（3.17 反馈 API 接线点）、rag.retrieval.total/hit（AuditTraceAdvisor 按 final trace 计命中，内层提前拒绝不计分母）、rag.retrieval.latency（HybridDocumentRetriever Timer）、rag.tool.call.total/success/pending（ToolCall.status 分桶，常量统一 RetrievalContext.ToolCall）、rag.token.total/budget.rejected（自 TokenBudgetAdvisor 收编）；不带租户标签防基数膨胀；SecurityConfig 放行 /actuator/prometheus 与 /actuator/metrics/**（此前 denyAll 拦截）；草图 cache.hit/rag.llm.* 依赖未就绪不注册（13 章 v2.11 注明去向）
 
 **全链路审计（3.12，2026-08-05）**：`AuditTraceAdvisor`(order 10 最外层)挂双链（rag/tool），异步虚拟线程落 kb_audit_log（旁路容错：构建/落库失败告警丢弃不击穿问答）。**被拒请求捕获**：覆写 adviseCall(try/catch)/adviseStream(doOnComplete/doOnError)——内层抛错（限流/注入/预算）同样落库，status 三态 SUCCESS/REJECTED(errorCode)/ERROR；query_text 落库前同款 sanitize 脱敏（order 10 先于 InputSanitize 见原文）；rewritten_query 经 `RewriteCapturingQueryTransformer` 装饰器写回 RetrievalContext 捕获；流式 doOnNext 聚合文本不缓冲 token（不损 TTFT）；mode 经 advisor 参数（MODE_KEY）区分双链；kb_audit_log v2.10 扩展 mode/status/error_code/tool_calls 四列（**存量库须先 ALTER 再启动**）；kb-eval 链不挂；`rag.audit.enabled` 可关
 
@@ -87,7 +89,7 @@ kb-rag-agent/
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml`（kb-infrastructure）+ `application-ai.yml`（kb-ai-core）
 - **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*`（REDIS_HOST/PORT/PASSWORD/DB 环境变量）被两处消费，**不可移除**——① Redisson V4 自动配置（RedissonConnectionFactory + StringRedisTemplate → ETL 进度双通道）；② 会话记忆 Jedis 客户端（ChatMemoryRedisClientConfig 覆盖 Bean，spring-ai 自动配置不支持密码）
 - **多 ChatClient Bean 纪律（3.19 起）**：容器内已有 chatClient（评估）/ ragAgentChatClient / toolAgentChatClient 三 Bean，所有注入点必须显式 `@Qualifier`（裸类型注入歧义致启动失败，3.2 @Primary 教训）；自建 ChatClient 链新增 Advisor 时核对 order 与链序表（11.2）一致
-- 测试：kb-ai-core 85 + kb-ai-agent 23 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 20 单测（kb-admin 尚无测试类）
+- 测试：kb-ai-core 92 + kb-ai-agent 23 + kb-eval 12 + kb-etl 14 + kb-infrastructure 10 + kb-api 20 单测（kb-admin 尚无测试类）
 
 ## 注意事项
 

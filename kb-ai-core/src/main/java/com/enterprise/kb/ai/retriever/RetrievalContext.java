@@ -133,7 +133,16 @@ public class RetrievalContext {
 
     /**
      * 工具调用记录（3.4 HITL）：工具名 + 状态（PENDING_APPROVAL / EXECUTED / REJECTED）
-     * + 审批 ID（写工具挂起时携带，前端确认后回传）+ 操作摘要（用户可读确认文案）
+     * + 审批 ID（写工具挂起时携带，前端确认后回传）+ 操作摘要（用户可读确认文案）。
+     * 状态常量统一于此（3.13：AiBusinessMetrics 按状态分桶计数，消除散点魔法值）。
      */
-    public record ToolCall(String toolName, String status, String approvalId, String summary) {}
+    public record ToolCall(String toolName, String status, String approvalId, String summary) {
+
+        /** HITL 挂起待审批 */
+        public static final String STATUS_PENDING_APPROVAL = "PENDING_APPROVAL";
+        /** 审批通过后真正执行 */
+        public static final String STATUS_EXECUTED = "EXECUTED";
+        /** 审批拒绝/凭证失效 */
+        public static final String STATUS_REJECTED = "REJECTED";
+    }
 }

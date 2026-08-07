@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -9,6 +10,7 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,13 +54,16 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     private final VectorStore vectorStore;
     private final ElasticsearchDocumentRetriever esRetriever;
     private final RrfFusion rrfFusion;
+    private final AiBusinessMetrics metrics;
 
     public HybridDocumentRetriever(VectorStore vectorStore,
                                    ElasticsearchDocumentRetriever esRetriever,
-                                   RrfFusion rrfFusion) {
+                                   RrfFusion rrfFusion,
+                                   AiBusinessMetrics metrics) {
         this.vectorStore = vectorStore;
         this.esRetriever = esRetriever;
         this.rrfFusion = rrfFusion;
+        this.metrics = metrics;
     }
 
     @Override
@@ -100,8 +105,11 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         }
 
         List<Document> fused = rrfFusion.fuse(vectorHits, bm25Hits, recallSize);
+        long elapsed = System.currentTimeMillis() - start;
+        // 检索延迟 Timer（rag.retrieval.latency，3.13）：真实耗时，Prometheus 侧出分位
+        metrics.recordRetrievalLatency(Duration.ofMillis(elapsed));
         log.debug("混合检索完成: vector={} bm25={} fused={} 耗时={}ms",
-            vectorHits.size(), bm25Hits.size(), fused.size(), System.currentTimeMillis() - start);
+            vectorHits.size(), bm25Hits.size(), fused.size(), elapsed);
         return fused;
     }
 

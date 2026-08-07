@@ -1,9 +1,11 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -68,6 +70,7 @@ class AuditTraceAdvisorTest {
     private KbAuditLogRepository repository;
     private CallAdvisorChain callChain;
     private StreamAdvisorChain streamChain;
+    private SimpleMeterRegistry meterRegistry;
     private AuditTraceAdvisor advisor;
 
     @BeforeEach
@@ -75,7 +78,9 @@ class AuditTraceAdvisorTest {
         repository = mock(KbAuditLogRepository.class);
         callChain = mock(CallAdvisorChain.class);
         streamChain = mock(StreamAdvisorChain.class);
-        advisor = new AuditTraceAdvisor(repository, JsonMapper.builder().build(), SYNC_EXECUTOR, true);
+        meterRegistry = new SimpleMeterRegistry();
+        advisor = new AuditTraceAdvisor(repository, JsonMapper.builder().build(), SYNC_EXECUTOR,
+            new AiBusinessMetrics(meterRegistry), true);
     }
 
     private static RetrievalContext ctxWithTrace() {
@@ -136,6 +141,40 @@ class AuditTraceAdvisorTest {
         assertThat(audit.getTokenUsage()).contains("\"total_tokens\":30");
         assertThat(audit.getLatencyMs()).isGreaterThanOrEqualTo(0);
         assertThat(audit.getTraceId()).isNotBlank();
+        // 命中率指标（3.13）：rag 模式到达检索且 final 非空 → total+hit 各 1
+        assertThat(meterRegistry.counter("rag.retrieval.total").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.retrieval.hit").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void ragRequestWithEmptyFinalTraceCountsAsMiss() {
+        // 双路空命中、final 无文档 → 计 total 不计 hit（miss）
+        RetrievalContext emptyCtx = new RetrievalContext();
+        emptyCtx.setTenantId("tenant-a");
+        emptyCtx.setUserId("user-1");
+        emptyCtx.addTraceEntry("bm25", List.of());
+        emptyCtx.addTraceEntry("final", List.of());
+        when(callChain.nextCall(any())).thenReturn(response("无相关信息"));
+
+        advisor.adviseCall(request(emptyCtx, "rag", "库外问题"), callChain);
+
+        assertThat(meterRegistry.counter("rag.retrieval.total").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.retrieval.hit").count()).isZero();
+    }
+
+    @Test
+    void rejectedBeforeRetrievalNotCountedInDenominator() {
+        // 内层限流拒绝发生于检索前：ctx 无 trace 条目 → 不计入命中率分母
+        RetrievalContext freshCtx = new RetrievalContext();
+        freshCtx.setTenantId("tenant-a");
+        freshCtx.setUserId("user-1");
+        when(callChain.nextCall(any()))
+            .thenThrow(new BusinessException("RATE_LIMITED", "请求过于频繁"));
+
+        assertThatThrownBy(() -> advisor.adviseCall(request(freshCtx, "rag", "问题"), callChain))
+            .isInstanceOf(BusinessException.class);
+
+        assertThat(meterRegistry.counter("rag.retrieval.total").count()).isZero();
     }
 
     @Test
@@ -211,11 +250,16 @@ class AuditTraceAdvisorTest {
         advisor.adviseCall(request(ctx, "tool", "提交请假"), callChain);
 
         assertThat(captureSaved().getToolCalls()).contains("apv-1").contains("PENDING_APPROVAL");
+        // 工具指标（3.13）：PENDING_APPROVAL 计 total + pending，不计 success
+        assertThat(meterRegistry.counter("rag.tool.call.total").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.tool.call.pending").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.tool.call.success").count()).isZero();
     }
 
     @Test
     void disabledAdvisorPassesThroughWithoutPersist() {
-        AuditTraceAdvisor disabled = new AuditTraceAdvisor(repository, JsonMapper.builder().build(), SYNC_EXECUTOR, false);
+        AuditTraceAdvisor disabled = new AuditTraceAdvisor(repository, JsonMapper.builder().build(),
+            SYNC_EXECUTOR, new AiBusinessMetrics(meterRegistry), false);
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
         disabled.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain);
