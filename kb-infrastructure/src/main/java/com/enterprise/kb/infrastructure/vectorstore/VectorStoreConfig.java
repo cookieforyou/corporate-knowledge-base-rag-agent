@@ -4,6 +4,8 @@ import com.enterprise.kb.infrastructure.vectorstore.KbVectorStoreProperties.Pgve
 import com.enterprise.kb.infrastructure.vectorstore.KbVectorStoreProperties.Milvus;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.param.ConnectParam;
+import io.milvus.param.IndexType;
+import io.milvus.param.MetricType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -94,8 +96,8 @@ public class VectorStoreConfig {
             .collectionName(cfg.getCollectionName())
             .databaseName(cfg.getDatabaseName())
             .embeddingDimension(cfg.getEmbeddingDimension())
-            .indexType(io.milvus.param.IndexType.valueOf(cfg.getIndexType()))
-            .metricType(io.milvus.param.MetricType.valueOf(cfg.getMetricType()))
+            .indexType(IndexType.valueOf(cfg.getIndexType()))
+            .metricType(MetricType.valueOf(cfg.getMetricType()))
             .initializeSchema(true)
             .build();
     }

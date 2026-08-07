@@ -59,7 +59,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         container.addMessageListener((message, pattern) -> {
             String json = new String(message.getBody(), StandardCharsets.UTF_8);
             try {
-                String docId = jsonMapper.readTree(json).path("docId").asText(null);
+                String docId = jsonMapper.readTree(json).path("docId").asString(null);
                 if (docId != null) {
                     progressHandler.broadcast(docId, json);
                 }

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -43,9 +44,9 @@ public class DocumentService {
     private String bucket;
 
     /** 允许的文件类型 */
-    private static final java.util.Set<String> ALLOWED_TYPES =
-        java.util.Set.of("application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/markdown", "text/plain", "text/html");
+    private static final Set<String> ALLOWED_TYPES = Set.of(
+            "application/pdf", "text/markdown", "text/plain", "text/html",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 
     /**
      * 上传文档：写入 MinIO → 落 kb_document 表 → 返回文档 ID

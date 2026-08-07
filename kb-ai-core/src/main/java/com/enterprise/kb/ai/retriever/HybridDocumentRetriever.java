@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * 混合检索器（设计文档 10.2）—— 双路并行召回 + RRF 融合
@@ -117,7 +118,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     }
 
     /** 单路容错：失败不扩散，返回空列表（降级矩阵 10.2：双路全空时由空证据路径兜底） */
-    private List<Document> retrieveSafely(java.util.function.Supplier<List<Document>> call, String route) {
+    private List<Document> retrieveSafely(Supplier<List<Document>> call, String route) {
         try {
             return call.get();
         } catch (Exception e) {
