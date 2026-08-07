@@ -34,6 +34,23 @@ export const chat = (query: string) =>
 /** SSE 流式问答 */
 export const chatStreamUrl = () => `${api.defaults.baseURL}/chat/stream`
 
+// ── 工具调用与 HITL 审批（3.3/3.4/3.15）──
+
+/** 工具调用投影：与后端 RetrievalContext.ToolCall / SSE TOOL_CALL 事件同形 */
+export interface ToolCallInfo {
+  toolName: string
+  status: 'PENDING_APPROVAL' | 'EXECUTED' | 'REJECTED'
+  approvalId?: string | null
+  summary?: string | null
+  /** 本地 UI 状态（非后端字段）：审批单失效（approve 返回 false） */
+  expired?: boolean
+}
+
+/** HITL 审批确认（11.2.1 三段式第二段）：approved=false 表示凭证失效/越权 */
+export const approveToolCall = (approvalId: string) =>
+  api.post(`/tools/approvals/${approvalId}/approve`)
+    .then(r => r.data.data.approved as boolean)
+
 // ── 文档管理（2.15）──
 
 export interface KbDoc {

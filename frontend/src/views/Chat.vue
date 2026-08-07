@@ -4,22 +4,27 @@
     <header class="page-head reveal">
       <div>
         <h1 class="t-display page-title">智能问答</h1>
-        <p class="page-desc">基于企业知识库的溯源式对话——回答附 <b>[ref-N]</b> 证据引用</p>
+        <p class="page-desc">基于企业知识库的溯源式对话——回答附 <b>[ref-N]</b> 证据引用，点击可查原文</p>
       </div>
       <div class="head-badges">
         <span class="chip chip-pine">DeepSeek V4</span>
         <span class="chip chip-gold">双路混合检索</span>
         <span class="chip chip-rerank">qwen3-rerank 精排</span>
+        <el-button size="small" round :disabled="streaming" @click="newChat">
+          <el-icon><Refresh /></el-icon>&nbsp;新对话
+        </el-button>
       </div>
     </header>
 
     <!-- ══ 对话区 ══ -->
     <div ref="msgList" class="msg-scroll">
       <!-- 空态：能力面板 -->
-      <div v-if="messages.length === 0 && !streaming" class="empty reveal">
+      <div v-if="store.messages.length === 0 && !streaming" class="empty reveal">
         <div class="empty-mark t-display">知</div>
-        <h2 class="t-display empty-title">向知识库提问</h2>
-        <p class="empty-sub">检索 · 融合 · 精排 · 溯源，全链路可观测</p>
+        <h2 class="t-display empty-title">{{ store.mode === 'rag' ? '向知识库提问' : '企业事务办理' }}</h2>
+        <p class="empty-sub">{{ store.mode === 'rag'
+          ? '检索 · 融合 · 精排 · 溯源，全链路可观测'
+          : '员工查询 · 年假余额 · 请假申请（写操作需人工审批）' }}</p>
         <div class="suggest">
           <button v-for="(s, i) in suggestions" :key="i" class="suggest-item panel panel-lift"
             :style="{ '--d': `${0.08 * i}s` }" @click="ask(s)">
@@ -28,23 +33,35 @@
           </button>
         </div>
         <div class="pipeline">
-          <span class="pipe-step chip chip-vector">向量召回</span><i class="pipe-sep" />
-          <span class="pipe-step chip chip-bm25">BM25 召回</span><i class="pipe-sep" />
-          <span class="pipe-step chip chip-fusion">RRF 融合</span><i class="pipe-sep" />
-          <span class="pipe-step chip chip-rerank">精排</span><i class="pipe-sep" />
-          <span class="pipe-step chip chip-gold">Grounding 生成</span>
+          <template v-if="store.mode === 'rag'">
+            <span class="pipe-step chip chip-vector">向量召回</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-bm25">BM25 召回</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-fusion">RRF 融合</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-rerank">精排</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-gold">Grounding 生成</span>
+          </template>
+          <template v-else>
+            <span class="pipe-step chip chip-pine">读工具自动执行</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-gold">写工具 HITL 审批</span>
+          </template>
         </div>
       </div>
 
       <!-- 消息流 -->
-      <div v-for="(msg, i) in messages" :key="i" :class="['msg', msg.role]">
+      <div v-for="(msg, i) in store.messages" :key="i" :class="['msg', msg.role]">
         <div class="msg-avatar" :class="msg.role">
           {{ msg.role === 'user' ? '我' : '知' }}
         </div>
         <div class="msg-body">
           <div class="msg-bubble" :class="msg.role">
-            <span class="msg-text" v-html="renderMsg(msg)" />
+            <span v-if="msg.role === 'user'" class="msg-text" v-html="escapeHtml(msg.content)" />
+            <span v-else class="msg-text md" v-html="renderAnswer(msg.content)"
+              @click="onBubbleClick(msg, $event)" />
           </div>
+
+          <!-- 工具调用卡片（tool 链 TOOL_CALL 事件，3.15） -->
+          <ToolCallCard v-for="(tc, j) in msg.toolCalls" :key="j" :call="tc"
+            @confirmed="onApprovalConfirmed" />
 
           <!-- 溯源面板（assistant 且携带 trace） -->
           <div v-if="msg.role === 'assistant' && msg.sources?.length" class="trace-panel panel">
@@ -60,10 +77,13 @@
                     <span class="chip" :class="srcChipClass(src.source)">{{ srcLabel(src.source) }}</span>
                     <span class="trace-lat t-data" v-if="src.latencyMs != null">{{ src.latencyMs }} ms</span>
                   </div>
-                  <div v-for="c in src.chunks.slice(0, 5)" :key="c.chunkId" class="trace-item">
+                  <div v-for="c in src.chunks.slice(0, 5)" :key="c.chunkId"
+                    class="trace-item" :class="{ clickable: !!c.docId }"
+                    :title="c.docId ? '点击查看原文' : ''" @click="openSource(c)">
                     <div class="trace-item-top">
                       <span class="t-data chunk-id">{{ (c.chunkId || '').slice(0, 8) }}</span>
                       <span v-if="c.fileName" class="chunk-file">{{ c.fileName }}</span>
+                      <span v-if="c.pageNum" class="chunk-file t-data">p.{{ c.pageNum }}</span>
                       <span class="trace-scores">
                         <i v-for="(v, k) in c.scores" :key="k" class="score-tag t-data"
                           :class="scoreClass(k)">{{ k }}={{ fmtScore(v) }}</i>
@@ -83,7 +103,7 @@
         <div class="msg-avatar assistant">知</div>
         <div class="msg-body">
           <div class="msg-bubble assistant">
-            <span class="msg-text">{{ streamText }}<i class="caret" /></span>
+            <span class="msg-text md" v-html="renderAnswer(streamText)" /><i class="caret" />
           </div>
         </div>
       </div>
@@ -109,60 +129,69 @@
     <footer class="composer reveal">
       <div class="composer-box">
         <el-input v-model="input" type="textarea" :rows="2" resize="none"
-          placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+          :placeholder="store.mode === 'rag'
+            ? '输入问题，Enter 发送，Shift+Enter 换行'
+            : '描述要办理的事务，Enter 发送（写操作将弹出审批确认）'"
           :disabled="streaming" @keydown.enter.exact="ask(input)" />
         <div class="composer-actions">
-          <el-upload :show-file-list="false" :before-upload="handleUpload"
-            accept=".pdf,.docx,.md,.txt,.html">
-            <el-button text :disabled="streaming" class="attach-btn">
-              <el-icon><Paperclip /></el-icon>&nbsp;上传文档
-            </el-button>
-          </el-upload>
+          <div class="composer-left">
+            <!-- 双链路显式分流（11.5）：rag 知识问答 / tool 企业事务 -->
+            <el-radio-group v-model="store.mode" size="small" :disabled="streaming">
+              <el-radio-button value="rag">知识问答</el-radio-button>
+              <el-radio-button value="tool">企业工具</el-radio-button>
+            </el-radio-group>
+            <el-upload :show-file-list="false" :before-upload="handleUpload"
+              accept=".pdf,.docx,.md,.txt,.html">
+              <el-button text :disabled="streaming" class="attach-btn">
+                <el-icon><Paperclip /></el-icon>&nbsp;上传文档
+              </el-button>
+            </el-upload>
+          </div>
           <el-button type="primary" round :disabled="!input.trim() || streaming" @click="ask(input)">
             发送&nbsp;<el-icon><Promotion /></el-icon>
           </el-button>
         </div>
       </div>
     </footer>
+
+    <!-- 原文对话框（3.15 验收：溯源引用可点击查看原文） -->
+    <SourceDialog :target="sourceTarget" @close="sourceTarget = null" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, nextTick, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { chatStreamUrl, uploadDocument, etlProgressWsUrl } from '@/api'
-import type { EtlProgress } from '@/api'
+import { useChatStore, type Message, type Source, type SourceChunk } from '@/stores/chat'
+import { chatStreamUrl, uploadDocument, etlProgressWsUrl, type ToolCallInfo, type EtlProgress } from '@/api'
+import { renderAnswer } from '@/composables/markdown'
+import SourceDialog, { type SourceTarget } from '@/components/SourceDialog.vue'
+import ToolCallCard from '@/components/ToolCallCard.vue'
 import { ElMessage } from 'element-plus'
-import { Right, ArrowDown, Document, Promotion, Link as Paperclip } from '@element-plus/icons-vue'
+import { Right, ArrowDown, Document, Promotion, Refresh, Link as Paperclip } from '@element-plus/icons-vue'
 
 const auth = useAuthStore()
+const store = useChatStore()
 
-interface SourceChunk {
-  chunkId: string
-  fileName?: string | null
-  pageNum?: number | null
-  scores: Record<string, number>
-  snippet: string
-}
-interface Source { source: string; chunks: SourceChunk[]; latencyMs?: number | null }
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  sources?: Source[]
-  traceOpen?: boolean
-}
-
-const messages = ref<Message[]>([])
 const input = ref('')
 const streamText = ref('')
 const streaming = ref(false)
 const msgList = ref<HTMLElement>()
+const sourceTarget = ref<SourceTarget | null>(null)
 
-const suggestions = [
-  '什么是大泥球模式，DDD 建议怎么应对？',
-  '实体和值对象应该如何区分？',
-  '限界上下文为什么不能全局统一？'
-]
+const suggestionsByMode: Record<'rag' | 'tool', string[]> = {
+  rag: [
+    '什么是大泥球模式，DDD 建议怎么应对？',
+    '实体和值对象应该如何区分？',
+    '限界上下文为什么不能全局统一？'
+  ],
+  tool: [
+    '查询员工 E1001 的基本信息',
+    '员工 E1001 还剩多少天年假？',
+    '帮张三提交 2026-08-10 到 2026-08-12 的年假申请'
+  ]
+}
+const suggestions = computed(() => suggestionsByMode[store.mode])
 
 function scrollToBottom() {
   nextTick(() => {
@@ -170,24 +199,59 @@ function scrollToBottom() {
   })
 }
 
-/** [ref-N] → 高亮引用徽标（N 与溯源 final 序列下标对齐，11.1.2） */
-function renderMsg(msg: Message) {
-  const escaped = msg.content
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return escaped.replace(/\[ref-(\d+)\]/g, '<span class="ref-tag">ref-$1</span>')
+function escapeHtml(text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-async function ask(raw: string | undefined) {
+function newChat() {
+  store.newSession()
+  sourceTarget.value = null
+}
+
+/** [ref-N] 点击（事件委托）：N 与溯源 final 序列下标对齐（11.1.2），打开原文对话框 */
+function onBubbleClick(msg: Message, e: MouseEvent) {
+  const el = (e.target as HTMLElement).closest('[data-ref]') as HTMLElement | null
+  if (!el) return
+  const final = msg.sources?.find(s => s.source === 'final')
+  const chunk = final?.chunks[Number(el.dataset.ref) - 1]
+  if (!chunk) {
+    ElMessage.info('溯源数据未就绪')
+    return
+  }
+  msg.traceOpen = true
+  openSource(chunk)
+}
+
+/** 溯源条目 / ref 徽标 → 原文对话框（docId 缺失为旧数据形态，降级为不可点） */
+function openSource(c: SourceChunk) {
+  if (!c.docId) return
+  sourceTarget.value = {
+    chunkId: c.chunkId, docId: c.docId,
+    fileName: c.fileName, pageNum: c.pageNum
+  }
+}
+
+/** HITL 批准后自动发起确认轮（11.2.1 三段式第三段）：携带 approvedToolCallId，
+ *  后端注入确认指令使写工具复调确定化；确认轮必走 tool 链 */
+function onApprovalConfirmed(approvalId: string) {
+  ask('确认执行上述操作', { mode: 'tool', approvedToolCallId: approvalId })
+}
+
+interface AskOpts { mode?: 'rag' | 'tool'; approvedToolCallId?: string }
+
+async function ask(raw: string | undefined, opts: AskOpts = {}) {
   const query = (raw ?? '').trim()
   if (!query || streaming.value) return
 
-  messages.value.push({ role: 'user', content: query })
+  const mode = opts.mode ?? store.mode
+  store.messages.push({ role: 'user', content: query })
   input.value = ''
   scrollToBottom()
 
   streaming.value = true
   streamText.value = ''
   let sources: Source[] = []
+  let toolCalls: ToolCallInfo[] = []
 
   try {
     const resp = await fetch(chatStreamUrl(), {
@@ -196,14 +260,29 @@ async function ask(raw: string | undefined) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${auth.token}`
       },
-      body: JSON.stringify({ query })
+      // 会话协议（3.1/11.5）：sessionId 前端自备多轮回传；mode 双链显式分流；
+      // approvedToolCallId 仅 tool 链 HITL 确认轮携带
+      body: JSON.stringify({
+        query,
+        sessionId: store.sessionId,
+        mode,
+        ...(opts.approvedToolCallId ? { approvedToolCallId: opts.approvedToolCallId } : {})
+      })
     })
+    if (!resp.ok) {
+      let msg = `HTTP ${resp.status}`
+      try {
+        const j = await resp.json()
+        msg = j.message || j.error || msg
+      } catch { /* 非 JSON 错误体 */ }
+      throw new Error(msg)
+    }
     const reader = resp.body?.getReader()
     if (!reader) throw new Error('不支持流式响应')
 
     const decoder = new TextDecoder()
     let buffer = ''
-    let currentEvent = ''   // SSE 命名事件（TRACE）
+    let currentEvent = ''   // SSE 命名事件（TRACE / TOOL_CALL）
 
     while (true) {
       const { done, value } = await reader.read()
@@ -227,6 +306,8 @@ async function ask(raw: string | undefined) {
           const json = JSON.parse(data)
           if (currentEvent === 'TRACE') {
             sources = json.sources || []
+          } else if (currentEvent === 'TOOL_CALL') {
+            toolCalls = json.toolCalls || []
           } else if (json.token != null) {
             streamText.value += json.token
           } else if (json.error) {
@@ -239,14 +320,15 @@ async function ask(raw: string | undefined) {
         currentEvent = ''
       }
     }
-    messages.value.push({
+    store.messages.push({
       role: 'assistant',
       content: streamText.value,
       sources,
-      traceOpen: sources.length > 0
+      traceOpen: sources.length > 0,
+      toolCalls: toolCalls.length ? toolCalls : undefined
     })
   } catch (e: any) {
-    messages.value.push({ role: 'assistant', content: '请求失败：' + e.message })
+    store.messages.push({ role: 'assistant', content: '请求失败：' + e.message })
   } finally {
     streaming.value = false
     streamText.value = ''
@@ -344,7 +426,7 @@ function finalCount(msg: Message) {
 .page-title { margin: 0; font-size: 24px; color: var(--pine-900); }
 .page-desc { margin: 5px 0 0; color: var(--ink-3); font-size: 13px; }
 .page-desc b { color: var(--gold-600); }
-.head-badges { display: flex; gap: 8px; flex-shrink: 0; }
+.head-badges { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 
 /* ── 消息区 ── */
 .msg-scroll { flex: 1; overflow-y: auto; padding: 8px 28px 16px; }
@@ -389,22 +471,55 @@ function finalCount(msg: Message) {
 .msg.user .msg-body { align-items: flex-end; }
 .msg-bubble {
   padding: 12px 16px; border-radius: 13px; line-height: 1.75;
-  white-space: pre-wrap; word-break: break-word; font-size: 14px;
+  word-break: break-word; font-size: 14px;
   border: 1px solid transparent;
 }
 .msg-bubble.user {
-  background: var(--pine-700); color: #F0F6F4;
+  background: var(--pine-700); color: #F0F6F4; white-space: pre-wrap;
   border-radius: 13px 13px 4px 13px;
 }
 .msg-bubble.assistant {
   background: var(--surface); border-color: var(--line);
   border-radius: 13px 13px 13px 4px; box-shadow: var(--shadow-sm);
 }
+
+/* ── markdown 渲染（assistant 气泡，3.15）── */
+.msg-text.md :deep(p) { margin: 0 0 .55em; }
+.msg-text.md :deep(p:last-child) { margin-bottom: 0; }
+.msg-text.md :deep(ul), .msg-text.md :deep(ol) { margin: .3em 0 .6em; padding-left: 1.5em; }
+.msg-text.md :deep(li) { margin: .15em 0; }
+.msg-text.md :deep(h1), .msg-text.md :deep(h2), .msg-text.md :deep(h3),
+.msg-text.md :deep(h4) { margin: .6em 0 .35em; font-size: 1.05em; color: var(--pine-900); }
+.msg-text.md :deep(pre) {
+  margin: .5em 0; padding: 10px 12px; overflow-x: auto;
+  background: #10201C; color: #D7E5E0; border-radius: 8px;
+  font-size: 12.5px; line-height: 1.6;
+}
+.msg-text.md :deep(code) {
+  font-family: var(--font-data); font-size: .92em;
+  background: var(--gold-100); color: var(--gold-600);
+  padding: 1px 5px; border-radius: 4px;
+}
+.msg-text.md :deep(pre code) { background: none; color: inherit; padding: 0; }
+.msg-text.md :deep(table) { border-collapse: collapse; margin: .5em 0; font-size: 13px; }
+.msg-text.md :deep(th), .msg-text.md :deep(td) {
+  border: 1px solid var(--line-strong); padding: 4px 10px;
+}
+.msg-text.md :deep(blockquote) {
+  margin: .4em 0; padding: 2px 12px; border-left: 3px solid var(--gold-500);
+  color: var(--ink-3);
+}
+
+/* ── [ref-N] 引用徽标（可点击查原文，3.15）── */
 .msg-text :deep(.ref-tag) {
   display: inline-block; padding: 0 6px; margin: 0 2px; border-radius: 5px;
   background: var(--gold-100); color: var(--gold-600);
   font-family: var(--font-data); font-size: 11.5px; font-weight: 600;
-  border: 1px solid #EBD9B4; vertical-align: 1px; cursor: default;
+  border: 1px solid #EBD9B4; vertical-align: 1px; cursor: pointer;
+  transition: background .2s, transform .15s;
+}
+.msg-text :deep(.ref-tag:hover) {
+  background: var(--gold-500); color: #fff; transform: translateY(-1px);
 }
 
 /* ── 溯源面板 ── */
@@ -424,7 +539,9 @@ function finalCount(msg: Message) {
 .trace-group:last-child { border-bottom: none; }
 .trace-group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .trace-lat { font-size: 11px; color: var(--ink-3); }
-.trace-item { padding: 6px 0; }
+.trace-item { padding: 6px 8px; margin: 0 -8px; border-radius: 8px; }
+.trace-item.clickable { cursor: pointer; transition: background .2s; }
+.trace-item.clickable:hover { background: var(--pine-50); }
 .trace-item-top {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px;
 }
@@ -471,6 +588,7 @@ function finalCount(msg: Message) {
   box-shadow: none !important; padding: 4px 6px; background: transparent;
 }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; }
+.composer-left { display: flex; align-items: center; gap: 10px; }
 .attach-btn { color: var(--ink-3); }
 .attach-btn:hover { color: var(--pine-700); }
 
