@@ -41,8 +41,10 @@ public sealed interface AgentStreamEvent {
 
     /**
      * Chunk 轻量投影（不序列化全文，控制 SSE 帧体积）：
-     * scores 按路透传（bm25_score/bm25_rank、vector_rank、fusion_score、rerank_score/rerank_rank）
+     * scores 按路透传（bm25_score/bm25_rank、vector_rank、fusion_score、rerank_score/rerank_rank）。
+     * docId 为「查看原文」数据通道（3.15）：前端凭 docId+chunkId 经
+     * GET /documents/{docId}/chunks（租户隔离）按需拉全文，不经 SSE 帧下传。
      */
-    record ChunkTrace(String chunkId, String fileName, Integer pageNum,
+    record ChunkTrace(String chunkId, String docId, String fileName, Integer pageNum,
                       Map<String, Object> scores, String snippet) {}
 }

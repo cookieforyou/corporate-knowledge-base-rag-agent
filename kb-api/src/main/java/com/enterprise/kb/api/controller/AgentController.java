@@ -252,6 +252,7 @@ public class AgentController {
         String snippet = text.length() <= 120 ? text : text.substring(0, 120) + "…";
         return new ChunkTrace(
             asString(meta.get("chunk_id")),
+            asString(meta.get("doc_id")),
             asString(meta.get("file_name")),
             meta.get("page_num") instanceof Number n ? n.intValue() : null,
             scores,
