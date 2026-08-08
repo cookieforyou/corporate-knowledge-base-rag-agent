@@ -6,6 +6,18 @@ marked.setOptions({ gfm: true, breaks: true })
 
 const REF_RE = /\[ref-(\d+)\]/g
 
+/**
+ * 圈号引用兜底归一（v2.15）：模型偶发抄用文档正文圈号标题输出 [ref-⑤]
+ * （① U+2460 … ⑳ U+2473）。仅归一 [ref-X] 形态内的圈号，正文圈号内容不动。
+ * 后端编号化 documentFormatter 已根治，此处为概率性残留的确定性兜底。
+ */
+const CIRCLED_REF_RE = /\[ref-([①-⑳])\]/g
+
+function normalizeCircledRefs(content: string): string {
+  return content.replace(CIRCLED_REF_RE, (_, c: string) =>
+    `[ref-${c.charCodeAt(0) - 0x2460 + 1}]`)
+}
+
 function renderMd(md: string): string {
   if (!md) return ''
   // marked 同步形态返回 string；v-html 前必须 DOMPurify 消毒（答案内容经模型转述文档，不可信）
@@ -19,6 +31,7 @@ function renderMd(md: string): string {
  */
 export function renderAnswer(content: string): string {
   if (!content) return ''
+  content = normalizeCircledRefs(content)
   const parts: string[] = []
   let last = 0
   for (const m of content.matchAll(REF_RE)) {

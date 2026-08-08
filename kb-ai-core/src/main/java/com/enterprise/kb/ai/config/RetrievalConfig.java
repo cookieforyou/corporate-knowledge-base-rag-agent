@@ -9,6 +9,7 @@ import com.enterprise.kb.ai.retriever.RewriteCapturingQueryTransformer;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
@@ -20,6 +21,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
+
+import java.util.List;
 
 /**
  * 检索组件 + RetrievalAugmentationAdvisor 装配（设计文档 10.6，任务 2.10）
@@ -38,15 +41,20 @@ public class RetrievalConfig {
      *
      * <p>v2 实现注：设计稿模板仅含 {context}——实现核验发现 augment 渲染同时传入
      * query/context 两个参数，模板缺 {query} 会丢失用户问题，已补全。
+     *
+     * <p>v2.15 修正（2026-08-09，ref 编号缺陷）：{context} 经 {@link #formatNumberedContext}
+     * 编号化渲染，每条资料以 [ref-N] 行锚定。回答规则相应显式化：引用编号**只能**取自
+     * 资料编号行的 ASCII 数字——禁圈号（①②③）等资料正文内符号、禁引不存在的编号。
      */
-    private static final String GROUNDING_PROMPT = """
+    static final String GROUNDING_PROMPT = """
         你是企业知识库专家。必须且只能基于【参考资料】回答问题。
 
         【回答规则】
-        1. 参考资料按相关度从高到低排列，引用第 N 条资料时以 [ref-N] 标注来源
-        2. 资料包含相关信息时准确回答，每个事实性陈述附 [ref-N] 标注
-        3. 信息不足时说明已有信息并指出缺失部分
-        4. 禁止编造、猜测或使用外部知识
+        1. 每条参考资料以 [ref-N] 编号行开头（N 为从 1 开始的连续整数，按相关度从高到低排列）
+        2. 引用时标注对应资料编号行的 [ref-N]；N 只能使用阿拉伯数字，禁止使用 ①②③ 等圈号或资料正文中出现的其他序号，禁止引用未给出的编号
+        3. 资料包含相关信息时准确回答，每个事实性陈述附 [ref-N] 标注
+        4. 信息不足时说明已有信息并指出缺失部分
+        5. 禁止编造、猜测或使用外部知识
 
         【参考资料】
         {context}
@@ -54,6 +62,28 @@ public class RetrievalConfig {
         【用户问题】
         {query}
         """;
+
+    /**
+     * 证据编号化格式器（v2.15 修正，2026-08-09）：每条资料前缀独立的 [ref-N] 编号行
+     * （N = 1 起始的列表下标）。
+     *
+     * <p>缺陷背景（3.17 E2E 发现）：ContextualQueryAugmenter 默认 documentFormatter
+     * 仅以换行拼接文档文本、**不编号**（spring-ai-rag 2.0.0 源码核验）——模型面对无编号
+     * 拼接文本只能猜测引用编号：或张冠李戴，或越界引用（Top-K=5 却出现 [ref-6]），或抄用
+     * 文档正文里的序号符号（DDD 文档圈号标题「⑤」被抄成 [ref-⑤]，前端 ASCII 正则不匹配
+     * 致徽标不渲染、引用不可点）。显式编号使引用锚点确定：编号顺序与
+     * RerankDocumentPostProcessor 的 final trace 序列一一对应（SSE TRACE / 前端
+     * chunks[N-1] 对齐关系不变，11.1.2）。
+     */
+    static String formatNumberedContext(List<Document> documents) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < documents.size(); i++) {
+            sb.append("[ref-").append(i + 1).append("]\n")
+                .append(documents.get(i).getText())
+                .append("\n\n");
+        }
+        return sb.toString();
+    }
 
     /**
      * 空证据拒绝模板（2.10 设计修正）。核验 ContextualQueryAugmenter 源码语义：
@@ -105,6 +135,8 @@ public class RetrievalConfig {
             .queryAugmenter(ContextualQueryAugmenter.builder()
                 .promptTemplate(new PromptTemplate(GROUNDING_PROMPT))
                 .emptyContextPromptTemplate(new PromptTemplate(EMPTY_CONTEXT_PROMPT))
+                // 编号化证据（v2.15）：[ref-N] 锚点与 final trace 序列对齐，修复引用编号漂移
+                .documentFormatter(RetrievalConfig::formatNumberedContext)
                 .allowEmptyContext(false)
                 .build())
             .taskExecutor(retrievalExecutor)
