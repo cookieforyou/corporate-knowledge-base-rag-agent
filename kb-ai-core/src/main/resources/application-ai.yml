@@ -76,6 +76,9 @@ rag:
     intent:
       enabled: ${RAG_ROUTING_INTENT_ENABLED:true}              # 总开关（false 回退现状全量检索）
       history-size: ${RAG_ROUTING_INTENT_HISTORY_SIZE:6}       # 分类器输入的历史消息条数
+  # 用户反馈（3.17）：归档为异步旁路，反馈早于消息行落库的极端时序由短窗口轮询兜底
+  feedback:
+    message-wait-millis: ${RAG_FEEDBACK_MESSAGE_WAIT_MILLIS:2000}
   # 租户级限流（3.7，设计文档 11.2）—— Redisson 令牌桶，每租户独立桶
   # （rag:ratelimit:tenant:{tenantId}）；进程对每租户首次触达覆盖式写入配置
   ratelimit:

@@ -146,6 +146,18 @@ class AuditTraceAdvisorTest {
         assertThat(meterRegistry.counter("rag.retrieval.hit").count()).isEqualTo(1.0);
     }
 
+    /** 3.17：trace_id 由 Controller 请求线程预生成——反馈 API 凭此关联审计行，须原样落库 */
+    @Test
+    void controllerProvidedTraceIdPropagatesToAuditLog() {
+        RetrievalContext ctx = ctxWithTrace();
+        ctx.setTraceId("trace-from-controller");
+        when(callChain.nextCall(any())).thenReturn(response("回答内容"));
+
+        advisor.adviseCall(request(ctx, "rag", "问题"), callChain);
+
+        assertThat(captureSaved().getTraceId()).isEqualTo("trace-from-controller");
+    }
+
     @Test
     void ragRequestWithEmptyFinalTraceCountsAsMiss() {
         // 双路空命中、final 无文档 → 计 total 不计 hit（miss）

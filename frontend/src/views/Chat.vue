@@ -95,6 +95,30 @@
               </div>
             </transition>
           </div>
+
+          <!-- 用户反馈（3.17）：👍/👎 → kb_feedback 落库；messageId 来自 DONE 帧，
+               缺失（错误轮/旧数据）不渲染。👎 展开期望回答表单（Bad Case 进评估闭环） -->
+          <div v-if="msg.role === 'assistant' && msg.messageId" class="feedback-row">
+            <button class="fb-btn" :class="{ active: msg.feedback === 'POSITIVE' }"
+              :disabled="msg.feedbackBusy" title="回答准确"
+              @click="submitRate(msg, 'POSITIVE')">👍</button>
+            <button class="fb-btn" :class="{ active: msg.feedback === 'NEGATIVE' }"
+              :disabled="msg.feedbackBusy" title="回答待改进"
+              @click="toggleDislikeForm(msg)">👎</button>
+          </div>
+          <div v-if="dislikeTarget === msg" class="dislike-form panel">
+            <el-input v-model="dislikeText" type="textarea" :rows="2" resize="none"
+              placeholder="期望回答是什么？（可选，Bad Case 将进入评估闭环）" />
+            <div class="dislike-tags">
+              <button v-for="t in FEEDBACK_TAGS" :key="t" class="tag-opt"
+                :class="{ on: dislikeTags.includes(t) }" @click="toggleTag(t)">{{ t }}</button>
+            </div>
+            <div class="dislike-actions">
+              <el-button size="small" text @click="dislikeTarget = null">取消</el-button>
+              <el-button size="small" type="primary" :disabled="msg.feedbackBusy"
+                @click="submitRate(msg, 'NEGATIVE', dislikeText, dislikeTags)">提交反馈</el-button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -163,7 +187,7 @@
 import { ref, nextTick, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore, type Message, type Source, type SourceChunk } from '@/stores/chat'
-import { chatStreamUrl, uploadDocument, etlProgressWsUrl, type ToolCallInfo, type EtlProgress } from '@/api'
+import { chatStreamUrl, uploadDocument, etlProgressWsUrl, submitFeedback, type ToolCallInfo, type EtlProgress } from '@/api'
 import { renderAnswer } from '@/composables/markdown'
 import SourceDialog, { type SourceTarget } from '@/components/SourceDialog.vue'
 import ToolCallCard from '@/components/ToolCallCard.vue'
@@ -237,6 +261,52 @@ function onApprovalConfirmed(approvalId: string) {
   ask('确认执行上述操作', { mode: 'tool', approvedToolCallId: approvalId })
 }
 
+// ── 用户反馈（3.17）──
+
+const FEEDBACK_TAGS = ['答案不准确', '引用不相关', '答非所问', '内容不完整']
+const dislikeTarget = ref<Message | null>(null)
+const dislikeText = ref('')
+const dislikeTags = ref<string[]>([])
+
+function toggleDislikeForm(msg: Message) {
+  if (dislikeTarget.value === msg) {
+    dislikeTarget.value = null
+    return
+  }
+  dislikeTarget.value = msg
+  dislikeText.value = ''
+  dislikeTags.value = []
+}
+
+function toggleTag(tag: string) {
+  const i = dislikeTags.value.indexOf(tag)
+  if (i >= 0) dislikeTags.value.splice(i, 1)
+  else dislikeTags.value.push(tag)
+}
+
+/** 提交反馈（upsert 语义，可更改评价）；POSITIVE 直提，NEGATIVE 经表单携带期望回答 */
+async function submitRate(msg: Message, rating: 'POSITIVE' | 'NEGATIVE',
+                          expectedAnswer?: string, tags?: string[]) {
+  if (!msg.messageId || msg.feedbackBusy) return
+  msg.feedbackBusy = true
+  try {
+    await submitFeedback({
+      messageId: msg.messageId,
+      traceId: msg.traceId,
+      rating,
+      expectedAnswer: expectedAnswer?.trim() || null,
+      tags: tags?.length ? [...tags] : undefined
+    })
+    msg.feedback = rating
+    dislikeTarget.value = null
+    ElMessage.success(rating === 'POSITIVE' ? '感谢反馈' : '已收到反馈，将持续改进')
+  } catch (e: any) {
+    ElMessage.error('反馈提交失败：' + (e.response?.data?.message || e.message))
+  } finally {
+    msg.feedbackBusy = false
+  }
+}
+
 interface AskOpts { mode?: 'rag' | 'tool'; approvedToolCallId?: string }
 
 async function ask(raw: string | undefined, opts: AskOpts = {}) {
@@ -252,6 +322,8 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
   streamText.value = ''
   let sources: Source[] = []
   let toolCalls: ToolCallInfo[] = []
+  // DONE 帧 JSON 载荷（3.17）：本轮反馈定位句柄
+  let doneMeta: { messageId?: string; traceId?: string } = {}
 
   try {
     const resp = await fetch(chatStreamUrl(), {
@@ -301,13 +373,16 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
           continue
         }
         const data = line.slice(5).trim()
-        if (data === '[DONE]') continue
+        if (data === '[DONE]') continue   // 旧协议字面量兼容（3.17 起为 JSON 载荷）
         try {
           const json = JSON.parse(data)
           if (currentEvent === 'TRACE') {
             sources = json.sources || []
           } else if (currentEvent === 'TOOL_CALL') {
             toolCalls = json.toolCalls || []
+          } else if (json.messageId != null) {
+            // DONE 帧（3.17）：{messageId, traceId} 反馈定位句柄
+            doneMeta = { messageId: json.messageId, traceId: json.traceId }
           } else if (json.token != null) {
             streamText.value += json.token
           } else if (json.error) {
@@ -325,7 +400,9 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
       content: streamText.value,
       sources,
       traceOpen: sources.length > 0,
-      toolCalls: toolCalls.length ? toolCalls : undefined
+      toolCalls: toolCalls.length ? toolCalls : undefined,
+      messageId: doneMeta.messageId,
+      traceId: doneMeta.traceId
     })
   } catch (e: any) {
     store.messages.push({ role: 'assistant', content: '请求失败：' + e.message })
@@ -562,6 +639,27 @@ function finalCount(msg: Message) {
   font-size: 12px; color: var(--ink-3); line-height: 1.6;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+
+/* ── 用户反馈（3.17）── */
+.feedback-row { display: flex; gap: 6px; }
+.fb-btn {
+  width: 30px; height: 26px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface);
+  font-size: 13px; line-height: 1; display: grid; place-items: center;
+  opacity: .55; transition: all .2s var(--ease);
+}
+.fb-btn:hover:not(:disabled) { opacity: 1; border-color: var(--pine-600); transform: translateY(-1px); }
+.fb-btn:disabled { cursor: default; }
+.fb-btn.active { opacity: 1; background: var(--gold-100); border-color: var(--gold-500); }
+.dislike-form { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.dislike-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag-opt {
+  padding: 3px 10px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  color: var(--ink-3); font-family: var(--font-body); transition: all .2s;
+}
+.tag-opt.on { background: var(--pine-700); border-color: var(--pine-700); color: #EAF2EF; }
+.dislike-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
 /* ── 上传进度 ── */
 .upload-strip {

@@ -6,11 +6,15 @@ import java.util.Map;
 /**
  * SSE 流式对话事件类型（设计文档 11.3，任务 2.12）
  *
- * <p>协议兼容策略（11.3 v2 注「与 Phase 1 兼容」）：TOKEN/ERROR/DONE 保持 Phase 1
- * 线形（无名 message 事件 + 原数据形状 {"token":...} / {"error":...} / [DONE]，
- * 旧前端行解析器零改动可用）；TRACE 为**新增命名事件**（event: TRACE），
- * 旧前端忽略，簇 D 前端切换 EventSource 命名监听后消费溯源。
- * TOOL_CALL 事件随 2.13 工具调用落地时追加。
+ * <p>协议兼容策略（11.3 v2 注「与 Phase 1 兼容」）：TOKEN/ERROR 保持 Phase 1
+ * 线形（无名 message 事件 + 原数据形状 {"token":...} / {"error":...}）；
+ * TRACE 为**新增命名事件**（event: TRACE），旧前端忽略，簇 D 前端切换
+ * EventSource 命名监听后消费溯源。TOOL_CALL 事件随 2.13 工具调用落地时追加。
+ *
+ * <p><b>DONE 帧协议修订（3.17，v2.14）</b>：DONE 由字面量 "[DONE]" 演进为
+ * JSON 载荷 {"messageId":..., "traceId":...}——终帧天然携带本轮句柄：
+ * messageId 定位归档消息（反馈 API 外键），traceId 关联审计行（反馈回填）。
+ * 唯一消费方为自家前端，同批改造；错误路径不发 DONE（无归档无可评价对象）。
  */
 public sealed interface AgentStreamEvent {
 
@@ -19,6 +23,9 @@ public sealed interface AgentStreamEvent {
 
     /** 流式失败（无名事件，{"error": msg} 与 Phase 1 一致） */
     record ErrorEvent(String error) implements AgentStreamEvent {}
+
+    /** 流结束（无名事件，3.17 起 JSON 载荷）：本轮助手消息 ID + 请求级 traceId */
+    record DoneEvent(String messageId, String traceId) implements AgentStreamEvent {}
 
     /**
      * 检索溯源（命名事件 TRACE，流末推送）：双路原始命中 + final 最终注入序列。

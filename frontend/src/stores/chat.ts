@@ -24,6 +24,13 @@ export interface Message {
   sources?: Source[]
   traceOpen?: boolean
   toolCalls?: ToolCallInfo[]
+  /** 反馈定位句柄（3.17）：SSE DONE 帧 JSON 载荷送达；缺失则不渲染反馈按钮 */
+  messageId?: string
+  traceId?: string
+  /** 已提交的反馈评分（upsert 语义，可更改） */
+  feedback?: 'POSITIVE' | 'NEGATIVE'
+  /** 反馈提交中（按钮禁用防重复） */
+  feedbackBusy?: boolean
 }
 
 /**

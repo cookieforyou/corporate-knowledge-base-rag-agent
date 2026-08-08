@@ -56,6 +56,15 @@ public class RetrievalContext {
     private String userId;
 
     /**
+     * 请求级 trace ID（3.17 反馈关联）：Controller 请求线程生成并经 SSE DONE 帧 /
+     * 同步响应送达前端；AuditTraceAdvisor 原样落 kb_audit_log.trace_id（缺省回落
+     * 自生成，兼容 kb-eval 无 ctx 入口）。反馈 API 凭 trace_id 经 idx_audit_trace
+     * 确定性定位审计行，回填 kb_audit_log.feedback 并写 kb_feedback.audit_log_id。
+     */
+    @Getter @Setter
+    private volatile String traceId;
+
+    /**
      * 改写后的查询文本（3.12 审计捕获）：由 RewriteCapturingQueryTransformer 在
      * 检索执行前写入；审计 Advisor 读取落 kb_audit_log.rewritten_query。
      * volatile：改写在 retrievalExecutor 线程执行，审计读取在响应线程。

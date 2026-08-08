@@ -163,6 +163,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                 asString(context.get(ChatMemory.CONVERSATION_ID)),
                 ctx == null ? null : ctx.getTenantId(),
                 ctx == null ? null : ctx.getUserId(),
+                ctx == null ? null : ctx.getTraceId(),
                 ctx == null ? null : ctx.getRewrittenQuery(),
                 ctx == null ? List.of() : ctx.getTraceSummary(),
                 ctx == null ? List.of() : ctx.getToolCalls(),
@@ -179,7 +180,9 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                                ChatResponse chatResponse, Throwable error) {
         try {
             KbAuditLog audit = new KbAuditLog();
-            audit.setTraceId(UUID.randomUUID().toString());
+            // trace_id 前移至 Controller 请求线程生成（3.17：经 DONE 帧/同步响应送达前端，
+            // 反馈 API 凭此确定性关联审计行）；kb-eval 等无 ctx 入口回落自生成
+            audit.setTraceId(s.traceId() != null ? s.traceId() : UUID.randomUUID().toString());
             audit.setMode(s.mode());
             audit.setSessionId(s.sessionId());
             audit.setTenantId(s.tenantId());
@@ -237,7 +240,8 @@ public class AuditTraceAdvisor implements BaseAdvisor {
 
     /** 请求快照（异步落库前提取，避免跨线程读共享实例竞态） */
     private record AuditSnapshot(String mode, String sessionId, String tenantId, String userId,
-                                 String rewrittenQuery, List<RetrievalContext.TraceEntry> traceEntries,
+                                 String traceId, String rewrittenQuery,
+                                 List<RetrievalContext.TraceEntry> traceEntries,
                                  List<RetrievalContext.ToolCall> toolCalls, int latencyMs) {}
 
     private static int latency(long startMs) {

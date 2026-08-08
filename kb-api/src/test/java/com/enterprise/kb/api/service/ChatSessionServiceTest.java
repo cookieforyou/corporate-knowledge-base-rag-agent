@@ -36,7 +36,7 @@ class ChatSessionServiceTest {
     void firstTurnCreatesSessionAndArchivesTwoMessages() {
         when(sessionRepository.existsById("s1")).thenReturn(false);
 
-        service.archiveTurn("s1", "tenant-a", "user-1", "什么是增值税发票？", "增值税发票是……");
+        service.archiveTurn("s1", "tenant-a", "user-1", "什么是增值税发票？", "增值税发票是……", null);
 
         ArgumentCaptor<KbSession> sessionCaptor = ArgumentCaptor.forClass(KbSession.class);
         verify(sessionRepository).save(sessionCaptor.capture());
@@ -57,11 +57,25 @@ class ChatSessionServiceTest {
         verify(sessionRepository).incrementMessageCount("s1", 2);
     }
 
+    /** 3.17：助手消息 ID 由 Controller 请求线程预生成，归档复用——反馈外键可解析 */
+    @Test
+    void preGeneratedAssistantMessageIdReused() {
+        when(sessionRepository.existsById("s1")).thenReturn(true);
+
+        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", "msg-assistant-001");
+
+        ArgumentCaptor<KbMessage> messageCaptor = ArgumentCaptor.forClass(KbMessage.class);
+        verify(messageRepository, org.mockito.Mockito.times(2)).save(messageCaptor.capture());
+        List<KbMessage> messages = messageCaptor.getAllValues();
+        assertThat(messages.get(0).getId()).isNotBlank().isNotEqualTo("msg-assistant-001");
+        assertThat(messages.get(1).getId()).isEqualTo("msg-assistant-001");
+    }
+
     @Test
     void existingSessionNotRecreated() {
         when(sessionRepository.existsById("s1")).thenReturn(true);
 
-        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答");
+        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", null);
 
         verify(sessionRepository, never()).save(any(KbSession.class));
         verify(messageRepository, org.mockito.Mockito.times(2)).save(any(KbMessage.class));
@@ -74,7 +88,7 @@ class ChatSessionServiceTest {
             .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
         // 主键冲突只影响会话创建，消息归档照常
-        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答"))
+        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null))
             .doesNotThrowAnyException();
         verify(messageRepository, org.mockito.Mockito.times(2)).save(any(KbMessage.class));
     }
@@ -84,7 +98,7 @@ class ChatSessionServiceTest {
         when(sessionRepository.existsById(anyString())).thenReturn(false);
         String longQuery = "这是一个非常长的首问".repeat(20);
 
-        service.archiveTurn("s2", "t", "u", longQuery, "回答");
+        service.archiveTurn("s2", "t", "u", longQuery, "回答", null);
 
         ArgumentCaptor<KbSession> captor = ArgumentCaptor.forClass(KbSession.class);
         verify(sessionRepository).save(captor.capture());
@@ -95,7 +109,7 @@ class ChatSessionServiceTest {
     void nullIdentityFallsBackToPlaceholder() {
         when(sessionRepository.existsById(anyString())).thenReturn(false);
 
-        service.archiveTurn("s3", null, null, "问题", "回答");
+        service.archiveTurn("s3", null, null, "问题", "回答", null);
 
         ArgumentCaptor<KbSession> captor = ArgumentCaptor.forClass(KbSession.class);
         verify(sessionRepository).save(captor.capture());
@@ -108,7 +122,7 @@ class ChatSessionServiceTest {
         when(sessionRepository.existsById(anyString())).thenReturn(true);
         when(messageRepository.save(any(KbMessage.class))).thenThrow(new RuntimeException("PG 连接失败"));
 
-        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答"))
+        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null))
             .doesNotThrowAnyException();
         verify(sessionRepository, never()).incrementMessageCount(anyString(), eq(2));
     }

@@ -5,6 +5,7 @@ import com.enterprise.kb.ai.agent.service.ToolChatService;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
+import com.enterprise.kb.api.dto.AgentStreamEvent.DoneEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ErrorEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TokenEvent;
@@ -38,8 +39,9 @@ import java.util.UUID;
  * 全程线程模型无关（2026-08-02 重构：取代请求作用域代理，其于 MVC 异步请求完结后
  * 不可解析，曾致流式路径租户过滤与 trace 静默失效、SSE 尾帧崩溃）。
  *
- * <p>事件协议（兼容 Phase 1）：TOKEN/ERROR/DONE 为无名事件且数据形状不变；
- * TRACE 为新增命名事件（流末推送完整溯源），旧前端自动忽略。
+ * <p>事件协议：TOKEN/ERROR/DONE 为无名事件；TRACE 为命名事件（流末推送完整溯源）。
+ * DONE 帧自 3.17 起携带 JSON 载荷 {messageId, traceId}（原字面量 "[DONE]"，
+ * 反馈闭环的定位句柄，协议修订见 AgentStreamEvent 类注与 11.3 v2.14）。
  *
  * <p><b>会话协议（3.1）</b>：请求体可选 {@code sessionId} 标识多轮会话——
  * 前端生成并全程复用同一 ID 即获得多轮记忆；缺省时后端生成一次性 ID
@@ -88,6 +90,9 @@ public class AgentController {
         log.info("用户 [{}] 发起问答: mode={}, sessionId={}, query={}",
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
+        // 本轮句柄（3.17）：messageId 定位归档消息（反馈外键），traceId 关联审计行（反馈回填）
+        String assistantMessageId = UUID.randomUUID().toString();
+        ctx.setTraceId(UUID.randomUUID().toString());
 
         boolean toolMode = MODE_TOOL.equals(mode);
         if (!toolMode) {
@@ -97,16 +102,20 @@ public class AgentController {
                 ? toolChatService.chatTool(query, sessionId, ctx, approvedToolCallId)
                 : ragChatService.chatRag(query, sessionId, ctx);
 
-        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), safeQuery, answer);
+        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(),
+            safeQuery, answer, assistantMessageId);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", answer);
         data.put("sessionId", sessionId);
+        data.put("messageId", assistantMessageId);
+        data.put("traceId", ctx.getTraceId());
         data.put("toolCalls", ctx.getToolCalls());
         return ApiResponse.success(data);
     }
 
     /**
-     * 流式 RAG 问答（SSE）：TOKEN*（无名）→ TRACE（命名，溯源）→ [DONE]（无名）
+     * 流式 RAG 问答（SSE）：TOKEN*（无名）→ TRACE（命名，溯源，仅检索路径）
+     * → DONE（无名，JSON 载荷 {messageId, traceId}，3.17 反馈定位句柄）
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<Object>> chatStream(@RequestBody Map<String, String> body) {
@@ -120,6 +129,10 @@ public class AgentController {
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例
         RetrievalContext traceCtx = newRetrievalContext();
+        // 本轮句柄（3.17）：messageId 经 DONE 帧送达前端作反馈定位键，归档复用同一 ID；
+        // traceId 经 RetrievalContext 透传 AuditTraceAdvisor 落库，反馈回填凭此关联审计行
+        String assistantMessageId = UUID.randomUUID().toString();
+        traceCtx.setTraceId(UUID.randomUUID().toString());
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
 
@@ -150,10 +163,11 @@ public class AgentController {
                     ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event("TRACE").build())));
         }
         return sseFlux
-            .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))
+            .concatWith(Mono.just(ServerSentEvent.<Object>builder(
+                new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
-                safeQuery, answerBuffer.toString()))
+                safeQuery, answerBuffer.toString(), assistantMessageId))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
                 return Flux.just(ServerSentEvent.<Object>builder(

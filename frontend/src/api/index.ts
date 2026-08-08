@@ -51,6 +51,22 @@ export const approveToolCall = (approvalId: string) =>
   api.post(`/tools/approvals/${approvalId}/approve`)
     .then(r => r.data.data.approved as boolean)
 
+// ── 用户反馈（3.17：点赞/点踩 → kb_feedback，Bad Case 可查询）──
+
+export interface FeedbackPayload {
+  /** 被评价的助手消息 ID（SSE DONE 帧送达） */
+  messageId: string
+  /** 本轮 trace ID（关联审计行回填，可选） */
+  traceId?: string | null
+  rating: 'POSITIVE' | 'NEGATIVE'
+  expectedAnswer?: string | null
+  tags?: string[]
+}
+
+export const submitFeedback = (payload: FeedbackPayload) =>
+  api.post('/feedback', payload)
+    .then(r => r.data.data as { feedbackId: string; rating: string })
+
 // ── 文档管理（2.15）──
 
 export interface KbDoc {

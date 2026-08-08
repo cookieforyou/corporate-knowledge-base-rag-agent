@@ -38,14 +38,18 @@ public class ChatSessionService {
      *
      * <p>由 Controller 在同步调用返回后 / SSE 流完成后调用；@Async 移交
      * sessionArchiveExecutor（虚拟线程），调用方线程零等待。
+     *
+     * <p><b>助手消息 ID 前移（3.17）</b>：assistantMessageId 由 Controller 请求线程
+     * 预生成，经 SSE DONE 帧/同步响应送达前端作为反馈 API 的定位键，归档复用同一
+     * ID 保证 kb_feedback.message_id 外键可解析；缺省回落自生成（兼容既有调用形态）。
      */
     @Async("sessionArchiveExecutor")
     public void archiveTurn(String sessionId, String tenantId, String userId,
-                            String query, String answer) {
+                            String query, String answer, String assistantMessageId) {
         try {
             ensureSession(sessionId, tenantId, userId, query);
-            messageRepository.save(newMessage(sessionId, "USER", query));
-            messageRepository.save(newMessage(sessionId, "ASSISTANT", answer));
+            messageRepository.save(newMessage(sessionId, "USER", query, null));
+            messageRepository.save(newMessage(sessionId, "ASSISTANT", answer, assistantMessageId));
             sessionRepository.incrementMessageCount(sessionId, 2);
         } catch (Exception e) {
             log.warn("会话归档失败（不影响对话）: sessionId={}, {}", sessionId, e.getMessage());
@@ -71,9 +75,9 @@ public class ChatSessionService {
         }
     }
 
-    private static KbMessage newMessage(String sessionId, String role, String content) {
+    private static KbMessage newMessage(String sessionId, String role, String content, String id) {
         KbMessage message = new KbMessage();
-        message.setId(UUID.randomUUID().toString());
+        message.setId(id != null && !id.isBlank() ? id : UUID.randomUUID().toString());
         message.setSessionId(sessionId);
         message.setRole(role);
         message.setContent(content);
