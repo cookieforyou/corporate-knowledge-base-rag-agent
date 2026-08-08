@@ -13,6 +13,10 @@
 > **v2.10 审计落地定稿（2026-08-05，任务 3.12）**：新增 §11.6——AuditTraceAdvisor(order 10) 被拒请求捕获机制（覆写 adviseCall/adviseStream，草图 before+after 形态无法覆盖内层抛错）、双链路数据面（mode/tool_calls + kb_audit_log 四列扩展）、字段数据源与脱敏（query_text 同款 sanitize、rewritten_query 装饰器捕获、流式聚合不缓冲）、旁路容错与异步落库。
 >
 > **v2.13 修订（2026-08-08，5.4 收窄版提前落地）**：§11.4 rag 链内免检索短路提前实现——QueryRoutingAdvisor(440) 双层分类（L1 正则快路 + L2 结构化 LLM，分类与改写合并单次调用）+ RetrievalGateAdvisor(500) 组合式门控（源码核验 RetrievalAugmentationAdvisor 为 final 类，草图「Advisor 自身读标记短路」形态不可行，修正为门控包裹旁路）；fail-open 纪律、rag.routing.chitchat/knowledge 度量、闲聊路径免 TRACE 帧；mode 跨链契约不变（自动跨链路由仍预留）。§11.5.1 链序表同步更新。
+>
+> **v2.14 用户反馈闭环（2026-08-08，任务 3.17）**：DONE 帧 JSON 化承载 messageId/traceId + 两 ID 前移 Controller 请求线程；反馈 API（upsert 可改评）+ kb_audit_log.feedback 回填。详见 §11.3/§11.6.3 v2.14 注。
+>
+> **v2.15 [ref-N] 引用编号缺陷修复（2026-08-09）**：ContextualQueryAugmenter 默认拼接不编号致引用编号漂移（抄正文圈号/越界/错位），编号化 documentFormatter 确定化锚点 + 提示词 ASCII 契约 + 前端圈号兜底。详见 §11.1.2 v2.15 注。
 
 ---
 
@@ -83,6 +87,13 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 ### 11.1.2 Grounding 与 [ref-N] 标注
 
 回答中的 `[ref-N]` 标注约定写入 `ContextualQueryAugmenter` 的 prompt 模板（第十章 10.6 `GROUNDING_PROMPT`）；N 与 SSE TRACE 事件中 `rag_trace` 列表的下标一一对应，前端溯源卡片按此映射渲染。v1 设想的独立 `GroundingAdvisor` 后处理不再需要——标注由模型在 Grounding 约束下直接生成，溯源数据由 trace 层旁路透传，避免对模型输出做脆弱的文本后处理。
+
+> **v2.15 修正（2026-08-09，3.17 E2E 发现的引用编号缺陷）**：仅靠 prompt 约定 `[ref-N]` 不够——源码核验 `ContextualQueryAugmenter` 默认 `documentFormatter` **仅以换行拼接文档文本、不编号**（spring-ai-rag 2.0.0），模型面对无编号拼接文本只能猜测 N，E2E 实证三类漂移：① 抄用文档正文序号符号（DDD 文档圈号标题「⑤」被抄成 `[ref-⑤]`，前端 ASCII 正则 `/\[ref-(\d+)\]/g` 不匹配 → 徽标不渲染、不可点）；② 越界编号（Top-K=5 却出现 `[ref-6]`，点击落空「溯源数据未就绪」）；③ 编号与注入顺序错位（点错文档卡片）。修复三层：
+> 1. **编号化 `documentFormatter`**（根治，`RetrievalConfig.formatNumberedContext`）：每条资料前缀独立 `[ref-N]` 编号行（N=1 起始列表下标），引用锚点确定化；编号顺序即重排后 final trace 序列，与 SSE TRACE / 前端 `chunks[N-1]` 对齐关系不变；
+> 2. **提示词显式契约**：`GROUNDING_PROMPT` 明确「编号只能取自资料编号行、只用阿拉伯数字、禁 ①②③ 等圈号与正文序号、禁引未给出的编号」；
+> 3. **前端兜底归一**（`markdown.ts`）：仅对 `[ref-①…⑳]` 形态定点归一为 ASCII（U+2460 偏移换算），正文圈号内容不动——概率性残留的确定性兜底。
+>
+> 教训：**「模型输出格式约定」必须有确定性锚点支撑**——prompt 里的编号契约若无注入侧编号配合，等于让模型自由发挥。
 
 ---
 

@@ -47,6 +47,8 @@
 
 > **v2.14 用户反馈闭环（2026-08-08，任务 3.17）**：DONE 帧 JSON 化承载 messageId/traceId（协议修订用户拍板），两 ID 前移至 Controller 请求线程生成（messageId 归档复用保证 kb_feedback 外键可解析，traceId 经 RetrievalContext 透传审计落库）；反馈 API POST（upsert 可改评 + 期望回答 + tags，租户/用户归属经 message→session 校验 fail-closed，归档竞态短窗轮询兜底）+ GET Bad Case 查询（租户收敛 + 原始问答文本）；kb_audit_log.feedback 回填 + audit_log_id 关联，rag.feedback.like/dislike 指标接线；详见第十一章 §11.3/§11.6.3 v2.14 注。
 
+> **v2.15 [ref-N] 引用编号缺陷修复（2026-08-09，3.17 E2E 发现）**：ContextualQueryAugmenter 默认 documentFormatter 仅换行拼接不编号（源码核验），模型引用编号无锚点——抄文档正文圈号（[ref-⑤] 前端 ASCII 正则不匹配不可点）、越界编号（Top-K=5 出现 [ref-6]）、编号错位三层漂移；修复 = 编号化格式器（每条资料前缀 [ref-N] 编号行，与 final trace 序列对齐）+ 提示词 ASCII 引用契约 + 前端圈号定点归一兜底；详见第十一章 §11.1.2 / 第十章 §10.6 v2.15 注。
+
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
 ## 目录导航
@@ -84,8 +86,8 @@
 | 章 | 文档 | 修订状态 |
 |---|---|---|
 | 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项） |
-| 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛） |
-| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3） |
+| 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛）+ v2.15（[ref-N] 引用编号缺陷修复：编号化 documentFormatter，§10.6） |
+| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3）+ v2.15（[ref-N] 引用编号缺陷修复：编号锚点确定化，§11.1.2） |
 | 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正） |
 | 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行）+ v2.14（3.17 rag.feedback.* 指标接线） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
