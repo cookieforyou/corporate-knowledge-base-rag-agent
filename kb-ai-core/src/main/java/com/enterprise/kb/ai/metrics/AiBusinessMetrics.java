@@ -51,6 +51,8 @@ public class AiBusinessMetrics {
     private final Counter toolCallPending;
     private final Counter tokenTotal;
     private final Counter tokenBudgetRejected;
+    private final Counter routingChitchat;
+    private final Counter routingKnowledge;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -73,6 +75,10 @@ public class AiBusinessMetrics {
             .description("AI Token 总消耗").register(registry);
         this.tokenBudgetRejected = Counter.builder("rag.token.budget.rejected")
             .description("Token 预算拒绝次数").register(registry);
+        this.routingChitchat = Counter.builder("rag.routing.chitchat")
+            .description("意图分类为闲聊/元问题，旁路检索直答（5.4 收窄版）").register(registry);
+        this.routingKnowledge = Counter.builder("rag.routing.knowledge")
+            .description("意图分类为知识问答，走完整检索链路（5.4 收窄版）").register(registry);
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */
@@ -111,5 +117,15 @@ public class AiBusinessMetrics {
     /** Token 预算拒绝计数（TokenBudgetAdvisor before 超额） */
     public void recordTokenBudgetRejected() {
         tokenBudgetRejected.increment();
+    }
+
+    /** 意图路由分流计数（5.4 收窄版）：闲聊/元问题旁路检索。分流比 = chitchat/(chitchat+knowledge) */
+    public void recordRoutingChitchat() {
+        routingChitchat.increment();
+    }
+
+    /** 意图路由分流计数（5.4 收窄版）：知识问答走完整检索（含 fail-open 回落） */
+    public void recordRoutingKnowledge() {
+        routingKnowledge.increment();
     }
 }

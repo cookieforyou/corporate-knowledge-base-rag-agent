@@ -1,9 +1,13 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.advisor.QueryRoutingAdvisor;
+import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RewriteCapturingQueryTransformer;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
@@ -123,5 +127,33 @@ public class RetrievalConfig {
     @Bean
     public AsyncTaskExecutor retrievalExecutor() {
         return new VirtualThreadTaskExecutor("retrieval-");
+    }
+
+    /**
+     * 意图分类 Advisor（5.4 收窄版提前落地，设计文档 11.4）——Order 440。
+     * 闲聊/对话元问题置 skipRetrieval 免检索直答；知识问把分类+指代消解合并
+     * 产出的改写文本预写入 RetrievalContext（下游改写装饰器跳过二次 LLM 调用）。
+     * fail-open：分类故障回落完整检索，{@code enabled=false} 整体回退现状。
+     */
+    @Bean
+    public QueryRoutingAdvisor queryRoutingAdvisor(
+            ChatClient.Builder chatClientBuilder,
+            ChatMemory agentChatMemory,
+            AiBusinessMetrics metrics,
+            @Value("${rag.routing.intent.enabled:true}") boolean enabled,
+            @Value("${rag.routing.intent.history-size:6}") int historySize) {
+        return new QueryRoutingAdvisor(chatClientBuilder, agentChatMemory, metrics, enabled, historySize);
+    }
+
+    /**
+     * 检索门控 Advisor（5.4 收窄版）——Order 500，组合式包裹
+     * {@link RetrievalAugmentationAdvisor}（final 类不可 extends，源码核验）：
+     * skipRetrieval=true 时 chain 直接放行旁路整套 RAG 管线。rag 链挂本 Bean
+     * 替代原 RetrievalAugmentationAdvisor 直挂。
+     */
+    @Bean
+    public RetrievalGateAdvisor retrievalGateAdvisor(
+            RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
+        return new RetrievalGateAdvisor(retrievalAugmentationAdvisor);
     }
 }

@@ -71,6 +71,11 @@ rag:
     circuit:
       failure-threshold: ${RAG_ROUTING_FAILURE_THRESHOLD:5}   # 连续失败熔断阈值
       open-seconds: ${RAG_ROUTING_OPEN_SECONDS:30}             # 熔断窗口（秒）
+    # 意图分类免检索短路（5.4 收窄版，设计文档 11.4）——rag 链内闲聊/对话元问题
+    # 旁路检索直答；分类与改写合并单次 LLM 调用，fail-open 回落完整检索
+    intent:
+      enabled: ${RAG_ROUTING_INTENT_ENABLED:true}              # 总开关（false 回退现状全量检索）
+      history-size: ${RAG_ROUTING_INTENT_HISTORY_SIZE:6}       # 分类器输入的历史消息条数
   # 租户级限流（3.7，设计文档 11.2）—— Redisson 令牌桶，每租户独立桶
   # （rag:ratelimit:tenant:{tenantId}）；进程对每租户首次触达覆盖式写入配置
   ratelimit:

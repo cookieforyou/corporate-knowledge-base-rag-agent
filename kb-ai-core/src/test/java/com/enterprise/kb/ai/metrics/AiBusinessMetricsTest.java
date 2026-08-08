@@ -72,4 +72,14 @@ class AiBusinessMetricsTest {
         assertThat(registry.counter("rag.token.total").count()).isEqualTo(200.0);
         assertThat(registry.counter("rag.token.budget.rejected").count()).isEqualTo(1.0);
     }
+
+    @Test
+    void routingCountersSplitByIntent() {
+        metrics.recordRoutingChitchat();
+        metrics.recordRoutingKnowledge();
+        metrics.recordRoutingKnowledge();
+
+        assertThat(registry.counter("rag.routing.chitchat").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.routing.knowledge").count()).isEqualTo(2.0);
+    }
 }

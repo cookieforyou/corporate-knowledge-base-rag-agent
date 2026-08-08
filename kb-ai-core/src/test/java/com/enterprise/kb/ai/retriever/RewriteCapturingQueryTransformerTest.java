@@ -9,6 +9,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -40,5 +41,35 @@ class RewriteCapturingQueryTransformerTest {
         Query result = new RewriteCapturingQueryTransformer(delegate).transform(original);
 
         assertThat(result.text()).isEqualTo("改写");
+    }
+
+    // ── 5.4 收窄版：分类器预改写复用 ──
+
+    @Test
+    void preRewrittenQuerySkipsDelegateLlmCall() {
+        QueryTransformer delegate = mock(QueryTransformer.class);
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setRewrittenQuery("分类器预改写的完整查询");
+        Query original = new Query("它的税率呢", List.of(),
+            Map.of(RetrievalContext.CONTEXT_KEY, ctx));
+
+        Query result = new RewriteCapturingQueryTransformer(delegate).transform(original);
+
+        assertThat(result.text()).isEqualTo("分类器预改写的完整查询");
+        verifyNoInteractions(delegate);
+    }
+
+    @Test
+    void preRewrittenQueryPreservesContextForRetrievers() {
+        QueryTransformer delegate = mock(QueryTransformer.class);
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setRewrittenQuery("预改写");
+        Query original = new Query("原问题", List.of(),
+            Map.of(RetrievalContext.CONTEXT_KEY, ctx));
+
+        Query result = new RewriteCapturingQueryTransformer(delegate).transform(original);
+
+        // 检索器经 Query.context 读 RetrievalContext——context 必须原样透传
+        assertThat(result.context().get(RetrievalContext.CONTEXT_KEY)).isSameAs(ctx);
     }
 }

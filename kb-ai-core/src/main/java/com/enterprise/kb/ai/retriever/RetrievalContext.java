@@ -63,6 +63,16 @@ public class RetrievalContext {
     @Getter @Setter
     private volatile String rewrittenQuery;
 
+    /**
+     * 免检索短路标记（5.4 收窄版意图分类）：QueryRoutingAdvisor(440) 判定
+     * CHITCHAT（寒暄/致谢/对话元问题）时置 true，RetrievalGateAdvisor(500)
+     * 读取后旁路 RetrievalAugmentationAdvisor——改写/双路检索/重排/grounding
+     * 全套跳过，模型携多轮记忆直答。volatile：写请求线程（分类器），读在链
+     * 后续 advisor（流式路径跨线程）。
+     */
+    @Getter @Setter
+    private volatile boolean skipRetrieval;
+
     private volatile Filter.Expression securityFilter;
 
     private final List<TraceEntry> traceEntries = new CopyOnWriteArrayList<>();

@@ -3,7 +3,9 @@ package com.enterprise.kb.ai.config;
 import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
+import com.enterprise.kb.ai.advisor.QueryRoutingAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
+import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
@@ -13,7 +15,6 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -32,7 +33,8 @@ import org.springframework.context.annotation.Configuration;
  * </ul>
  * 两链共享 smartRoutingChatModel（主备容灾）、agentChatMemory（同 sessionId
  * 跨链历史互通）、护栏/配额 Advisor（安全与成本管控不分流）；Controller 经
- * 请求体 {@code mode: rag|tool} 显式分流（缺省 rag，自动意图路由预留 Phase 5.4）。
+ * 请求体 {@code mode: rag|tool} 显式分流（缺省 rag，跨链自动路由仍预留 5.4；
+ * rag 链内免检索短路已随 5.4 收窄版提前落地——QueryRoutingAdvisor 440）。
  *
  * <p><b>Bean 拆分决策（3.1 复审定稿，延续）</b>：记忆 Advisor 不挂共享
  * {@code chatClient}（kb-eval 评估用纯 RAG 链，缺失 CONVERSATION_ID 为 Assert
@@ -67,13 +69,18 @@ public class RagAgentChatClientConfig {
     }
 
     /**
-     * 纯 RAG 生产对话链（护栏 + 多轮记忆 + 溯源 + 混合检索 RAG，**零工具**）。
+     * 纯 RAG 生产对话链（护栏 + 多轮记忆 + 意图路由 + 溯源 + 混合检索 RAG，**零工具**）。
      * CONVERSATION_ID 与 RetrievalContext 由 Controller 经 advisor 参数传入。
      *
-     * <p>链序（11.2 v2 表去掉工具位）：Audit(10) → TokenBudget(30) → RateLimit(100) →
-     * OutputGuardrail(110) → InputSanitize(300) → Memory(400) → Trace(450) →
-     * Retrieval(500)。order 由各 Advisor getOrder() 决定，列表顺序不敏感。
+     * <p>链序（11.2 v2.13 表去掉工具位）：Audit(10) → TokenBudget(30) → RateLimit(100) →
+     * OutputGuardrail(110) → InputSanitize(300) → Memory(400) → QueryRouting(440) →
+     * Trace(450) → RetrievalGate(500，内包 RetrievalAugmentationAdvisor)。
+     * order 由各 Advisor getOrder() 决定，列表顺序不敏感。
      * 审计居最外层：被拒/被限流请求同样落 kb_audit_log（11.6）。
+     *
+     * <p>5.4 收窄版：QueryRoutingAdvisor 判定闲聊/对话元问题置 skipRetrieval，
+     * RetrievalGateAdvisor 旁路整套检索管线携记忆直答；defaultSystem 双形态措辞
+     * 与之配套（知识问的证据约束仍由 GROUNDING_PROMPT 每请求注入保证，不受影响）。
      */
     @Bean
     public ChatClient ragAgentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
@@ -83,10 +90,12 @@ public class RagAgentChatClientConfig {
                                          RateLimitAdvisor rateLimitAdvisor,
                                          OutputGuardrailAdvisor outputGuardrailAdvisor,
                                          InputSanitizeAdvisor inputSanitizeAdvisor,
+                                         QueryRoutingAdvisor queryRoutingAdvisor,
                                          RetrievalTraceAdvisor retrievalTraceAdvisor,
-                                         RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
+                                         RetrievalGateAdvisor retrievalGateAdvisor) {
         return ChatClient.builder(chatModel)
-            .defaultSystem("你是企业知识库 RAG Agent 助手。基于知识库检索到的内容回答问题。")
+            .defaultSystem("你是企业知识库 RAG Agent 助手。用户提出知识库相关问题时，"
+                + "基于检索到的参考资料回答；用户寒暄、致谢或询问对话本身时，友好自然地直接回应。")
             .defaultAdvisors(
                 auditTraceAdvisor,
                 tokenBudgetAdvisor,
@@ -94,8 +103,9 @@ public class RagAgentChatClientConfig {
                 outputGuardrailAdvisor,
                 inputSanitizeAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
+                queryRoutingAdvisor,
                 retrievalTraceAdvisor,
-                retrievalAugmentationAdvisor)
+                retrievalGateAdvisor)
             .build();
     }
 }

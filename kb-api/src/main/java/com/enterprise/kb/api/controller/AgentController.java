@@ -136,15 +136,18 @@ public class AgentController {
             .doOnNext(answerBuffer::append)
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build());
         // SSE 事件按链路精简（11.5）：tool 链只可能产生 TOOL_CALL（无溯源数据不推空 TRACE）；
-        // rag 链只推 TRACE（零工具不产生 TOOL_CALL）
+        // rag 链只推 TRACE（零工具不产生 TOOL_CALL）；闲聊免检索直答路径（5.4 收窄版）
+        // 无溯源数据，对齐「不推空帧」纪律同样省略 TRACE
         if (toolMode) {
             sseFlux = sseFlux.concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
                 ? Flux.empty()
                 : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx))
                     .event("TOOL_CALL").build())));
         } else {
-            sseFlux = sseFlux.concatWith(Mono.fromSupplier(() ->
-                ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event("TRACE").build()));
+            sseFlux = sseFlux.concatWith(Mono.defer(() -> traceCtx.isSkipRetrieval()
+                ? Mono.empty()
+                : Mono.fromSupplier(() ->
+                    ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event("TRACE").build())));
         }
         return sseFlux
             .concatWith(Mono.just(ServerSentEvent.<Object>builder("[DONE]").build()))

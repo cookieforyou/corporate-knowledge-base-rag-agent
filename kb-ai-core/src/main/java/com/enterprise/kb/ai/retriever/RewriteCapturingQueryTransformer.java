@@ -18,6 +18,9 @@ import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransfo
  *
  * <p>仅包装主链路装配（RetrievalConfig）；检索调试台（2.14）直注的原始
  * RewriteQueryTransformer Bean 不受影响。
+ *
+ * <p>5.4 收窄版扩展：ctx.rewrittenQuery 已被 QueryRoutingAdvisor(440) 预写入时，
+ * 跳过 delegate 的 LLM 调用直接复用（分类与改写合并为一次调用）。
  */
 public class RewriteCapturingQueryTransformer implements QueryTransformer {
 
@@ -29,6 +32,13 @@ public class RewriteCapturingQueryTransformer implements QueryTransformer {
 
     @Override
     public Query transform(Query query) {
+        // 5.4 收窄版：QueryRoutingAdvisor(440) 已把分类+消解合并产出的改写文本预写入
+        // ctx——直接复用，跳过 delegate 的 LLM 调用（知识问零新增延迟的关键）
+        if (query.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx
+            && ctx.getRewrittenQuery() != null && !ctx.getRewrittenQuery().isBlank()) {
+            // Query 构造必须透传 context：下游检索器经 Query.context 读 RetrievalContext
+            return new Query(ctx.getRewrittenQuery(), query.history(), query.context());
+        }
         Query rewritten = delegate.transform(query);
         if (query.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx
             && rewritten != null) {
