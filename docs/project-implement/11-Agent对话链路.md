@@ -17,6 +17,8 @@
 > **v2.14 用户反馈闭环（2026-08-08，任务 3.17）**：DONE 帧 JSON 化承载 messageId/traceId + 两 ID 前移 Controller 请求线程；反馈 API（upsert 可改评）+ kb_audit_log.feedback 回填。详见 §11.3/§11.6.3 v2.14 注。
 >
 > **v2.15 [ref-N] 引用编号缺陷修复（2026-08-09）**：ContextualQueryAugmenter 默认拼接不编号致引用编号漂移（抄正文圈号/越界/错位），编号化 documentFormatter 确定化锚点 + 提示词 ASCII 契约 + 前端圈号兜底。详见 §11.1.2 v2.15 注。
+>
+> **v2.16 徽标内联渲染修复（2026-08-09）**：前端旧版按 [ref-N] 切段逐段渲染——各段被包成块级 `<p>`，徽标独占一行、邻接标点/表格行被切断成孤儿行；改占位符单次渲染管线（[ref-N]→@@REFN@@ 透明 token → 全文单次渲染 + sanitize → 换回徽标），徽标内联。纯展示修复，契约不变。详见 §11.1.2 v2.16 注。
 
 ---
 
@@ -94,6 +96,8 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > 3. **前端兜底归一**（`markdown.ts`）：仅对 `[ref-①…⑳]` 形态定点归一为 ASCII（U+2460 偏移换算），正文圈号内容不动——概率性残留的确定性兜底。
 >
 > 教训：**「模型输出格式约定」必须有确定性锚点支撑**——prompt 里的编号契约若无注入侧编号配合，等于让模型自由发挥。
+>
+> **v2.16 修正（2026-08-09，3.17 E2E 后续验证发现的展示缺陷）**：前端旧版 `renderAnswer` 按 `[ref-N]` 切段、每段独立渲染 markdown——每段被 marked 包成块级 `<p>`，内联徽标夹在块级元素之间**独占一行**，ref 邻接的句号、含 ref 的表格行被切成孤儿行（截图实锤：孤立的「。」与「|」）。改为**占位符单次渲染管线**：`[ref-N]` → `@@REFN@@` token（`@` 非 markdown 元字符，对 marked 与 DOMPurify 均透明，含表格单元格/列表项内联存活经无头验证）→ 全文单次渲染 + sanitize → sanitize 后换回徽标。徽标保证内联于段落、表格/列表不再被切断；「防 markdown 吞括号、防消毒器剥徽标」原意图同持（markdown 见不到方括号语法、消毒器见不到徽标）。纯展示修复：[ref-N] 契约、data-ref 对齐与点击行为不变。
 
 ---
 
