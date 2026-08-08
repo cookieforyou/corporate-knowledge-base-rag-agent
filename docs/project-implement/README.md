@@ -43,6 +43,10 @@
 
 > **v2.11 业务指标落地定稿（2026-08-07，任务 3.13）**：AiBusinessMetrics 落 kb-ai-core/metrics（第六章预留包位）统一注册业务指标（反馈/命中率/检索延迟/工具成功率/token 收编），ToolCall 状态常量统一至 RetrievalContext.ToolCall；SecurityConfig 放行 /actuator/prometheus 与 /actuator/metrics/**（此前被 denyAll 拦截——「Prometheus 可采集」验收的真实缺口）；草图 cache.hit/rag.llm.* 依赖未就绪暂不注册，详见第十三章 §13.3。
 
+> **v2.13 5.4 收窄版意图分类提前落地（2026-08-08）**：rag 链内免检索短路——QueryRoutingAdvisor(440) 双层分类（正则快路纯寒暄零 LLM / 分类+改写合并单次调用，知识问零新增延迟）+ RetrievalGateAdvisor(500) 组合式门控包裹 RetrievalAugmentationAdvisor（框架类 final，草图「Advisor 自身读标记短路」形态修正）；skipRetrieval 旁路整套管线携记忆直答，fail-open 回落检索，`rag.routing.intent.enabled` 一键回退；详见第十一章 §11.4/§11.5 v2.13 注。
+
+> **v2.14 用户反馈闭环（2026-08-08，任务 3.17）**：DONE 帧 JSON 化承载 messageId/traceId（协议修订用户拍板），两 ID 前移至 Controller 请求线程生成（messageId 归档复用保证 kb_feedback 外键可解析，traceId 经 RetrievalContext 透传审计落库）；反馈 API POST（upsert 可改评 + 期望回答 + tags，租户/用户归属经 message→session 校验 fail-closed，归档竞态短窗轮询兜底）+ GET Bad Case 查询（租户收敛 + 原始问答文本）；kb_audit_log.feedback 回填 + audit_log_id 关联，rag.feedback.like/dislike 指标接线；详见第十一章 §11.3/§11.6.3 v2.14 注。
+
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
 ## 目录导航
@@ -81,9 +85,9 @@
 |---|---|---|
 | 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项） |
 | 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛） |
-| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6） |
+| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3） |
 | 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正） |
-| 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行） |
+| 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行）+ v2.14（3.17 rag.feedback.* 指标接线） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
 
 ### 第六卷：工程质量保障（质量层）

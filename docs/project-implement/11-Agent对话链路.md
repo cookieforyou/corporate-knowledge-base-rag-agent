@@ -472,6 +472,8 @@ record DoneEvent(String sessionId) implements AgentStreamEvent {}
 > **v2 注（流式上下文传递）**：Reactor 流式链路跨线程，Advisor 上下文（`ChatClientResponse.context()`）在流末不易取回，故溯源数据改由 `RetrievalContext` 旁路传递——与检索过滤器共用同一机制（10.2.1），一处设计两处复用。前端对 SSE 的消费协议与 Phase 1 兼容（`data: {"token":"..."}` 追加，新增 `event: TRACE` 命名事件，旧前端忽略即可）。
 >
 > **v2.1 实现期修正（2026-08-02）**：旁路实例必须是 **Controller 请求线程创建的纯对象**，不可经 `ObjectProvider.getObject()` 取请求作用域代理——MVC 异步请求在请求线程返回后即标记请求完结，代理在流末 reactor 线程解引用必抛 `ScopeNotActiveException`（三轮 E2E 实证，详 10.2.1）。参数化传递后该陷阱根除。另：TRACE 供应商须容错降级（溯源失败不得击穿 SSE 流），TOKEN/DONE 照常到达。
+>
+> **v2.14 协议修订（2026-08-08，任务 3.17 反馈闭环）**：① **DONE 帧 JSON 化**——无名 DONE 帧 data 由字面量 `[DONE]` 演进为 `{"messageId":"...","traceId":"..."}`（终帧天然携带本轮句柄；错误路径不发 DONE，无归档即无可评价对象）；同步 `/chat` 响应 data 同步增补 messageId/traceId。修订破坏 Phase 1「DONE 数据形状不变」兼容承诺，唯一消费方为自家前端同批改造（用户拍板定案）。② **两个句柄的前移生成**：messageId 由 Controller 请求线程预生成并透传 ChatSessionService 归档复用（保证 kb_feedback.message_id 外键可解析——原 messageId 在异步归档内部生成、从不暴露，是反馈定位的真实缺口）；trace_id 由 Controller 生成经 RetrievalContext.traceId 透传 AuditTraceAdvisor 原样落库（缺省回落自生成，kb-eval 无 ctx 入口不受影响），反馈 API 凭 idx_audit_trace 确定性关联审计行。③ **反馈 API**：POST /api/v1/feedback（messageId+userId upsert 可改评、期望回答、tags；租户/用户归属经 message→session 校验，跨域引用伪装 MESSAGE_NOT_FOUND 不泄露存在性；归档异步竞态由 rag.feedback.message-wait-millis(2000) 短窗轮询兜底）+ GET /api/v1/feedback（Bad Case 查询，经 message→session 子查询租户收敛，附原始问答文本）；kb_audit_log.feedback 回填 POSITIVE/NEGATIVE + kb_feedback.audit_log_id 关联（审计缺失静默跳过）；指标 rag.feedback.like/dislike 接线（3.13 预留点）。
 
 ---
 
@@ -600,8 +602,8 @@ status 三态：`SUCCESS` / `REJECTED`（BusinessException，errorCode 落库）
 | retrieved_chunks / reranked_chunks | RetrievalContext trace（bm25/vector → 原始命中；final → 重排序列），轻量投影（chunk_id/file_name/page_num/score） |
 | model_name / token_usage | 响应 metadata；流式未开 include_usage 为 null（坑位⑧已知限制） |
 | final_answer | 同步取响应文本；流式 doOnNext 累积（**不缓冲 token，审计不得损 TTFT**） |
-| trace_id | 请求级 UUID（OTel trace 接入归 Phase 4.1） |
-| feedback | 留空，3.17 反馈 API 关联回填 |
+| trace_id | 请求级 UUID（OTel trace 接入归 Phase 4.1）；**v2.14 起前移至 Controller 请求线程生成**，经 RetrievalContext.traceId 透传原样落库并随 DONE 帧/同步响应送达前端（反馈关联键），无 ctx 入口回落自生成 |
+| feedback | **v2.14 已接线（3.17）**：反馈 API 凭 trace_id 定位本行回填 POSITIVE/NEGATIVE，同写 kb_feedback.audit_log_id（审计行缺失静默跳过，旁路容错） |
 
 ### 11.6.4 容错与性能
 
