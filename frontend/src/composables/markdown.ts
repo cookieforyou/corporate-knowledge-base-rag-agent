@@ -24,23 +24,22 @@ function renderMd(md: string): string {
   return DOMPurify.sanitize(marked.parse(md) as string)
 }
 
+// [ref-N] 占位符 token（v2.16）：@ 非 markdown 元字符，对 marked 与 DOMPurify 均透明
+const REF_TOKEN_RE = /@@REF(\d+)@@/g
+
 /**
- * 渲染助手回答（3.15）：按 [ref-N] 切段分别做 markdown 渲染 + 消毒，
- * ref 位置插入可点击徽标（data-ref=N，与溯源 final 序列下标对齐，11.1.2）。
- * 分段渲染避免 [ref-N] 被 markdown 语法吞掉或被消毒器剥离。
+ * 渲染助手回答（3.15）：[ref-N] 先替换为占位符 token，全文单次 markdown 渲染 + 消毒，
+ * sanitize 后把 token 换回可点击徽标（data-ref=N，与溯源 final 序列下标对齐，11.1.2）。
+ * 全文单次渲染保证徽标内联于段落（v2.16 修复旧切段渲染：各段被包成块级 <p>，
+ * 徽标孤立于块级元素之间独占一行、邻接标点/表格行被切断成孤儿段）；
+ * 替换发生在 sanitize 之后——消毒器剥不掉徽标，markdown 也吞不到方括号语法。
  */
 export function renderAnswer(content: string): string {
   if (!content) return ''
-  content = normalizeCircledRefs(content)
-  const parts: string[] = []
-  let last = 0
-  for (const m of content.matchAll(REF_RE)) {
-    parts.push(renderMd(content.slice(last, m.index)))
-    parts.push(
-      `<span class="ref-tag" data-ref="${m[1]}" role="button" tabindex="0">ref-${m[1]}</span>`
-    )
-    last = (m.index ?? 0) + m[0].length
-  }
-  parts.push(renderMd(content.slice(last)))
-  return parts.join('')
+  const masked = normalizeCircledRefs(content).replace(REF_RE, (_, n: string) => `@@REF${n}@@`)
+  return renderMd(masked).replace(
+    REF_TOKEN_RE,
+    (_, n: string) =>
+      `<span class="ref-tag" data-ref="${n}" role="button" tabindex="0">ref-${n}</span>`
+  )
 }
