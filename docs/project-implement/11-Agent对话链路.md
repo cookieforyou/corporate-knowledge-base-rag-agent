@@ -11,6 +11,8 @@
 > **v2.9 双链路拆分定稿（2026-08-05，任务 3.19）**：新增 §11.5——RAG 问答与 Tool 问答双链路拆分 + kb-ai-agent 模块独立（动因三痛点实证、模块/Bean 形态、mode 路由协议、SSE/toolContext 矩阵、与 §11.4 5.4 锚点正交关系、后续演进）；§11.2 单链装配草图标记为历史形态。
 >
 > **v2.10 审计落地定稿（2026-08-05，任务 3.12）**：新增 §11.6——AuditTraceAdvisor(order 10) 被拒请求捕获机制（覆写 adviseCall/adviseStream，草图 before+after 形态无法覆盖内层抛错）、双链路数据面（mode/tool_calls + kb_audit_log 四列扩展）、字段数据源与脱敏（query_text 同款 sanitize、rewritten_query 装饰器捕获、流式聚合不缓冲）、旁路容错与异步落库。
+>
+> **v2.13 修订（2026-08-08，5.4 收窄版提前落地）**：§11.4 rag 链内免检索短路提前实现——QueryRoutingAdvisor(440) 双层分类（L1 正则快路 + L2 结构化 LLM，分类与改写合并单次调用）+ RetrievalGateAdvisor(500) 组合式门控（源码核验 RetrievalAugmentationAdvisor 为 final 类，草图「Advisor 自身读标记短路」形态不可行，修正为门控包裹旁路）；fail-open 纪律、rag.routing.chitchat/knowledge 度量、闲聊路径免 TRACE 帧；mode 跨链契约不变（自动跨链路由仍预留）。§11.5.1 链序表同步更新。
 
 ---
 
@@ -484,6 +486,15 @@ record DoneEvent(String sessionId) implements AgentStreamEvent {}
 
 > 2026 行业共识：60-70% 的简单查询不需要完整 RAG，但无路由的固定管线同样过时——自适应路由是两者的中道，故不提前到 Phase 2（缺乏评估基线时分流质量不可控，先建 2.16 度量再谈路由）。
 
+> **v2.13 提前落地定稿（2026-08-08，用户拍板收窄范围）**：Phase 2 Golden 74 基线建成后分流质量可验证，且 E2E 实证两痛点——① 闲聊/元问题白付改写+检索+重排前置开销（实测 ~5s）；② grounding 强约束（「必须且只能基于【参考资料】」）语义层压过 Memory(400) 注入的历史消息，「我刚才问了什么」被拒答（bm25 召回 10 条噪声未触发空证据模板，是强约束拒答非记忆故障）。**收窄定案：只做 rag 链内免检索短路**，跨链 mode=auto 与复杂度三级模型路由仍留 5.4。落地形态四处修正/强化：
+>
+> - **双层分类**：L1 正则快路（整句全匹配纯寒暄/致谢/道别/助手元问题，≤15 字符）零 LLM 调用；L2 结构化分类（`entity(IntentResult)`）兜元问题与库外问题；
+> - **分类与改写合并单次 LLM 调用**：KNOWLEDGE 路径分类器同步产出消解后查询，预写入 `RetrievalContext.rewrittenQuery`，`RewriteCapturingQueryTransformer` 识别后跳过自身 LLM 调用——知识问零新增延迟（草图未含此优化）；
+> - **门控形态修正**：源码核验 `RetrievalAugmentationAdvisor` 为 **final class**，草图「Advisor 读标记短路」不可行——`RetrievalGateAdvisor`(order 500) 实现 CallAdvisor+StreamAdvisor 组合式包裹 delegate，skip 时 `chain.nextCall/nextStream` 直接放行；
+> - **fail-open 纪律 + 度量**：分类异常/解析失败/未知 intent 一律回落 KNOWLEDGE（最坏=现状）；`rag.routing.chitchat/knowledge` 计数进 AiBusinessMetrics（3.13 注册中心）；闲聊路径免 TRACE 帧（对齐「不推空帧」纪律）；`rag.routing.intent.enabled` 总开关可回退。
+>
+> 历史消息来源：分类器直注 agentChatMemory 经 CONVERSATION_ID 自读（不依赖 MessageChatMemoryAdvisor 内部排序；440 时当前轮未入忆，读到纯历史）。kb-eval 独立 chatClient 不挂本 Advisor，评估基线零影响。
+
 ---
 
 ## 11.5 双链路拆分：RAG 问答与 Tool 问答分离（v2.9 新增，任务 3.19）
@@ -501,8 +512,10 @@ kb-eval 只依赖 kb-ai-core 不受影响。
 
 | Bean | 模块 | Advisor 链（order） | tools | system 导向 |
 |---|---|---|---|---|
-| `ragAgentChatClient` | kb-ai-core | TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→Trace(450)→Retrieval(500) | 无 | 基于知识库内容回答 |
-| `toolAgentChatClient` | kb-ai-agent | TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
+| `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→**QueryRouting(440)**→Trace(450)→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
+| `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
+
+> v2.13 链序变更：440 插入 QueryRoutingAdvisor（意图分类），500 位由 RetrievalGateAdvisor 承接（组合式包裹原 RetrievalAugmentationAdvisor，skipRetrieval 时旁路整套 RAG 管线，见 §11.4 v2.13 注）。
 
 **共享基座（均留 kb-ai-core）**：smartRoutingChatModel（主备容灾两链同享）、
 agentChatMemory（同 sessionId 跨链历史互通——历史进 prompt 不进检索 query）、
@@ -518,9 +531,10 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 请求体新增 `mode` 字段（`rag`|`tool`）：**缺省 rag（兼容现状）**；大小写归一；
 非法值 400 `INVALID_MODE`（协议层错误在请求处理期拒绝，不进 SSE 流）。
 （实现期简化：草图的 `rag.agent.default-mode` 配置项未保留——缺省值硬编码，
-避免无消费场景的配置面膨胀。）**自动意图路由不实现**——预留 Phase 5.4
+避免无消费场景的配置面膨胀。）**跨链自动意图路由不实现**——仍预留 Phase 5.4
 （§11.4 QueryRoutingAdvisor 锚点为正交增量：5.4 是 rag 链内部「简单查询跳过检索」
-的自适应短路，与本次「跨链分流」两个维度）。
+的自适应短路，与本次「跨链分流」两个维度）。v2.13 补注：rag 链内免检索短路
+（5.4 收窄版）已于 2026-08-08 提前落地，见 §11.4 v2.13 注；mode 契约本身不变。
 
 ### 11.5.3 SSE/响应协议精简
 
