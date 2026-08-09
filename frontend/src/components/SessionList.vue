@@ -157,14 +157,17 @@ onMounted(refresh)
 .sp-item.active .sp-item-title { color: var(--pine-900); }
 .sp-item-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
 .sp-time { font-size: 11px; color: var(--ink-3); }
+/* 隐藏用 visibility/opacity 而非 display:none：popconfirm 弹出后鼠标移入确认框
+   会脱离卡片 hover，display:none 会使引用元素失去布局盒，popper 定位回退到页面左上角 */
 .sp-del {
   border: none; background: none; cursor: pointer; color: var(--ink-3);
-  width: 20px; height: 20px; border-radius: 5px; display: none; place-items: center;
-  transition: background .2s, color .2s;
+  width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center;
+  visibility: hidden; opacity: 0;
+  transition: background .2s, color .2s, opacity .2s;
 }
-.sp-item:hover .sp-del { display: grid; }
+.sp-item:hover .sp-del { visibility: visible; opacity: 1; }
 .sp-del:hover { background: #FBEAEA; color: #C0392B; }
-.sp-del:disabled { display: none; }
+.sp-del:disabled { visibility: hidden; opacity: 0; }
 
 .sp-empty { text-align: center; color: var(--ink-3); font-size: 12px; padding: 18px 0; }
 .sp-more-hint { padding: 6px 0; }
