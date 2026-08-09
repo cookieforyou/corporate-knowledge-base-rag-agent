@@ -24,12 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -199,7 +199,7 @@ public class ChatSessionService {
     public void reseedMemoryIfAbsent(String sessionId) {
         try {
             boolean acquired = redissonClient.<String>getBucket(RESEED_GUARD_PREFIX + sessionId)
-                .trySet("1", RESEED_GUARD_TTL_SECONDS, TimeUnit.SECONDS);
+                .setIfAbsent("1", Duration.ofSeconds(RESEED_GUARD_TTL_SECONDS));
             if (!acquired) {
                 return; // 并发回填进行中
             }
@@ -236,7 +236,7 @@ public class ChatSessionService {
     /** 会话列表：tenant+user 双过滤，updated_at 倒序；size 上限 {@value #MAX_PAGE_SIZE}，page 负值归零 */
     public List<SessionItem> listSessions(String tenantId, String userId, int page, int size) {
         int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int safeSize = Math.clamp(size, 1, MAX_PAGE_SIZE);
         return sessionRepository
             .findByTenantIdAndUserIdOrderByUpdatedAtDesc(tenantId, userId, PageRequest.of(safePage, safeSize))
             .map(s -> new SessionItem(s.getId(), s.getTitle(), s.getMessageCount(), s.getUpdatedAt()))
@@ -295,7 +295,7 @@ public class ChatSessionService {
             return Map.of();
         }
         return feedbackRepository.findByMessageIdInAndUserId(assistantIds, userId).stream()
-            .collect(Collectors.toMap(KbFeedback::getMessageId, Function.identity(), (a, b) -> b));
+            .collect(Collectors.toMap(KbFeedback::getMessageId, Function.identity(), (_, b) -> b));
     }
 
     private HistoryMessageItem toItem(KbMessage m, KbFeedback feedback) {
