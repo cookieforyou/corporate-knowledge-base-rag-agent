@@ -71,7 +71,7 @@
           <div v-if="msg.role === 'assistant' && msg.sources?.length" class="trace-panel panel">
             <button class="trace-toggle" @click="msg.traceOpen = !msg.traceOpen">
               <el-icon><Document /></el-icon>
-              <span>溯源 · {{ finalCount(msg) }} 条证据（{{ msg.sources.length }} 路检索）</span>
+              <span>溯源 · {{ finalCount(msg) }} 条证据（双路检索）</span>
               <el-icon class="trace-caret" :class="{ open: msg.traceOpen }"><ArrowDown /></el-icon>
             </button>
             <transition name="slide-fade">
