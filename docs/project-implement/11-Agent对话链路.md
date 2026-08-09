@@ -21,6 +21,7 @@
 > **v2.16 徽标内联渲染修复（2026-08-09）**：前端旧版按 [ref-N] 切段逐段渲染——各段被包成块级 `<p>`，徽标独占一行、邻接标点/表格行被切断成孤儿行；改占位符单次渲染管线（[ref-N]→@@REFN@@ 透明 token → 全文单次渲染 + sanitize → 换回徽标），徽标内联。纯展示修复，契约不变。详见 §11.1.2 v2.16 注。
 >
 > **v2.17 历史会话列表与恢复（2026-08-09，3.15 清单缺口补齐）**：新增 §11.7——归档时写 kb_message.citations（预留列启用，SSE TRACE 同形载荷，[ref-N] 对齐契约天然保持）；会话三端点（列表/消息/删除，tenant+user 双过滤 fail-closed，附录 C `/api/v1/agent/*` 锚点落地为扁平路径）；过期会话续聊记忆回填（chat 入口前置，PG 重建窗口 + SETNX 单发守卫 + fail-open）；前端对话页内可收起会话栏，历史消息复用现有渲染/溯源/反馈链路。
+> **v2.17.1（2026-08-09，E2E 修复）**：删除带反馈会话外键违例——kb_feedback.message_id 无级联，删除会话须同事务先清反馈（§11.7.2 DELETE 行）。
 
 ---
 
@@ -651,7 +652,7 @@ kb-eval 评估链不挂本 Advisor（评估流量不污染审计）。`rag.audit
 |------|------|------|
 | GET | `/api/v1/sessions?page&size` | tenant+user 双过滤，updated_at 倒序（idx_user_session），size ≤100 |
 | GET | `/api/v1/sessions/{id}/messages` | 归属校验 fail-closed；assistant 附 sources/traceId/反馈回显 |
-| DELETE | `/api/v1/sessions/{id}` | 硬删（kb_message 外键 CASCADE）+ memory.clear 旁路 |
+| DELETE | `/api/v1/sessions/{id}` | 硬删：同事务先清 kb_feedback（message_id 外键无级联，v2.17.1）→ 删会话（kb_message 外键 CASCADE）→ memory.clear 旁路 |
 
 - 路径前缀沿用既有扁平实现惯例（`/chat`、`/feedback` 同款）——附录 C 的
   `/api/v1/agent/sessions` 为草图锚点（同表 `/api/v1/agent/chat` 实际落地即 `/chat`），回写注记

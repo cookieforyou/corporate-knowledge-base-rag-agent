@@ -379,10 +379,11 @@ class ChatSessionServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("SESSION_NOT_FOUND");
         verify(sessionRepository, never()).deleteById(anyString());
+        verify(feedbackRepository, never()).deleteBySessionId(anyString());
     }
 
     @Test
-    void deleteSessionDeletesAndClearsMemory() {
+    void deleteSessionDeletesFeedbackThenSessionAndClearsMemory() {
         KbSession owned = session("s1", "标题", 2);
         owned.setTenantId("t");
         owned.setUserId("u");
@@ -390,7 +391,10 @@ class ChatSessionServiceTest {
 
         service.deleteSession("s1", "t", "u");
 
-        verify(sessionRepository).deleteById("s1");
+        // 反馈外键无级联：必须先清反馈再删会话，顺序不可颠倒（v2.17.1）
+        var inOrder = org.mockito.Mockito.inOrder(feedbackRepository, sessionRepository);
+        inOrder.verify(feedbackRepository).deleteBySessionId("s1");
+        inOrder.verify(sessionRepository).deleteById("s1");
         verify(agentChatMemory).clear("s1");
     }
 
@@ -403,6 +407,7 @@ class ChatSessionServiceTest {
         org.mockito.Mockito.doThrow(new RuntimeException("Redis 抖动")).when(agentChatMemory).clear("s1");
 
         assertThatCode(() -> service.deleteSession("s1", "t", "u")).doesNotThrowAnyException();
+        verify(feedbackRepository).deleteBySessionId("s1");
         verify(sessionRepository).deleteById("s1");
     }
 

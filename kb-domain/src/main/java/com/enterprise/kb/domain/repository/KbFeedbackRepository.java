@@ -3,6 +3,7 @@ package com.enterprise.kb.domain.repository;
 import com.enterprise.kb.domain.model.KbFeedback;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,6 +21,17 @@ public interface KbFeedbackRepository extends JpaRepository<KbFeedback, String> 
 
     /** 历史消息反馈回显：批量查当前用户对一组消息的既有评价（至多每消息一条） */
     List<KbFeedback> findByMessageIdInAndUserId(List<String> messageIds, String userId);
+
+    /**
+     * 会话删除前置清理（v2.17.1）：kb_feedback.message_id 外键无级联，
+     * 须在删除 kb_message 前清掉该会话全部消息的反馈，否则会话删除外键违例。
+     */
+    @Modifying
+    @Query("""
+        DELETE FROM KbFeedback f
+        WHERE f.messageId IN (SELECT m.id FROM KbMessage m WHERE m.sessionId = :sessionId)
+        """)
+    void deleteBySessionId(@Param("sessionId") String sessionId);
 
     /**
      * 3.17 Bad Case 查询（验收 #13）：kb_feedback 无租户列，经 message→session

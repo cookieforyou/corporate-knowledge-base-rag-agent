@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
@@ -256,9 +257,15 @@ public class ChatSessionService {
             .toList();
     }
 
-    /** 删除会话：归属校验同上；kb_message 外键 ON DELETE CASCADE 级联清消息；顺带清 Redis 记忆（旁路容错） */
+    /**
+     * 删除会话：归属校验同上；先清反馈（kb_feedback.message_id 外键无级联，
+     * 不清则删消息外键违例）→ 再删会话（kb_message.session_id ON DELETE CASCADE
+     * 级联清消息）；顺带清 Redis 记忆（旁路容错）。反馈与会话同事务，避免半删态。
+     */
+    @Transactional
     public void deleteSession(String sessionId, String tenantId, String userId) {
         KbSession session = requireOwnedSession(sessionId, tenantId, userId);
+        feedbackRepository.deleteBySessionId(session.getId());
         sessionRepository.deleteById(session.getId());
         try {
             agentChatMemory.clear(sessionId);
