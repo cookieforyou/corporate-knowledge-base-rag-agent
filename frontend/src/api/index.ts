@@ -1,5 +1,6 @@
 import axios from 'axios'
 import router from '@/router'
+import type { Source } from '@/stores/chat'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -33,6 +34,39 @@ export const chat = (query: string) =>
 
 /** SSE 流式问答 */
 export const chatStreamUrl = () => `${api.defaults.baseURL}/chat/stream`
+
+// ── 历史会话（3.15 补齐：列表 / 消息含溯源恢复 / 删除）──
+
+export interface SessionSummary {
+  id: string
+  title: string
+  messageCount: number
+  updatedAt: string
+}
+
+export interface HistoryMessage {
+  id: string
+  role: 'USER' | 'ASSISTANT'
+  content: string
+  createdAt: string
+  /** citations 解析结果，与 SSE TRACE 同形；存量数据/tool 轮/闲聊轮为 null */
+  sources?: Source[] | null
+  traceId?: string | null
+  /** 当前用户既有反馈评价（upsert 语义至多一条），无则 null */
+  feedback?: 'POSITIVE' | 'NEGATIVE' | null
+}
+
+export const listSessions = (page = 0, size = 50) =>
+  api.get('/sessions', { params: { page, size } })
+    .then(r => r.data.data as SessionSummary[])
+
+export const getSessionMessages = (sessionId: string) =>
+  api.get(`/sessions/${sessionId}/messages`)
+    .then(r => r.data.data as HistoryMessage[])
+
+export const deleteSession = (sessionId: string) =>
+  api.delete(`/sessions/${sessionId}`)
+    .then(r => r.data.data as { deleted: boolean })
 
 // ── 工具调用与 HITL 审批（3.3/3.4/3.15）──
 

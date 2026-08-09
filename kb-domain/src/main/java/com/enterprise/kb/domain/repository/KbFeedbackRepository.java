@@ -18,6 +18,9 @@ public interface KbFeedbackRepository extends JpaRepository<KbFeedback, String> 
     /** 3.17 upsert 幂等键：同一用户对同一回答仅一条反馈（可更改评价） */
     Optional<KbFeedback> findByMessageIdAndUserId(String messageId, String userId);
 
+    /** 历史消息反馈回显：批量查当前用户对一组消息的既有评价（至多每消息一条） */
+    List<KbFeedback> findByMessageIdInAndUserId(List<String> messageIds, String userId);
+
     /**
      * 3.17 Bad Case 查询（验收 #13）：kb_feedback 无租户列，经 message→session
      * 两级子查询收敛到租户可见域（租户隔离 fail-closed 纪律）。

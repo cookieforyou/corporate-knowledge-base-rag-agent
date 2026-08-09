@@ -39,7 +39,7 @@ export interface Message {
  * 「新对话」重置 sessionId 与消息流（后端记忆随 sessionId 隔离）。
  */
 export const useChatStore = defineStore('chat', () => {
-  const sessionId = ref(crypto.randomUUID())
+  const sessionId = ref<string>(crypto.randomUUID())
   const mode = ref<'rag' | 'tool'>('rag')
   const messages = ref<Message[]>([])
 
@@ -48,5 +48,11 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
   }
 
-  return { sessionId, mode, messages, newSession }
+  /** 打开历史会话（3.15 补齐）：整替 sessionId 与消息流，续聊沿用同一 ID */
+  function openSession(id: string, loaded: Message[]) {
+    sessionId.value = id
+    messages.value = loaded
+  }
+
+  return { sessionId, mode, messages, newSession, openSession }
 })

@@ -89,7 +89,7 @@ class AgentControllerTenantGuardTest {
         org.mockito.ArgumentCaptor<String> queryCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(chatSessionService).archiveTurn(
             org.mockito.ArgumentMatchers.eq("s-pii"), anyString(), anyString(),
-            queryCaptor.capture(), anyString(), anyString());
+            queryCaptor.capture(), anyString(), anyString(), any(), anyString());
         assertThat(queryCaptor.getValue())
             .contains("1***-****-****")
             .doesNotContain("13911112222");

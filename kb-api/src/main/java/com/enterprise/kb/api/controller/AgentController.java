@@ -90,6 +90,9 @@ public class AgentController {
         log.info("用户 [{}] 发起问答: mode={}, sessionId={}, query={}",
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
+        // 历史会话真续聊（v2.17）：Redis 记忆过期（TTL 24h）时以 PG 消息回填窗口，
+        // 必须发生在 Advisor 链执行前（fail-open，异常不影响本轮）
+        chatSessionService.reseedMemoryIfAbsent(sessionId);
         // 本轮句柄（3.17）：messageId 定位归档消息（反馈外键），traceId 关联审计行（反馈回填）
         String assistantMessageId = UUID.randomUUID().toString();
         ctx.setTraceId(UUID.randomUUID().toString());
@@ -103,7 +106,9 @@ public class AgentController {
                 : ragChatService.chatRag(query, sessionId, ctx);
 
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(),
-            safeQuery, answer, assistantMessageId);
+            safeQuery, answer, assistantMessageId,
+            // 溯源载荷（v2.17）：tool 链零检索、闲聊免检索直答无溯源 → null
+            toolMode || ctx.isSkipRetrieval() ? null : safeBuildTrace(ctx), ctx.getTraceId());
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", answer);
         data.put("sessionId", sessionId);
@@ -129,6 +134,8 @@ public class AgentController {
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例
         RetrievalContext traceCtx = newRetrievalContext();
+        // 历史会话真续聊（v2.17）：同同步路径，Advisor 链执行前回填过期记忆（fail-open）
+        chatSessionService.reseedMemoryIfAbsent(sessionId);
         // 本轮句柄（3.17）：messageId 经 DONE 帧送达前端作反馈定位键，归档复用同一 ID；
         // traceId 经 RetrievalContext 透传 AuditTraceAdvisor 落库，反馈回填凭此关联审计行
         String assistantMessageId = UUID.randomUUID().toString();
@@ -167,7 +174,9 @@ public class AgentController {
                 new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
-                safeQuery, answerBuffer.toString(), assistantMessageId))
+                safeQuery, answerBuffer.toString(), assistantMessageId,
+                toolMode || traceCtx.isSkipRetrieval() ? null : safeBuildTrace(traceCtx),
+                traceCtx.getTraceId()))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
                 return Flux.just(ServerSentEvent.<Object>builder(

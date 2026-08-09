@@ -1,5 +1,9 @@
 <template>
-  <div class="chat-page">
+  <div class="chat-shell">
+    <!-- 历史会话栏（3.15 补齐：打开历史会话可溯源并续聊） -->
+    <SessionList ref="sessionListRef" :active-id="store.sessionId" :disabled="streaming"
+      @select="openHistory" @deleted="onSessionDeleted" />
+    <div class="chat-page">
     <!-- ══ 页头 ══ -->
     <header class="page-head reveal">
       <div>
@@ -180,6 +184,7 @@
 
     <!-- 原文对话框（3.15 验收：溯源引用可点击查看原文） -->
     <SourceDialog :target="sourceTarget" @close="sourceTarget = null" />
+    </div>
   </div>
 </template>
 
@@ -187,10 +192,12 @@
 import { ref, nextTick, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore, type Message, type Source, type SourceChunk } from '@/stores/chat'
-import { chatStreamUrl, uploadDocument, etlProgressWsUrl, submitFeedback, type ToolCallInfo, type EtlProgress } from '@/api'
+import { chatStreamUrl, uploadDocument, etlProgressWsUrl, submitFeedback, getSessionMessages,
+  type ToolCallInfo, type EtlProgress, type HistoryMessage } from '@/api'
 import { renderAnswer } from '@/composables/markdown'
 import SourceDialog, { type SourceTarget } from '@/components/SourceDialog.vue'
 import ToolCallCard from '@/components/ToolCallCard.vue'
+import SessionList from '@/components/SessionList.vue'
 import { ElMessage } from 'element-plus'
 import { Right, ArrowDown, Document, Promotion, Refresh, Link as Paperclip } from '@element-plus/icons-vue'
 
@@ -202,6 +209,7 @@ const streamText = ref('')
 const streaming = ref(false)
 const msgList = ref<HTMLElement>()
 const sourceTarget = ref<SourceTarget | null>(null)
+const sessionListRef = ref<InstanceType<typeof SessionList>>()
 
 const suggestionsByMode: Record<'rag' | 'tool', string[]> = {
   rag: [
@@ -230,6 +238,38 @@ function escapeHtml(text: string) {
 function newChat() {
   store.newSession()
   sourceTarget.value = null
+}
+
+/** 打开历史会话（3.15 补齐）：拉 PG 归档消息映射为 Message[]——sources 即 citations、
+ *  messageId 即 kb_message.id（反馈链路复用）、feedback 回显；sessionId 续用即真续聊 */
+async function openHistory(id: string) {
+  if (streaming.value || id === store.sessionId) return
+  try {
+    const history = await getSessionMessages(id)
+    store.openSession(id, history.map(toMessage))
+    sourceTarget.value = null
+    scrollToBottom()
+  } catch (e: any) {
+    ElMessage.error('打开会话失败：' + (e.response?.data?.message || e.message))
+  }
+}
+
+function toMessage(m: HistoryMessage): Message {
+  if (m.role === 'USER') return { role: 'user', content: m.content }
+  return {
+    role: 'assistant',
+    content: m.content,
+    sources: m.sources ?? undefined,
+    traceOpen: !!m.sources?.length,   // 与实时轮行为一致：有溯源即展开面板
+    messageId: m.id,
+    traceId: m.traceId ?? undefined,
+    feedback: m.feedback ?? undefined
+  }
+}
+
+/** 删除联动：删的是当前会话 → 回新对话态 */
+function onSessionDeleted(id: string) {
+  if (id === store.sessionId) newChat()
 }
 
 /** [ref-N] 点击（事件委托）：N 与溯源 final 序列下标对齐（11.1.2），打开原文对话框 */
@@ -410,6 +450,8 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
     streaming.value = false
     streamText.value = ''
     scrollToBottom()
+    // 归档为异步旁路：DONE 后延迟刷新会话列表，防首轮会话未落库的竞态空窗
+    setTimeout(() => sessionListRef.value?.refresh(), 1000)
   }
 }
 
@@ -493,7 +535,8 @@ function finalCount(msg: Message) {
 </script>
 
 <style scoped>
-.chat-page { display: flex; flex-direction: column; height: 100%; }
+.chat-shell { display: flex; height: 100%; }
+.chat-page { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%; }
 
 /* ── 页头 ── */
 .page-head {

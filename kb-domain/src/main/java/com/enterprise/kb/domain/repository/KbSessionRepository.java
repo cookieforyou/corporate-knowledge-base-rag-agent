@@ -1,6 +1,8 @@
 package com.enterprise.kb.domain.repository;
 
 import com.enterprise.kb.domain.model.KbSession;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +16,9 @@ import java.util.List;
 public interface KbSessionRepository extends JpaRepository<KbSession, String> {
 
     List<KbSession> findByUserIdOrderByUpdatedAtDesc(String userId);
+
+    /** 历史会话列表（3.15 补齐）：tenant+user 双过滤 fail-closed；user_id 等值 + updated_at 倒序命中 idx_user_session */
+    Page<KbSession> findByTenantIdAndUserIdOrderByUpdatedAtDesc(String tenantId, String userId, Pageable pageable);
 
     /**
      * 消息计数原子自增（3.1 会话归档）—— 避免读-改-写在虚拟线程并发归档下丢计数
