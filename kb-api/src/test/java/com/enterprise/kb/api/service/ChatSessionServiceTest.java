@@ -13,6 +13,8 @@ import com.enterprise.kb.domain.repository.KbMessageRepository;
 import com.enterprise.kb.domain.repository.KbSessionRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -82,7 +84,7 @@ class ChatSessionServiceTest {
         assertThat(session.getTitle()).isEqualTo("什么是增值税发票？");
 
         ArgumentCaptor<KbMessage> messageCaptor = ArgumentCaptor.forClass(KbMessage.class);
-        verify(messageRepository, org.mockito.Mockito.times(2)).save(messageCaptor.capture());
+        verify(messageRepository, Mockito.times(2)).save(messageCaptor.capture());
         List<KbMessage> messages = messageCaptor.getAllValues();
         assertThat(messages).extracting(KbMessage::getRole).containsExactly("USER", "ASSISTANT");
         assertThat(messages).allSatisfy(m -> assertThat(m.getSessionId()).isEqualTo("s1"));
@@ -100,7 +102,7 @@ class ChatSessionServiceTest {
         service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", "msg-assistant-001", null, null);
 
         ArgumentCaptor<KbMessage> messageCaptor = ArgumentCaptor.forClass(KbMessage.class);
-        verify(messageRepository, org.mockito.Mockito.times(2)).save(messageCaptor.capture());
+        verify(messageRepository, Mockito.times(2)).save(messageCaptor.capture());
         List<KbMessage> messages = messageCaptor.getAllValues();
         assertThat(messages.get(0).getId()).isNotBlank().isNotEqualTo("msg-assistant-001");
         assertThat(messages.get(1).getId()).isEqualTo("msg-assistant-001");
@@ -113,7 +115,7 @@ class ChatSessionServiceTest {
         service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", null, null, null);
 
         verify(sessionRepository, never()).save(any(KbSession.class));
-        verify(messageRepository, org.mockito.Mockito.times(2)).save(any(KbMessage.class));
+        verify(messageRepository, Mockito.times(2)).save(any(KbMessage.class));
     }
 
     @Test
@@ -125,7 +127,7 @@ class ChatSessionServiceTest {
         // 主键冲突只影响会话创建，消息归档照常
         assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null, null, null))
             .doesNotThrowAnyException();
-        verify(messageRepository, org.mockito.Mockito.times(2)).save(any(KbMessage.class));
+        verify(messageRepository, Mockito.times(2)).save(any(KbMessage.class));
     }
 
     @Test
@@ -172,7 +174,7 @@ class ChatSessionServiceTest {
         service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", trace, "trace-xyz");
 
         ArgumentCaptor<KbMessage> captor = ArgumentCaptor.forClass(KbMessage.class);
-        verify(messageRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        verify(messageRepository, Mockito.times(2)).save(captor.capture());
         List<KbMessage> messages = captor.getAllValues();
         // user 消息不带溯源
         assertThat(messages.get(0).getCitations()).isNull();
@@ -189,7 +191,7 @@ class ChatSessionServiceTest {
         service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", null, null);
 
         ArgumentCaptor<KbMessage> captor = ArgumentCaptor.forClass(KbMessage.class);
-        verify(messageRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        verify(messageRepository, Mockito.times(2)).save(captor.capture());
         assertThat(captor.getAllValues().get(1).getCitations()).isNull();
         assertThat(captor.getAllValues().get(1).getMetadata()).isNull();
     }
@@ -224,7 +226,7 @@ class ChatSessionServiceTest {
         service.reseedMemoryIfAbsent("s1");
 
         verifyNoInteractions(messageRepository);
-        verify(agentChatMemory, never()).add(anyString(), org.mockito.ArgumentMatchers.<List<Message>>any());
+        verify(agentChatMemory, never()).add(anyString(), ArgumentMatchers.<List<Message>>any());
     }
 
     @Test
@@ -235,7 +237,7 @@ class ChatSessionServiceTest {
 
         service.reseedMemoryIfAbsent("s1");
 
-        verify(agentChatMemory, never()).add(anyString(), org.mockito.ArgumentMatchers.<List<Message>>any());
+        verify(agentChatMemory, never()).add(anyString(), ArgumentMatchers.<List<Message>>any());
     }
 
     @Test
@@ -392,7 +394,7 @@ class ChatSessionServiceTest {
         service.deleteSession("s1", "t", "u");
 
         // 反馈外键无级联：必须先清反馈再删会话，顺序不可颠倒（v2.17.1）
-        var inOrder = org.mockito.Mockito.inOrder(feedbackRepository, sessionRepository);
+        var inOrder = Mockito.inOrder(feedbackRepository, sessionRepository);
         inOrder.verify(feedbackRepository).deleteBySessionId("s1");
         inOrder.verify(sessionRepository).deleteById("s1");
         verify(agentChatMemory).clear("s1");
@@ -404,7 +406,7 @@ class ChatSessionServiceTest {
         owned.setTenantId("t");
         owned.setUserId("u");
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
-        org.mockito.Mockito.doThrow(new RuntimeException("Redis 抖动")).when(agentChatMemory).clear("s1");
+        Mockito.doThrow(new RuntimeException("Redis 抖动")).when(agentChatMemory).clear("s1");
 
         assertThatCode(() -> service.deleteSession("s1", "t", "u")).doesNotThrowAnyException();
         verify(feedbackRepository).deleteBySessionId("s1");

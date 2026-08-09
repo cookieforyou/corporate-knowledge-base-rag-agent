@@ -7,6 +7,9 @@ import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -86,9 +89,9 @@ class AgentControllerTenantGuardTest {
 
         controller.chat(Map.of("query", "我的手机号是 13911112222", "sessionId", "s-pii"));
 
-        org.mockito.ArgumentCaptor<String> queryCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
-        org.mockito.Mockito.verify(chatSessionService).archiveTurn(
-            org.mockito.ArgumentMatchers.eq("s-pii"), anyString(), anyString(),
+        ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(chatSessionService).archiveTurn(
+            ArgumentMatchers.eq("s-pii"), anyString(), anyString(),
             queryCaptor.capture(), anyString(), anyString(), any(), anyString());
         assertThat(queryCaptor.getValue())
             .contains("1***-****-****")

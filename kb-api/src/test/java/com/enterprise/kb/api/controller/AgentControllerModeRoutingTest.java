@@ -7,6 +7,7 @@ import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Map;
 
@@ -75,8 +76,7 @@ class AgentControllerModeRoutingTest {
 
         controller.chat(Map.of("query", "确认", "mode", "tool", "approvedToolCallId", "apv-001"));
 
-        verify(toolChatService).chatTool(anyString(), anyString(), any(),
-            org.mockito.ArgumentMatchers.eq("apv-001"));
+        verify(toolChatService).chatTool(anyString(), anyString(), any(), ArgumentMatchers.eq("apv-001"));
     }
 
     @Test
