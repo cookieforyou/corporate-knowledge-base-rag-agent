@@ -19,6 +19,8 @@
 > **v2.15 [ref-N] 引用编号缺陷修复（2026-08-09）**：ContextualQueryAugmenter 默认拼接不编号致引用编号漂移（抄正文圈号/越界/错位），编号化 documentFormatter 确定化锚点 + 提示词 ASCII 契约 + 前端圈号兜底。详见 §11.1.2 v2.15 注。
 >
 > **v2.16 徽标内联渲染修复（2026-08-09）**：前端旧版按 [ref-N] 切段逐段渲染——各段被包成块级 `<p>`，徽标独占一行、邻接标点/表格行被切断成孤儿行；改占位符单次渲染管线（[ref-N]→@@REFN@@ 透明 token → 全文单次渲染 + sanitize → 换回徽标），徽标内联。纯展示修复，契约不变。详见 §11.1.2 v2.16 注。
+>
+> **v2.17 历史会话列表与恢复（2026-08-09，3.15 清单缺口补齐）**：新增 §11.7——归档时写 kb_message.citations（预留列启用，SSE TRACE 同形载荷，[ref-N] 对齐契约天然保持）；会话三端点（列表/消息/删除，tenant+user 双过滤 fail-closed，附录 C `/api/v1/agent/*` 锚点落地为扁平路径）；过期会话续聊记忆回填（chat 入口前置，PG 重建窗口 + SETNX 单发守卫 + fail-open）；前端对话页内可收起会话栏，历史消息复用现有渲染/溯源/反馈链路。
 
 ---
 
@@ -626,3 +628,61 @@ status 三态：`SUCCESS` / `REJECTED`（BusinessException，errorCode 落库）
 （ChatSessionService 归档同款哲学）；落库走 auditExecutor 虚拟线程异步，不占
 响应路径延迟；RetrievalContext 为请求级共享实例，异步落库前先提取快照防竞态。
 kb-eval 评估链不挂本 Advisor（评估流量不污染审计）。`rag.audit.enabled` 可关。
+
+## 11.7 历史会话列表与恢复（v2.17 新增，3.15 清单缺口补齐）
+
+> **v2.17（2026-08-09）**：3.1 PG 归档的设计目的之一就是「前端历史会话列表」（ChatSessionService javadoc 锚点、附录 C P1 端点预留），但 citations 列一直未填充、无读取端点、Redis 记忆 TTL 24h 过期后续聊失忆——本节记录补齐形态。
+
+### 11.7.1 溯源归档契约（kb_message.citations 预留列启用）
+
+归档时把本轮 TRACE 载荷写入 assistant 消息 `citations`（JSONB）：`archiveTurn` 增参
+`TraceEvent + traceId`，Controller 复用 `safeBuildTrace(ctx)` 投影（与 SSE TRACE 帧**同形**：
+三路 sources + chunks + docId + 分数），经 Jackson 3 `JsonMapper` 序列化；`metadata` 写
+`{"traceId":...}`（反馈回填审计行凭据）。tool 链零检索、闲聊免检索直答（5.4）无溯源 → null；
+序列化失败降级 null + warn（溯源是旁路增值数据，不击穿归档）。
+
+**选型否决**：读取时反查 kb_audit_log——kb_message 无 trace_id 列，关联只能靠时间+内容
+模糊匹配；audit chunks 形态 ≠ TRACE 三路形态，final 序列重建与 `[ref-N]` 对齐有风险；
+审计表有脱敏/降级缺口且是运维视角表，不当产品读取事实源。
+
+### 11.7.2 会话 API（SessionController，`/api/v1/sessions`）
+
+| 方法 | 路径 | 语义 |
+|------|------|------|
+| GET | `/api/v1/sessions?page&size` | tenant+user 双过滤，updated_at 倒序（idx_user_session），size ≤100 |
+| GET | `/api/v1/sessions/{id}/messages` | 归属校验 fail-closed；assistant 附 sources/traceId/反馈回显 |
+| DELETE | `/api/v1/sessions/{id}` | 硬删（kb_message 外键 CASCADE）+ memory.clear 旁路 |
+
+- 路径前缀沿用既有扁平实现惯例（`/chat`、`/feedback` 同款）——附录 C 的
+  `/api/v1/agent/sessions` 为草图锚点（同表 `/api/v1/agent/chat` 实际落地即 `/chat`），回写注记
+- 归属校验：不存在/跨租户/跨用户一律 `SESSION_NOT_FOUND` 404（不泄露存在性，
+  FeedbackService `MESSAGE_NOT_FOUND` 同纪律）；Controller 层身份守卫与 AgentController 同款
+  （tenantId 缺失 `IDENTITY_INCOMPLETE`）
+- citations 反序列化为 `TraceEvent` 后取 `sources()` 下发——前端直接作为 `Message.sources`
+  消费，`[ref-N]` ↔ final 序列下标对齐契约天然保持（点击徽标弹原文零适配）；损坏 JSON →
+  warn + null（降级同存量数据形态）
+- 反馈回显：kb_feedback 按 `messageId IN (...) AND userId` 批量联查（upsert 语义下至多每消息一条）
+
+### 11.7.3 过期会话续聊：记忆回填（reseedMemoryIfAbsent）
+
+Redis 记忆 TTL 24h，久未活动会话续聊时窗口已空。chat 同步/流式两入口在 Advisor 链
+执行前统一前置回填：
+
+```
+SETNX 守卫 rag:session-reseed:{sessionId}（Redisson RBucket.trySet，TTL 30s，
+  仅覆盖 check-then-act 竞态窗口）→ memory.get 非空即返回（热会话零开销）
+→ PG 最近 20 条（与窗口同规）倒序取出反转升序 → USER/ASSISTANT 映射为
+  UserMessage/AssistantMessage（空 content/未知 role 跳过）→ memory.add
+```
+
+全程 fail-open（任何异常仅 warn，最坏=现状）；经 agentChatMemory Bean 读写，
+FaultTolerantChatMemory 容错天然覆盖。回填对前端透明，无协议变化。
+
+### 11.7.4 前端形态（SessionList.vue）
+
+对话页内左侧可收起会话栏：标题 + 相对时间、当前会话高亮、hover 删除（二次确认）、
+滚动加载更多；选中会话拉消息映射为现有 `Message[]`（sources=citations、messageId=
+kb_message.id、traceId/feedback 回显）经 `openSession` 整替 store，sessionId 续用即续聊；
+流式中禁切换。**归档竞态**：首轮归档为异步旁路，DONE 后延迟 1s 刷新列表防空窗。
+历史消息与实时轮同一渲染链路——markdown 占位管线（v2.16）、溯源面板、原文对话框、
+反馈按钮全部复用；存量消息 citations=null → 无溯源面板（降级预期）。

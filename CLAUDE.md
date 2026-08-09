@@ -39,7 +39,7 @@ kb-rag-agent/
 
 ## 运行环境
 
-- **基础设施托管于 ECS**：PG / Milvus / ES / Redis / MinIO 均部署在远程 ECS 服务器，**本地无需搭建**，后端通过启动环境变量注入连接信息。
+- **基础设施托管于 ECS**：PG / Milvus / ES / Redis / MinIO 均部署在远程 ECS 服务器，**本地无需搭建**。
 - **API 端口 8090**：8080 被占，`SERVER_PORT=8090` 注入；前端 `frontend/.env` BACKEND_URL 配套（Vite 代理 `/api`）。
 - 常用环境变量：`DB_*`、`KB_VECTOR_STORE_PROVIDER`（pgvector|milvus）及 `KB_MILVUS_*`/`KB_PGVECTOR_*`、`MINIO_*`、`ES_URIS`、`REDIS_HOST`、`JWT_ISSUER_URI`、`DEEPSEEK_API_KEY`、`DASHSCOPE_API_KEY`（默认值见 infra/ai.yml）。
 - 启动：后端 `mvn spring-boot:run -pl kb-api`；前端 `frontend/` 下 `npm run dev`。
@@ -65,11 +65,11 @@ kb-rag-agent/
 - 主链路：`RetrievalAugmentationAdvisor`(500) = RewriteQueryTransformer（`rag.retrieval.rewrite.enabled` 默认开）→ `HybridDocumentRetriever` 双路并行（向量路 similarityThreshold=0.5、recallSize=topK×2 + ES ik BM25 tenant/is_deleted 过滤，单路 5s 超时降级）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（qwen3-rerank **扁平契约**，故障降级 fusion_score 截断）→ `ContextualQueryAugmenter`（**编号化 documentFormatter** 锚定 [ref-N] + `allowEmptyContext=false` 空证据拒答模板）
 - **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推 SSE TRACE。**禁用 @RequestScope/ThreadLocal**（见注意事项末条）
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（v2.14 起 DONE 为 JSON 载荷 {messageId,traceId}——3.17 反馈定位句柄，两 ID 由 Controller 请求线程前移生成）+ 命名 TRACE（三路溯源，final 与 [ref-N] 对齐；ChunkTrace 含 docId——「查看原文」通道）/ TOOL_CALL（仅 tool 链）
-- 前端对话窗（3.15）：chat store 自备 sessionId 多轮 + rag/tool 切换；TOOL_CALL→审批卡片（approve 后自动确认轮）；[ref-N]/溯源条目经 docId 弹原文；marked+DOMPurify 占位内联渲染（v2.16）
+- 前端对话窗（3.15）：chat store 自备 sessionId 多轮 + rag/tool 切换；TOOL_CALL→审批卡片（approve 后自动确认轮）；[ref-N]/溯源条目经 docId 弹原文；marked+DOMPurify 占位渲染（v2.16）；历史会话栏（v2.17）
 - 租户隔离 fail-closed 两层（3.9+3.10）：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② HybridDocumentRetriever 有 ctx 无租户返回空结果双路零触达。kb-eval 无 ctx 不过滤；跨租户集成用例归 3.18；RBAC 属 3.11
 - 护栏与配额（3.5-3.8，详见 12 章）：`InputSanitizeAdvisor`(300) PII 正则掩码+注入关键词拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本 `rag:token-budget:{tenant}:{日期}`；`RateLimitAdvisor`(100) Redisson 每租户令牌桶（OVERALL）；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；流式 token 消耗暂不计账（见注意事项⑧）
 - **用户反馈闭环（3.17）**：POST /api/v1/feedback（messageId+userId upsert 可改评 + 期望回答/tags；归属经 message→session 校验 fail-closed，跨域伪装 MESSAGE_NOT_FOUND；归档竞态短窗轮询兜底（rag.feedback.message-wait-millis））+ GET Bad Case 查询（租户收敛、附原始问答）；kb_audit_log.feedback 凭 trace_id 回填 + audit_log_id 关联（旁路容错）；rag.feedback.like/dislike 接线；前端 👍/👎 + 点踩期望回答表单
-- 多轮记忆（3.1）：`agentChatMemory` 显式装配 RedisChatMemoryRepository（Jedis 形态，连接取自 `spring.data.redis.*`，**REDIS_DB 必须 0**，见注意事项⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条（`rag.chat.memory.max-messages`）；PG 归档 `ChatSessionService` 异步旁路（失败只丢归档）；kb-eval `initialize-schema: false` 零 Redis 依赖
+- 多轮记忆（3.1）：`agentChatMemory` 显式装配 RedisChatMemoryRepository（Jedis 形态，连接取自 `spring.data.redis.*`，**REDIS_DB 必须 0**，见注意事项⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条（`rag.chat.memory.max-messages`）；PG 归档 `ChatSessionService` 异步旁路（失败只丢归档）；v2.17 历史会话：citations 归档 + 会话端点 + 过期会话续聊回填（11 章 §11.7）；kb-eval `initialize-schema: false` 零 Redis 依赖
 - 评估（kb-eval）：双探针 `eval.probe`=auto/vector/hybrid；`chatClient` Bean 独立注入，被测链路切换零感知；Golden 74 条；报告 stdout + `target/eval-report.txt`
 
 **解析支线（2.1-2.3，详见 9 章）**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / deep-by-default 或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动路由失败回落 NATIVE，显式路由失败上抛）；DocMind 契约（详见 9 章 v2.2）：OutputHtmlTable+LlmEnhancement 同开、表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>`；向量化 10 条/批（DashScope ≤20 条硬限制）
@@ -82,7 +82,7 @@ kb-rag-agent/
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml` + `application-ai.yml`
 - **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*` 被 Redisson 自动配置与会话记忆 Jedis 客户端两处消费，**不可移除**
 - **多 ChatClient Bean 纪律（3.19 起）**：chatClient（评估）/ ragAgentChatClient / toolAgentChatClient，所有注入点必须显式 `@Qualifier`（裸类型注入歧义致启动失败）；新增 Advisor 核对 order 与链序表（11.2）一致
-- 测试：六模块 230 单测绿（core 137/api 34/agent 23/eval 12/etl 14/infra 10）
+- 测试：六模块单测全绿
 
 ## 注意事项
 
