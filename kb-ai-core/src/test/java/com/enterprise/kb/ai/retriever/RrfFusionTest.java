@@ -1,6 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
-import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.ai.config.RetrievalProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -14,7 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class RrfFusionTest {
 
-    private final RrfFusion fusion = new RrfFusion();
+    private final RetrievalProperties properties = new RetrievalProperties();
+    private final RrfFusion fusion = new RrfFusion(properties);
 
     private Document doc(String id, Map<String, Object> meta) {
         return Document.builder().id(id).text("content-" + id).metadata(meta).build();
@@ -29,7 +30,8 @@ class RrfFusionTest {
         List<Document> fused = fusion.fuse(vector, bm25, 10);
 
         Document a = fused.stream().filter(d -> d.getId().equals("a")).findFirst().orElseThrow();
-        double expected = 1.0 / (Constants.RRF_K + 1) + 1.0 / (Constants.RRF_K + 2);
+        int rrfK = properties.getRrfK();
+        double expected = 1.0 / (rrfK + 1) + 1.0 / (rrfK + 2);
         assertEquals(expected, (Double) a.getMetadata().get("fusion_score"), 1e-12);
         assertEquals(1, a.getMetadata().get("vector_rank"));
         assertEquals(2, a.getMetadata().get("bm25_rank"));
@@ -46,8 +48,9 @@ class RrfFusionTest {
 
         List<Document> fused = fusion.fuse(vector, bm25, 10);
 
-        double dualScore = 2.0 / (Constants.RRF_K + 2);
-        double singleScore = 1.0 / (Constants.RRF_K + 1);
+        int rrfK = properties.getRrfK();
+        double dualScore = 2.0 / (rrfK + 2);
+        double singleScore = 1.0 / (rrfK + 1);
         assertTrue(dualScore > singleScore, "双路命中应排在单路之前");
         assertEquals("a", fused.get(0).getId());
         assertEquals(3, fused.size());
@@ -64,7 +67,7 @@ class RrfFusionTest {
         assertEquals(1, d.getMetadata().get("vector_rank"));
         // Spring AI metadata 禁 null：缺位路径的键不写入
         assertFalse(d.getMetadata().containsKey("bm25_rank"));
-        assertEquals(1.0 / (Constants.RRF_K + 1), (Double) d.getMetadata().get("fusion_score"), 1e-12);
+        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) d.getMetadata().get("fusion_score"), 1e-12);
     }
 
     @Test

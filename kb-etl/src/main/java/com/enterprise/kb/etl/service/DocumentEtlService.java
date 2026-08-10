@@ -200,7 +200,7 @@ public class DocumentEtlService {
     }
 
     /**
-     * 单批 embedding 条数上限。
+     * 单批 embedding 条数上限（kb.etl.embed-batch-size，默认 10；簇① A3 配置化）。
      *
      * <p><b>2026-08-03 E2E 缺陷</b>：DashScope embedding API（qwen3.7-text-embedding）
      * 单次请求硬限制 ≤20 条输入（超出 400 InvalidParameter）。VectorStore 内部的
@@ -208,16 +208,18 @@ public class DocumentEtlService {
      * 页级切分（2026-08-03）产出的小 chunk 会被密集打包进同一批超限被拒
      * （30 chunk 偶发通过、35 chunk 触发，纯随 chunk 大小分布侥幸）。
      * 故 ETL 侧按固定条数分批，双向量库后端（Milvus/pgvector）统一受保护。
+     * 调整上限不得超过 20（供应商硬限制）。
      */
-    private static final int EMBED_BATCH_SIZE = 10;
+    @Value("${kb.etl.embed-batch-size:10}")
+    private int embedBatchSize;
 
     /**
-     * 向量化并写入 VectorStore（pgvector 或 Milvus，取决于配置），按 {@link #EMBED_BATCH_SIZE} 分批
+     * 向量化并写入 VectorStore（pgvector 或 Milvus，取决于配置），按 {@link #embedBatchSize} 分批
      */
     private void embedAndStore(KbDocument doc, List<KbChunk> entities) {
         int total = entities.size();
-        for (int from = 0; from < total; from += EMBED_BATCH_SIZE) {
-            List<KbChunk> batch = entities.subList(from, Math.min(from + EMBED_BATCH_SIZE, total));
+        for (int from = 0; from < total; from += embedBatchSize) {
+            List<KbChunk> batch = entities.subList(from, Math.min(from + embedBatchSize, total));
             List<Document> vectorDocs = batch.stream()
                 .map(e -> new Document(e.getId(), e.getContent(),
                     Map.of("chunk_id", e.getId(),

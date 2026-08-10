@@ -62,6 +62,11 @@ kb:
       dpi: ${QWEN_OCR_DPI:150}
       max-pages: ${QWEN_OCR_MAX_PAGES:50}
 
+  # ETL 管道参数（簇① A3 配置化）
+  etl:
+    # 单批 embedding 条数：DashScope 硬限制 ≤20 条/请求（2026-08-03 E2E 缺陷修复），勿超
+    embed-batch-size: ${KB_ETL_EMBED_BATCH_SIZE:10}
+
   vector-store:
     provider: ${KB_VECTOR_STORE_PROVIDER:milvus}
 

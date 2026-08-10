@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
+import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,8 +38,9 @@ class HybridDocumentRetrieverTest {
     void setUp() {
         vectorStore = mock(VectorStore.class);
         esRetriever = mock(ElasticsearchDocumentRetriever.class);
-        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion(),
-            new AiBusinessMetrics(new SimpleMeterRegistry()));
+        RetrievalProperties properties = new RetrievalProperties();
+        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion(properties),
+            new AiBusinessMetrics(new SimpleMeterRegistry()), properties);
     }
 
     @Test

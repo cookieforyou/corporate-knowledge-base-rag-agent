@@ -1,6 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
-import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.ai.config.RetrievalProperties;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 
@@ -13,8 +13,9 @@ import java.util.Map;
 /**
  * RRF (Reciprocal Rank Fusion) 融合器（设计文档 10.4）
  *
- * <p>公式：RRF_score(d) = Σ 1 / (K + rank_i(d))，K = {@link Constants#RRF_K}（标准常数 60）。
- * 只消费排名不消费原始分数，天然免疫向量相似度与 BM25 分数的尺度差异。
+ * <p>公式：RRF_score(d) = Σ 1 / (K + rank_i(d))，K 经 {@link RetrievalProperties#getRrfK()}
+ * 注入（rag.retrieval.rrf-k，标准常数默认 60）。只消费排名不消费原始分数，
+ * 天然免疫向量相似度与 BM25 分数的尺度差异。
  *
  * <p>输出 Document 携带完整溯源元数据（双路得分/排名/融合分），
  * 供检索调试台（2.14）与 SSE TRACE（2.12）透传；metadata 遵守
@@ -22,6 +23,12 @@ import java.util.Map;
  */
 @Component
 public class RrfFusion {
+
+    private final RetrievalProperties properties;
+
+    public RrfFusion(RetrievalProperties properties) {
+        this.properties = properties;
+    }
 
     /**
      * 融合双路召回结果
@@ -31,6 +38,7 @@ public class RrfFusion {
      * @param limit      融合结果上限（recallSize）
      */
     public List<Document> fuse(List<Document> vectorHits, List<Document> bm25Hits, int limit) {
+        int rrfK = properties.getRrfK();
         Map<String, FusedEntry> table = new LinkedHashMap<>();
 
         for (int i = 0; i < vectorHits.size(); i++) {
@@ -43,7 +51,7 @@ public class RrfFusion {
         }
 
         return table.values().stream()
-            .peek(FusedEntry::computeFusionScore)
+            .peek(entry -> entry.computeFusionScore(rrfK))
             .sorted(Comparator.comparingDouble(FusedEntry::fusionScore).reversed())
             .limit(limit)
             .map(FusedEntry::toDocument)
@@ -71,10 +79,10 @@ public class RrfFusion {
             return this;
         }
 
-        void computeFusionScore() {
+        void computeFusionScore(int rrfK) {
             double score = 0;
-            if (vectorRank != null) score += 1.0 / (Constants.RRF_K + vectorRank);
-            if (bm25Rank != null) score += 1.0 / (Constants.RRF_K + bm25Rank);
+            if (vectorRank != null) score += 1.0 / (rrfK + vectorRank);
+            if (bm25Rank != null) score += 1.0 / (rrfK + bm25Rank);
             this.fusionScore = score;
         }
 

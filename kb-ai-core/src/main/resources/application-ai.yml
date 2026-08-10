@@ -105,6 +105,13 @@ rag:
       enabled: ${RAG_REWRITE_ENABLED:true}      # 查询改写：多轮指代消解，默认开
     expansion:
       enabled: ${RAG_EXPANSION_ENABLED:false}   # 多查询扩展：调用放大 N 倍损 TTFT，默认关
+    # ── 调优参数（簇① A3 配置化，默认值 = Phase 2 基线形态，行为零变化）──
+    # 修改任一参数即改变检索形态，须复跑 kb-eval 基线对比后再定默认值
+    top-k: ${RAG_RETRIEVAL_TOP_K:5}                              # 最终证据条数（rerank top_n / 截断）
+    rrf-k: ${RAG_RETRIEVAL_RRF_K:60}                             # RRF 融合常数（标准值 60）
+    recall-multiplier: ${RAG_RETRIEVAL_RECALL_MULTIPLIER:2}      # 召回放大系数：recallSize = top-k × N
+    similarity-threshold: ${RAG_RETRIEVAL_SIMILARITY_THRESHOLD:0.5}  # 向量路相似度阈值
+    path-timeout-seconds: ${RAG_RETRIEVAL_PATH_TIMEOUT_SECONDS:5}    # 单路检索超时（秒），超时降级为空
   rerank:
     endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
     model: ${RERANK_MODEL:qwen3-rerank}

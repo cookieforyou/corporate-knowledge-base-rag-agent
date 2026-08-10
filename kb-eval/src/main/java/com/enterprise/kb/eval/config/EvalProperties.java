@@ -14,7 +14,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "eval")
 public class EvalProperties {
 
-    /** Top-K 召回的 K 值，与检索主链路 Constants.DEFAULT_TOP_K 保持一致 */
+    /**
+     * Top-K 召回的 K 值。与被测链路 rag.retrieval.top-k 同源（yml 均绑定
+     * RAG_RETRIEVAL_TOP_K，簇① A3）——独立配置存在漂移风险，度量 K 与链路产出 K
+     * 不一致时 Recall@K/MRR 失真。
+     */
     private int topK = 5;
 
     /** 每个分类最多抽样条数，0 = 全量（CI 快跑用） */

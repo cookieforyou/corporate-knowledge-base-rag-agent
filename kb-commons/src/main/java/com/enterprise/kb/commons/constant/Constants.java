@@ -13,9 +13,6 @@ public final class Constants {
     /** 最大分页大小 */
     public static final int MAX_PAGE_SIZE = 100;
 
-    /** RRF 融合常数 */
-    public static final int RRF_K = 60;
-
-    /** 默认检索 Top-K */
-    public static final int DEFAULT_TOP_K = 5;
+    // 注：检索调优参数（topK / RRF_K / 召回倍数 / 相似度阈值 / 单路超时）已于簇① A3
+    // 收编为 rag.retrieval.* 配置组（kb-ai-core RetrievalProperties），不再以常量硬编码。
 }

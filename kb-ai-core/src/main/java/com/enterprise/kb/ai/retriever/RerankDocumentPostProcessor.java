@@ -1,6 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
-import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.extern.slf4j.Slf4j;
@@ -39,13 +39,17 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     private final boolean enabled;
     private final String model;
     private final String apiKey;
+    /** 检索调优参数：topK 决定 rerank top_n 与截断条数（rag.retrieval.top-k） */
+    private final RetrievalProperties properties;
 
     public RerankDocumentPostProcessor(
             JsonMapper jsonMapper,
+            RetrievalProperties properties,
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
             @Value("${rag.rerank.api-key:}") String apiKey) {
         this.jsonMapper = jsonMapper;
+        this.properties = properties;
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
@@ -81,7 +85,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                 "model", model,
                 "query", query.text(),
                 "documents", documents.stream().map(Document::getText).toList(),
-                "top_n", Math.min(Constants.DEFAULT_TOP_K, documents.size()));
+                "top_n", Math.min(properties.getTopK(), documents.size()));
 
             String raw = restClient.post()
                 .headers(h -> h.setBearerAuth(apiKey))
@@ -124,7 +128,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             return reranked.stream()
                 .sorted(Comparator.comparingDouble(
                     (Document d) -> (Double) d.getMetadata().get("rerank_score")).reversed())
-                .limit(Constants.DEFAULT_TOP_K)
+                .limit(properties.getTopK())
                 .toList();
         } catch (Exception e) {
             log.warn("rerank 调用失败，降级为 fusion_score 截断: {}", e.getMessage());
@@ -136,7 +140,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     private List<Document> truncateByFusionScore(List<Document> documents) {
         return documents.stream()
             .sorted(Comparator.comparingDouble(RerankDocumentPostProcessor::sortScore).reversed())
-            .limit(Constants.DEFAULT_TOP_K)
+            .limit(properties.getTopK())
             .toList();
     }
 

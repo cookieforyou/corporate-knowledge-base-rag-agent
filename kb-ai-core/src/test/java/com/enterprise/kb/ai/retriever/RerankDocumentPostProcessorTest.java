@@ -1,6 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
-import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.ai.config.RetrievalProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -17,9 +17,11 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class RerankDocumentPostProcessorTest {
 
+    private final RetrievalProperties properties = new RetrievalProperties();
+
     /** endpoint 为空 → 禁用态，走降级截断 */
     private final RerankDocumentPostProcessor disabled =
-        new RerankDocumentPostProcessor(JsonMapper.builder().build(), "", "qwen3-rerank", "");
+        new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, "", "qwen3-rerank", "");
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
@@ -35,7 +37,7 @@ class RerankDocumentPostProcessorTest {
 
         List<Document> result = disabled.apply(new Query("q"), candidates);
 
-        assertEquals(Constants.DEFAULT_TOP_K, result.size());
+        assertEquals(properties.getTopK(), result.size());
         // 降序 top5：b(0.030) > d(0.025) > e(0.020) > f(0.015) > a(0.010)；c(0.005)/g(0.008) 落选
         assertEquals(List.of("b", "d", "e", "f", "a"),
             result.stream().map(Document::getId).toList());

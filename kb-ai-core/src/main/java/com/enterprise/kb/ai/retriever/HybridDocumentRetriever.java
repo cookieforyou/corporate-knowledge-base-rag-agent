@@ -1,7 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
+import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
-import com.enterprise.kb.commons.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -26,10 +26,13 @@ import java.util.function.Supplier;
  * 的 documentRetriever 挂载点。内部编排：
  * <ol>
  *   <li>虚拟线程（Java 21 正式 API）并行执行向量路（直连 {@link VectorStore}）
- *       与 BM25 路（{@link ElasticsearchDocumentRetriever}），每路 5s 超时（10.8）</li>
+ *       与 BM25 路（{@link ElasticsearchDocumentRetriever}），单路超时降级（10.8）</li>
  *   <li>单路容错：任一路失败/超时返回空列表并告警，不拖垮整体（降级矩阵见 10.2）</li>
- *   <li>{@link RrfFusion} 融合双路排名，输出 recallSize（topK×2）条带溯源元数据的结果</li>
+ *   <li>{@link RrfFusion} 融合双路排名，输出 recallSize（topK×倍数）条带溯源元数据的结果</li>
  * </ol>
+ *
+ * <p>调优参数（topK/召回倍数/相似度阈值/单路超时）经 {@link RetrievalProperties}
+ * （rag.retrieval.*）注入，默认值 = Phase 2 基线形态，调参须配 kb-eval 基线对比。
  *
  * <p>租户/软删过滤与 trace 的 {@link RetrievalContext} 经 Query.context 参数化传入
  * （2026-08-02 重构：取代请求作用域代理——MVC 异步请求完结后作用域不可解析，
@@ -44,31 +47,28 @@ import java.util.function.Supplier;
 @Component
 public class HybridDocumentRetriever implements DocumentRetriever {
 
-    /** 召回放大系数：recallSize = topK × 2，给融合与重排留余量 */
-    private static final int RECALL_MULTIPLIER = 2;
-    /** 单路检索超时（秒）：超时即降级为空，不阻塞（10.8） */
-    private static final int PATH_TIMEOUT_SECONDS = 5;
-    /** 向量相似度阈值（与 Phase 1 QuestionAnswerAdvisor 基线一致） */
-    private static final double SIMILARITY_THRESHOLD = 0.5;
-
     private final VectorStore vectorStore;
     private final ElasticsearchDocumentRetriever esRetriever;
     private final RrfFusion rrfFusion;
     private final AiBusinessMetrics metrics;
+    /** 检索调优参数（rag.retrieval.*，默认值 = Phase 2 基线形态） */
+    private final RetrievalProperties properties;
 
     public HybridDocumentRetriever(VectorStore vectorStore,
                                    ElasticsearchDocumentRetriever esRetriever,
                                    RrfFusion rrfFusion,
-                                   AiBusinessMetrics metrics) {
+                                   AiBusinessMetrics metrics,
+                                   RetrievalProperties properties) {
         this.vectorStore = vectorStore;
         this.esRetriever = esRetriever;
         this.rrfFusion = rrfFusion;
         this.metrics = metrics;
+        this.properties = properties;
     }
 
     @Override
     public List<Document> retrieve(Query query) {
-        int recallSize = Constants.DEFAULT_TOP_K * RECALL_MULTIPLIER;
+        int recallSize = properties.getTopK() * properties.getRecallMultiplier();
         RetrievalContext ctx = RetrievalContext.from(query);
         // fail-closed 防御纵深（3.9+3.10 安全收敛）：Web 入口已保证 ctx 存在且 tenantId
         // 非空（AgentController 身份守卫）；若出现「有 ctx 无租户」的身份异常态，宁可
@@ -118,7 +118,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         SearchRequest.Builder builder = SearchRequest.builder()
             .query(query.text())
             .topK(recallSize)
-            .similarityThreshold(SIMILARITY_THRESHOLD);
+            .similarityThreshold(properties.getSimilarityThreshold());
         if (ctx != null && ctx.getSecurityFilter() != null) {
             builder.filterExpression(ctx.getSecurityFilter());
         }
@@ -137,10 +137,11 @@ public class HybridDocumentRetriever implements DocumentRetriever {
 
     /** 等待单路结果：超时即取消并降级为空，不阻塞另一路 */
     private List<Document> await(Future<List<Document>> future, String route) {
+        int timeoutSeconds = properties.getPathTimeoutSeconds();
         try {
-            return future.get(PATH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
-            log.warn("检索路径 [{}] 超时（{}s），降级为空结果", route, PATH_TIMEOUT_SECONDS);
+            log.warn("检索路径 [{}] 超时（{}s），降级为空结果", route, timeoutSeconds);
             future.cancel(true);
             return List.of();
         } catch (InterruptedException e) {

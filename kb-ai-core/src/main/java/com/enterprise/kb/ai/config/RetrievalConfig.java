@@ -16,6 +16,7 @@ import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpande
 import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
@@ -32,6 +33,7 @@ import java.util.List;
  * {@code chatClient} Bean 名不变，被测链路切换对评估器零感知。
  */
 @Configuration
+@EnableConfigurationProperties(RetrievalProperties.class)
 public class RetrievalConfig {
 
     /**
