@@ -28,17 +28,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -244,7 +243,7 @@ class ChatSessionServiceTest {
     void reseedBlockedByConcurrentGuard() {
         RBucket<String> bucket = mock(RBucket.class);
         doReturn(bucket).when(redissonClient).getBucket(anyString());
-        when(bucket.trySet(anyString(), anyLong(), any(TimeUnit.class))).thenReturn(false);
+        when(bucket.setIfAbsent(anyString(), any(Duration.class))).thenReturn(false);
 
         service.reseedMemoryIfAbsent("s1");
 
@@ -449,6 +448,6 @@ class ChatSessionServiceTest {
     private void stubGuardAcquired() {
         RBucket<String> bucket = mock(RBucket.class);
         doReturn(bucket).when(redissonClient).getBucket(anyString());
-        when(bucket.trySet(anyString(), anyLong(), any(TimeUnit.class))).thenReturn(true);
+        when(bucket.setIfAbsent(anyString(), any(Duration.class))).thenReturn(true);
     }
 }

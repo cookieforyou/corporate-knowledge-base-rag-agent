@@ -124,6 +124,16 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
+            <!-- 测试 JVM 须与编译器同步开启 preview：javac 仅对实际使用 preview 语法的
+                 class 打 65535 标记（如 ChatSessionService 的 JEP 443 未命名变量），
+                 缺此 argLine 时 surefire 加载该类抛 UnsupportedClassVersionError -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>--enable-preview</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
