@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -243,7 +244,7 @@ public class DocumentEtlService {
                            // 存量向量缺此字段，重新入库后补齐）
                            "file_name", doc.getName() != null ? doc.getName() : "unknown",
                            "page_num", e.getPageNum() != null ? e.getPageNum() : 0,
-                           "is_deleted", java.util.Objects.requireNonNullElse(e.getIsDeleted(), false))))
+                           "is_deleted", Objects.requireNonNullElse(e.getIsDeleted(), false))))
                 .toList();
 
             vectorStore.add(vectorDocs);
