@@ -66,6 +66,12 @@ kb:
   etl:
     # 单批 embedding 条数：DashScope 硬限制 ≤20 条/请求（2026-08-03 E2E 缺陷修复），勿超
     embed-batch-size: ${KB_ETL_EMBED_BATCH_SIZE:10}
+    # 入库安全消毒（簇② B1，12.4 S4 + PII 入库消毒）：
+    # PII 掩码落库（kb_chunk/向量库/ES 脱敏态）+ 注入词表扫描打标（不阻断入库）。
+    # 注入词表与对话链路同源：rag.guardrail.input.injection-keywords
+    sanitize:
+      pii-enabled: ${KB_ETL_SANITIZE_PII:true}
+      injection-scan: ${KB_ETL_SANITIZE_INJECTION_SCAN:true}
 
   vector-store:
     provider: ${KB_VECTOR_STORE_PROVIDER:milvus}

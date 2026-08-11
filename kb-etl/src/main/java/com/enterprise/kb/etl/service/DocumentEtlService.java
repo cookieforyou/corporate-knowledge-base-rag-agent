@@ -12,6 +12,7 @@ import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlStage;
 import com.enterprise.kb.etl.reader.SmartParsingRouter;
 import com.enterprise.kb.etl.transformer.HtmlProtectingSplitter;
+import com.enterprise.kb.etl.transformer.SanitizingTransformer;
 import com.enterprise.kb.etl.writer.EsIndexWriter;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
@@ -22,6 +23,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
@@ -32,7 +34,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3）→ PG 落库 → 向量化 → ES 双写
+ * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3）→ 安全消毒（簇② B1）
+ * → PG 落库 → 向量化 → ES 双写
  */
 @Slf4j
 @Service
@@ -46,6 +49,8 @@ public class DocumentEtlService {
     private final EsIndexWriter esIndexWriter;
     private final SmartParsingRouter parsingRouter;
     private final HtmlProtectingSplitter protectingSplitter;
+    private final SanitizingTransformer sanitizingTransformer;
+    private final JsonMapper jsonMapper;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -91,6 +96,10 @@ public class DocumentEtlService {
             progressCallback.accept(new EtlProgress(docId, EtlStage.TRANSFORMING));
             List<Document> chunks = protectingSplitter.apply(rawDocs);
             log.info("文档切分完成: docId={}, chunks={}", docId, chunks.size());
+
+            // Stage 2.5: 安全消毒（簇② B1，12.4.2 第一道纵深）：PII 掩码 + 注入打标，
+            // 落库面向量库/ES 均为脱敏态；命中标记经元数据流入 kb_chunk.metadata
+            chunks = sanitizingTransformer.apply(chunks);
 
             // Stage 3: 落 kb_chunk 表
             progressCallback.accept(new EtlProgress(docId, EtlStage.PERSISTING));
@@ -189,6 +198,10 @@ public class DocumentEtlService {
             else if (page != null) {
                 try { entity.setPageNum(Integer.valueOf(page.toString())); } catch (Exception ignored) {}
             }
+            // 注入扫描命中标记落 metadata JSONB（簇② B1 S4）：供运维处置/后续门禁消费
+            if (Boolean.TRUE.equals(chunk.getMetadata().get(SanitizingTransformer.INJECTION_HIT_KEY))) {
+                entity.setMetadata(toMetadataJson(Map.of(SanitizingTransformer.INJECTION_HIT_KEY, true)));
+            }
             // 估算 token 数（中文约 1.5 字符/token，英文约 4 字符/token）
             entity.setTokenCount((int) (chunk.getText().length() / 2.5));
             entity.setCreatedAt(LocalDateTime.now());
@@ -237,6 +250,16 @@ public class DocumentEtlService {
             log.debug("向量化分批写入: docId={}, range=[{}, {})", doc.getId(), from, from + batch.size());
         }
         log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), total);
+    }
+
+    /** chunk 元数据 JSON 序列化：失败回退空对象（标记缺失不阻断入库） */
+    private String toMetadataJson(Map<String, Object> metadata) {
+        try {
+            return jsonMapper.writeValueAsString(metadata);
+        } catch (Exception e) {
+            log.warn("chunk 元数据 JSON 序列化失败，回退空对象: {}", e.getMessage());
+            return "{}";
+        }
     }
 
     private static ChunkType parseChunkType(Object value) {
