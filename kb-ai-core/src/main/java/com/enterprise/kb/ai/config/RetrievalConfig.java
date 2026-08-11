@@ -13,7 +13,8 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
-import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
+import org.springframework.ai.rag.preretrieval.query.transformation.CompressionQueryTransformer;
+import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -125,13 +126,47 @@ public class RetrievalConfig {
      * 经 Advisor 参数随 Query.context 流入检索组件——与线程模型解耦，同步/流式一致。
      */
     /**
+     * 多轮指代消解 Prompt（簇④ A5）——中文形态 + 显式「自含查询原样返回」纪律。
+     * 占位符 {history}/{query} 为 CompressionQueryTransformer 硬契约
+     * （PromptAssert.templateHasRequiredPlaceholders 构造期校验，缺一启动失败）。
+     */
+    static final String HISTORY_REWRITE_PROMPT = """
+        你是企业知识库问答系统的查询预处理器。根据对话历史与当前追问，生成一个不依赖上下文即可理解的独立检索查询。
+
+        【规则】
+        1. 当前消息含指代（「它的」「这个」「那第二点呢」）或省略时，结合历史补全为完整查询
+        2. 当前消息已完整自含时原样返回，仅可轻微规范化措辞，不得改变语义
+        3. 只输出查询文本本身，不要任何解释
+
+        【对话历史】
+        {history}
+
+        【当前追问】
+        {query}
+
+        【独立查询】
+        """;
+
+    /**
      * 查询改写器（多轮指代消解）——独立 Bean 以便检索调试台（2.14）复用，
-     * 与主链路共享同一实例
+     * 与主链路共享同一实例。
+     *
+     * <p>簇④ A5：实现由 {@code RewriteQueryTransformer} 切换为
+     * {@link CompressionQueryTransformer}——前者默认模板**不消费对话历史**
+     * （源码核验：transform 仅传 query/target 参数），指代消解隐式依赖
+     * QueryRoutingAdvisor(440) 合并调用顺带完成，路由关闭/分类 fail-open 的
+     * 回落路径追问（「它的价格呢」）无法消解；Compression 形态经
+     * {@code Query.history()}（RetrievalAugmentationAdvisor 取自
+     * prompt.getInstructions()，含 MessageChatMemoryAdvisor 注入的历史）
+     * 显式消解。与 440 预写机制零冲突：rewrittenQuery 已预写时
+     * RewriteCapturingQueryTransformer 直接复用，本 Bean 不被调用（零重复 LLM）。
+     * Bean 返回接口类型（调试台经 default apply() 调用不受影响）。
      */
     @Bean
-    public RewriteQueryTransformer rewriteQueryTransformer(ChatClient.Builder chatClientBuilder) {
-        return RewriteQueryTransformer.builder()
+    public QueryTransformer rewriteQueryTransformer(ChatClient.Builder chatClientBuilder) {
+        return CompressionQueryTransformer.builder()
             .chatClientBuilder(chatClientBuilder)
+            .promptTemplate(new PromptTemplate(HISTORY_REWRITE_PROMPT))
             .build();
     }
 
@@ -140,7 +175,7 @@ public class RetrievalConfig {
             ChatClient.Builder chatClientBuilder,
             HybridDocumentRetriever hybridRetriever,
             RerankDocumentPostProcessor rerankPostProcessor,
-            RewriteQueryTransformer rewriteQueryTransformer,
+            QueryTransformer rewriteQueryTransformer,
             @Qualifier("retrievalExecutor") TaskExecutor retrievalExecutor,
             RetrievalProperties properties,
             @Value("${rag.retrieval.rewrite.enabled:true}") boolean rewriteEnabled) {

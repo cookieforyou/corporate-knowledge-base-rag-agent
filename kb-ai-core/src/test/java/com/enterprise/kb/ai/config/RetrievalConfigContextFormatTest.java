@@ -1,13 +1,17 @@
 package com.enterprise.kb.ai.config;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.rag.preretrieval.query.transformation.CompressionQueryTransformer;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
 
 /**
  * 证据编号化格式器测试（v2.15，2026-08-09）——修复引用编号漂移缺陷：
@@ -70,6 +74,28 @@ class RetrievalConfigContextFormatTest {
         assertThat(rendered)
             .doesNotContain("{")
             .contains("知识库中未找到相关信息");
+    }
+
+    /**
+     * 簇④ A5：历史感知改写 Prompt 渲染回归 + CompressionQueryTransformer 占位符契约。
+     * 构造器 PromptAssert 硬校验 {history}/{query} 双占位符——缺一启动失败，
+     * 本用例把该契约钉死在单测层（装配变更无需真实启动即可发现）。
+     */
+    @Test
+    void historyRewritePromptRendersAndSatisfiesCompressionContract() {
+        String rendered = new PromptTemplate(RetrievalConfig.HISTORY_REWRITE_PROMPT)
+            .render(Map.of("history", "USER: 企业版的年费是多少？\nASSISTANT: 企业版年费十万元。",
+                "query", "那专业版呢"));
+
+        assertThat(rendered)
+            .contains("USER: 企业版的年费是多少？")
+            .contains("那专业版呢")
+            .contains("结合历史补全为完整查询");
+
+        assertThatCode(() -> CompressionQueryTransformer.builder()
+            .chatClientBuilder(mock(ChatClient.Builder.class))
+            .promptTemplate(new PromptTemplate(RetrievalConfig.HISTORY_REWRITE_PROMPT))
+            .build()).doesNotThrowAnyException();
     }
 
     @Test
