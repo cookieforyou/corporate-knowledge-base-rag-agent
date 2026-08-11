@@ -30,7 +30,7 @@ kb-rag-agent/
 ├── kb-ai-agent/       # Agent 事务域容器（3.19 拆出）：tool/（Mock 工具 + HITL 审批账本）、config/（toolAgentChatClient + ToolCallingAdvisor(1000)）、service/（ToolChatService + toolContext）；未来真实 OA/ERP 客户端/MCP(5.11)/Multi-Agent(5.3) 落此
 ├── kb-api/            # REST Controller + SSE 命名事件 + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（空模块，待开发）
-├── kb-eval/           # AI 评估：EvalRunner + 双探针 + Golden Dataset（74 条）+ CI 门禁
+├── kb-eval/           # AI 评估：EvalRunner + 双探针 + Golden Dataset（102 条，7 文档）+ CI 门禁
 ├── frontend/          # Vue3 前端（Login + Chat 溯源对话 + Documents + Debug 检索调试台 + Chunks 观测台）
 └── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
 ```
@@ -70,7 +70,7 @@ kb-rag-agent/
 - 护栏与配额（3.5-3.8，详见 12 章）：`InputSanitizeAdvisor`(300) PII 正则掩码+注入关键词拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本 `rag:token-budget:{tenant}:{日期}`；`RateLimitAdvisor`(100) Redisson 每租户令牌桶（OVERALL）；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；流式 token 消耗暂不计账（见注意事项⑧）
 - **用户反馈闭环（3.17）**：POST /api/v1/feedback（messageId+userId upsert 可改评 + 期望回答/tags；归属经 message→session 校验 fail-closed，跨域伪装 MESSAGE_NOT_FOUND；归档竞态短窗轮询兜底（rag.feedback.message-wait-millis））+ GET Bad Case 查询（租户收敛、附原始问答）；kb_audit_log.feedback 凭 trace_id 回填 + audit_log_id 关联（旁路容错）；rag.feedback.like/dislike 接线；前端 👍/👎 + 点踩期望回答表单
 - 多轮记忆（3.1）：`agentChatMemory` 显式装配 RedisChatMemoryRepository（Jedis 形态，连接取自 `spring.data.redis.*`，**REDIS_DB 必须 0**，见注意事项⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条（`rag.chat.memory.max-messages`）；PG 归档 `ChatSessionService` 异步旁路（失败只丢归档）；v2.17 历史会话：citations 归档 + 会话端点 + 过期会话续聊回填（11 章 §11.7）；kb-eval `initialize-schema: false` 零 Redis 依赖
-- 评估（kb-eval）：双探针 `eval.probe`=auto/vector/hybrid；`chatClient` Bean 独立注入，被测链路切换零感知；Golden 74 条；报告 stdout + `target/eval-report.txt`
+- 评估（kb-eval）：双探针 `eval.probe`=auto/vector/hybrid；`chatClient` Bean 独立注入，被测链路切换零感知；Golden 102 条（7 文档，A2 扩容后基线 Recall@5 0.904 / MRR 0.806 / CP 0.786，74 条旧基线已作废）；报告 stdout + `target/eval-report.txt`
 
 **解析支线（2.1-2.3，详见 9 章）**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / deep-by-default 或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动路由失败回落 NATIVE，显式路由失败上抛）；DocMind 契约（详见 9 章 v2.2）：OutputHtmlTable+LlmEnhancement 同开、表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>`；向量化 10 条/批（DashScope ≤20 条硬限制）
 
