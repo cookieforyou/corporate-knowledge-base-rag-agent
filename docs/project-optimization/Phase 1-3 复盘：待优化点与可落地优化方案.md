@@ -397,7 +397,7 @@ Phase 1-3 已实质收尾：基础设施与 ETL（Phase 1）、混合检索引�
 
 | 簇 | 状态 | 完成日期 | 关键结论 / 偏差记录 |
 |---|---|---|---|
-| ① 检索调优基建与扩展决策 | 进行中（A3 ✅ / A2 ✅ / A1 待启动） | — | A3（2026-08-11）：rag.retrieval.* 配置组 + kb.etl.embed-batch-size + eval.top-k 同源绑定，行为零变化；附带修复既有构建缺陷（surefire preview argLine + reseed 测试桩漂移），全 reactor 单测绿。A2（2026-08-11）：新语料《企业信息安全与数据保护管理办法》入库（7 chunk，HTML 表格独立 TABLE chunk 首次实证 MD 上传链路）；Golden 74→102（+security-qa 14 / cross-qa 6 / 域内难负例 2 / 其他 6）；标注法 = PG dump 内容级锚点匹配（规避检索循环依赖）；扩容后检索基线 Recall@5 0.904 / MRR 0.806 / CP 0.786（门禁 0.85/0.70 未破），暴露宽泛枚举型 cross R=0.00 与纯表格 chunk 主题词缺失（dm-13）两类靶点——分别移交 A1 多查询扩展与 A4 heading 元数据 |
+| ① 检索调优基建与扩展决策 | ✅ 完成（A3/A2/A1 全收口） | 2026-08-11 | A3（2026-08-11）：rag.retrieval.* 配置组 + kb.etl.embed-batch-size + eval.top-k 同源绑定，行为零变化；附带修复既有构建缺陷（surefire preview argLine + reseed 测试桩漂移），全 reactor 单测绿。A2（2026-08-11）：新语料《企业信息安全与数据保护管理办法》入库（7 chunk，HTML 表格独立 TABLE chunk 首次实证 MD 上传链路）；Golden 74→102（+security-qa 14 / cross-qa 6 / 域内难负例 2 / 其他 6）；标注法 = PG dump 内容级锚点匹配（规避检索循环依赖）；扩容后检索基线 Recall@5 0.904 / MRR 0.806 / CP 0.786（门禁 0.85/0.70 未破），暴露宽泛枚举型 cross R=0.00 与纯表格 chunk 主题词缺失（dm-13）两类靶点——分别移交 A1 多查询扩展与 A4 heading 元数据。A1（2026-08-11）：A/B 首跑暴露探针测量盲区（hybrid 探针直调检索器、绕过 advisor 链，扩展开关不可见）→ 新增 ChainRetrievalProbe 走全链取 final trace；chain 基线 0.897/0.876/0.842（改写+重排贡献 MRR +0.07）；扩展开净增益 MRR +0.025 / Recall +0.006，cross-04 0→0.33 但 cross-02/08 两臂皆 0（非变体不足，确证归 A4）；**定案默认关**——每查询 +1 LLM 调用 + N 倍检索，TTFT 必破 1.5s，增益不抵代价；重估触发：显式深度检索入口 / A4 后枚举仍零召回；expansion 收编 rag.retrieval.* 配置组 |
 | ② 安全防线 | 未开始 | — | — |
 | ③ 工程健壮性小件批 | 未开始 | — | — |
 | ④ 质量提升簇 | 未开始 | — | — |

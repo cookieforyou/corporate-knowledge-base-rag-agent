@@ -34,4 +34,25 @@ public class RetrievalProperties {
 
     /** 单路检索超时（秒）：超时即降级为空，不阻塞另一路（设计文档 10.8） */
     private int pathTimeoutSeconds = 5;
+
+    /** 多查询扩展（pre-retrieval） */
+    private Expansion expansion = new Expansion();
+
+    /**
+     * 多查询扩展配置组。
+     *
+     * <p>A1 A/B 决策（2026-08-11，chain 探针 102 条实测）：开启后 MRR 0.876→0.901、
+     * Recall@5 0.897→0.903，枚举型 cross 用例部分复苏（cross-04 0→0.33）；但每查询
+     * 增加 1 次扩展 LLM 调用 + N 倍检索调用，单查询 TTFT 必然突破 1.5s 目标——
+     * 增益不抵延迟代价，**默认关**。重估触发：显式「深度检索」入口落地，或 A4
+     * heading 富化后枚举型用例仍零召回（详见复盘报告第五章 A1 / 第六章 P2）。
+     */
+    @Getter
+    @Setter
+    public static class Expansion {
+        /** 总开关（默认关，见类注 A/B 决策） */
+        private boolean enabled = false;
+        /** 扩展出的查询变体数（含检索调用放大倍数） */
+        private int numQueries = 3;
+    }
 }

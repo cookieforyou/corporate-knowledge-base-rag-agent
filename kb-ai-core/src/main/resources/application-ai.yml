@@ -103,8 +103,9 @@ rag:
   retrieval:
     rewrite:
       enabled: ${RAG_REWRITE_ENABLED:true}      # 查询改写：多轮指代消解，默认开
-    expansion:
-      enabled: ${RAG_EXPANSION_ENABLED:false}   # 多查询扩展：调用放大 N 倍损 TTFT，默认关
+    expansion:                                  # 多查询扩展（簇① A1 A/B 决策：默认关）
+      enabled: ${RAG_RETRIEVAL_EXPANSION_ENABLED:false}    # 增益 MRR +0.025 / Recall +0.006，不抵 TTFT 代价
+      num-queries: ${RAG_RETRIEVAL_EXPANSION_NUM_QUERIES:3}  # 查询变体数（检索调用放大倍数）
     # ── 调优参数（簇① A3 配置化，默认值 = Phase 2 基线形态，行为零变化）──
     # 修改任一参数即改变检索形态，须复跑 kb-eval 基线对比后再定默认值
     top-k: ${RAG_RETRIEVAL_TOP_K:5}                              # 最终证据条数（rerank top_n / 截断）

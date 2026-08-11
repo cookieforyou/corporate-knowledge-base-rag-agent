@@ -106,6 +106,8 @@ public class RetrievalConfig {
      *
      * <p>多查询扩展默认关闭：检索与 embedding 调用放大 N 倍，对 TTFT（目标 < 1.5s）
      * 不友好；RRF 融合结构已为扩展留好 DocumentJoiner 接口，需要时开配置即可（10.6）。
+     * 簇① A1 A/B 实证（2026-08-11，kb-eval chain 探针）：开启净增益 MRR +0.025 /
+     * Recall +0.006，不抵 TTFT 代价，维持默认关——决策全文见 RetrievalProperties.Expansion。
      *
      * <p>检索在 before() 内经 taskExecutor 并行执行（源码核验）；租户/溯源上下文
      * 经 Advisor 参数随 Query.context 流入检索组件——与线程模型解耦，同步/流式一致。
@@ -128,8 +130,10 @@ public class RetrievalConfig {
             RerankDocumentPostProcessor rerankPostProcessor,
             RewriteQueryTransformer rewriteQueryTransformer,
             @Qualifier("retrievalExecutor") TaskExecutor retrievalExecutor,
-            @Value("${rag.retrieval.rewrite.enabled:true}") boolean rewriteEnabled,
-            @Value("${rag.retrieval.expansion.enabled:false}") boolean expansionEnabled) {
+            RetrievalProperties properties,
+            @Value("${rag.retrieval.rewrite.enabled:true}") boolean rewriteEnabled) {
+
+        RetrievalProperties.Expansion expansion = properties.getExpansion();
 
         RetrievalAugmentationAdvisor.Builder builder = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(hybridRetriever)
@@ -148,10 +152,10 @@ public class RetrievalConfig {
             // 装饰器捕获改写文本供审计落库（3.12）；调试台直注原 Bean 不受影响
             builder.queryTransformers(new RewriteCapturingQueryTransformer(rewriteQueryTransformer));
         }
-        if (expansionEnabled) {
+        if (expansion.isEnabled()) {
             builder.queryExpander(MultiQueryExpander.builder()
                 .chatClientBuilder(chatClientBuilder)
-                .numberOfQueries(3)
+                .numberOfQueries(expansion.getNumQueries())
                 .build());
         }
         return builder.build();
