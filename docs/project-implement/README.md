@@ -57,6 +57,7 @@
 > **v2.18 安全加固落地（2026-08-11，优化冲刺簇② B1）**：12.4 近期四项落地其三——S1 输入归一化（kb-commons `TextSanitizer` 公共消毒组件：归一化检测视图不回写 + 分隔符容忍 PII 正则，对话/ETL 双链同源，§12.1.2）、S2 Grounding 不可信数据标记（`<untrusted_context>` 包裹 + 指令不得执行规则，§10.6）、S4 ETL 入库扫描 + PII 入库消毒（kb-etl `SanitizingTransformer`：三存储面脱敏态 + injection_hit 打标入 kb_chunk.metadata JSONB 零 schema 变更、不阻断入库，§12.5）；S3 待簇⑤（B2）。
 >
 > **v2.19 工程健壮性小件批（2026-08-11，优化冲刺簇③ D1+D2）**：D1 流式 token 计账——deepseek starter 无 stream_options 支持（字节码核验），主模型 `deepSeekChatModel` 改手工装配 OpenAI 兼容形态并开 include_usage（starter 经 `spring.ai.model.chat=none` 门控让位；同名让位方案被实证否决 BeanDefinitionOverrideException，DeepSeekModelOverrideWiringTest 双向钉死），流式配额账本与审计 token 列自愈（§11.2.2 v2.19 / §12.3）；D2 四件——rerank RestClient connect/read 超时（`rag.rerank.timeout-seconds`，§10.5）、HybridDocumentRetriever 执行器收编共享 Bean `hybridRetrievalExecutor`（§10.2）、ES 双写 `refresh(true)` → `wait_for`（§9.4）、EMPTY_CONTEXT_PROMPT 无参渲染回归防御（§10.6）。
+> **v2.20 Judge 校准基建（2026-08-12，优化冲刺簇④ E1）**：Faithfulness 门禁由「均值 ≥ 阈值」升级为「均值 ≥ 阈值−容忍带（默认 0.05，噪声带内 WARN 不 FAIL）且单维不崩（分类均值地板默认 3.5，最小样本 3）」；`eval.run-label` 报告快照防互覆；`eval.judge-agreement-sample` 分层抽样落人工-Judge 一致率打分表（§16.4）。Judge thinking 开/关定档复跑数据待回填。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -106,7 +107,7 @@
 | 章 | 文档 | 修订状态 |
 |---|---|---|
 | 第十五章 | [测试策略](./15-测试策略.md) | v1 原文 |
-| 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**） |
+| 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**）+ v2.20（簇④ E1：Faithfulness 容忍策略 + 校准复跑快照 + 人工-Judge 一致率抽样，§16.4） |
 | 第十七章 | [部署与运维](./17-部署与运维.md) | v1 原文 |
 | 第十八章 | [交付验收标准](./18-交付验收标准.md) | v1 原文 |
 

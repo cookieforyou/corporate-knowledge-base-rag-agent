@@ -27,6 +27,8 @@ eval:
   top-k: ${RAG_RETRIEVAL_TOP_K:5}
   sample-size: 0                          # CI 快跑可设 10（每类抽样）
   probe: ${EVAL_PROBE:auto}               # auto | vector | hybrid | chain（A/B 基线对比）
+  run-label: ${EVAL_RUN_LABEL:}           # 运行标签（簇④ E1）：报告落盘 eval-report-{label}.txt，复跑快照防互覆
+  judge-agreement-sample: ${EVAL_JUDGE_AGREEMENT_SAMPLE:0}  # 人工-Judge 一致率抽样条数（簇④ E1，0=关）
   # chain 探针专属（簇① A1）：走完整 advisor 链度量改写/扩展/重排收益，每用例含一次生成调用；
   # 检索器对「有 ctx 无租户」fail-closed，须设语料租户（当前 tenant_001）
   chain-probe:
@@ -43,6 +45,10 @@ eval:
     top-k-recall: 0.85
     mrr: 0.70
     faithfulness: 4.0
+    # Faithfulness 容忍策略（簇④ E1）：噪声带内 WARN 不 FAIL + 分类均值地板防单维崩盘
+    faithfulness-tolerance: 0.05
+    faithfulness-category-floor: 3.5
+    faithfulness-category-min-samples: 3
     negative-rejection: 0.85
     regression: 0.03
 

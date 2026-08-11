@@ -84,6 +84,7 @@ public class EvalRunner {
         }
         EvalReport report = runFullEval();
         publishReport(report);
+        writeJudgeAgreementSheetIfNeeded(report);
         if (ci) {
             report.assertThresholds(props);
             log.info("✅ 评估门禁通过");
@@ -92,7 +93,8 @@ public class EvalRunner {
 
     /**
      * 报告双通道发布：① stdout 直出（不依赖日志配置，CI 日志必可见）；
-     * ② 落盘 target/eval-report.txt（本地可复查的历史产物）
+     * ② 落盘 target/eval-report{-label}.txt（本地可复查的历史产物；run-label 非空时
+     * 文件名带标签——簇④ E1 校准复跑与 A/B 快照各留独立文件，避免互覆）
      */
     private void publishReport(EvalReport report) {
         String summary = report.summary();
@@ -103,13 +105,120 @@ public class EvalRunner {
         System.out.println(summary);
         log.info("\n{}", summary);
         try {
-            java.nio.file.Path out = java.nio.file.Path.of("target", "eval-report.txt");
+            String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
+            String fileName = label.isEmpty() ? "eval-report.txt" : "eval-report-" + label + ".txt";
+            java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
             java.nio.file.Files.createDirectories(out.getParent());
             java.nio.file.Files.writeString(out, summary + System.lineSeparator());
             log.info("评估报告已写入: {}", out.toAbsolutePath());
         } catch (Exception e) {
             log.warn("评估报告落盘失败（不影响门禁）: {}", e.getMessage());
         }
+    }
+
+    /**
+     * 人工-Judge 一致率抽样表（簇④ E1，judge-agreement-sample > 0 时启用）：
+     * 全量评估后按分类分层抽 N 条正向用例，落盘 target/judge-agreement-sheet.md
+     * 供人工盲打分，度量 Judge 可信度（一致口径 |人工−Judge|≤1，目标 ≥85%）。
+     * 检索-only / ci 门禁模式无意义，跳过。
+     */
+    private void writeJudgeAgreementSheetIfNeeded(EvalReport report) {
+        int n = props.getJudgeAgreementSample();
+        if (n <= 0 || props.isRetrievalOnly()) {
+            return;
+        }
+        List<EvalResult> generation = report.results().stream()
+            .filter(r -> !r.isNegative() && r.faithfulness() != null).toList();
+        if (generation.isEmpty()) {
+            log.warn("一致率抽样跳过：无生成侧评估结果");
+            return;
+        }
+        List<EvalResult> sampled = stratifiedSample(generation, n, 42L);
+        try {
+            java.nio.file.Path out = java.nio.file.Path.of("target", "judge-agreement-sheet.md");
+            java.nio.file.Files.createDirectories(out.getParent());
+            java.nio.file.Files.writeString(out, renderAgreementSheet(sampled));
+            log.info("人工-Judge 一致率抽样表（{} 条）已写入: {}", sampled.size(), out.toAbsolutePath());
+        } catch (Exception e) {
+            log.warn("一致率抽样表落盘失败（不影响评估）: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 分类分层抽样：各分类配额按样本占比分配（整数部分落位后，余位按小数部分降序补位），
+     * 类内固定种子洗牌——复跑抽到同一批用例，人工打分可纵向对比。配额超出分类样本数时取全量。
+     */
+    static List<EvalResult> stratifiedSample(List<EvalResult> generation, int n, long seed) {
+        Map<QACategory, List<EvalResult>> byCategory = generation.stream()
+            .collect(Collectors.groupingBy(r -> r.pair().category(),
+                java.util.LinkedHashMap::new, Collectors.toList()));
+        java.util.Random rnd = new java.util.Random(seed);
+        byCategory.values().forEach(list -> java.util.Collections.shuffle(list, rnd));
+
+        int total = generation.size();
+        n = Math.min(n, total);
+        List<Map.Entry<QACategory, List<EvalResult>>> entries = new ArrayList<>(byCategory.entrySet());
+        int[] quotas = new int[entries.size()];
+        double[] fractions = new double[entries.size()];
+        int assigned = 0;
+        for (int i = 0; i < entries.size(); i++) {
+            double raw = (double) n * entries.get(i).getValue().size() / total;
+            quotas[i] = (int) raw;
+            fractions[i] = raw - quotas[i];
+            assigned += quotas[i];
+        }
+        Integer[] byFraction = new Integer[entries.size()];
+        for (int i = 0; i < byFraction.length; i++) byFraction[i] = i;
+        java.util.Arrays.sort(byFraction, (a, b) -> Double.compare(fractions[b], fractions[a]));
+        for (int idx : byFraction) {
+            if (assigned >= n) break;
+            quotas[idx]++;
+            assigned++;
+        }
+        List<EvalResult> sampled = new ArrayList<>();
+        for (int i = 0; i < entries.size(); i++) {
+            int quota = Math.min(quotas[i], entries.get(i).getValue().size());
+            sampled.addAll(entries.get(i).getValue().subList(0, quota));
+        }
+        return sampled;
+    }
+
+    private String renderAgreementSheet(List<EvalResult> sampled) {
+        EvalProperties.Judge j = props.getJudge();
+        StringBuilder sb = new StringBuilder();
+        sb.append("# 人工-Judge 一致率打分表（簇④ E1）").append(System.lineSeparator());
+        sb.append(System.lineSeparator());
+        sb.append(String.format("- Judge: %s（temperature=%.1f, enable_thinking=%s）%n",
+            j.getModel(), j.getTemperature(), j.isEnableThinking()));
+        sb.append(String.format("- 运行标签: %s%n",
+            props.getRunLabel() == null || props.getRunLabel().isBlank() ? "（无）" : props.getRunLabel()));
+        sb.append("- 打分口径：仅评【回答】对【参考资料】的忠实度（同 Judge 的 Faithfulness 维度），1-5 整数").append(System.lineSeparator());
+        sb.append("- 一致判定：|人工分 − Judge 分| ≤ 1 记一致；目标一致率 ≥ 85%").append(System.lineSeparator());
+        sb.append(System.lineSeparator());
+        sb.append("| # | 用例 ID | 分类 | Judge 分 | 人工分（填写） |").append(System.lineSeparator());
+        sb.append("|---|---|---|---|---|").append(System.lineSeparator());
+        for (int i = 0; i < sampled.size(); i++) {
+            EvalResult r = sampled.get(i);
+            sb.append(String.format("| %d | %s | %s | %.0f | |%n",
+                i + 1, r.pair().id(), r.pair().category(), r.faithfulness()));
+        }
+        sb.append(System.lineSeparator()).append("---").append(System.lineSeparator());
+        for (int i = 0; i < sampled.size(); i++) {
+            EvalResult r = sampled.get(i);
+            String context = r.hits() == null ? "" : r.hits().stream()
+                .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
+                .collect(Collectors.joining("\n\n"));
+            sb.append(String.format("%n## %d. %s（%s）%n%n", i + 1, r.pair().id(), r.pair().category()));
+            sb.append("**问题**：").append(r.pair().question()).append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append("**参考资料**（Judge 所见）：").append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append(context).append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append("**模型回答**：").append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append(r.answer() == null ? "（生成失败）" : r.answer()).append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append(String.format("**Judge 评分**：%.0f%n%n", r.faithfulness()));
+            sb.append("**Judge 理由**：").append(r.judgeReason() == null ? "（无）" : r.judgeReason()).append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append("**人工分**：____（1-5 整数）").append(System.lineSeparator());
+        }
+        return sb.toString();
     }
 
     public EvalReport runFullEval() {

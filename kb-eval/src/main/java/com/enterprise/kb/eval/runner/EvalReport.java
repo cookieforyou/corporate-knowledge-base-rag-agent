@@ -1,8 +1,15 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.eval.config.EvalProperties;
+import com.enterprise.kb.eval.dataset.QACategory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.DoubleSummaryStatistics;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * 评估报告 —— 聚合指标 + 门禁判定（设计文档 16.4 阈值表）
@@ -25,7 +32,19 @@ public record EvalReport(
     List<EvalResult> results
 ) {
 
-    /** 门禁判定：仅对「有样本且低于阈值」的指标报错；无样本指标跳过（建基线期策略） */
+    private static final Logger log = LoggerFactory.getLogger(EvalReport.class);
+
+    /**
+     * 门禁判定：仅对「有样本且低于阈值」的指标报错；无样本指标跳过（建基线期策略）。
+     *
+     * <p>Faithfulness 容忍策略（簇④ E1，16.4 v2.20）：
+     * <ol>
+     *   <li>**噪声带**：均值 ∈ [阈值−tolerance, 阈值) → WARN 不 FAIL（Judge 分数噪声，
+     *       单次抖动不杀门禁）；低于 阈值−tolerance 才判真实击穿；</li>
+     *   <li>**单维不崩**：整体均值可能被大类拉高掩盖分类崩盘——任一正向分类均值低于
+     *       categoryFloor（样本数 ≥ categoryMinSamples 才检查）即 FAIL。</li>
+     * </ol>
+     */
     public void assertThresholds(EvalProperties props) {
         EvalProperties.Thresholds t = props.getThresholds();
         StringBuilder failures = new StringBuilder();
@@ -40,9 +59,28 @@ public record EvalReport(
                     "MRR %.3f < 阈值 %.2f（样本 %d）%n", avgMrr, t.getMrr(), retrievalEvaluated));
             }
         }
-        if (generationEvaluated > 0 && avgFaithfulness < t.getFaithfulness()) {
-            failures.append(String.format(
-                "Faithfulness %.2f < 阈值 %.1f（样本 %d）%n", avgFaithfulness, t.getFaithfulness(), generationEvaluated));
+        if (generationEvaluated > 0) {
+            double hardFloor = t.getFaithfulness() - t.getFaithfulnessTolerance();
+            if (avgFaithfulness < hardFloor) {
+                failures.append(String.format(
+                    "Faithfulness %.3f < 阈值 %.1f − 容忍带 %.2f = %.3f（样本 %d）%n",
+                    avgFaithfulness, t.getFaithfulness(), t.getFaithfulnessTolerance(),
+                    hardFloor, generationEvaluated));
+            } else if (avgFaithfulness < t.getFaithfulness()) {
+                log.warn(String.format(
+                    "⚠️ Faithfulness %.3f 落入噪声带 [%.3f, %.1f)——门禁放行但需关注趋势",
+                    avgFaithfulness, hardFloor, t.getFaithfulness()));
+            }
+            // 单维不崩：分类均值地板
+            for (Map.Entry<QACategory, DoubleSummaryStatistics> e : faithfulnessByCategory().entrySet()) {
+                DoubleSummaryStatistics stat = e.getValue();
+                if (stat.getCount() >= t.getFaithfulnessCategoryMinSamples()
+                        && stat.getAverage() < t.getFaithfulnessCategoryFloor()) {
+                    failures.append(String.format(
+                        "分类 %s Faithfulness 均值 %.3f < 地板 %.1f（样本 %d，单维崩盘）%n",
+                        e.getKey(), stat.getAverage(), t.getFaithfulnessCategoryFloor(), stat.getCount()));
+                }
+            }
         }
         if (negativeEvaluated > 0 && negativeRejectionRate < t.getNegativeRejection()) {
             failures.append(String.format(
@@ -53,6 +91,14 @@ public record EvalReport(
         if (!failures.isEmpty()) {
             throw new EvalFailedException("评估门禁未通过：\n" + failures);
         }
+    }
+
+    /** 正向用例按分类聚合 Faithfulness（NEGATIVE 与无评分用例剔除），分类名升序稳定输出 */
+    public Map<QACategory, DoubleSummaryStatistics> faithfulnessByCategory() {
+        return results.stream()
+            .filter(r -> !r.isNegative() && r.faithfulness() != null)
+            .collect(Collectors.groupingBy(r -> r.pair().category(),
+                TreeMap::new, Collectors.summarizingDouble(EvalResult::faithfulness)));
     }
 
     public String summary() {
@@ -73,6 +119,21 @@ public record EvalReport(
             fmt(avgRecall), fmt(avgMrr), fmt(avgContextPrecision),
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
+
+        // 生成侧分类分解（簇④ E1）：Judge 校准漂移与 A/B 对比的维度定位依据——
+        // 整体均值可能掩盖单一分类的涨跌，逐分类列出样本数与 Faithfulness/Relevancy 均值
+        Map<QACategory, DoubleSummaryStatistics> byCat = faithfulnessByCategory();
+        if (!byCat.isEmpty()) {
+            sb.append(System.lineSeparator()).append("── 生成侧分类分解 ──");
+            for (Map.Entry<QACategory, DoubleSummaryStatistics> e : byCat.entrySet()) {
+                double rrAvg = results.stream()
+                    .filter(r -> r.pair().category() == e.getKey() && r.responseRelevancy() != null)
+                    .mapToDouble(EvalResult::responseRelevancy).average().orElse(Double.NaN);
+                sb.append(String.format("%n%-12s n=%-3d F=%s  RR=%s",
+                    e.getKey(), e.getValue().getCount(),
+                    String.format("%.3f", e.getValue().getAverage()), fmt(rrAvg)));
+            }
+        }
 
         // 逐用例检索明细：A/B 基线对比的 diff 分析依据（哪些用例收益、哪些持平）
         List<EvalResult> retrievalCases = results.stream()
