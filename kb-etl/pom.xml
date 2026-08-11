@@ -20,6 +20,14 @@
             <artifactId>spring-ai-tika-document-reader</artifactId>
         </dependency>
 
+        <!-- 语境增强 LLM 客户端（簇④ A4，9.5）：仅引实现模块，不引 starter——
+             避免 chat 自动装配面（Boot 4.1 Bean 冲突教训，见 CLAUDE.md 坑位⑲），
+             模型由 ContextualEnrichmentTransformer 手工装配（同 SmartRoutingConfig 形态） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+        </dependency>
+
         <!-- JSoup for HTML parsing -->
         <dependency>
             <groupId>org.jsoup</groupId>

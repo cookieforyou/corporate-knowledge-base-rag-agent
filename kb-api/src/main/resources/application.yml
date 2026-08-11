@@ -58,3 +58,14 @@ app:
   ws:
     allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:5173}
 
+# ETL 管道（kb-etl）
+kb:
+  etl:
+    # Contextual Retrieval 语境增强（簇④ A4，设计 9.5，默认关）：embedding 前
+    # LLM 生成文档级语境前缀。启用与否经 kb-eval 双探针 A/B 快照决策
+    # （全量重入库窗口：off 基线 vs on 对比，报告 §8.3 簇④ A4 流程）
+    contextual:
+      enabled: ${KB_ETL_CONTEXTUAL_ENABLED:false}
+      excerpt-chars: ${KB_ETL_CONTEXTUAL_EXCERPT_CHARS:2000}      # 语境 prompt 的文档概要取前字符数
+      chunk-max-chars: ${KB_ETL_CONTEXTUAL_CHUNK_MAX_CHARS:2000}  # 语境 prompt 的 chunk 文本截断长度
+

@@ -11,6 +11,7 @@ import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlStage;
 import com.enterprise.kb.etl.reader.SmartParsingRouter;
+import com.enterprise.kb.etl.transformer.ContextualEnrichmentTransformer;
 import com.enterprise.kb.etl.transformer.HtmlProtectingSplitter;
 import com.enterprise.kb.etl.transformer.SanitizingTransformer;
 import com.enterprise.kb.etl.writer.EsIndexWriter;
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,8 @@ import tools.jackson.databind.json.JsonMapper;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,8 +39,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3）→ 安全消毒（簇② B1）
- * → PG 落库 → 向量化 → ES 双写
+ * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3，簇④ A4 起含 heading 路径）
+ * → 安全消毒（簇② B1）→ 语境增强（簇④ A4，默认关）→ PG 落库 → 向量化 → ES 双写
  */
 @Slf4j
 @Service
@@ -52,6 +56,8 @@ public class DocumentEtlService {
     private final HtmlProtectingSplitter protectingSplitter;
     private final SanitizingTransformer sanitizingTransformer;
     private final JsonMapper jsonMapper;
+    /** 语境增强器（kb.etl.contextual.enabled=true 才有 Bean，缺省 absent 即跳过） */
+    private final ObjectProvider<ContextualEnrichmentTransformer> contextualEnrichmentProvider;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -101,6 +107,15 @@ public class DocumentEtlService {
             // Stage 2.5: 安全消毒（簇② B1，12.4.2 第一道纵深）：PII 掩码 + 注入打标，
             // 落库面向量库/ES 均为脱敏态；命中标记经元数据流入 kb_chunk.metadata
             chunks = sanitizingTransformer.apply(chunks);
+
+            // Stage 2.6: 语境增强（簇④ A4，9.5，默认关）：文档级语境前缀，content 存
+            // 增强文本 / original_content 存原文。位于消毒之后——LLM 只见脱敏态文本；
+            // 单 chunk 生成失败原样放行不阻断（质量项非必需项）
+            ContextualEnrichmentTransformer enrichment = contextualEnrichmentProvider.getIfAvailable();
+            if (enrichment != null) {
+                attachDocExcerpt(chunks, doc, rawDocs);
+                chunks = enrichment.apply(chunks);
+            }
 
             // Stage 3: 落 kb_chunk 表
             progressCallback.accept(new EtlProgress(docId, EtlStage.PERSISTING));
@@ -152,6 +167,29 @@ public class DocumentEtlService {
         return parsingRouter.read(bos.toByteArray(), doc.getName(), forcedRoute);
     }
 
+    /** 语境增强的文档概要取前字符数（kb.etl.contextual.excerpt-chars，簇④ A4） */
+    @Value("${kb.etl.contextual.excerpt-chars:2000}")
+    private int contextualExcerptChars;
+
+    /**
+     * 语境增强的文档概要注入：首段非空解析文本取前 N 字符（含文档标题行），
+     * 写入每个 chunk 的 {@code doc_excerpt} 元数据供增强 prompt 消费
+     * （同一文档全部 chunk 共享同一概要——Prompt Caching 摊薄成本的形态基础）。
+     */
+    private void attachDocExcerpt(List<Document> chunks, KbDocument doc, List<Document> rawDocs) {
+        String firstText = rawDocs.stream()
+            .map(Document::getText)
+            .filter(t -> t != null && !t.isBlank())
+            .findFirst().orElse("");
+        String excerpt = "文档标题：" + (doc.getName() != null ? doc.getName() : "未知文档") + "\n"
+            + (firstText.length() <= contextualExcerptChars
+                ? firstText : firstText.substring(0, contextualExcerptChars));
+        for (Document chunk : chunks) {
+            // splitter 各冲刷组元数据相互独立，同值写入幂等安全
+            chunk.getMetadata().put(ContextualEnrichmentTransformer.DOC_EXCERPT_KEY, excerpt);
+        }
+    }
+
     /** 页数：深度链路经元数据携带（解析服务回报），NATIVE 按 Tika 文档段数 */
     private static int pageCountOf(List<Document> rawDocs) {
         if (!rawDocs.isEmpty()) {
@@ -193,15 +231,33 @@ public class DocumentEtlService {
             if (originalHtml != null) {
                 entity.setOriginalContent(originalHtml.toString());
             }
+            // heading 路径（簇④ A4）：载体字段供向量化/ES 消费，持久化入 metadata JSONB
+            Object headingPath = chunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY);
+            if (headingPath instanceof String hp && !hp.isBlank()) {
+                entity.setHeadingPath(hp);
+            }
+            // 语境增强原文（簇④ A4）：content 已是增强文本，原文落 original_content
+            // （TABLE/IMAGE 的 original_content 已被 original_html 占用，不覆盖）
+            Object originalText = chunk.getMetadata().get(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+            if (entity.getOriginalContent() == null && originalText instanceof String ot && !ot.isBlank()) {
+                entity.setOriginalContent(ot);
+            }
             // 从 Tika metadata 提取页码
             Object page = chunk.getMetadata().get("page_number");
             if (page instanceof Integer pi) entity.setPageNum(pi);
             else if (page != null) {
                 try { entity.setPageNum(Integer.valueOf(page.toString())); } catch (Exception ignored) {}
             }
-            // 注入扫描命中标记落 metadata JSONB（簇② B1 S4）：供运维处置/后续门禁消费
+            // metadata JSONB：注入命中标记（簇② B1 S4）+ heading 路径（簇④ A4）
+            Map<String, Object> metaJson = new LinkedHashMap<>();
             if (Boolean.TRUE.equals(chunk.getMetadata().get(SanitizingTransformer.INJECTION_HIT_KEY))) {
-                entity.setMetadata(toMetadataJson(Map.of(SanitizingTransformer.INJECTION_HIT_KEY, true)));
+                metaJson.put(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            }
+            if (entity.getHeadingPath() != null) {
+                metaJson.put(HtmlProtectingSplitter.HEADING_PATH_KEY, entity.getHeadingPath());
+            }
+            if (!metaJson.isEmpty()) {
+                entity.setMetadata(toMetadataJson(metaJson));
             }
             // 估算 token 数（中文约 1.5 字符/token，英文约 4 字符/token）
             entity.setTokenCount((int) (chunk.getText().length() / 2.5));
@@ -235,16 +291,24 @@ public class DocumentEtlService {
         for (int from = 0; from < total; from += embedBatchSize) {
             List<KbChunk> batch = entities.subList(from, Math.min(from + embedBatchSize, total));
             List<Document> vectorDocs = batch.stream()
-                .map(e -> new Document(e.getId(), e.getContent(),
-                    Map.of("chunk_id", e.getId(),
-                           "doc_id", doc.getId(),
-                           "tenant_id", doc.getTenantId(),
-                           "chunk_type", e.getChunkType().name(),
-                           // file_name 随向量元数据携带（2.14 调试台/溯源展示；
-                           // 存量向量缺此字段，重新入库后补齐）
-                           "file_name", doc.getName() != null ? doc.getName() : "unknown",
-                           "page_num", e.getPageNum() != null ? e.getPageNum() : 0,
-                           "is_deleted", Objects.requireNonNullElse(e.getIsDeleted(), false))))
+                .map(e -> {
+                    Map<String, Object> meta = new HashMap<>();
+                    meta.put("chunk_id", e.getId());
+                    meta.put("doc_id", doc.getId());
+                    meta.put("tenant_id", doc.getTenantId());
+                    meta.put("chunk_type", e.getChunkType().name());
+                    // file_name 随向量元数据携带（2.14 调试台/溯源展示；
+                    // 存量向量缺此字段，重新入库后补齐）
+                    meta.put("file_name", doc.getName() != null ? doc.getName() : "unknown");
+                    meta.put("page_num", e.getPageNum() != null ? e.getPageNum() : 0);
+                    meta.put("is_deleted", Objects.requireNonNullElse(e.getIsDeleted(), false));
+                    // heading 路径（簇④ A4）：调试台/溯源展示与后续检索消费；
+                    // 元数据禁 null（Spring AI 约束），缺省不写键
+                    if (e.getHeadingPath() != null) {
+                        meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, e.getHeadingPath());
+                    }
+                    return new Document(e.getId(), e.getContent(), meta);
+                })
                 .toList();
 
             vectorStore.add(vectorDocs);

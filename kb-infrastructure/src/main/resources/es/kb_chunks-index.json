@@ -10,6 +10,7 @@
       "tenant_id":   { "type": "keyword" },
       "content":     { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
       "chunk_type":  { "type": "keyword" },
+      "heading_path": { "type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart" },
       "file_name":   { "type": "keyword" },
       "page_num":    { "type": "integer" },
       "is_deleted":  { "type": "boolean" },

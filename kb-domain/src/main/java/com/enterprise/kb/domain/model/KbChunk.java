@@ -61,6 +61,14 @@ public class KbChunk {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /**
+     * 标题路径（簇④ A4）——ETL 管道内载体字段，**非持久化列**（免 ECS ALTER）。
+     * 持久化面：kb_chunk.metadata JSONB 的 heading_path 键；消费面：向量库元数据与
+     * ES heading_path 字段（展示/检索两用，9.2 v2.21）。
+     */
+    @Transient
+    private String headingPath;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

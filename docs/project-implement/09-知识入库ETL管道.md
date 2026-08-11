@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-11
+> [📑 返回目录](./README.md) · 最后更新：2026-08-12
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -267,6 +267,11 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
 > **切分策略演进注记**：固定 Token 切分在 2026 年已是基线水平。语义切分（SemanticChunker，基于 embedding 相似度的语义断句）是 Phase 5+ 的演进方向，本阶段以「结构感知保护 + 可选 Contextual Retrieval（9.5）」为边界；本切分器的结构保护能力与后续语义切分不冲突，是其载体。
 
+> **v2.21 修正（2026-08-12，簇④ A4 heading 路径元数据）**：切分时维护六级标题栈——Markdown `#{1,6} ` 行与 HTML `<h1>..<h6>` 双形态识别，每个 chunk 注入 `heading_path` 元数据（「L1 > L2 > …」）。三条实现纪律：
+> 1. **标题变更即冲刷缓冲**：chunk 边界与章节边界对齐（topic-aligned），标题文字保留在新 chunk 正文首部（BM25/向量化可检索）；
+> 2. **三路分发**：无保护标签且无标题 → 原快速路径零变化；仅标题无保护标签 → 纯行扫描（**不经 JSoup**——代码片段尖括号 `List<String>` 会被 JSoup 解析为未知标签丢文本）；有保护标签 → JSoup AST 路径（尖括号风险为 v2 既有边界，不扩大）；
+> 3. **三存储面落地**：`kb_chunk.metadata` JSONB 的 heading_path 键 + 向量库元数据（缺省不写键，元数据禁 null）+ ES `heading_path` 字段（新建索引走 mapping ik 分词，存量索引 dynamic mapping 自动映射，完全对齐随 Phase 4.6 索引重建窗口）。载体经 `KbChunk.headingPath` @Transient 字段流转（免 ECS ALTER）。展示与检索两用；BM25 查询侧消费（multi_match 纳入 heading_path）待 contextual A/B 决策后评估，避免双重变量污染基线。
+
 ---
 
 ## 9.3 管道编排（与 Phase 1 实现对齐）
@@ -414,6 +419,13 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 ```
 
 **与数据模型的契合**：`kb_chunk.original_content` 字段（schema 已预留）存原文，`content` 存增强后文本——前端 Chunk 观测台展示原文，检索走增强文本，两者天然分离。
+
+> **v2.21 落地（2026-08-12，簇④ A4，任务 2.4 复活）**：`ContextualEnrichmentTransformer` 按本节设计落地（`kb.etl.contextual.enabled` 默认关），实现要点：
+> 1. **管道位置**：切分 → **入库消毒之后**、落库之前——LLM 只见脱敏态文本，原文 PII 不出库（与簇② B1 纵深一致）；
+> 2. **装配形态**：kb-etl 不依赖 kb-ai-core（避免拖入对话链路 Advisor 栈），引 `spring-ai-openai` 实现模块（非 starter，免自动装配面——坑位⑲教训），经济模型 deepseek-v4-flash 手工装配 OpenAI 兼容形态（消费 `spring.ai.deepseek.*` @Value，temperature 0 / maxTokens 300 封顶成本），同 SmartRoutingConfig 形态；
+> 3. **文档概要流转**：ETL 侧取首段非空解析文本前 N 字符（`kb.etl.contextual.excerpt-chars` 默认 2000，含文档标题行）写入 chunk 元数据 `doc_excerpt`，同一文档全部 chunk 共享（Prompt Caching 摊薄的形态基础），增强完成后移除该键不落任何存储面；原文经 `original_text` 元数据键流转落 `original_content`；
+> 4. **跳过与容错**：IMAGE chunk（正文为 img 标签无语义）与 <20 字符短 chunk 跳过；单 chunk 生成失败 WARN 原样放行（质量项不阻断入库）；
+> 5. **A/B 决策未定**：启用与否须经 kb-eval 双探针快照对比（全量重入库窗口：off 基线 vs on 对比，靶点 dm-13 纯表格 chunk），数据说话后定默认值并回写本节与 10 章检索形态。
 
 ---
 

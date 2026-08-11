@@ -81,4 +81,83 @@ class HtmlProtectingSplitterTest {
 
         assertThat(chunks).allMatch(c -> "d-1".equals(c.getMetadata().get("doc_id")));
     }
+
+    // ── 簇④ A4：heading 路径跟踪 ──
+
+    @Test
+    void markdownHeadings_injectHeadingPathPerSection() {
+        String text = "# 产品概述\n" + "这是产品概述章节的正文内容。".repeat(30)
+            + "\n## 定价\n" + "这是定价章节的正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).isNotEmpty();
+        // 各 chunk 按所属章节携带 heading_path（「L1 > L2」层级拼接）
+        assertThat(chunks).allSatisfy(c ->
+            assertThat(c.getMetadata()).containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        assertThat(chunks.stream().filter(c -> c.getText().contains("产品概述章节")).toList())
+            .allSatisfy(c -> assertThat(c.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+                .isEqualTo("产品概述"));
+        assertThat(chunks.stream().filter(c -> c.getText().contains("定价章节")).toList())
+            .allSatisfy(c -> assertThat(c.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+                .isEqualTo("产品概述 > 定价"));
+    }
+
+    @Test
+    void markdownHeadingText_retainedInChunkContent() {
+        String text = "# 章节标题\n" + "章节正文内容段落。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        // 标题文字保留在 chunk 正文首部（BM25/向量化可检索）
+        assertThat(chunks.get(0).getText()).contains("章节标题");
+    }
+
+    @Test
+    void tableChunk_carriesActiveHeadingPath() {
+        String table = "<table><tr><th>项目</th><th>金额</th><th>说明</th></tr>"
+            + "<tr><td>基础服务费</td><td>1000 元</td><td>按年收取</td></tr>"
+            + "<tr><td>增值服务费</td><td>2000 元</td><td>可选购</td></tr></table>";
+        String text = "# 合同条款\n## 费用明细\n" + table + "\n" + "后续正文。".repeat(40);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        Document tableChunk = chunks.stream()
+            .filter(c -> "TABLE".equals(c.getMetadata().get("chunk_type")))
+            .findFirst().orElseThrow();
+        assertThat(tableChunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+            .isEqualTo("合同条款 > 费用明细");
+    }
+
+    @Test
+    void noHeadings_noHeadingPathKey() {
+        String table = "<table><tr><td>足够长的表格内容以超过小表格阈值</td></tr></table>";
+        String text = "正文前言。\n" + table + "\n" + "后续正文。".repeat(40);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).noneMatch(c ->
+            c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+    }
+
+    @Test
+    void angleBracketsInCode_preservedOnHeadingOnlyPath() {
+        // 仅标题无保护标签 → 纯行扫描不经 JSoup，代码尖括号不丢
+        String text = "# 开发指南\n" + "使用 List<String> 泛型声明集合。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).allSatisfy(c -> assertThat(c.getText()).contains("List<String>"));
+    }
+
+    @Test
+    void headingStack_newTopLevelClearsDeeperLevels() {
+        String[] headings = new String[7];
+        HtmlProtectingSplitter.setHeading(headings, 1, "A");
+        HtmlProtectingSplitter.setHeading(headings, 2, "B");
+        assertThat(HtmlProtectingSplitter.headingPathOf(headings)).isEqualTo("A > B");
+
+        HtmlProtectingSplitter.setHeading(headings, 1, "C");   // 新 h1 → h2 失效
+        assertThat(HtmlProtectingSplitter.headingPathOf(headings)).isEqualTo("C");
+    }
 }

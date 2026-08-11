@@ -50,6 +50,7 @@ public class EsIndexWriter {
                     .tenantId(doc.getTenantId())
                     .content(e.getContent())
                     .chunkType(e.getChunkType() != null ? e.getChunkType().name() : "TEXT")
+                    .headingPath(e.getHeadingPath())
                     .fileName(doc.getOriginalName())
                     .pageNum(e.getPageNum())
                     .isDeleted(false)
