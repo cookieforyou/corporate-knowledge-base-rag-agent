@@ -58,6 +58,20 @@ class RetrievalConfigContextFormatTest {
             .contains("禁止使用 ①②③ 等圈号");
     }
 
+    /**
+     * 空证据拒答模板无参渲染防御（v2.19 簇③ D2）：ContextualQueryAugmenter 以
+     * 无参 render() 渲染本模板——模板若混入 {变量} 占位符，渲染即抛异常击穿拒答路径。
+     * 本用例钉死「模板零占位符」约束，后人改动一旦引入占位符立即红灯。
+     */
+    @Test
+    void emptyContextPromptRendersWithNoArguments() {
+        String rendered = new PromptTemplate(RetrievalConfig.EMPTY_CONTEXT_PROMPT).render();
+
+        assertThat(rendered)
+            .doesNotContain("{")
+            .contains("知识库中未找到相关信息");
+    }
+
     @Test
     void groundingPromptWrapsContextInUntrustedMarker() {
         // S2（v2.18）：检索内容置于不可信数据区，指令性文字声明为不得执行——

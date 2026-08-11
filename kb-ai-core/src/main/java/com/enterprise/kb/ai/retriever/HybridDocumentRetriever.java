@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -34,6 +33,9 @@ import java.util.function.Supplier;
  * <p>调优参数（topK/召回倍数/相似度阈值/单路超时）经 {@link RetrievalProperties}
  * （rag.retrieval.*）注入，默认值 = Phase 2 基线形态，调参须配 kb-eval 基线对比。
  *
+ * <p>双路并行执行器为共享 Bean {@code hybridRetrievalExecutor}（RetrievalConfig，
+ * v2.19 簇③ D2）——此前每请求 new 虚拟线程 executor，高频请求下重复创建/关闭。
+ *
  * <p>租户/软删过滤与 trace 的 {@link RetrievalContext} 经 Query.context 参数化传入
  * （2026-08-02 重构：取代请求作用域代理——MVC 异步请求完结后作用域不可解析，
  * 流式路径过滤与 trace 曾静默失效）。向量路在此直连 VectorStore 构建 SearchRequest
@@ -53,17 +55,21 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     private final AiBusinessMetrics metrics;
     /** 检索调优参数（rag.retrieval.*，默认值 = Phase 2 基线形态） */
     private final RetrievalProperties properties;
+    /** 双路并行共享执行器（v2.19 簇③ D2 收编为 Bean，取代每请求 new） */
+    private final ExecutorService executor;
 
     public HybridDocumentRetriever(VectorStore vectorStore,
                                    ElasticsearchDocumentRetriever esRetriever,
                                    RrfFusion rrfFusion,
                                    AiBusinessMetrics metrics,
-                                   RetrievalProperties properties) {
+                                   RetrievalProperties properties,
+                                   ExecutorService executor) {
         this.vectorStore = vectorStore;
         this.esRetriever = esRetriever;
         this.rrfFusion = rrfFusion;
         this.metrics = metrics;
         this.properties = properties;
+        this.executor = executor;
     }
 
     @Override
@@ -81,22 +87,21 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         long start = System.currentTimeMillis();
 
         // 虚拟线程并行双路召回；两路各自容错（失败/超时 → 空列表，降级矩阵 10.2）
+        // 共享执行器（簇③ D2）：等待与超时语义不变——await 阻塞 + 超时取消
         List<Document> vectorHits;
         List<Document> bm25Hits;
         long[] vectorLatency = new long[1];
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            Future<List<Document>> vectorFuture = executor.submit(
-                () -> retrieveSafely(() -> {
-                    long t0 = System.currentTimeMillis();
-                    List<Document> hits = vectorSearch(query, recallSize, ctx);
-                    vectorLatency[0] = System.currentTimeMillis() - t0;
-                    return hits;
-                }, "vector"));
-            Future<List<Document>> bm25Future = executor.submit(
-                () -> retrieveSafely(() -> esRetriever.retrieve(query, recallSize), "bm25"));
-            vectorHits = await(vectorFuture, "vector");
-            bm25Hits = await(bm25Future, "bm25");
-        }
+        Future<List<Document>> vectorFuture = executor.submit(
+            () -> retrieveSafely(() -> {
+                long t0 = System.currentTimeMillis();
+                List<Document> hits = vectorSearch(query, recallSize, ctx);
+                vectorLatency[0] = System.currentTimeMillis() - t0;
+                return hits;
+            }, "vector"));
+        Future<List<Document>> bm25Future = executor.submit(
+            () -> retrieveSafely(() -> esRetriever.retrieve(query, recallSize), "bm25"));
+        vectorHits = await(vectorFuture, "vector");
+        bm25Hits = await(bm25Future, "bm25");
 
         // 向量路 trace（bm25 路由 ES 检索器自记录；Future.get 建立 happens-before，
         // 此刻 ES 路写入与 vectorLatency 赋值均已可见，CopyOnWriteArrayList 保证快照读安全）

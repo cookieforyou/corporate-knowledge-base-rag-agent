@@ -33,12 +33,16 @@ public class EsIndexWriter {
     }
 
     /**
-     * 批量写入文档的全部 Chunk（refresh=true 保证写入后立即可检索）
+     * 批量写入文档的全部 Chunk。
+     *
+     * <p>刷新策略 {@code wait_for}（v2.19 簇③ D2）：请求挂起至下一次刷新周期完成、
+     * 写入可检索后返回——语义上仍保证「返回即可检索」，但避免大文档 ETL 尾部每批
+     * 强制全索引刷新（{@code true}）的长尾延迟；原 {@code Refresh.True} 强刷收编废弃。
      */
     public void indexChunks(KbDocument doc, List<KbChunk> entities) {
         if (entities.isEmpty()) return;
         try {
-            BulkRequest.Builder bulk = new BulkRequest.Builder().refresh(Refresh.True);
+            BulkRequest.Builder bulk = new BulkRequest.Builder().refresh(Refresh.WaitFor);
             for (KbChunk e : entities) {
                 EsChunkDoc docModel = EsChunkDoc.builder()
                     .chunkId(e.getId())

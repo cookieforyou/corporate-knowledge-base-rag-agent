@@ -123,3 +123,4 @@ rag:
     endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
     model: ${RERANK_MODEL:qwen3-rerank}
     api-key: ${DASHSCOPE_API_KEY:}
+    timeout-seconds: ${RERANK_TIMEOUT_SECONDS:5}   # connect/read 超时（簇③ D2），与单路检索超时对齐；超时走 fusion_score 截断降级

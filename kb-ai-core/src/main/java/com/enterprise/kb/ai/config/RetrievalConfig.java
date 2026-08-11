@@ -24,6 +24,8 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 检索组件 + RetrievalAugmentationAdvisor 装配（设计文档 10.6，任务 2.10）
@@ -101,9 +103,10 @@ public class RetrievalConfig {
      * allowEmptyContext=true 时空证据会**原样返回用户问题**（模型凭自身知识作答，
      * 负向用例必然幻觉）；=false 时渲染本模板，输出确定性拒绝——库外问题规范拒答
      * （16.4 Negative Rejection ≥ 0.85）的关键机制。本模板经无参 render() 调用，
-     * 不得含变量占位符。
+     * 不得含变量占位符——包级可见 + RetrievalConfigContextFormatTest 无参渲染
+     * 回归用例钉死该约束（v2.19 簇③ D2 显式防御）。
      */
-    private static final String EMPTY_CONTEXT_PROMPT = """
+    static final String EMPTY_CONTEXT_PROMPT = """
         知识库中未检索到与用户问题相关的任何内容。禁止依据自身知识作答。
         请直接且仅输出以下回复：
         知识库中未找到相关信息，建议您补充相关文档或换个方式提问。
@@ -174,6 +177,16 @@ public class RetrievalConfig {
     @Bean
     public AsyncTaskExecutor retrievalExecutor() {
         return new VirtualThreadTaskExecutor("retrieval-");
+    }
+
+    /**
+     * 混合检索双路并行执行器（v2.19 簇③ D2）：此前 HybridDocumentRetriever 每请求
+     * {@code new} 虚拟线程 executor——收编为共享 Bean（与 etlExecutor 同形态），
+     * 消除高频请求下的重复创建/关闭开销。
+     */
+    @Bean(destroyMethod = "close")
+    public ExecutorService hybridRetrievalExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     /**

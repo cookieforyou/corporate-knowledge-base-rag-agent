@@ -9,10 +9,12 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -25,8 +27,13 @@ import java.util.Map;
  * <p>对 RRF 融合后的 recallSize（topK×2）候选精排并截断至 topK。
  * 实现 {@link DocumentPostProcessor}，2.10 组装 Advisor 链时挂载。
  *
- * <p>降级策略（不阻塞主链路）：endpoint 未配置或调用失败 →
+ * <p>降级策略（不阻塞主链路）：endpoint 未配置或调用失败（含超时）→
  * 按 fusion_score 截断至 topK（退化为纯 RRF 排序）。
+ *
+ * <p><b>超时（v2.19 簇③ D2）</b>：RestClient 装配 connect/read 超时
+ * （{@code rag.rerank.timeout-seconds}，默认 5s 与单路检索超时对齐）——
+ * 此前无超时配置，rerank 端点长尾不可控、拖垮整链 TTFT；超时异常走既有
+ * catch 降级路径。
  *
  * <p>可插拔：未来切换 Qwen3-Reranker 私有部署 / Jina v3 等只需替换本实现 + 配置。
  */
@@ -47,18 +54,31 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             RetrievalProperties properties,
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
-            @Value("${rag.rerank.api-key:}") String apiKey) {
+            @Value("${rag.rerank.api-key:}") String apiKey,
+            @Value("${rag.rerank.timeout-seconds:5}") int timeoutSeconds) {
         this.jsonMapper = jsonMapper;
         this.properties = properties;
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
         this.restClient = enabled
-            ? RestClient.builder().baseUrl(endpoint).build()
+            ? RestClient.builder()
+                .baseUrl(endpoint)
+                // D2：connect/read 超时——此前裸 RestClient 无超时，端点长尾拖垮整链 TTFT
+                .requestFactory(rerankRequestFactory(timeoutSeconds))
+                .build()
             : null;
         if (!enabled) {
             log.warn("rag.rerank.endpoint 未配置，重排序降级为 fusion_score 截断");
         }
+    }
+
+    /** connect/read 双超时请求工厂；超时异常由 doProcess 既有 catch 降级承接 */
+    private static SimpleClientHttpRequestFactory rerankRequestFactory(int timeoutSeconds) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(timeoutSeconds));
+        factory.setReadTimeout(Duration.ofSeconds(timeoutSeconds));
+        return factory;
     }
 
     @Override

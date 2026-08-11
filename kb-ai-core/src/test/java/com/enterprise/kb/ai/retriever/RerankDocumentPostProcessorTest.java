@@ -19,9 +19,9 @@ class RerankDocumentPostProcessorTest {
 
     private final RetrievalProperties properties = new RetrievalProperties();
 
-    /** endpoint 为空 → 禁用态，走降级截断 */
+    /** endpoint 为空 → 禁用态，走降级截断（超时参数簇③ D2 引入，禁用态不触达） */
     private final RerankDocumentPostProcessor disabled =
-        new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, "", "qwen3-rerank", "");
+        new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, "", "qwen3-rerank", "", 5);
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
