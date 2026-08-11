@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-07-31
+> [📑 返回目录](./README.md) · 最后更新：2026-08-11
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
@@ -376,6 +376,29 @@ ToolCallingAdvisor.builder()
 > deepSeekChatModel 由 starter 注入 ObservationRegistry，手工
 > `OpenAiChatModel.builder()` 不继承——builder 显式
 > `.observationRegistry(...)`（ObjectProvider + NOOP 兜底）后恢复。
+
+> **v2.19 修正（2026-08-11，簇③ D1 主模型装配切换 + 流式计账）**：
+> ① **缘由**——deepseek starter 的 `DeepSeekApi.ChatCompletionRequest` record
+> 无 `stream_options` 字段、`DeepSeekChatOptions` 无 streamUsage（2.0.0 jar
+> 字节码核验），无法开启 include_usage，流式消耗系统性漏算（配额账本 + 审计
+> token 列双面）；
+> ② **定稿**——`deepSeekChatModel` 改由 SmartRoutingConfig 手工装配为
+> `OpenAiChatModel`（DeepSeek OpenAI 兼容端点，base-url 与 starter 默认一致），
+> options 开 `streamOptions.includeUsage(true)`；备用模型 options 同步开启——
+> 故障接管期间计量不中断（转发经 retargetToFallback 换入备用自身 options）；
+> Bean 名不变，@Qualifier 注入点零感知；`spring.ai.deepseek.*` 键改经 @Value
+> 消费，键名与默认值不变；
+> ③ **starter 让位机制（实证修正）**——首选「同名用户 Bean 让位自动装配」
+> 被 ApplicationContextRunner 实证否决：Boot 4.1 直接抛
+> BeanDefinitionOverrideException（同名让位不成立）。正解利用 starter 自动
+> 配置类的 `@ConditionalOnProperty(name="spring.ai.model.chat",
+> havingValue="deepseek")` 门控——application-ai.yml 该键置 `none` 令其整体
+> 不装配。`DeepSeekModelOverrideWiringTest` 双向钉死（chat=none 手工 Bean 胜出
+> / 回写 deepseek 同名冲突启动失败）；
+> ④ **链路收益零改动**——TokenBudgetAdvisor.after() 与 AuditTraceAdvisor
+> 末块 usage 回写逻辑不变，include_usage 开启即生效（末块 usage 缺失仍按 0
+> 降级）；maxTokens 经官方 SDK 映射 wire 字段 `max_tokens`（字节码核验），
+> 与 starter 时代请求形态一致。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 

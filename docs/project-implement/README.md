@@ -55,6 +55,8 @@
 > **v2.17.1（2026-08-09，v2.17 E2E 修复）**：删除带反馈会话外键违例——kb_feedback.message_id 无级联，删除会话同事务先清反馈；详见第十一章 §11.7.2。
 >
 > **v2.18 安全加固落地（2026-08-11，优化冲刺簇② B1）**：12.4 近期四项落地其三——S1 输入归一化（kb-commons `TextSanitizer` 公共消毒组件：归一化检测视图不回写 + 分隔符容忍 PII 正则，对话/ETL 双链同源，§12.1.2）、S2 Grounding 不可信数据标记（`<untrusted_context>` 包裹 + 指令不得执行规则，§10.6）、S4 ETL 入库扫描 + PII 入库消毒（kb-etl `SanitizingTransformer`：三存储面脱敏态 + injection_hit 打标入 kb_chunk.metadata JSONB 零 schema 变更、不阻断入库，§12.5）；S3 待簇⑤（B2）。
+>
+> **v2.19 工程健壮性小件批（2026-08-11，优化冲刺簇③ D1+D2）**：D1 流式 token 计账——deepseek starter 无 stream_options 支持（字节码核验），主模型 `deepSeekChatModel` 改手工装配 OpenAI 兼容形态并开 include_usage（starter 经 `spring.ai.model.chat=none` 门控让位；同名让位方案被实证否决 BeanDefinitionOverrideException，DeepSeekModelOverrideWiringTest 双向钉死），流式配额账本与审计 token 列自愈（§11.2.2 v2.19 / §12.3）；D2 四件——rerank RestClient connect/read 超时（`rag.rerank.timeout-seconds`，§10.5）、HybridDocumentRetriever 执行器收编共享 Bean `hybridRetrievalExecutor`（§10.2）、ES 双写 `refresh(true)` → `wait_for`（§9.4）、EMPTY_CONTEXT_PROMPT 无参渲染回归防御（§10.6）。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -92,10 +94,10 @@
 
 | 章 | 文档 | 修订状态 |
 |---|---|---|
-| 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项） |
-| 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛）+ v2.15（[ref-N] 引用编号缺陷修复：编号化 documentFormatter，§10.6）+ v2.18（S2 Grounding 不可信数据标记，§10.6） |
-| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3）+ v2.15（[ref-N] 引用编号缺陷修复：编号锚点确定化，§11.1.2）+ v2.16（徽标内联渲染修复，§11.1.2）+ v2.17（历史会话列表与恢复：citations 归档/会话 API/记忆回填，§11.7）+ v2.17.1（会话删除反馈外键修复，§11.7.2） |
-| 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正）+ v2.7（簇② B1：S1 归一化 §12.1.2 / S4+PII 入库消毒 §12.5，12.4.3 销项） |
+| 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项）+ v2.19（簇③ D2：ES 双写 refresh → wait_for，§9.4） |
+| 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛）+ v2.15（[ref-N] 引用编号缺陷修复：编号化 documentFormatter，§10.6）+ v2.18（S2 Grounding 不可信数据标记，§10.6）+ v2.19（簇③ D2：检索执行器共享 Bean §10.2 / rerank 超时 §10.5 / 空模板渲染防御 §10.6） |
+| 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3）+ v2.15（[ref-N] 引用编号缺陷修复：编号锚点确定化，§11.1.2）+ v2.16（徽标内联渲染修复，§11.1.2）+ v2.17（历史会话列表与恢复：citations 归档/会话 API/记忆回填，§11.7）+ v2.17.1（会话删除反馈外键修复，§11.7.2）+ v2.19（簇③ D1：主模型手工装配 OpenAI 兼容形态 + include_usage 流式计账，§11.2.2） |
+| 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正）+ v2.7（簇② B1：S1 归一化 §12.1.2 / S4+PII 入库消毒 §12.5，12.4.3 销项）+ v2.19（簇③ D1：流式 token 计账修复，§12.3） |
 | 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行）+ v2.14（3.17 rag.feedback.* 指标接线） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
 

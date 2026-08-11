@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-07-31
+> [📑 返回目录](./README.md) · 最后更新：2026-08-11
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -308,7 +308,9 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 
 ## 9.4 ES 索引双写（v2 新增）
 
-v1 设计了 ES 检索却缺失写入环节——本章补齐。`EsIndexWriter` 将 Chunk 同步写入 `kb_chunks` 索引（mapping 见第十章 10.3）：
+v1 设计了 ES 检索却缺失写入环节——本章补齐。`EsIndexWriter` 将 Chunk 同步写入 `kb_chunks` 索引（mapping 见第十章 10.3）。
+
+> **v2.19 修正（2026-08-11，簇③ D2）**：批量写入刷新策略 `refresh(true)` → `Refresh.WaitFor`——语义仍为「返回即可检索」（请求挂起至下一次刷新周期完成），但避免大文档 ETL 尾部每批强制全索引刷新的长尾延迟。下方草图 `refresh(true)` 为 v2 原形态记录；级联删除（deleteByDocId）维持 `refresh(true)` 不变（运维路径，删除即时可见性优先）。
 
 ```java
 package com.enterprise.kb.etl.writer;
