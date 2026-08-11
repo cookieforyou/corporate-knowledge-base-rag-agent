@@ -1,0 +1,117 @@
+[
+  {
+    "id": "sec-01",
+    "category": "FACTOID",
+    "question": "公司数据密级分为几级？各级的保存期限分别是多久？",
+    "expectedChunkIds": [
+      "dd82c915-bf56-416d-8f9d-c8f4684b905a",
+      "6edad207-fd95-4866-8522-73689d05a1d8"
+    ]
+  },
+  {
+    "id": "sec-02",
+    "category": "FACTOID",
+    "question": "口令的最小长度和强制更换周期是多少？",
+    "expectedChunkIds": [
+      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+    ]
+  },
+  {
+    "id": "sec-03",
+    "category": "FACTOID",
+    "question": "员工离职后，其账号和权限要在多长时间内处理完毕？",
+    "expectedChunkIds": [
+      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+    ]
+  },
+  {
+    "id": "sec-04",
+    "category": "REASONING",
+    "question": "客户索要双方的合同明细（属 L3 级数据），可以直接通过邮件发给他吗？",
+    "expectedChunkIds": [
+      "6edad207-fd95-4866-8522-73689d05a1d8"
+    ]
+  },
+  {
+    "id": "sec-05",
+    "category": "REASONING",
+    "question": "测试环境需要使用生产环境的原始数据，要走什么手续？",
+    "expectedChunkIds": [
+      "6edad207-fd95-4866-8522-73689d05a1d8"
+    ]
+  },
+  {
+    "id": "sec-06",
+    "category": "FACTOID",
+    "question": "P1 级安全事件的书面初报时限是多久？",
+    "expectedChunkIds": [
+      "18ceef52-dce3-4b15-a66a-239e923839b9"
+    ]
+  },
+  {
+    "id": "sec-07",
+    "category": "REASONING",
+    "question": "安全事件处置分为哪几步？每步的责任方和时限要求是什么？",
+    "expectedChunkIds": [
+      "18ceef52-dce3-4b15-a66a-239e923839b9"
+    ]
+  },
+  {
+    "id": "sec-08",
+    "category": "REASONING",
+    "question": "匿名化处理后的数据还属于个人信息吗？脱敏和匿名化的关键区别是什么？",
+    "expectedChunkIds": [
+      "b0b1fcc5-6cc1-4079-95c3-632bf3473323",
+      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+    ]
+  },
+  {
+    "id": "sec-09",
+    "category": "REASONING",
+    "question": "把客户个人信息存到外部公有云 SaaS 系统里，是否符合规定？",
+    "expectedChunkIds": [
+      "18ceef52-dce3-4b15-a66a-239e923839b9",
+      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+    ]
+  },
+  {
+    "id": "sec-10",
+    "category": "FACTOID",
+    "question": "安全审计日志最少要保存多长时间？",
+    "expectedChunkIds": [
+      "18ceef52-dce3-4b15-a66a-239e923839b9"
+    ]
+  },
+  {
+    "id": "sec-11",
+    "category": "FACTOID",
+    "question": "管理办法 v2.3 版做了哪些主要修订？",
+    "expectedChunkIds": [
+      "31df8370-8c28-4dee-a963-02cfc514cbef"
+    ]
+  },
+  {
+    "id": "sec-12",
+    "category": "TABLE",
+    "question": "访问 L4 级数据需要经过谁的审批？",
+    "expectedChunkIds": [
+      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+    ]
+  },
+  {
+    "id": "sec-13",
+    "category": "TABLE",
+    "question": "P1 和 P2 级安全事件的判定标准分别是什么？",
+    "expectedChunkIds": [
+      "2eeb720c-7dd8-4f6f-8f40-1eb974ad0e60"
+    ]
+  },
+  {
+    "id": "sec-14",
+    "category": "REASONING",
+    "question": "员工用自己的个人设备接入公司数据办公，公司提供补贴吗？",
+    "expectedChunkIds": [
+      "18ceef52-dce3-4b15-a66a-239e923839b9"
+    ]
+  }
+]

@@ -87,5 +87,21 @@
     "expectedChunkIds": [
       "8b7ddb6a-2cb6-471d-84fe-d68d98c88524"
     ]
+  },
+  {
+    "id": "dm-12",
+    "category": "REASONING",
+    "question": "完成一次文档解析（大模型版）调用需要依次调用哪些接口？各自的作用是什么？",
+    "expectedChunkIds": [
+      "b9bcb905-4405-4c59-9464-5ab90b0afd94"
+    ]
+  },
+  {
+    "id": "dm-13",
+    "category": "TABLE",
+    "question": "文档解析（大模型版）能识别哪些版面类型？",
+    "expectedChunkIds": [
+      "5195f0d1-651f-4da1-9846-d64ff57e4e78"
+    ]
   }
 ]

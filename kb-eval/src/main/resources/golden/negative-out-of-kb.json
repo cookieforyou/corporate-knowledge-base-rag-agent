@@ -103,5 +103,15 @@
     "category": "NEGATIVE",
     "question": "税控盘丢失后登报声明的具体流程是什么？",
     "note": "发票话题但手册仅讲失控发票认定，无登报流程"
+  },
+  {
+    "id": "negative-021",
+    "category": "NEGATIVE",
+    "question": "公司信息安全年度预算是多少万元？"
+  },
+  {
+    "id": "negative-022",
+    "category": "NEGATIVE",
+    "question": "员工每年必须完成几次安全意识培训并通过考试？"
   }
 ]

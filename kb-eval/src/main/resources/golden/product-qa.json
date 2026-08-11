@@ -96,5 +96,21 @@
     "expectedChunkIds": [
       "276d925e-a646-4356-911f-33909f287b46"
     ]
+  },
+  {
+    "id": "prd-13",
+    "category": "REASONING",
+    "question": "我想给 XG-7000 配备红外热成像模组和磁吸充电底座，分别能买到吗？",
+    "expectedChunkIds": [
+      "276d925e-a646-4356-911f-33909f287b46"
+    ]
+  },
+  {
+    "id": "prd-14",
+    "category": "FACTOID",
+    "question": "设备被非授权维修点拆过机之后出了故障，还能申请官方保修吗？",
+    "expectedChunkIds": [
+      "c030a19f-df89-4938-b5b7-e60fe4e8cd76"
+    ]
   }
 ]

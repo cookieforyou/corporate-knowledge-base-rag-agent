@@ -29,5 +29,70 @@
       "b3f87f72-293a-4cac-bb9d-58b645becc57",
       "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
     ]
+  },
+  {
+    "id": "cross-04",
+    "category": "MULTI_DOC",
+    "question": "知识库里分别有哪些「不允许或被禁止」的情形？",
+    "expectedChunkIds": [
+      "99d075f4-f9bd-4563-aa7e-929baac51d52",
+      "b3f87f72-293a-4cac-bb9d-58b645becc57",
+      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008",
+      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282",
+      "c030a19f-df89-4938-b5b7-e60fe4e8cd76",
+      "acf9a938-18d1-4b53-9575-0c9762e1775d"
+    ]
+  },
+  {
+    "id": "cross-05",
+    "category": "MULTI_DOC",
+    "question": "知识库中分别提到了哪些「免费或收费」的规则？",
+    "expectedChunkIds": [
+      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
+      "c030a19f-df89-4938-b5b7-e60fe4e8cd76",
+      "18ceef52-dce3-4b15-a66a-239e923839b9"
+    ]
+  },
+  {
+    "id": "cross-06",
+    "category": "MULTI_DOC",
+    "question": "知识库中关于「删除或作废」操作的规则与数据保护考量分别是什么？",
+    "expectedChunkIds": [
+      "b3f87f72-293a-4cac-bb9d-58b645becc57",
+      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
+      "6edad207-fd95-4866-8522-73689d05a1d8"
+    ]
+  },
+  {
+    "id": "cross-07",
+    "category": "MULTI_DOC",
+    "question": "知识库里关于「版本升级或代际更替」的表述分别有哪些？",
+    "expectedChunkIds": [
+      "99d075f4-f9bd-4563-aa7e-929baac51d52",
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
+      "31df8370-8c28-4dee-a963-02cfc514cbef"
+    ]
+  },
+  {
+    "id": "cross-08",
+    "category": "MULTI_DOC",
+    "question": "知识库中有哪些关于「持续时长」的性能或服务参数？",
+    "expectedChunkIds": [
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
+      "276d925e-a646-4356-911f-33909f287b46",
+      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282",
+      "18ceef52-dce3-4b15-a66a-239e923839b9"
+    ]
+  },
+  {
+    "id": "cross-09",
+    "category": "MULTI_DOC",
+    "question": "各份文档分别如何界定自身的「适用范围」？",
+    "expectedChunkIds": [
+      "99d075f4-f9bd-4563-aa7e-929baac51d52",
+      "b3f87f72-293a-4cac-bb9d-58b645becc57",
+      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
+      "b0b1fcc5-6cc1-4079-95c3-632bf3473323"
+    ]
   }
 ]

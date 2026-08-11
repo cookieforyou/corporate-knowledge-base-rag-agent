@@ -111,5 +111,13 @@
     "expectedChunkIds": [
       "b420f5d4-8b15-46d2-8da3-c5ea9a9006d7"
     ]
+  },
+  {
+    "id": "fin-15",
+    "category": "REASONING",
+    "question": "哪些类型的发票无法用于进项税额抵扣？",
+    "expectedChunkIds": [
+      "99d075f4-f9bd-4563-aa7e-929baac51d52"
+    ]
   }
 ]

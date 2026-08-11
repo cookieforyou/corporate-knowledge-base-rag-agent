@@ -110,5 +110,13 @@
     "expectedChunkIds": [
       "bd38fff7-b15d-4537-84e3-a6e9cc4eb008"
     ]
+  },
+  {
+    "id": "k8s-15",
+    "category": "REASONING",
+    "question": "一次生产变更要满足哪些条件才能执行？",
+    "expectedChunkIds": [
+      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282"
+    ]
   }
 ]
