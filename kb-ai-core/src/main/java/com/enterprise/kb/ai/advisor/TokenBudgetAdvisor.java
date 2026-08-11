@@ -34,10 +34,11 @@ import java.time.LocalDate;
  * <p><b>容错策略</b>：Redis 故障 before 降级放行 / after 降级丢弃计数——成本追踪
  * 短时失准可接受，击穿问答不可接受（与 FaultTolerantChatMemory / rerank 降级同策）。
  *
- * <p><b>流式已知限制（v2.6 实证记录）</b>：BaseAdvisor 默认 adviseStream 仅对末块
- * 执行 after()；OpenAI 兼容流式响应的 usage 需 {@code stream_options.include_usage}
- * 开启才随末块下发，当前自动装配的 deepSeekChatModel 未开启——流式消耗暂不计账
- * （同步路径计量完整）。开启 streamUsage 涉及模型装配变更，列为后续增强项。
+ * <p><b>流式计账（v2.19 簇③ D1 修复）</b>：BaseAdvisor 默认 adviseStream 仅对末块
+ * 执行 after()；主/备模型均已开 {@code stream_options.include_usage}（主模型
+ * 装配形态因此由 deepseek starter 切换为 OpenAI 兼容手工装配，见 SmartRoutingConfig），
+ * 末块携带 usage → after() 回写账本，流式与同步计量对齐。末块 usage 缺失的
+ * 降级形态（usage 为 null → tokens=0）保持原样：只少计不击穿。
  */
 @Slf4j
 @Component

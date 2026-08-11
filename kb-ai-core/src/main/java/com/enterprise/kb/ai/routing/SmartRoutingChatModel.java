@@ -98,11 +98,12 @@ public class SmartRoutingChatModel implements ChatModel {
 
     /**
      * 跨厂商转发屏障（2026-08-05 E2E 缺陷实证修正）：流入的 Prompt 携带主模型
-     * options（ChatClient 装配期经路由模型 getOptions() 注入 DeepSeekChatOptions），
-     * 备用 OpenAiChatModel.createRequest 对 prompt.getOptions() 是
-     * {@code (OpenAiChatOptions)} 强转 + 非空断言（源码核验）——直接转发
-     * ClassCastException。重建 Prompt 换入备用模型自身 options（类型正确、
-     * 含 baseUrl/apiKey/model）。代价：请求级自定义 options 转发时丢弃——
+     * options（ChatClient 装配期经路由模型 getOptions() 注入），备用
+     * OpenAiChatModel.createRequest 对 prompt.getOptions() 强转 + 非空断言
+     * （源码核验）。v2.19 簇③ D1 后主模型亦为 OpenAiChatOptions（类型同构，
+     * 不再 ClassCastException），但凭证/端点/模型名仍属主模型——转发必须重建
+     * Prompt 换入备用模型自身 options（含备用 baseUrl/apiKey/model，且保留备用
+     * 自身的 include_usage 等选项）。代价：请求级自定义 options 转发时丢弃——
      * 当前链路无此调用方，已知取舍。
      */
     private Prompt retargetToFallback(Prompt prompt) {

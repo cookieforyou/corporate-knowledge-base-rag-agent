@@ -49,8 +49,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * InputSanitize(300)，落库前经同款 sanitize 规则脱敏（3.5 PII 不绕过审计落库，
  * 与 Controller 归档同策）；rewritten_query 经 RewriteCapturingQueryTransformer
  * 写回的 RetrievalContext 捕获；检索/重排 chunk 与工具调用记录来自
- * RetrievalContext（双路 trace + toolCalls）；usage 取响应 metadata（流式未开
- * include_usage 为 null，已知限制 ⑧）。
+ * RetrievalContext（双路 trace + toolCalls）；usage 取响应 metadata（v2.19 簇③ D1
+ * 起主/备模型均开 include_usage，流式末块携带 usage；缺失时仍 null 降级）。
  *
  * <p><b>容错策略</b>：审计是旁路增值数据——构建/落库任何环节失败仅告警丢弃，
  * 绝不击穿问答（ChatSessionService 归档同款哲学）；落库走 auditExecutor

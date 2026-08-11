@@ -7,11 +7,17 @@ spring:
       type: custom
 
     # ── Model Provider 选择 ──
+    # v2.19（簇③ D1）：chat 置 none——主模型改由 SmartRoutingConfig 手工装配为
+    # OpenAI 兼容形态（开 stream_options.include_usage 修复流式配额漏算）。
+    # deepseek starter 自动装配的 @ConditionalOnProperty havingValue=deepseek，
+    # 此处若回写 deepseek 会与手工 Bean 同名冲突致启动失败（DeepSeekModelOverrideWiringTest 钉死）
     model:
-      chat: deepseek                         # DeepSeek V4
+      chat: none                             # 主模型手工装配（见上注）
       embedding: openai                      # OpenAI 兼容（实际指向百炼）
 
     # ── DeepSeek V4 Chat ──
+    # v2.19（簇③ D1）起消费方变更：下列键经 SmartRoutingConfig @Value 读取，
+    # 不再被 starter 自动装配消费（chat=none 已令其让位）。
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
