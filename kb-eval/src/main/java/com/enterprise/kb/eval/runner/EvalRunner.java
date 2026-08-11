@@ -220,6 +220,10 @@ public class EvalRunner {
             return probes.stream().filter(p -> "hybrid".equals(p.name())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("eval.probe=hybrid 但无混合探针"));
         }
+        if ("chain".equalsIgnoreCase(mode)) {
+            return probes.stream().filter(p -> "chain".equals(p.name())).findFirst()
+                .orElseThrow(() -> new IllegalStateException("eval.probe=chain 但无全链路探针"));
+        }
         // auto：order 最小者胜出
         return probes.stream()
             .min(Comparator.comparingInt(RetrievalProbe::getOrder))

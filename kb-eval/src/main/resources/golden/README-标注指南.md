@@ -47,6 +47,12 @@ mvn spring-boot:run -pl kb-eval
 # 标注核验/检索回归用，秒级完成，不依赖 DASHSCOPE_API_KEY
 mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.retrieval-only=true
 
+# chain 探针（簇① A1）：走完整 advisor 链（改写→[扩展]→双路→RRF→重排）度量检索产出，
+# 是评估改写/扩展等前置组件收益的唯一探针（默认 hybrid 探针只测检索器本体）。
+# 每用例含一次生成调用（答案丢弃取 trace），比 hybrid 慢；须设语料租户（fail-closed 适配）。
+EVAL_PROBE=chain EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
+  -Dspring-boot.run.arguments=--eval.retrieval-only=true
+
 # 调并行度（API 限流时下调；网络与配额富余可上调至 8-10）
 mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.concurrency=8
 
