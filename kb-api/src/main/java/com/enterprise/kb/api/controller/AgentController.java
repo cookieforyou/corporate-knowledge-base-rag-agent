@@ -1,6 +1,6 @@
 package com.enterprise.kb.api.controller;
 
-import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
+import com.enterprise.kb.commons.security.TextSanitizer;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
@@ -86,7 +86,7 @@ public class AgentController {
         String approvedToolCallId = body.get("approvedToolCallId");
         // 日志/归档走脱敏形态（Advisor 链只保护模型上下文与 Redis 记忆，
         // PG 归档与访问日志须在入口同规则脱敏）；注入判定仍由 Advisor 链对原文执行
-        String safeQuery = InputSanitizeAdvisor.sanitize(query);
+        String safeQuery = TextSanitizer.maskPii(query);
         log.info("用户 [{}] 发起问答: mode={}, sessionId={}, query={}",
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         RetrievalContext ctx = newRetrievalContext();
@@ -129,7 +129,7 @@ public class AgentController {
         String mode = resolveMode(body);
         String approvedToolCallId = body.get("approvedToolCallId");
         // 日志/归档走脱敏形态（同同步路径）；注入判定仍由 Advisor 链对原文执行
-        String safeQuery = InputSanitizeAdvisor.sanitize(query);
+        String safeQuery = TextSanitizer.maskPii(query);
         log.info("用户 [{}] 发起流式问答: mode={}, sessionId={}, query={}",
             jwtUtils.getCurrentUsername(), mode, sessionId, safeQuery);
         // 请求线程创建并填充检索上下文：纯实例经 advisor 参数传递，流末直接读取同一实例

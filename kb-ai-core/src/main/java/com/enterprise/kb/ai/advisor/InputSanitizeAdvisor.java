@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -11,11 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 /**
- * 输入安全护栏（设计文档 12.1，任务 3.5）—— PII 脱敏 + Prompt 注入检测
+ * 输入安全护栏（设计文档 12.1，任务 3.5）—— 归一化 + PII 脱敏 + Prompt 注入检测
  *
  * <p>Order 300：先于记忆 Advisor(400) 执行 before()——脱敏后的文本才进记忆仓储，
  * 避免 PII 落库（11.2 链序表注）。
@@ -25,49 +24,28 @@ import java.util.stream.Stream;
  * （ChatClientRequest 为 record，仅 prompt()/context()），用户文本经
  * {@link Prompt#augmentUserMessage(String)} 替换末条用户消息后重建请求。
  *
- * <p>L1 形态（12.1.1 三层防御第一层）：正则快筛。数字类模式加边界断言，
- * 避免长数字串（订单号等）内部误匹配。语义化/多语言注入的 L2（LLM 辅助判定）
- * 与 L3（专用分类器）为升级路线。
+ * <p><b>v2.18 修正（簇② B1，S1 输入归一化）</b>：注入检测前先经
+ * {@link TextSanitizer#normalize} 构造归一化检测视图（NFKC + 零宽剥离 +
+ * 空白折叠），堵 G2 编码绕过（全角字符/零宽拆词/空白拆词）——视图仅供检测
+ * 不回写（NFKC 归一全角标点，回写会改变正常中文查询形态）；PII 掩码落原文
+ * （零宽剥离 + 容忍空格/连字符的正则）。PII 正则与注入词表收编
+ * {@link TextSanitizer}（kb-commons），与 ETL 入库消毒（S4）同源。
+ *
+ * <p>L1 形态（12.1.1 三层防御第一层）：归一化 + 正则快筛。数字类模式加边界断言
+ * 并容忍数字间空格/连字符（防长数字串内部误匹配、防拆词绕过）。语义化/多语言
+ * 注入的 L2（LLM 辅助判定）与 L3（专用分类器）为升级路线。
  */
 @Slf4j
 @Component
 public class InputSanitizeAdvisor implements BaseAdvisor {
 
-    /** 内置注入检测关键词（L1 明文攻击模式，12.1）——配置项为空时的默认词表 */
-    private static final List<String> DEFAULT_INJECTION_PATTERNS = List.of(
-        "ignore previous", "ignore all", "forget everything",
-        "system prompt", "you are now", "new instructions",
-        "忽略之前的", "忘记所有", "新的指令", "你的系统提示词");
-
-    // PII 正则（边界断言防长数字串内部误匹配）
-    private static final Pattern PHONE_PATTERN =
-        Pattern.compile("(?<!\\d)1[3-9]\\d{9}(?!\\d)");
-    private static final Pattern ID_CARD_PATTERN =
-        Pattern.compile("(?<!\\d)\\d{17}[\\dXx](?![\\dXx])");
-    private static final Pattern EMAIL_PATTERN =
-        Pattern.compile("[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}");
-
-    private static final String PHONE_MASK = "1***-****-****";
-    private static final String ID_CARD_MASK = "******************";
-    private static final String EMAIL_MASK = "***@***.***";
-
-    /**
-     * 生效词表：{@code rag.guardrail.input.injection-keywords} 配置优先
-     * （逗号分隔，与 3.6 输出黑名单同策），未配置/为空回退内置默认词表。
-     * 词项统一小写化，匹配时对输入取小写——大小写不敏感。
-     */
-    private final List<String> injectionPatterns;
+    /** 生效词表：配置优先、空则内置默认（{@link TextSanitizer#loadInjectionKeywords}） */
+    private final List<String> injectionKeywords;
 
     public InputSanitizeAdvisor(
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv) {
-        List<String> configured = Stream.of(keywordsCsv.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .map(String::toLowerCase)
-            .toList();
-        this.injectionPatterns = configured.isEmpty() ? DEFAULT_INJECTION_PATTERNS : configured;
-        log.info("注入检测词表加载: {} 条（{}）", injectionPatterns.size(),
-            configured.isEmpty() ? "内置默认" : "配置覆盖");
+        this.injectionKeywords = TextSanitizer.loadInjectionKeywords(keywordsCsv);
+        log.info("注入检测词表加载: {} 条", injectionKeywords.size());
     }
 
     @Override
@@ -78,14 +56,19 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
             return request;
         }
 
-        // 1. Prompt 注入检测——命中即拒，不进入后续链路（同步 400 / 流式 ERROR 事件）
-        if (detectInjection(userText)) {
+        // 1. S1 归一化检测视图：NFKC + 零宽剥离 + 空白折叠（堵 G2 编码绕过）。
+        //    仅用于检测不回写——NFKC 会归一全角标点，回写改变正常中文查询形态
+        String detectionView = TextSanitizer.normalize(userText);
+
+        // 2. Prompt 注入检测——命中即拒，不进入后续链路（同步 400 / 流式 ERROR 事件）
+        if (TextSanitizer.containsInjectionKeyword(detectionView, injectionKeywords)) {
             log.warn("检测到 Prompt 注入攻击，请求已拦截");
             throw new BusinessException("PROMPT_INJECTION", "检测到 Prompt 注入攻击，请求已被拦截");
         }
 
-        // 2. PII 脱敏（幂等：掩码形态不会被二次匹配）
-        String sanitized = sanitize(userText);
+        // 3. PII 脱敏（幂等：掩码形态不会被二次匹配）：先剥零宽防数字串被拆断，
+        //    掩码落原文（容忍空格/连字符的正则覆盖拆词形态）
+        String sanitized = TextSanitizer.maskPii(TextSanitizer.stripInvisible(userText));
         if (sanitized.equals(userText)) {
             return request;
         }
@@ -101,25 +84,5 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
     @Override
     public int getOrder() {
         return 300;
-    }
-
-    private boolean detectInjection(String text) {
-        String lower = text.toLowerCase();
-        return injectionPatterns.stream().anyMatch(lower::contains);
-    }
-
-    /**
-     * PII 掩码（幂等）——公开供 Controller 归档/日志路径复用：
-     * Advisor 链只保护模型上下文与 Redis 记忆，PG 归档（kb_message）与
-     * 访问日志须在入口以同规则脱敏，否则 PII 绕过护栏落库。
-     */
-    public static String sanitize(String text) {
-        if (text == null) {
-            return null;
-        }
-        String result = PHONE_PATTERN.matcher(text).replaceAll(PHONE_MASK);
-        result = ID_CARD_PATTERN.matcher(result).replaceAll(ID_CARD_MASK);
-        result = EMAIL_PATTERN.matcher(result).replaceAll(EMAIL_MASK);
-        return result;
     }
 }

@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.security.TextSanitizer;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -155,7 +156,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             Map<String, Object> context = request.context();
             RetrievalContext ctx = context.get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
                 ? rc : null;
-            String queryText = InputSanitizeAdvisor.sanitize(userTextOf(request));
+            String queryText = TextSanitizer.maskPii(userTextOf(request));
 
             // 快照先提取、再异步落库——RetrievalContext 为请求级共享实例
             AuditSnapshot snapshot = new AuditSnapshot(
