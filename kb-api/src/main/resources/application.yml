@@ -61,11 +61,12 @@ app:
 # ETL 管道（kb-etl）
 kb:
   etl:
-    # Contextual Retrieval 语境增强（簇④ A4，设计 9.5，默认关）：embedding 前
-    # LLM 生成文档级语境前缀。启用与否经 kb-eval 双探针 A/B 快照决策
-    # （全量重入库窗口：off 基线 vs on 对比，报告 §8.3 簇④ A4 流程）
+    # Contextual Retrieval 语境增强（簇④ A4，设计 9.5，默认开）：embedding 前
+    # LLM 生成文档级语境前缀。2026-08-12 A/B 定案转默认开：新 Golden 双臂
+    # chain 探针 Recall 0.902→0.931 / MRR 0.888→0.933 / CP 0.851→0.886，
+    # 靶点 dm-13（跨 3 chunk 拆分表）0.000→0.667；回退置 false
     contextual:
-      enabled: ${KB_ETL_CONTEXTUAL_ENABLED:false}
+      enabled: ${KB_ETL_CONTEXTUAL_ENABLED:true}
       excerpt-chars: ${KB_ETL_CONTEXTUAL_EXCERPT_CHARS:2000}      # 语境 prompt 的文档概要取前字符数
       chunk-max-chars: ${KB_ETL_CONTEXTUAL_CHUNK_MAX_CHARS:2000}  # 语境 prompt 的 chunk 文本截断长度
       concurrency: ${KB_ETL_CONTEXTUAL_CONCURRENCY:8}             # 语境 LLM 调用并发上限（API 限流时下调）

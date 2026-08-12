@@ -395,7 +395,7 @@ public class EsIndexWriter {
 
 ---
 
-## 9.5 Contextual Retrieval 增强（v2 新增，默认关闭）
+## 9.5 Contextual Retrieval 增强（v2 新增，v2.23 起默认开启）
 
 Anthropic Contextual Retrieval（2024 提出，2026 已被 AWS Bedrock 等原生集成）：embedding 前为每个 Chunk 生成一段"文档级上下文摘要"前缀，将 Chunk 放回文档语境，显著提升检索准确率（官方报告检索失败率降 67%）。
 
@@ -450,6 +450,29 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 > 非每请求 new——簇③ D2 执行器纪律同构）+ `Semaphore` 闸门（`kb.etl.contextual.concurrency`
 > 默认 8，防供应商 429），槽位按输入下标写入保序返回，单 chunk 失败隔离语义不变。
 > 并发实证/上限纪律/混合批次保序共 3 例单测钉死（ContextualEnrichmentTransformerTest）。
+
+> **v2.23 A/B 定案：默认开启（2026-08-12，簇④ A4 收官）**：全量重入库 ×2 双臂
+> 对比（新 Golden 102 条 chain 探针，确定性 ID 跨臂逐位复现，语料 6 文档 168 chunk
+> 两臂完全同构——CSV 全量比对核验）：
+>
+> | 指标 | heading-only（off） | contextual-on | Δ |
+> |---|---|---|---|
+> | Recall@5 | 0.902 | **0.931** | +2.9pp |
+> | MRR | 0.888 | **0.933** | +4.5pp |
+> | Context Precision | 0.851 | **0.886** | +3.5pp |
+> | Doc Recall / Doc MRR | 0.944 / 0.983 | 0.962 / **1.000** | 同向 |
+> | Faithfulness | 4.813 | 4.725 | −0.088（Judge 噪声带内） |
+>
+> 靶点验证：dm-13（跨 3 chunk 拆分表）0.000→**0.667**——语境前缀正是表格 HTML
+> 稀薄语义的唯一主题信号，与设计预期吻合；dm-02 跨块枚举 0.50→1.00；cross 多文档
+> 9 例中 7 例改善（cross-05 0.50→0.75 / cross-06 0.33→0.67 / cross-07 0→0.33 等）。
+> 残留：cross-08 两臂均 0（抽象聚合查询「持续时长」的语义鸿沟，属查询侧难点非
+> 增强失效；标注补漏 61c58f6c 后归入下轮基线复测）；cross-09 R 0.40→0.20 为
+> 5 锚点/Top-5 结构性薄边界的单 chunk 抖动（sec-04 仅排名微降）。TABLE 分类
+> F 4.267→3.800 列观察项（整体均值与分类地板门禁均通过，下轮全量评估复核）。
+> **结论**：检索三指标全维度改善、生成侧中性，`kb.etl.contextual.enabled` 默认
+> 转 `true`（回退：`KB_ETL_CONTEXTUAL_ENABLED=false`）。入库侧代价：每 chunk 一次
+> 经济模型调用（并发化后墙钟 ≈ 原 1/8）+ 增强前缀略增 embedding token。
 
 ---
 

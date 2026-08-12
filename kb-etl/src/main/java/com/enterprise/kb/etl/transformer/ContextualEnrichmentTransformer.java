@@ -35,8 +35,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 对纯表格 Chunk（dm-13 类靶点）收益最直接——表格 HTML 自身语义稀薄，
  * 语境前缀是其 embedding 唯一的主题信号。
  *
- * <p>默认关闭（{@code kb.etl.contextual.enabled=false}）：启用与否经 kb-eval
- * 双探针 A/B 快照决策（全量重入库窗口，报告 §8.3 簇④ A4 决策流程）。
+ * <p>默认开启（{@code kb.etl.contextual.enabled=true}，2026-08-12 A/B 定案）：
+ * 新 Golden 102 条双臂 chain 探针——Recall@5 0.902→0.931 / MRR 0.888→0.933 /
+ * CP 0.851→0.886，文档级同向；靶点 dm-13（跨 3 chunk 拆分表）0.000→0.667。
+ * 生成侧中性（F 4.813→4.725 属 Judge 噪声带，TABLE 分类 4.267→3.800 列观察项）。
+ * 回退：{@code KB_ETL_CONTEXTUAL_ENABLED=false}。
  *
  * <p>数据流：{@code content} 存增强文本（「【上下文】」前缀 + 原文，参与
  * embedding/BM25），{@code original_content} 经 {@link #ORIGINAL_TEXT_KEY}
