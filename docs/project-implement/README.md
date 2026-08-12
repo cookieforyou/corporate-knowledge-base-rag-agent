@@ -60,7 +60,7 @@
 > **v2.20 Judge 校准基建（2026-08-12，优化冲刺簇④ E1）**：Faithfulness 门禁由「均值 ≥ 阈值」升级为「均值 ≥ 阈值−容忍带（默认 0.05，噪声带内 WARN 不 FAIL）且单维不崩（分类均值地板默认 3.5，最小样本 3）」；`eval.run-label` 报告快照防互覆；`eval.judge-agreement-sample` 分层抽样落人工-Judge 一致率打分表（§16.4）。**定档结论（2026-08-12 复跑）**：thinking 开/关漂移 F +0.025（4.163→4.188）在噪声带内、FACTOID/REASONING 逐位重合 → 定档 thinking 关；人工-Judge 一致率 20/20 = 100%。
 > **v2.21 检索质量上限杠杆（2026-08-12，优化冲刺簇④ A4 实现批）**：HtmlProtectingSplitter 六级标题栈跟踪（Markdown/HTML 双形态），chunk 注入 `heading_path` 元数据落三存储面（kb_chunk.metadata JSONB / 向量库元数据 / ES heading_path 字段，KbChunk @Transient 载体免 ALTER，§9.2）；2.4 `ContextualEnrichmentTransformer` 复活落地——消毒后入库前生成文档级语境前缀，content 存增强文本 / original_content 存原文，默认关待 kb-eval A/B 快照决策（§9.5）。重入库窗口与 A/B 对比待 E1 定档后执行。
 > **v2.21 多轮指代消解增强（2026-08-12，优化冲刺簇④ A5）**：检索链 QueryTransformer 槽位由 RewriteQueryTransformer 切换为 CompressionQueryTransformer——源码核验前者默认模板不消费对话历史，路由关闭/fail-open 回落路径追问无法消解；Compression 经 Query.history() 显式消解（中文 Prompt，{history}/{query} 硬契约单测钉死），与 440 预写机制零冲突（预写时跳过，零新增 LLM 调用）（§10.6）。追问用例集 E2E 待验证。
-> **v2.22 检索锚点修复与语境并发（2026-08-12，优化冲刺簇④ A4 修复批）**：① chunk ID 由随机 UUID 改确定性 nameUUID（文档名+序号+增强前原文）——全量重入库令 Golden expectedChunkIds 整体失配（a4-heading-only 复跑检索三指标全 0.000）的根治，确定性 ID 跨重入库/contextual A/B 两臂逐位复现，存量标注经 `--eval.annotate-all` 重标注表迁移（§9.3）；② 语境增强串行 LLM 调用改虚拟线程有界并发（`kb.etl.contextual.concurrency` 默认 8，保序/失败隔离不变），治理大文档 ETL 分钟级阻塞（§9.5）；③ kb-eval 增文档级兜底检索指标——Golden `expectedDocs`（文件名）× 探针命中 file_name 匹配，跨重入库/解析漂移恒稳定，chunk 级失配时的方向性读数（§16.1/§16.2 v2.21）。
+> **v2.22 检索锚点修复与语境并发（2026-08-12，优化冲刺簇④ A4 修复批）**：① chunk ID 由随机 UUID 改确定性 nameUUID（文档名+序号+增强前原文）——全量重入库令 Golden expectedChunkIds 整体失配（a4-heading-only 复跑检索三指标全 0.000）的根治，确定性 ID 跨重入库/contextual A/B 两臂逐位复现，存量标注经 `--eval.annotate-all` 重标注表迁移（§9.3）；② 语境增强串行 LLM 调用改虚拟线程有界并发（`kb.etl.contextual.concurrency` 默认 8，保序/失败隔离不变），治理大文档 ETL 分钟级阻塞（§9.5）；③ kb-eval 增文档级兜底检索指标——Golden `expectedDocs`（文件名）× 探针命中 file_name 匹配，跨重入库/解析漂移恒稳定，chunk 级失配时的方向性读数（§16.1/§16.2 v2.21）；④ Golden 全量重标注完成——102 条迁移至确定性 ID（80 正向双层锚点 / 22 负向），圈定口径：全库 ground truth + 开放枚举题代表性锚点（§16.4 v2.21 注 5）。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -110,7 +110,7 @@
 | 章 | 文档 | 修订状态 |
 |---|---|---|
 | 第十五章 | [测试策略](./15-测试策略.md) | v1 原文 |
-| 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**）+ v2.20（簇④ E1：Faithfulness 容忍策略 + 校准复跑快照 + 人工-Judge 一致率抽样，§16.4）+ v2.21（簇④ A4 修复批：双层检索度量——chunk 级确定性 ID + 文档级 expectedDocs 兜底 + 全量重标注通道，§16.1/§16.2） |
+| 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**）+ v2.20（簇④ E1：Faithfulness 容忍策略 + 校准复跑快照 + 人工-Judge 一致率抽样，§16.4）+ v2.21（簇④ A4 修复批：双层检索度量——chunk 级确定性 ID + 文档级 expectedDocs 兜底 + 全量重标注通道与完成口径，§16.1/§16.2） |
 | 第十七章 | [部署与运维](./17-部署与运维.md) | v1 原文 |
 | 第十八章 | [交付验收标准](./18-交付验收标准.md) | v1 原文 |
 
