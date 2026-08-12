@@ -62,6 +62,7 @@
 > **v2.21 多轮指代消解增强（2026-08-12，优化冲刺簇④ A5）**：检索链 QueryTransformer 槽位由 RewriteQueryTransformer 切换为 CompressionQueryTransformer——源码核验前者默认模板不消费对话历史，路由关闭/fail-open 回落路径追问无法消解；Compression 经 Query.history() 显式消解（中文 Prompt，{history}/{query} 硬契约单测钉死），与 440 预写机制零冲突（预写时跳过，零新增 LLM 调用）（§10.6）。追问用例集 E2E 待验证。
 > **v2.22 检索锚点修复与语境并发（2026-08-12，优化冲刺簇④ A4 修复批）**：① chunk ID 由随机 UUID 改确定性 nameUUID（文档名+序号+增强前原文）——全量重入库令 Golden expectedChunkIds 整体失配（a4-heading-only 复跑检索三指标全 0.000）的根治，确定性 ID 跨重入库/contextual A/B 两臂逐位复现，存量标注经 `--eval.annotate-all` 重标注表迁移（§9.3）；② 语境增强串行 LLM 调用改虚拟线程有界并发（`kb.etl.contextual.concurrency` 默认 8，保序/失败隔离不变），治理大文档 ETL 分钟级阻塞（§9.5）；③ kb-eval 增文档级兜底检索指标——Golden `expectedDocs`（文件名）× 探针命中 file_name 匹配，跨重入库/解析漂移恒稳定，chunk 级失配时的方向性读数（§16.1/§16.2 v2.21）；④ Golden 全量重标注完成——102 条迁移至确定性 ID（80 正向双层锚点 / 22 负向），圈定口径：全库 ground truth + 开放枚举题代表性锚点（§16.4 v2.21 注 5）。
 > **v2.23 Contextual A/B 定案与标注补漏（2026-08-12，优化冲刺簇④ A4 收官）**：① 双臂 A/B 定案——新 Golden chain 探针 Recall@5 0.902→0.931 / MRR 0.888→0.933 / CP 0.851→0.886，靶点 dm-13 拆分表 0.000→0.667，生成侧中性（F −0.088 噪声带内）→ `kb.etl.contextual.enabled` 默认转 true（§9.5 v2.23 数据表）；② cross-08 标注补漏——售后质保期表 chunk（61c58f6c）属「持续时长」参数证据，圈定口径②细化：全库证据集 ≤ K 条时圈全不适用代表性上限（§16.4 v2.21 注 6）。
+> **v2.24 护栏可观测与注入门禁（2026-08-13，优化冲刺簇⑤ B2）**：G4「拦截事件不可观测」闭环——① S3 护栏命中指标：AiBusinessMetrics 5 项 `rag.guardrail.*` 分列计数器接四护栏调用点，拒绝型审计行复用 AuditTraceAdvisor REJECTED 既有通道，非拒绝型干预（PII 掩码/输出替换）计指标不加审计标记（§12.6）；② S6 注入拦截门禁：kb-eval INJECTION 分类 + `injection-qa.json` 四类 44 条样本（Golden 102→146），evalGuardrailChatClient 确定性判定（零 Judge 零检索），门禁 ≥95% 仅对 L1 防域子集（DIRECT+ENCODING_BYPASS），JAILBREAK/MULTILINGUAL 观察集；间接注入评估口径提案移交 Phase 5/S5（§12.6/§16.2/§16.4 v2.24）。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -102,7 +103,7 @@
 | 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项）+ v2.19（簇③ D2：ES 双写 refresh → wait_for，§9.4）+ v2.21（簇④ A4：heading 路径元数据 §9.2 / Contextual 增强落地 §9.5，A/B 决策未定）+ v2.22（簇④ A4 修复批：chunk ID 确定性化 §9.3 / 语境增强有界并发 §9.5）+ v2.23（簇④ A4 收官：Contextual A/B 定案默认开 §9.5） |
 | 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛）+ v2.15（[ref-N] 引用编号缺陷修复：编号化 documentFormatter，§10.6）+ v2.18（S2 Grounding 不可信数据标记，§10.6）+ v2.19（簇③ D2：检索执行器共享 Bean §10.2 / rerank 超时 §10.5 / 空模板渲染防御 §10.6）+ v2.21（簇④ A5：改写器切 CompressionQueryTransformer 历史感知形态，§10.6） |
 | 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3）+ v2.15（[ref-N] 引用编号缺陷修复：编号锚点确定化，§11.1.2）+ v2.16（徽标内联渲染修复，§11.1.2）+ v2.17（历史会话列表与恢复：citations 归档/会话 API/记忆回填，§11.7）+ v2.17.1（会话删除反馈外键修复，§11.7.2）+ v2.19（簇③ D1：主模型手工装配 OpenAI 兼容形态 + include_usage 流式计账，§11.2.2） |
-| 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正）+ v2.7（簇② B1：S1 归一化 §12.1.2 / S4+PII 入库消毒 §12.5，12.4.3 销项）+ v2.19（簇③ D1：流式 token 计账修复，§12.3） |
+| 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正）+ v2.7（簇② B1：S1 归一化 §12.1.2 / S4+PII 入库消毒 §12.5，12.4.3 销项）+ v2.19（簇③ D1：流式 token 计账修复，§12.3）+ v2.24（簇⑤ B2：S3 护栏命中指标 + S6 注入拦截门禁，§12.6，12.4.3 销项） |
 | 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行）+ v2.14（3.17 rag.feedback.* 指标接线） |
 | 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
 
@@ -111,7 +112,7 @@
 | 章 | 文档 | 修订状态 |
 |---|---|---|
 | 第十五章 | [测试策略](./15-测试策略.md) | v1 原文 |
-| 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**）+ v2.20（簇④ E1：Faithfulness 容忍策略 + 校准复跑快照 + 人工-Judge 一致率抽样，§16.4）+ v2.21（簇④ A4 修复批：双层检索度量——chunk 级确定性 ID + 文档级 expectedDocs 兜底 + 全量重标注通道与完成口径，§16.1/§16.2） |
+| 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**）+ v2.20（簇④ E1：Faithfulness 容忍策略 + 校准复跑快照 + 人工-Judge 一致率抽样，§16.4）+ v2.21（簇④ A4 修复批：双层检索度量——chunk 级确定性 ID + 文档级 expectedDocs 兜底 + 全量重标注通道与完成口径，§16.1/§16.2）+ v2.24（簇⑤ B2 S6：INJECTION 分类 + 注入拦截门禁，§16.2/§16.4） |
 | 第十七章 | [部署与运维](./17-部署与运维.md) | v1 原文 |
 | 第十八章 | [交付验收标准](./18-交付验收标准.md) | v1 原文 |
 

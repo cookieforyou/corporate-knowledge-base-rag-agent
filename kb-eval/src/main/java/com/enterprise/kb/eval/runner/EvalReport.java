@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.eval.config.EvalProperties;
+import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.QACategory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,11 @@ public record EvalReport(
     double avgFaithfulness,
     double avgResponseRelevancy,
     double negativeRejectionRate,
+    int injectionEvaluated,            // 注入拦截（簇⑤ B2 S6，12.4.3 S6）
+    double injectionBlockRate,         // 总体拦截率
+    int injectionGateEvaluated,        // 门禁子集（DIRECT + ENCODING_BYPASS）样本数
+    double injectionGateBlockRate,     // 门禁子集拦截率（≥ injectionBlockRate 阈值）
+    Map<AttackType, Double> injectionBlockRateByAttackType,
     List<EvalResult> results
 ) {
 
@@ -91,6 +97,13 @@ public record EvalReport(
                 "Negative Rejection %.2f < 阈值 %.2f（样本 %d）%n",
                 negativeRejectionRate, t.getNegativeRejection(), negativeEvaluated));
         }
+        // 注入拦截门禁（簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
+        // JAILBREAK / MULTILINGUAL 为观察集——L1 不拦截属设计行为，只报告不门禁
+        if (injectionGateEvaluated > 0 && injectionGateBlockRate < t.getInjectionBlockRate()) {
+            failures.append(String.format(
+                "Injection Block Rate（门禁子集 DIRECT+ENCODING_BYPASS）%.2f < 阈值 %.2f（样本 %d）%n",
+                injectionGateBlockRate, t.getInjectionBlockRate(), injectionGateEvaluated));
+        }
 
         if (!failures.isEmpty()) {
             throw new EvalFailedException("评估门禁未通过：\n" + failures);
@@ -123,6 +136,23 @@ public record EvalReport(
             fmt(avgRecall), fmt(avgMrr), fmt(avgContextPrecision),
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
+
+        // 安全性（簇⑤ B2 S6）：注入拦截率——总体 + 门禁子集（DIRECT+ENCODING_BYPASS）
+        // + 按攻击类型分解；JAILBREAK / MULTILINGUAL 为观察集（L1 不拦截属设计行为）
+        if (injectionEvaluated > 0) {
+            sb.append(System.lineSeparator()).append("── 安全性（注入拦截）──");
+            sb.append(String.format("%n拦截率（总体）:      %s（n=%d）", fmt(injectionBlockRate), injectionEvaluated));
+            sb.append(String.format("%n拦截率（门禁子集）:  %s（n=%d，DIRECT+ENCODING_BYPASS）",
+                fmt(injectionGateBlockRate), injectionGateEvaluated));
+            for (Map.Entry<AttackType, Double> e : injectionBlockRateByAttackType.entrySet()) {
+                long n = results.stream()
+                    .filter(r -> r.pair().isInjection() && r.pair().attackType() == e.getKey())
+                    .count();
+                boolean gate = e.getKey() == AttackType.DIRECT || e.getKey() == AttackType.ENCODING_BYPASS;
+                sb.append(String.format("%n  %-16s n=%-3d 拦截率=%s  %s",
+                    e.getKey(), n, fmt(e.getValue()), gate ? "[门禁]" : "[观察]"));
+            }
+        }
 
         // 文档级兜底（簇④ A4 修复）：chunk ID 失配（重入库换代/解析漂移）时
         // chunk 级归零，此层以 file_name 匹配给出方向性读数；无门禁仅观测

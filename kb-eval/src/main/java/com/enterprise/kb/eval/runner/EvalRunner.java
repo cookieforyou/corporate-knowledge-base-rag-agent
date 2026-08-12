@@ -1,6 +1,8 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.eval.config.EvalProperties;
+import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.QACategory;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,6 +40,7 @@ public class EvalRunner {
     private final RetrievalProbe retrievalProbe;
     private final ChatClient chatClient;        // 被测链路
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
+    private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（簇⑤ B2 S6）
     private final EvalProperties props;
     private final ApplicationArguments args;
 
@@ -44,6 +48,7 @@ public class EvalRunner {
                       List<RetrievalProbe> probes,
                       @Qualifier("chatClient") ChatClient chatClient,
                       @Qualifier("judgeChatClient") ChatClient judgeChatClient,
+                      @Qualifier("evalGuardrailChatClient") ChatClient guardrailChatClient,
                       EvalProperties props,
                       ApplicationArguments args) {
         this.datasetLoader = datasetLoader;
@@ -52,6 +57,7 @@ public class EvalRunner {
         this.retrievalProbe = selectProbe(probes, props.getProbe());
         this.chatClient = chatClient;
         this.judgeChatClient = judgeChatClient;
+        this.guardrailChatClient = guardrailChatClient;
         this.props = props;
         this.args = args;
     }
@@ -284,6 +290,13 @@ public class EvalRunner {
     }
 
     private EvalResult evaluateOne(GoldenQAPair pair) {
+        // 0. 注入攻击用例（簇⑤ B2 S6）：确定性判定，零 Judge 零检索——走 eval 专属
+        //    护栏链（仅 InputSanitizeAdvisor，无配额/审计 Advisor，免 429 污染与审计噪声）；
+        //    捕获 PROMPT_INJECTION → BLOCKED，正常返回 → NOT_BLOCKED（答案丢弃）
+        if (pair.isInjection()) {
+            return evaluateInjection(pair);
+        }
+
         // 1. 检索取数
         List<RetrievalProbe.ProbeHit> hits = retrievalProbe.probe(pair.question(), props.getTopK());
         List<String> hitIds = hits.stream().map(RetrievalProbe.ProbeHit::chunkId).toList();
@@ -307,7 +320,7 @@ public class EvalRunner {
         // 负向用例无生成即无拒答判定，同样跳过）。语料标注核验/检索回归的秒级通道。
         if (props.isRetrievalOnly()) {
             return new EvalResult(pair, hits, null, recall, mrr, precision,
-                docRecall, docMrr, docPrecision, null, null, null, null, null);
+                docRecall, docMrr, docPrecision, null, null, null, null, null, null);
         }
 
         // 3. 被测链路生成
@@ -318,7 +331,7 @@ public class EvalRunner {
             JudgePrompts.JudgeScore js = judge(String.format(
                 JudgePrompts.NEGATIVE_REJECTION, pair.question(), answer));
             return new EvalResult(pair, hits, answer, recall, mrr, precision,
-                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason());
+                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null);
         }
         String context = hits.stream()
             .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
@@ -329,7 +342,45 @@ public class EvalRunner {
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
             docRecall, docMrr, docPrecision,
-            scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason());
+            scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null);
+    }
+
+    /**
+     * 注入攻击用例判定（簇⑤ B2 S6）：攻击载荷经 eval 专属护栏链
+     * （{@code evalGuardrailChatClient}，仅 InputSanitizeAdvisor）——
+     * 捕获 PROMPT_INJECTION → BLOCKED；正常返回 → NOT_BLOCKED（L1 未拦截，
+     * 答案丢弃不消费后续指标）。其他 BusinessException / 意外异常按用例失败
+     * 上抛（不入拦截率分母，runFullEval 记录后跳过）。
+     */
+    private EvalResult evaluateInjection(GoldenQAPair pair) {
+        try {
+            guardrailChatClient.prompt().user(pair.question()).call().content();
+            return injectionResult(pair, EvalResult.INJECTION_NOT_BLOCKED);
+        } catch (Exception e) {
+            BusinessException be = findBusinessException(e);
+            if (be != null && "PROMPT_INJECTION".equals(be.getErrorCode())) {
+                return injectionResult(pair, EvalResult.INJECTION_BLOCKED);
+            }
+            throw e;
+        }
+    }
+
+    private static EvalResult injectionResult(GoldenQAPair pair, String verdict) {
+        return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, verdict);
+    }
+
+    /** 异常链中提取 BusinessException（ChatClient 调用层可能包裹原因链） */
+    private static BusinessException findBusinessException(Throwable t) {
+        for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+            if (cur instanceof BusinessException be) {
+                return be;
+            }
+            if (cur.getCause() == cur) {
+                break;
+            }
+        }
+        return null;
     }
 
     private static RetrievalProbe selectProbe(List<RetrievalProbe> probes, String mode) {
@@ -373,6 +424,20 @@ public class EvalRunner {
         long rejected = negative.stream()
             .filter(r -> "REJECTED".equalsIgnoreCase(r.rejectionVerdict())).count();
 
+        // 注入拦截统计（簇⑤ B2 S6）：总体 / 门禁子集（DIRECT+ENCODING_BYPASS）/ 按攻击类型
+        List<EvalResult> injection = results.stream()
+            .filter(r -> r.pair().isInjection() && r.injectionVerdict() != null).toList();
+        List<EvalResult> injectionGate = injection.stream()
+            .filter(r -> r.pair().isInjectionGateSubset()).toList();
+        Map<AttackType, Double> blockRateByAttackType = new LinkedHashMap<>();
+        for (AttackType type : AttackType.values()) {
+            List<EvalResult> ofType = injection.stream()
+                .filter(r -> r.pair().attackType() == type).toList();
+            if (!ofType.isEmpty()) {
+                blockRateByAttackType.put(type, blockRate(ofType));
+            }
+        }
+
         return new EvalReport(
             probeName,
             results.size(),
@@ -389,7 +454,21 @@ public class EvalRunner {
             avg(generation, r -> r.faithfulness()),
             avg(generation, r -> r.responseRelevancy()),
             negative.isEmpty() ? Double.NaN : (double) rejected / negative.size(),
+            injection.size(),
+            blockRate(injection),
+            injectionGate.size(),
+            blockRate(injectionGate),
+            blockRateByAttackType,
             results);
+    }
+
+    /** 拦截率 = BLOCKED / 样本数；空样本返回 NaN（门禁与报告按 NaN 跳过） */
+    private static double blockRate(List<EvalResult> injectionCases) {
+        if (injectionCases.isEmpty()) {
+            return Double.NaN;
+        }
+        long blocked = injectionCases.stream().filter(EvalResult::isInjectionBlocked).count();
+        return (double) blocked / injectionCases.size();
     }
 
     private static double avg(List<EvalResult> list, java.util.function.ToDoubleFunction<EvalResult> f) {

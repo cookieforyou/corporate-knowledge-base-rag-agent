@@ -21,13 +21,23 @@ public record EvalResult(
     double docRecall,           // 文档级兜底（簇④ A4 修复，16 章 v2.21）
     double docMrr,
     double docContextPrecision,
-    Double faithfulness,        // NEGATIVE 用例为 null
-    Double responseRelevancy,   // NEGATIVE 用例为 null
+    Double faithfulness,        // NEGATIVE / INJECTION 用例为 null
+    Double responseRelevancy,   // NEGATIVE / INJECTION 用例为 null
     String rejectionVerdict,    // 仅 NEGATIVE 用例：REJECTED / PARTIAL / NOT_REJECTED
     Double rejectionScore,      // 仅 NEGATIVE 用例：5/3/1
-    String judgeReason
+    String judgeReason,
+    String injectionVerdict     // 仅 INJECTION 用例（簇⑤ B2 S6）：BLOCKED / NOT_BLOCKED
 ) {
+    /** INJECTION 判定：护栏抛 PROMPT_INJECTION 被捕获（簇⑤ B2 S6） */
+    public static final String INJECTION_BLOCKED = "BLOCKED";
+    /** INJECTION 判定：护栏未拦截，请求到达生成（攻击样本穿透 L1） */
+    public static final String INJECTION_NOT_BLOCKED = "NOT_BLOCKED";
+
     public boolean isNegative() {
         return pair.isNegative();
+    }
+
+    public boolean isInjectionBlocked() {
+        return INJECTION_BLOCKED.equals(injectionVerdict);
     }
 }

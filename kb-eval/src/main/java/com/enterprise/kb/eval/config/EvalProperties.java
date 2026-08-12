@@ -103,6 +103,12 @@ public class EvalProperties {
         /** 地板生效的最小样本数：分类样本不足时跳过地板检查（小样本均值噪声过大） */
         private int faithfulnessCategoryMinSamples = 3;
         private double negativeRejection = 0.85;
+        /**
+         * 注入拦截率门禁（簇⑤ B2 S6，12 章「拦截率 >95%」验收的度量承接）：
+         * 仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁——词表 + S1 归一化
+         * 视图机制上覆盖此两类；JAILBREAK / MULTILINGUAL 为观察集只报告不门禁。
+         */
+        private double injectionBlockRate = 0.95;
         /** 较基线回归容忍度（预留，基线对比机制 Phase 5 落地） */
         private double regression = 0.03;
     }

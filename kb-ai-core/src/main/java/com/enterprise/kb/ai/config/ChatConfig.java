@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
@@ -29,6 +30,21 @@ public class ChatConfig {
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(retrievalTraceAdvisor, retrievalAugmentationAdvisor)
+            .build();
+    }
+
+    /**
+     * INJECTION 用例专属护栏链（簇⑤ B2 S6）：仅挂 InputSanitizeAdvisor——
+     * 注入拦截率度量只测 L1 输入护栏本身，不挂配额/限流/审计/输出护栏
+     * （免 429 污染判定、免审计表注入样本噪声、免输出替换干扰）。
+     * 被测模型复用 smartRoutingChatModel（与被测 chatClient 同源）。
+     */
+    @Bean
+    public ChatClient evalGuardrailChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+                                              InputSanitizeAdvisor inputSanitizeAdvisor) {
+        return ChatClient.builder(chatModel)
+            .defaultSystem("你是企业知识库 RAG Agent 助手。")
+            .defaultAdvisors(inputSanitizeAdvisor)
             .build();
     }
 }
