@@ -62,7 +62,7 @@ kb-rag-agent/
 
 **检索与对话链路（Phase 2 + Phase 3 护栏）**
 
-- 主链路：`RetrievalAugmentationAdvisor`(500) = RewriteQueryTransformer（`rag.retrieval.rewrite.enabled` 默认开）→ `HybridDocumentRetriever` 双路并行（共享执行器 Bean，tenant/is_deleted 过滤，单路 5s 超时降级，参数见 rag.retrieval.*）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（qwen3-rerank **扁平契约**，故障/超时降级 fusion_score 截断，超时 `rag.rerank.timeout-seconds`）→ `ContextualQueryAugmenter`（**编号化 documentFormatter** 锚定 [ref-N] + `allowEmptyContext=false` 空证据拒答模板）；参数收编 `rag.retrieval.*`（RetrievalProperties，改参须配 kb-eval）；多查询扩展 `rag.retrieval.expansion.*` 默认关（A1 A/B：增益不抵 TTFT 代价）；ETL 向量化批次 `kb.etl.embed-batch-size`
+- 主链路：`RetrievalAugmentationAdvisor`(500) = CompressionQueryTransformer（历史感知追问消解，`rag.retrieval.rewrite.enabled` 默认开）→ `HybridDocumentRetriever` 双路并行（共享执行器 Bean，tenant/is_deleted 过滤，单路 5s 超时降级，参数见 rag.retrieval.*）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（qwen3-rerank **扁平契约**，故障/超时降级 fusion_score 截断，超时 `rag.rerank.timeout-seconds`）→ `ContextualQueryAugmenter`（**编号化 documentFormatter** 锚定 [ref-N] + `allowEmptyContext=false` 空证据拒答模板）；参数收编 `rag.retrieval.*`（RetrievalProperties，改参须配 kb-eval）；多查询扩展 `rag.retrieval.expansion.*` 默认关（A1 A/B：增益不抵 TTFT 代价）；ETL 向量化批次 `kb.etl.embed-batch-size`
 - **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推 SSE TRACE。**禁用 @RequestScope/ThreadLocal**
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（v2.14 起 DONE 为 JSON {messageId,traceId}——反馈定位句柄）+ 命名 TRACE（三路溯源，final 与 [ref-N] 对齐；ChunkTrace 含 docId——「查看原文」通道）/ TOOL_CALL（仅 tool 链）
 - 前端对话窗（3.15）：chat store 自备 sessionId 多轮 + rag/tool 切换；TOOL_CALL→审批卡片（approve 后自动确认轮）；[ref-N]/溯源条目经 docId 弹原文；marked+DOMPurify 渲染
