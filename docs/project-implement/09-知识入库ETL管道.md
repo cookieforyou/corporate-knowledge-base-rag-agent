@@ -301,6 +301,23 @@ COMPLETED      kb_document 状态回写（chunk_count / table_count / parse_rout
 2. 向量元数据必含 `chunk_id / doc_id / tenant_id / chunk_type / page_num`（pgvector 的 metadata JSONB、Milvus 的标量字段同源）；
 3. 任一路写入失败不回滚其他路，但 `kb_document.status = FAILED` + `error_message` 记录失败阶段，支持按文档重试（幂等：重试前按 doc_id 清理旧 chunk/向量/ES 文档）。
 
+> **v2.22 修正（2026-08-12，簇④ A4 检索锚点修复）——chunk ID 确定性化**：
+> 不变量 1 的 `chunkId` 取值由**随机 UUID 改为确定性 nameUUID**：
+> `chunkId = UUID.nameUUIDFromBytes((文档名 + "#" + 序号 + "#" + 增强前原文).getBytes(UTF-8))`。
+>
+> **动机**：随机 UUID 方案下全量重入库（删后重传）令所有 chunk 换新 ID，kb-eval
+> Golden Dataset 的 `expectedChunkIds` 整体失配——2026-08-12 a4-heading-only 复跑
+> 检索三指标全 0.000（生成侧 F 反涨至 4.750 证明检索本身正常，纯度量尺断）。
+>
+> **确定性语义**：同一文档重入库（解析/切分产物逐位不变）→ ID 逐位复现 →
+> Golden 标注跨重入库不失效，contextual A/B 两臂（各一次重入库）天然可比。
+> **baseText 必须取增强前原文**（`original_text` 元数据）：contextual 开启后
+> content 带「【上下文】」前缀，若参与散列则 A/B 两臂 ID 分叉，A/B 不可比。
+>
+> **已知边界**：ID 稳定性以「解析产物逐位复现」为前提；深度链路 DocMind 的
+> LLM 增强表格 HTML 若跨调用漂移 → chunk 内容变 → ID 变 → Golden 失配，
+> 届时由 16 章文档级兜底指标（file_name 匹配）定位。解析产物漂移治理属 C1 议题。
+
 ```java
 // Stage 4 之后插入 Stage 5（DocumentEtlService.process 内）
 progressCallback.accept(new EtlProgress(docId, EtlStage.INDEXING));
@@ -426,6 +443,13 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 > 3. **文档概要流转**：ETL 侧取首段非空解析文本前 N 字符（`kb.etl.contextual.excerpt-chars` 默认 2000，含文档标题行）写入 chunk 元数据 `doc_excerpt`，同一文档全部 chunk 共享（Prompt Caching 摊薄的形态基础），增强完成后移除该键不落任何存储面；原文经 `original_text` 元数据键流转落 `original_content`；
 > 4. **跳过与容错**：IMAGE chunk（正文为 img 标签无语义）与 <20 字符短 chunk 跳过；单 chunk 生成失败 WARN 原样放行（质量项不阻断入库）；
 > 5. **A/B 决策未定**：启用与否须经 kb-eval 双探针快照对比（全量重入库窗口：off 基线 vs on 对比，靶点 dm-13 纯表格 chunk），数据说话后定默认值并回写本节与 10 章检索形态。
+
+> **v2.22 补充（2026-08-12，簇④ A4 并发优化）**：语境增强由**串行改有界并发**——
+> 每 chunk 一次 LLM 调用，串行形态下大文档 ETL 时长 = chunk 数 × 单调用时长
+> （实测数十 chunk 即分钟级阻塞上传响应）。实现：虚拟线程执行器（单例 Bean 持有，
+> 非每请求 new——簇③ D2 执行器纪律同构）+ `Semaphore` 闸门（`kb.etl.contextual.concurrency`
+> 默认 8，防供应商 429），槽位按输入下标写入保序返回，单 chunk 失败隔离语义不变。
+> 并发实证/上限纪律/混合批次保序共 3 例单测钉死（ContextualEnrichmentTransformerTest）。
 
 ---
 
