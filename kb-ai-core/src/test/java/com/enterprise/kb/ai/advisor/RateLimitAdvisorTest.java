@@ -1,7 +1,9 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -39,14 +41,16 @@ class RateLimitAdvisorTest {
     private RRateLimiter limiter;
     private AdvisorChain chain;
     private RateLimitAdvisor advisor;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
         redisson = mock(RedissonClient.class);
         limiter = mock(RRateLimiter.class);
         chain = mock(AdvisorChain.class);
+        meterRegistry = new SimpleMeterRegistry();
         when(redisson.getRateLimiter(anyString())).thenReturn(limiter);
-        advisor = new RateLimitAdvisor(redisson, true, 60, 60);
+        advisor = new RateLimitAdvisor(redisson, new AiBusinessMetrics(meterRegistry), true, 60, 60);
     }
 
     private static ChatClientRequest requestWithTenant(String tenantId) {
@@ -131,10 +135,29 @@ class RateLimitAdvisorTest {
 
     @Test
     void disabledSkipsRateLimit() {
-        RateLimitAdvisor disabled = new RateLimitAdvisor(redisson, false, 60, 60);
+        RateLimitAdvisor disabled =
+            new RateLimitAdvisor(redisson, new AiBusinessMetrics(meterRegistry), false, 60, 60);
 
         assertThat(disabled.before(requestWithTenant("tenant-a"), chain)).isNotNull();
         verifyNoInteractions(redisson);
+    }
+
+    @Test
+    void rateLimitedIncrementsGuardrailCounter() {
+        when(limiter.tryAcquire(1)).thenReturn(false);
+
+        assertThatThrownBy(() -> advisor.before(requestWithTenant("tenant-a"), chain))
+            .isInstanceOf(BusinessException.class);
+        assertThat(meterRegistry.counter("rag.guardrail.rate.limited").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void passThroughLeavesGuardrailCounterUntouched() {
+        when(limiter.tryAcquire(1)).thenReturn(true);
+
+        advisor.before(requestWithTenant("tenant-a"), chain);
+
+        assertThat(meterRegistry.counter("rag.guardrail.rate.limited").count()).isZero();
     }
 
     @Test

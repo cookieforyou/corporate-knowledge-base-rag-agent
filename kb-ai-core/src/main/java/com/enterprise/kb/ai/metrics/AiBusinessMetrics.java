@@ -30,6 +30,10 @@ import java.time.Duration;
  *       PENDING_APPROVAL 计挂起待审）</li>
  *   <li>{@code rag.token.total / rag.token.budget.rejected}——Token 消耗与预算
  *       拒绝（原 TokenBudgetAdvisor 分散注册，收编至此统一管理）</li>
+ *   <li>{@code rag.guardrail.injection.blocked / pii.masked / output.replaced /
+ *       rate.limited / token.budget}——护栏命中计数（簇⑤ B2，S3），按事件类型
+ *       分列注册（与 tool.call 分桶同形态）；注入/限流/预算拒绝同时经
+ *       AuditTraceAdvisor 落 kb_audit_log REJECTED 行，指标供 Prometheus 告警</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -53,6 +57,11 @@ public class AiBusinessMetrics {
     private final Counter tokenBudgetRejected;
     private final Counter routingChitchat;
     private final Counter routingKnowledge;
+    private final Counter guardrailInjectionBlocked;
+    private final Counter guardrailPiiMasked;
+    private final Counter guardrailOutputReplaced;
+    private final Counter guardrailRateLimited;
+    private final Counter guardrailTokenBudget;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -79,6 +88,16 @@ public class AiBusinessMetrics {
             .description("意图分类为闲聊/元问题，旁路检索直答（5.4 收窄版）").register(registry);
         this.routingKnowledge = Counter.builder("rag.routing.knowledge")
             .description("意图分类为知识问答，走完整检索链路（5.4 收窄版）").register(registry);
+        this.guardrailInjectionBlocked = Counter.builder("rag.guardrail.injection.blocked")
+            .description("Prompt 注入拦截次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
+        this.guardrailPiiMasked = Counter.builder("rag.guardrail.pii.masked")
+            .description("PII 掩码触发次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
+        this.guardrailOutputReplaced = Counter.builder("rag.guardrail.output.replaced")
+            .description("输出黑名单整段替换次数（OutputGuardrailAdvisor，簇⑤ B2 S3）").register(registry);
+        this.guardrailRateLimited = Counter.builder("rag.guardrail.rate.limited")
+            .description("租户限流拒绝次数（RateLimitAdvisor，簇⑤ B2 S3）").register(registry);
+        this.guardrailTokenBudget = Counter.builder("rag.guardrail.token.budget")
+            .description("Token 预算拒绝次数——安全域视图（成本域同事件见 rag.token.budget.rejected，簇⑤ B2 S3）").register(registry);
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */
@@ -114,9 +133,10 @@ public class AiBusinessMetrics {
         tokenTotal.increment(tokens);
     }
 
-    /** Token 预算拒绝计数（TokenBudgetAdvisor before 超额） */
+    /** Token 预算拒绝计数（TokenBudgetAdvisor before 超额）——成本域与安全域双计数 */
     public void recordTokenBudgetRejected() {
         tokenBudgetRejected.increment();
+        guardrailTokenBudget.increment();
     }
 
     /** 意图路由分流计数（5.4 收窄版）：闲聊/元问题旁路检索。分流比 = chitchat/(chitchat+knowledge) */
@@ -127,5 +147,25 @@ public class AiBusinessMetrics {
     /** 意图路由分流计数（5.4 收窄版）：知识问答走完整检索（含 fail-open 回落） */
     public void recordRoutingKnowledge() {
         routingKnowledge.increment();
+    }
+
+    /** 护栏命中计数（簇⑤ B2 S3）：Prompt 注入拦截（InputSanitizeAdvisor 抛 PROMPT_INJECTION 前） */
+    public void recordInjectionBlocked() {
+        guardrailInjectionBlocked.increment();
+    }
+
+    /** 护栏命中计数（簇⑤ B2 S3）：PII 掩码触发（InputSanitizeAdvisor，非拒绝型干预） */
+    public void recordPiiMasked() {
+        guardrailPiiMasked.increment();
+    }
+
+    /** 护栏命中计数（簇⑤ B2 S3）：输出黑名单整段替换（OutputGuardrailAdvisor，非拒绝型干预） */
+    public void recordOutputReplaced() {
+        guardrailOutputReplaced.increment();
+    }
+
+    /** 护栏命中计数（簇⑤ B2 S3）：租户限流拒绝（RateLimitAdvisor 抛 RATE_LIMITED 前） */
+    public void recordRateLimited() {
+        guardrailRateLimited.increment();
     }
 }

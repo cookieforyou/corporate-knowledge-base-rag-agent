@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -32,6 +33,11 @@ import java.util.stream.Stream;
  * <p>L1 形态（12.2.1）：黑名单规则链，词表经 {@code rag.guardrail.output.blacklist}
  * 配置（生产接配置中心动态加载为升级项）。幻觉拦截（引用忠实性）归评估体系
  * （16.2 Citation Attribution），不在本 Advisor 做脆弱文本后处理。
+ *
+ * <p><b>v2.24 修正（簇⑤ B2，S3 护栏可观测）</b>：替换事件接
+ * {@code rag.guardrail.output.replaced} 计数（同步 after() 与流式聚合后验两路径）。
+ * 替换属非拒绝型干预（不抛异常），审计行仍落 SUCCESS + 安全话术 final_answer
+ * （不加 error_code 标记，维持「SUCCESS→null」不变量）——观测走指标 + 话术取证。
  */
 @Slf4j
 @Component
@@ -41,12 +47,17 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
 
     private final Set<String> blacklist;
 
+    /** 护栏命中计数（簇⑤ B2 S3）——黑名单替换事件入 Prometheus */
+    private final AiBusinessMetrics metrics;
+
     public OutputGuardrailAdvisor(
-            @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv) {
+            @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv,
+            AiBusinessMetrics metrics) {
         this.blacklist = Stream.of(blacklistCsv.split(","))
             .map(String::trim)
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
+        this.metrics = metrics;
         if (blacklist.isEmpty()) {
             log.warn("rag.guardrail.output.blacklist 为空，输出护栏无拦截词表");
         }
@@ -64,6 +75,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         if (output == null || !containsBlacklisted(output)) {
             return response;
         }
+        metrics.recordOutputReplaced();
         log.warn("输出命中敏感词黑名单，已替换为安全话术");
         return replaceResponse(response);
     }
@@ -83,6 +95,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
                     .filter(text -> text != null)
                     .collect(Collectors.joining());
                 if (containsBlacklisted(fullText)) {
+                    metrics.recordOutputReplaced();
                     log.warn("流式输出命中敏感词黑名单，整段替换为安全话术");
                     ChatClientResponse last = responses.isEmpty() ? null : responses.get(responses.size() - 1);
                     return Flux.just(replaceResponse(last));

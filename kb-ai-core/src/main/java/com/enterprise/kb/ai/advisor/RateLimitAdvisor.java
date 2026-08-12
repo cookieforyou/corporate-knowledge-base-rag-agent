@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>超限抛 {@code BusinessException("RATE_LIMITED")}：同步路径经
  * GlobalExceptionHandler 映射 HTTP 429；流式路径由 AgentController
  * onErrorResume 承接为 SSE ERROR 事件（与 PROMPT_INJECTION 同形态）。
+ *
+ * <p><b>v2.24 修正（簇⑤ B2，S3 护栏可观测）</b>：限流拒绝接
+ * {@code rag.guardrail.rate.limited} 计数（抛异常前），与 TokenBudgetAdvisor 的
+ * {@code rag.token.budget.rejected} 对称；审计行经 AuditTraceAdvisor REJECTED
+ * 三态既有通道落库。
  */
 @Slf4j
 @Component
@@ -57,14 +63,19 @@ public class RateLimitAdvisor implements BaseAdvisor {
     private final long rate;
     private final long intervalSeconds;
 
+    /** 护栏命中计数（簇⑤ B2 S3）——限流拒绝事件入 Prometheus */
+    private final AiBusinessMetrics metrics;
+
     /** 本进程已完成配置写入的租户——避免每请求重复 setRate */
     private final Set<String> configuredTenants = ConcurrentHashMap.newKeySet();
 
     public RateLimitAdvisor(RedissonClient redissonClient,
+                            AiBusinessMetrics metrics,
                             @Value("${rag.ratelimit.enabled:true}") boolean enabled,
                             @Value("${rag.ratelimit.tenant.rate:60}") long rate,
                             @Value("${rag.ratelimit.tenant.interval-seconds:60}") long intervalSeconds) {
         this.redissonClient = redissonClient;
+        this.metrics = metrics;
         this.enabled = enabled;
         this.rate = rate;
         this.intervalSeconds = intervalSeconds;
@@ -88,6 +99,7 @@ public class RateLimitAdvisor implements BaseAdvisor {
                 limiter.setRate(RateLimiterArgs.of(RateType.OVERALL, rate, Duration.ofSeconds(intervalSeconds)));
             }
             if (!limiter.tryAcquire(1)) {
+                metrics.recordRateLimited();
                 log.warn("租户 [{}] 触发限流（{} 次/{}s），请求拒绝", tenantId, rate, intervalSeconds);
                 throw new BusinessException("RATE_LIMITED", "请求过于频繁，请稍后再试");
             }

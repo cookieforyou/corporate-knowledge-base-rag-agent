@@ -1,5 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -21,11 +23,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 输出安全护栏测试（3.6）—— 同步 after() 拦截 + 流式聚合后验
+ * 输出安全护栏测试（3.6）—— 同步 after() 拦截 + 流式聚合后验 + 护栏命中计数（簇⑤ B2 S3）
  */
 class OutputGuardrailAdvisorTest {
 
-    private final OutputGuardrailAdvisor advisor = new OutputGuardrailAdvisor("competitor_x,competitor_y");
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final OutputGuardrailAdvisor advisor =
+        new OutputGuardrailAdvisor("competitor_x,competitor_y", new AiBusinessMetrics(meterRegistry));
     private final AdvisorChain chain = mock(AdvisorChain.class);
 
     private ChatClientResponse response(String text) {
@@ -98,9 +102,35 @@ class OutputGuardrailAdvisorTest {
 
     @Test
     void emptyBlacklistConfigPassesEverything() {
-        OutputGuardrailAdvisor open = new OutputGuardrailAdvisor("");
+        OutputGuardrailAdvisor open = new OutputGuardrailAdvisor("", new AiBusinessMetrics(meterRegistry));
         ChatClientResponse original = response("competitor_x");
 
         assertThat(open.after(original, chain)).isSameAs(original);
+    }
+
+    // ── 护栏命中计数（簇⑤ B2 S3）──
+
+    @Test
+    void syncReplacementIncrementsGuardrailCounter() {
+        advisor.after(response("推荐使用 competitor_x 的产品"), chain);
+
+        assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void streamReplacementIncrementsGuardrailCounter() {
+        streamThrough(List.of(response("推荐 compet"), response("itor_x 产品")))
+            .collectList()
+            .block();
+
+        assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void cleanOutputLeavesGuardrailCounterUntouched() {
+        advisor.after(response("增值税发票是……"), chain);
+        streamThrough(List.of(response("增值"), response("税发"))).collectList().block();
+
+        assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isZero();
     }
 }

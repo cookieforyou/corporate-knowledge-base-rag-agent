@@ -82,4 +82,27 @@ class AiBusinessMetricsTest {
         assertThat(registry.counter("rag.routing.chitchat").count()).isEqualTo(1.0);
         assertThat(registry.counter("rag.routing.knowledge").count()).isEqualTo(2.0);
     }
+
+    @Test
+    void guardrailCountersSplitByEventType() {
+        metrics.recordInjectionBlocked();
+        metrics.recordInjectionBlocked();
+        metrics.recordPiiMasked();
+        metrics.recordOutputReplaced();
+        metrics.recordRateLimited();
+
+        assertThat(registry.counter("rag.guardrail.injection.blocked").count()).isEqualTo(2.0);
+        assertThat(registry.counter("rag.guardrail.pii.masked").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.output.replaced").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.rate.limited").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void tokenBudgetRejectedCountsInBothDomains() {
+        // 同一事件双计数：成本域 rag.token.budget.rejected + 安全域 rag.guardrail.token.budget
+        metrics.recordTokenBudgetRejected();
+
+        assertThat(registry.counter("rag.token.budget.rejected").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.token.budget").count()).isEqualTo(1.0);
+    }
 }

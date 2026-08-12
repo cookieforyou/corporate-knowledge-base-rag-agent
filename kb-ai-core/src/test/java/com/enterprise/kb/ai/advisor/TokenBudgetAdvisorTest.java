@@ -97,7 +97,9 @@ class TokenBudgetAdvisorTest {
             .isInstanceOf(TokenBudgetExceededException.class)
             .hasMessageContaining("1000000");
 
+        // 成本域 + 安全域（簇⑤ B2 S3）双计数
         assertThat(meterRegistry.counter("rag.token.budget.rejected").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.guardrail.token.budget").count()).isEqualTo(1.0);
     }
 
     @Test
