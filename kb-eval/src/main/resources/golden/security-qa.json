@@ -4,8 +4,10 @@
     "category": "FACTOID",
     "question": "公司数据密级分为几级？各级的保存期限分别是多久？",
     "expectedChunkIds": [
-      "dd82c915-bf56-416d-8f9d-c8f4684b905a",
-      "6edad207-fd95-4866-8522-73689d05a1d8"
+      "cb567667-0972-37ac-809b-e55a2aa6a9be"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -13,7 +15,10 @@
     "category": "FACTOID",
     "question": "口令的最小长度和强制更换周期是多少？",
     "expectedChunkIds": [
-      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+      "731ca116-8a08-303f-8621-1a47eebbd09b"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -21,7 +26,10 @@
     "category": "FACTOID",
     "question": "员工离职后，其账号和权限要在多长时间内处理完毕？",
     "expectedChunkIds": [
-      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+      "f6e950bc-7a1a-3773-8ffd-8d6616792076"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -29,7 +37,10 @@
     "category": "REASONING",
     "question": "客户索要双方的合同明细（属 L3 级数据），可以直接通过邮件发给他吗？",
     "expectedChunkIds": [
-      "6edad207-fd95-4866-8522-73689d05a1d8"
+      "c1219ae3-5e02-3ff5-a5ec-20053c1f95ff"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -37,7 +48,10 @@
     "category": "REASONING",
     "question": "测试环境需要使用生产环境的原始数据，要走什么手续？",
     "expectedChunkIds": [
-      "6edad207-fd95-4866-8522-73689d05a1d8"
+      "3542d2e7-105b-3103-824c-7a493cbd844a"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -45,7 +59,10 @@
     "category": "FACTOID",
     "question": "P1 级安全事件的书面初报时限是多久？",
     "expectedChunkIds": [
-      "18ceef52-dce3-4b15-a66a-239e923839b9"
+      "c12d7350-4c6c-3585-ab34-f5a0431ddd2f"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -53,7 +70,10 @@
     "category": "REASONING",
     "question": "安全事件处置分为哪几步？每步的责任方和时限要求是什么？",
     "expectedChunkIds": [
-      "18ceef52-dce3-4b15-a66a-239e923839b9"
+      "3ef94023-af2c-3343-b1d1-6477a8b8a610"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -61,8 +81,10 @@
     "category": "REASONING",
     "question": "匿名化处理后的数据还属于个人信息吗？脱敏和匿名化的关键区别是什么？",
     "expectedChunkIds": [
-      "b0b1fcc5-6cc1-4079-95c3-632bf3473323",
-      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+      "54e15667-90e6-336e-a1ac-a75038f61f22"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -70,8 +92,11 @@
     "category": "REASONING",
     "question": "把客户个人信息存到外部公有云 SaaS 系统里，是否符合规定？",
     "expectedChunkIds": [
-      "18ceef52-dce3-4b15-a66a-239e923839b9",
-      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+      "cb567667-0972-37ac-809b-e55a2aa6a9be",
+      "015993fe-dfc7-3e7f-a4ba-28a7301f9d77"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -79,7 +104,10 @@
     "category": "FACTOID",
     "question": "安全审计日志最少要保存多长时间？",
     "expectedChunkIds": [
-      "18ceef52-dce3-4b15-a66a-239e923839b9"
+      "5a21a459-7227-3ccd-9f6f-e65f34ea9c0a"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -87,7 +115,10 @@
     "category": "FACTOID",
     "question": "管理办法 v2.3 版做了哪些主要修订？",
     "expectedChunkIds": [
-      "31df8370-8c28-4dee-a963-02cfc514cbef"
+      "2fc2fc1a-687e-3a1e-8071-f80d1689df72"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -95,7 +126,10 @@
     "category": "TABLE",
     "question": "访问 L4 级数据需要经过谁的审批？",
     "expectedChunkIds": [
-      "dd82c915-bf56-416d-8f9d-c8f4684b905a"
+      "cb567667-0972-37ac-809b-e55a2aa6a9be"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -103,7 +137,10 @@
     "category": "TABLE",
     "question": "P1 和 P2 级安全事件的判定标准分别是什么？",
     "expectedChunkIds": [
-      "2eeb720c-7dd8-4f6f-8f40-1eb974ad0e60"
+      "c6375cd4-9edf-3b73-b5e6-26df4ad1c786"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -111,7 +148,10 @@
     "category": "REASONING",
     "question": "员工用自己的个人设备接入公司数据办公，公司提供补贴吗？",
     "expectedChunkIds": [
-      "18ceef52-dce3-4b15-a66a-239e923839b9"
+      "f776e3dc-da61-3e22-a324-7370d8f5faa3"
+    ],
+    "expectedDocs": [
+      "企业信息安全与数据保护管理办法.md"
     ]
   }
 ]

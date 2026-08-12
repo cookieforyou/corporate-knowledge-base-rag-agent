@@ -4,7 +4,10 @@
     "category": "FACTOID",
     "question": "生产集群的 etcd 副本数为什么固定为 3？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57"
+      "df647894-b466-336f-9083-888a0d68cec1"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -12,7 +15,10 @@
     "category": "FACTOID",
     "question": "滚动更新策略的 maxSurge 和 maxUnavailable 默认值是多少？",
     "expectedChunkIds": [
-      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008"
+      "7048aac0-b3df-38b7-93cb-241d648f4b94"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -20,7 +26,10 @@
     "category": "FACTOID",
     "question": "核心业务的可用性目标是多少？",
     "expectedChunkIds": [
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282"
+      "1e7f8b8c-ceb9-38c1-a598-79c1acaad222"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -28,7 +37,10 @@
     "category": "FACTOID",
     "question": "etcd 快照备份的频率和保留策略是什么？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57"
+      "df647894-b466-336f-9083-888a0d68cec1"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -36,7 +48,10 @@
     "category": "FACTOID",
     "question": "命名空间默认最多可以创建多少个 Pod？",
     "expectedChunkIds": [
-      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008"
+      "9cdc5f2c-63aa-380d-a666-08a5d42b11f9"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -44,7 +59,10 @@
     "category": "FACTOID",
     "question": "周五下午可以执行生产变更吗？",
     "expectedChunkIds": [
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282"
+      "1e7f8b8c-ceb9-38c1-a598-79c1acaad222"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -52,7 +70,10 @@
     "category": "TABLE",
     "question": "Deployment、StatefulSet、DaemonSet 三种控制器怎么选？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57"
+      "4755275a-4d0a-34e6-a223-c719c9661969"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -60,7 +81,10 @@
     "category": "TABLE",
     "question": "出现 OOMKilled 应该怎么排查处置？",
     "expectedChunkIds": [
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282"
+      "ba1828b6-b530-367f-9d50-69a35200433e"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -68,7 +92,10 @@
     "category": "TABLE",
     "question": "各节点池的规格和用途是怎么划分的？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57"
+      "df647894-b466-336f-9083-888a0d68cec1"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -76,7 +103,10 @@
     "category": "TABLE",
     "question": "蓝绿发布和金丝雀发布在回滚速度和资源开销上怎么对比？",
     "expectedChunkIds": [
-      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008"
+      "7048aac0-b3df-38b7-93cb-241d648f4b94"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -84,7 +114,10 @@
     "category": "FACTOID",
     "question": "Ingress 和 Service 的本质区别是什么？",
     "expectedChunkIds": [
-      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008"
+      "8cde6bfd-bd61-3919-9fe7-62d5a8c0fba0"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -92,7 +125,10 @@
     "category": "FACTOID",
     "question": "删除 StatefulSet 会自动删除 PVC 吗？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57"
+      "4755275a-4d0a-34e6-a223-c719c9661969"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -100,7 +136,10 @@
     "category": "REASONING",
     "question": "为什么规范禁止把无状态服务放进 StatefulSet？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57"
+      "4755275a-4d0a-34e6-a223-c719c9661969"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -108,7 +147,10 @@
     "category": "REASONING",
     "question": "一个 Java 业务服务上线，资源限制应该怎么配置才合规？",
     "expectedChunkIds": [
-      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008"
+      "9cdc5f2c-63aa-380d-a666-08a5d42b11f9"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -116,7 +158,10 @@
     "category": "REASONING",
     "question": "一次生产变更要满足哪些条件才能执行？",
     "expectedChunkIds": [
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282"
+      "1e7f8b8c-ceb9-38c1-a598-79c1acaad222"
+    ],
+    "expectedDocs": [
+      "Kubernetes集群运维规范.md"
     ]
   }
 ]

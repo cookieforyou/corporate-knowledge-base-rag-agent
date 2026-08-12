@@ -20,6 +20,13 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
    mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.annotate-all
    ```
    对全部正向用例跑 Top-8，落 `target/golden-reannotate-sheet.md`，人工圈定后回填。
+   2026-08-12 已完成一轮全量迁移（102 条，80 正向双层锚点）。**圈定口径**（后续
+   增量标注与再迁移沿用）：
+   - ground truth 以**全库语料**判定，重标注表 Top-8 仅是候选提示——召回度量
+     必须独立于检索结果，正确答案不在 Top-8 时照常回填（那正是指标要暴露的漏检）
+   - 开放枚举题（「知识库里有哪些…」）取**代表性锚点**：每文档至多一条最直接
+     证据 chunk，不穷举实例，保证 Top-K 指标可达性
+   - 拆分表（如版面类型表跨 3 chunk）按证据完整性圈全——这是检索真实难点
 
 3. **编写用例**：复制 `corpus-qa.json.example` 为 `corpus-qa.json`，按格式填写：
    - `id`：分类前缀 + 序号（factoid-001 / table-001 / reasoning-001 / multidoc-001）

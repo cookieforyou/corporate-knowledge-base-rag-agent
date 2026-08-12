@@ -4,9 +4,12 @@
     "category": "MULTI_DOC",
     "question": "发票手册和 K8s 运维规范分别如何定义「异常」情形的处置流程？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
-      "b420f5d4-8b15-46d2-8da3-c5ea9a9006d7",
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282"
+      "bc958266-69d7-34dd-b621-fedc63417a16",
+      "ba1828b6-b530-367f-9d50-69a35200433e"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -14,10 +17,18 @@
     "category": "MULTI_DOC",
     "question": "知识库里有哪些关于期限/周期的硬性规定？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52",
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
-      "b3f87f72-293a-4cac-bb9d-58b645becc57",
-      "276d925e-a646-4356-911f-33909f287b46"
+      "120f00dc-0d52-3a00-9500-0be9e25b2ff2",
+      "df647894-b466-336f-9083-888a0d68cec1",
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f",
+      "c12d7350-4c6c-3585-ab34-f5a0431ddd2f",
+      "9cb91f6d-3d01-3c19-af43-70e529f4871d"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "Kubernetes集群运维规范.md",
+      "智能硬件产品规格目录.md",
+      "企业信息安全与数据保护管理办法.md",
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -25,9 +36,14 @@
     "category": "MULTI_DOC",
     "question": "知识库文档中分别提到了哪些「效力等同」或「可互换」的情形？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52",
-      "b3f87f72-293a-4cac-bb9d-58b645becc57",
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+      "9fc18d0f-bc0c-35e6-8510-643cd33fe5f0",
+      "4755275a-4d0a-34e6-a223-c719c9661969",
+      "60cdacf8-89af-383f-a696-98a2e57f73bf"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "Kubernetes集群运维规范.md",
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -35,12 +51,16 @@
     "category": "MULTI_DOC",
     "question": "知识库里分别有哪些「不允许或被禁止」的情形？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52",
-      "b3f87f72-293a-4cac-bb9d-58b645becc57",
-      "bd38fff7-b15d-4537-84e3-a6e9cc4eb008",
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282",
-      "c030a19f-df89-4938-b5b7-e60fe4e8cd76",
-      "acf9a938-18d1-4b53-9575-0c9762e1775d"
+      "51d03f68-e126-34ea-bfe6-6c153e0bbafa",
+      "4755275a-4d0a-34e6-a223-c719c9661969",
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f",
+      "dd78a430-3c17-3786-b440-9fb048577b7d"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "Kubernetes集群运维规范.md",
+      "智能硬件产品规格目录.md",
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -48,9 +68,16 @@
     "category": "MULTI_DOC",
     "question": "知识库中分别提到了哪些「免费或收费」的规则？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
-      "c030a19f-df89-4938-b5b7-e60fe4e8cd76",
-      "18ceef52-dce3-4b15-a66a-239e923839b9"
+      "27148195-81d6-301d-85b7-93603879129e",
+      "9cb91f6d-3d01-3c19-af43-70e529f4871d",
+      "f776e3dc-da61-3e22-a324-7370d8f5faa3",
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "阿里云文档解析（大模型版）介绍.pdf",
+      "企业信息安全与数据保护管理办法.md",
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -58,9 +85,14 @@
     "category": "MULTI_DOC",
     "question": "知识库中关于「删除或作废」操作的规则与数据保护考量分别是什么？",
     "expectedChunkIds": [
-      "b3f87f72-293a-4cac-bb9d-58b645becc57",
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
-      "6edad207-fd95-4866-8522-73689d05a1d8"
+      "51d03f68-e126-34ea-bfe6-6c153e0bbafa",
+      "17177a90-d53d-3771-9419-2822a100e933",
+      "4755275a-4d0a-34e6-a223-c719c9661969"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "企业信息安全与数据保护管理办法.md",
+      "Kubernetes集群运维规范.md"
     ]
   },
   {
@@ -68,9 +100,14 @@
     "category": "MULTI_DOC",
     "question": "知识库里关于「版本升级或代际更替」的表述分别有哪些？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52",
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
-      "31df8370-8c28-4dee-a963-02cfc514cbef"
+      "120f00dc-0d52-3a00-9500-0be9e25b2ff2",
+      "fa001488-9bd4-32ac-9f1b-6d44abb7caf0",
+      "2fc2fc1a-687e-3a1e-8071-f80d1689df72"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "智能硬件产品规格目录.md",
+      "企业信息安全与数据保护管理办法.md"
     ]
   },
   {
@@ -78,10 +115,15 @@
     "category": "MULTI_DOC",
     "question": "知识库中有哪些关于「持续时长」的性能或服务参数？",
     "expectedChunkIds": [
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
-      "276d925e-a646-4356-911f-33909f287b46",
-      "cf61083c-f3ac-4de7-a86b-a1b1f5b97282",
-      "18ceef52-dce3-4b15-a66a-239e923839b9"
+      "5751a39e-16c7-3396-951d-2ca95e72e073",
+      "0cf3008b-bb46-3822-a0cf-776e91d3e783",
+      "1e7f8b8c-ceb9-38c1-a598-79c1acaad222",
+      "9cb91f6d-3d01-3c19-af43-70e529f4871d"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md",
+      "Kubernetes集群运维规范.md",
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -89,10 +131,18 @@
     "category": "MULTI_DOC",
     "question": "各份文档分别如何界定自身的「适用范围」？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52",
-      "b3f87f72-293a-4cac-bb9d-58b645becc57",
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
-      "b0b1fcc5-6cc1-4079-95c3-632bf3473323"
+      "5aa88905-4b21-3246-b488-9d269c3d549e",
+      "fae261c9-3aad-32a8-af67-605aca9a6966",
+      "60cdacf8-89af-383f-a696-98a2e57f73bf",
+      "4c7c3797-f5fd-30f2-8615-7694e2905584",
+      "f42a12e7-a558-3581-af8f-5b349034a8db"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md",
+      "Kubernetes集群运维规范.md",
+      "智能硬件产品规格目录.md",
+      "企业信息安全与数据保护管理办法.md",
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   }
 ]

@@ -4,7 +4,10 @@
     "category": "FACTOID",
     "question": "XG-9000Pro 的电池容量是多少？",
     "expectedChunkIds": [
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+      "fa001488-9bd4-32ac-9f1b-6d44abb7caf0"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -12,7 +15,10 @@
     "category": "FACTOID",
     "question": "XG-9000Pro 的防护等级是什么？",
     "expectedChunkIds": [
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+      "fa001488-9bd4-32ac-9f1b-6d44abb7caf0"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -20,7 +26,10 @@
     "category": "FACTOID",
     "question": "XR-5500 的续航时间大约多久？",
     "expectedChunkIds": [
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+      "5751a39e-16c7-3396-951d-2ca95e72e073"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -28,7 +37,10 @@
     "category": "FACTOID",
     "question": "XS-200 网关的最低工作温度是多少？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "0cf3008b-bb46-3822-a0cf-776e91d3e783"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -36,7 +48,10 @@
     "category": "FACTOID",
     "question": "红外热成像模组 XG-TIR-01 支持哪些型号？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "95babd78-d81d-3f67-8af7-bbf53d298200"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -44,7 +59,10 @@
     "category": "FACTOID",
     "question": "磁吸充电底座 ACC-MCD-33 兼容哪些型号？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "95babd78-d81d-3f67-8af7-bbf53d298200"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -52,7 +70,10 @@
     "category": "FACTOID",
     "question": "XG 系列的整机质保期是多久？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -60,7 +81,10 @@
     "category": "TABLE",
     "question": "XG-9000Pro 和 XG-7000 有哪些主要差异？",
     "expectedChunkIds": [
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8"
+      "fa001488-9bd4-32ac-9f1b-6d44abb7caf0"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -68,8 +92,10 @@
     "category": "TABLE",
     "question": "各产品系列的质保政策有什么区别？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46",
-      "c030a19f-df89-4938-b5b7-e60fe4e8cd76"
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -77,7 +103,10 @@
     "category": "FACTOID",
     "question": "型号命名规则里档位码 9 代表什么？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "b3407c8c-6a9d-3719-a3ea-dc30e8e3b053"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -85,8 +114,11 @@
     "category": "REASONING",
     "question": "户外电力巡检需要厘米级定位和热成像功能，应该选哪款产品，配什么模组？",
     "expectedChunkIds": [
-      "b73bbc33-023f-4748-a7c5-2c38a8377cc8",
-      "276d925e-a646-4356-911f-33909f287b46"
+      "fa001488-9bd4-32ac-9f1b-6d44abb7caf0",
+      "95babd78-d81d-3f67-8af7-bbf53d298200"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -94,7 +126,10 @@
     "category": "REASONING",
     "question": "XG 系列设备用了两年半坏了，能免费保修吗？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -102,7 +137,10 @@
     "category": "REASONING",
     "question": "我想给 XG-7000 配备红外热成像模组和磁吸充电底座，分别能买到吗？",
     "expectedChunkIds": [
-      "276d925e-a646-4356-911f-33909f287b46"
+      "95babd78-d81d-3f67-8af7-bbf53d298200"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   },
   {
@@ -110,7 +148,10 @@
     "category": "FACTOID",
     "question": "设备被非授权维修点拆过机之后出了故障，还能申请官方保修吗？",
     "expectedChunkIds": [
-      "c030a19f-df89-4938-b5b7-e60fe4e8cd76"
+      "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
+    ],
+    "expectedDocs": [
+      "智能硬件产品规格目录.md"
     ]
   }
 ]

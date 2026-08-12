@@ -4,7 +4,10 @@
     "category": "FACTOID",
     "question": "增值税专用发票的认证期限是多少天？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52"
+      "120f00dc-0d52-3a00-9500-0be9e25b2ff2"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -12,7 +15,10 @@
     "category": "FACTOID",
     "question": "增值税一般纳税人销售货物适用什么税率？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52"
+      "9fc18d0f-bc0c-35e6-8510-643cd33fe5f0"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -20,7 +26,10 @@
     "category": "FACTOID",
     "question": "360 日认证期限是哪一年从 180 日延长而来的？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52"
+      "120f00dc-0d52-3a00-9500-0be9e25b2ff2"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -28,7 +37,10 @@
     "category": "FACTOID",
     "question": "红字增值税专用发票信息表由谁填开？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "51d03f68-e126-34ea-bfe6-6c153e0bbafa"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -36,7 +48,10 @@
     "category": "FACTOID",
     "question": "增值税电子普通发票可以作废吗？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "51d03f68-e126-34ea-bfe6-6c153e0bbafa"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -44,7 +59,10 @@
     "category": "FACTOID",
     "question": "税务 UKey 需要缴纳年度服务费吗？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "27148195-81d6-301d-85b7-93603879129e"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -52,7 +70,10 @@
     "category": "FACTOID",
     "question": "每个属期勾选发票后还必须执行什么操作才能申报抵扣？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "120f00dc-0d52-3a00-9500-0be9e25b2ff2"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -60,7 +81,10 @@
     "category": "FACTOID",
     "question": "税控盘的技术维护费大约多少？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "27148195-81d6-301d-85b7-93603879129e"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -68,7 +92,10 @@
     "category": "TABLE",
     "question": "各种增值税发票在认证要求上有什么区别？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52"
+      "9fc18d0f-bc0c-35e6-8510-643cd33fe5f0"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -76,7 +103,10 @@
     "category": "TABLE",
     "question": "开票设备金税盘和税控盘有什么区别？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "27148195-81d6-301d-85b7-93603879129e"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -84,8 +114,10 @@
     "category": "FACTOID",
     "question": "什么是异常增值税扣税凭证？已抵扣的异常凭证如何处理？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c",
-      "b420f5d4-8b15-46d2-8da3-c5ea9a9006d7"
+      "bc958266-69d7-34dd-b621-fedc63417a16"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -93,7 +125,10 @@
     "category": "FACTOID",
     "question": "失控发票和异常凭证是同一个概念吗？",
     "expectedChunkIds": [
-      "b420f5d4-8b15-46d2-8da3-c5ea9a9006d7"
+      "bc958266-69d7-34dd-b621-fedc63417a16"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -101,7 +136,10 @@
     "category": "REASONING",
     "question": "跨月发现开具错误的纸质专用发票应该怎么处理，为什么不能直接作废？",
     "expectedChunkIds": [
-      "4e63cbfb-3cf2-4b0e-bc96-d85dbf77dc9c"
+      "51d03f68-e126-34ea-bfe6-6c153e0bbafa"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -109,7 +147,10 @@
     "category": "REASONING",
     "question": "小规模纳税人需要给客户开具专用发票，有哪些途径？",
     "expectedChunkIds": [
-      "b420f5d4-8b15-46d2-8da3-c5ea9a9006d7"
+      "b6242f3b-f0ed-3e0d-b74a-0ae4ef41cad5"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   },
   {
@@ -117,7 +158,10 @@
     "category": "REASONING",
     "question": "哪些类型的发票无法用于进项税额抵扣？",
     "expectedChunkIds": [
-      "99d075f4-f9bd-4563-aa7e-929baac51d52"
+      "9fc18d0f-bc0c-35e6-8510-643cd33fe5f0"
+    ],
+    "expectedDocs": [
+      "增值税发票管理实务手册.md"
     ]
   }
 ]

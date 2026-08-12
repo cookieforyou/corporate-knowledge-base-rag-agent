@@ -4,7 +4,10 @@
     "category": "FACTOID",
     "question": "文档解析（大模型版）的异步提交接口有哪两个，分别对应哪种文件上传方式？",
     "expectedChunkIds": [
-      "6edfc5a6-1a46-4e86-a7ce-4111016a9a3f"
+      "360cbfc8-2ee9-368d-813d-9de2300d2d8b"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -12,8 +15,11 @@
     "category": "FACTOID",
     "question": "订单状态 Status 具体有哪几种取值？",
     "expectedChunkIds": [
-      "52b02e6f-9c9d-4ea7-89a3-34a9c5e2cc49",
-      "aff63b4a-bb3a-4965-a909-eea0a1ea13c5"
+      "bae10c67-a5cc-3f1e-a961-31f8537f65d2",
+      "9ee8c64f-b2fd-3f44-a67a-e3a148d19887"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -21,7 +27,10 @@
     "category": "FACTOID",
     "question": "PageIndex 参数只支持哪些格式的文件解析？",
     "expectedChunkIds": [
-      "d5a914f9-c64d-46d9-9244-c87644941ab6"
+      "746cd65f-400c-33c1-8ac0-f359c1c3b717"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -29,7 +38,11 @@
     "category": "FACTOID",
     "question": "调用 GetDocParserResult 获取长文档解析结果时如何分页拉取 layouts？",
     "expectedChunkIds": [
-      "2f9c3731-bb17-42f2-b8c5-e8833e984723"
+      "68b9ec62-11e0-3187-aa74-1e0a8e55e711",
+      "11bc8ba1-0506-3c17-a7d0-9add8905220f"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -37,7 +50,10 @@
     "category": "TABLE",
     "question": "异步提交接口的 LlmEnhancement 参数开启后，哪两种情况会返回大模型解析结果？",
     "expectedChunkIds": [
-      "8b7ddb6a-2cb6-471d-84fe-d68d98c88524"
+      "e16708bc-9c7a-3001-90c2-bf8c12854492"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -45,7 +61,10 @@
     "category": "TABLE",
     "question": "OutputHtmlTable 参数需要同时开启哪个参数，表格 HTML 存放在版面块的哪个字段？",
     "expectedChunkIds": [
-      "8b7ddb6a-2cb6-471d-84fe-d68d98c88524"
+      "e16708bc-9c7a-3001-90c2-bf8c12854492"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -53,7 +72,10 @@
     "category": "TABLE",
     "question": "版面类型列表中 figure 类型和 contents 类型的 subType 分别是什么？",
     "expectedChunkIds": [
-      "5195f0d1-651f-4da1-9846-d64ff57e4e78"
+      "979b4a42-1994-3fae-a1b1-fe8c530985de"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -61,7 +83,10 @@
     "category": "TABLE",
     "question": "段落音频（audio_frames）信息包含哪些字段？",
     "expectedChunkIds": [
-      "4de1e8d9-b5b5-4a26-a586-2873afcecd42"
+      "8f837c99-08e9-3714-86ea-767a8cb882f9"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -69,7 +94,10 @@
     "category": "FACTOID",
     "question": "OutputFormat 参数支持哪些类型，各自返回什么？",
     "expectedChunkIds": [
-      "d5a914f9-c64d-46d9-9244-c87644941ab6"
+      "746cd65f-400c-33c1-8ac0-f359c1c3b717"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -77,7 +105,10 @@
     "category": "FACTOID",
     "question": "Python 参考示例中运行解析脚本的命令格式是什么？",
     "expectedChunkIds": [
-      "894c2d12-8bd5-40c2-aed1-ae4378dd8680"
+      "168a1767-fdaf-36ec-b8cc-6637f3d09380"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -85,7 +116,10 @@
     "category": "REASONING",
     "question": "版面解析置信度偏低的 PPT 类文档，应通过哪个请求参数提升解析效果，需要注意什么代价？",
     "expectedChunkIds": [
-      "8b7ddb6a-2cb6-471d-84fe-d68d98c88524"
+      "e16708bc-9c7a-3001-90c2-bf8c12854492"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -93,7 +127,10 @@
     "category": "REASONING",
     "question": "完成一次文档解析（大模型版）调用需要依次调用哪些接口？各自的作用是什么？",
     "expectedChunkIds": [
-      "b9bcb905-4405-4c59-9464-5ab90b0afd94"
+      "93bc2f2f-0292-3c0d-97fd-f2c3dc529a2b"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   },
   {
@@ -101,7 +138,12 @@
     "category": "TABLE",
     "question": "文档解析（大模型版）能识别哪些版面类型？",
     "expectedChunkIds": [
-      "5195f0d1-651f-4da1-9846-d64ff57e4e78"
+      "979b4a42-1994-3fae-a1b1-fe8c530985de",
+      "45fd413c-5107-34fe-9f63-a9a4ba58cb5d",
+      "85c780b3-467e-3aff-85ce-a4d03eab0eb9"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
     ]
   }
 ]
