@@ -20,15 +20,17 @@ class EvalReportThresholdTest {
     private final EvalProperties props = new EvalProperties();
 
     private static EvalResult result(String id, QACategory category, double faithfulness) {
-        GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null);
+        GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
-            faithfulness, 4.0, null, null, null);
+            Double.NaN, Double.NaN, Double.NaN, faithfulness, 4.0, null, null, null);
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
         double avgF = results.stream().mapToDouble(EvalResult::faithfulness).average().orElse(Double.NaN);
         return new EvalReport("chain", results.size(), 0, results.size(), 0,
-            Double.NaN, Double.NaN, Double.NaN, avgF, 4.0, Double.NaN, results);
+            Double.NaN, Double.NaN, Double.NaN,
+            0, Double.NaN, Double.NaN, Double.NaN,
+            avgF, 4.0, Double.NaN, results);
     }
 
     private static List<EvalResult> cases(QACategory cat, int count, double score) {
@@ -90,7 +92,9 @@ class EvalReportThresholdTest {
     void negativeRejectionBelowThresholdStillFails() {
         // 容忍策略只作用于 Faithfulness——其余门禁语义不变
         EvalReport report = new EvalReport("chain", 3, 0, 0, 3,
-            Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, 0.5, List.of());
+            Double.NaN, Double.NaN, Double.NaN,
+            0, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, 0.5, List.of());
         assertThatThrownBy(() -> report.assertThresholds(props))
             .isInstanceOf(EvalFailedException.class)
             .hasMessageContaining("Negative Rejection");
@@ -118,5 +122,27 @@ class EvalReportThresholdTest {
         assertThat(byCat).hasSize(2);
         assertThat(byCat.get(QACategory.FACTOID).getCount()).isEqualTo(2);
         assertThat(byCat.get(QACategory.REASONING).getAverage()).isEqualTo(4.5);
+    }
+
+    /**
+     * 文档级兜底小节（簇④ A4 修复，16 章 v2.21）：有文档级样本才渲染该小节，
+     * chunk ID 失配（重入库换代）时给出方向性读数。
+     */
+    @Test
+    void summaryRendersDocLevelSectionOnlyWhenSampled() {
+        EvalReport withDoc = new EvalReport("chain", 5, 5, 5, 0,
+            0.0, 0.0, 0.0,
+            5, 0.9, 0.8, 0.7,
+            4.5, 4.8, Double.NaN, List.of());
+        assertThat(withDoc.summary())
+            .contains("文档级兜底")
+            .contains("Doc Recall")
+            .contains("0.900");
+
+        EvalReport noDoc = new EvalReport("chain", 5, 5, 5, 0,
+            0.9, 0.8, 0.7,
+            0, Double.NaN, Double.NaN, Double.NaN,
+            4.5, 4.8, Double.NaN, List.of());
+        assertThat(noDoc.summary()).doesNotContain("文档级兜底");
     }
 }

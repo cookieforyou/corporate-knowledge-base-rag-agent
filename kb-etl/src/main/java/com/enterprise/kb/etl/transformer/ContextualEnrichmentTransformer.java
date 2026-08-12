@@ -9,15 +9,22 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentTransformer;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 上下文增强器（设计文档 9.5，任务 2.4 复活；簇④ A4）——可选环节，置于
@@ -40,6 +47,11 @@ import java.util.Map;
  *
  * <p>容错：单 chunk 生成失败仅 WARN 并原样放行（增强是质量项，不阻断入库）；
  * IMAGE chunk（正文为 img 标签无语义）与超短 chunk 跳过。
+ *
+ * <p>并发（2026-08-12 优化）：每 chunk 一次 LLM 调用，串行形态下大文档 ETL
+ * 时长 = chunk 数 × 单调用时长（实测数十 chunk 即分钟级阻塞上传响应）。
+ * 改虚拟线程有界并发（{@code kb.etl.contextual.concurrency} 默认 8，信号量限流
+ * 防供应商侧 429），保序返回、单 chunk 失败隔离语义不变。
  *
  * <p>装配：经济模型 deepseek-v4-flash 手工装配 OpenAI 兼容形态
  * （同 SmartRoutingConfig 形态；kb-etl 不依赖 kb-ai-core，避免拖入对话链路
@@ -76,20 +88,38 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 
     private final ChatModel chatModel;
     private final int chunkMaxChars;
+    /** 虚拟线程执行器（单例 Bean 持有，非每请求 new——簇③ D2 执行器纪律同构） */
+    private final ExecutorService enrichmentExecutor;
+    /** 在飞 LLM 调用上限（防供应商限流 429；虚拟线程本身无界，须显式闸门） */
+    private final Semaphore concurrencyGate;
+    private final int maxConcurrency;
 
     @Autowired
     public ContextualEnrichmentTransformer(
             @Value("${spring.ai.deepseek.api-key:}") String apiKey,
             @Value("${spring.ai.deepseek.base-url:https://api.deepseek.com}") String baseUrl,
             @Value("${spring.ai.deepseek.chat.model:deepseek-v4-flash}") String model,
-            @Value("${kb.etl.contextual.chunk-max-chars:2000}") int chunkMaxChars) {
-        this(buildContextModel(apiKey, baseUrl, model), chunkMaxChars);
+            @Value("${kb.etl.contextual.chunk-max-chars:2000}") int chunkMaxChars,
+            @Value("${kb.etl.contextual.concurrency:8}") int concurrency) {
+        this(buildContextModel(apiKey, baseUrl, model), chunkMaxChars, concurrency);
     }
 
-    /** 测试入口：注入桩 ChatModel */
+    /** 测试入口：注入桩 ChatModel（默认并发 8，与生产缺省一致） */
     ContextualEnrichmentTransformer(ChatModel chatModel, int chunkMaxChars) {
+        this(chatModel, chunkMaxChars, 8);
+    }
+
+    ContextualEnrichmentTransformer(ChatModel chatModel, int chunkMaxChars, int concurrency) {
         this.chatModel = chatModel;
         this.chunkMaxChars = chunkMaxChars;
+        this.maxConcurrency = Math.max(1, concurrency);
+        this.enrichmentExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        this.concurrencyGate = new Semaphore(maxConcurrency);
+    }
+
+    @PreDestroy
+    void shutdown() {
+        enrichmentExecutor.close();
     }
 
     /**
@@ -115,42 +145,68 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 
     @Override
     public List<Document> apply(List<Document> documents) {
-        List<Document> result = new ArrayList<>(documents.size());
-        int enriched = 0, skipped = 0, failed = 0;
+        int n = documents.size();
+        Document[] slots = new Document[n];
+        AtomicInteger enriched = new AtomicInteger(), skipped = new AtomicInteger(), failed = new AtomicInteger();
+        List<CompletableFuture<Void>> inFlight = new ArrayList<>();
 
-        for (Document chunk : documents) {
+        for (int i = 0; i < n; i++) {
+            final Document chunk = documents.get(i);
+            final int slot = i;
             String text = chunk.getText();
             boolean image = ChunkType.IMAGE.name().equals(String.valueOf(chunk.getMetadata().get("chunk_type")));
             if (image || text == null || text.strip().length() < MIN_ENRICH_CHARS) {
-                result.add(stripExcerpt(chunk));
-                skipped++;
+                slots[slot] = stripExcerpt(chunk);
+                skipped.incrementAndGet();
                 continue;
             }
-            String excerpt = chunk.getMetadata().get(DOC_EXCERPT_KEY) instanceof String s ? s : "";
-            try {
-                String context = generateContext(excerpt, text);
-                if (context == null || context.isBlank()) {
-                    result.add(stripExcerpt(chunk));
-                    skipped++;
-                    continue;
+            // LLM 调用经虚拟线程有界并发分发；槽位按输入下标写入 → 保序返回
+            inFlight.add(CompletableFuture.runAsync(() -> {
+                try {
+                    concurrencyGate.acquire();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    slots[slot] = stripExcerpt(chunk);
+                    failed.incrementAndGet();
+                    return;
                 }
-                Map<String, Object> meta = new HashMap<>(chunk.getMetadata());
-                meta.remove(DOC_EXCERPT_KEY);
-                meta.put(ORIGINAL_TEXT_KEY, text);
-                result.add(Document.builder()
-                    .text(ENRICHMENT_PREFIX + context.strip() + "\n" + text)
-                    .metadata(meta)
-                    .build());
-                enriched++;
-            } catch (Exception e) {
-                log.warn("语境增强失败（原样放行不阻断 ETL）: {}", e.getMessage());
-                result.add(stripExcerpt(chunk));
-                failed++;
-            }
+                try {
+                    slots[slot] = enrichOne(chunk, text, enriched, skipped, failed);
+                } finally {
+                    concurrencyGate.release();
+                }
+            }, enrichmentExecutor));
         }
-        log.info("语境增强汇总: 共 {} chunk，增强 {}，跳过 {}，失败 {}",
-            documents.size(), enriched, skipped, failed);
-        return result;
+        CompletableFuture.allOf(inFlight.toArray(CompletableFuture[]::new)).join();
+
+        log.info("语境增强汇总: 共 {} chunk，增强 {}，跳过 {}，失败 {}（并发上限 {}）",
+            n, enriched.get(), skipped.get(), failed.get(), maxConcurrency);
+        return new ArrayList<>(Arrays.asList(slots));
+    }
+
+    /** 单 chunk 增强（并发工作单元）：失败 WARN 原样放行，隔离语义与串行版逐位一致 */
+    private Document enrichOne(Document chunk, String text,
+                                AtomicInteger enriched, AtomicInteger skipped, AtomicInteger failed) {
+        String excerpt = chunk.getMetadata().get(DOC_EXCERPT_KEY) instanceof String s ? s : "";
+        try {
+            String context = generateContext(excerpt, text);
+            if (context == null || context.isBlank()) {
+                skipped.incrementAndGet();
+                return stripExcerpt(chunk);
+            }
+            Map<String, Object> meta = new HashMap<>(chunk.getMetadata());
+            meta.remove(DOC_EXCERPT_KEY);
+            meta.put(ORIGINAL_TEXT_KEY, text);
+            enriched.incrementAndGet();
+            return Document.builder()
+                .text(ENRICHMENT_PREFIX + context.strip() + "\n\n" + text)
+                .metadata(meta)
+                .build();
+        } catch (Exception e) {
+            log.warn("语境增强失败（原样放行不阻断 ETL）: {}", e.getMessage());
+            failed.incrementAndGet();
+            return stripExcerpt(chunk);
+        }
     }
 
     private String generateContext(String excerpt, String chunkText) {

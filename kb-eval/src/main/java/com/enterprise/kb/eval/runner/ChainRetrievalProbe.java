@@ -64,8 +64,10 @@ public class ChainRetrievalProbe implements RetrievalProbe {
 
     private static ProbeHit toHit(Document d) {
         Object chunkId = d.getMetadata().getOrDefault("chunk_id", d.getId());
+        Object fileName = d.getMetadata().get("file_name");
         double score = d.getScore() != null ? d.getScore() : 0.0;
-        return new ProbeHit(String.valueOf(chunkId), d.getText(), score);
+        return new ProbeHit(String.valueOf(chunkId),
+            fileName instanceof String fn ? fn : null, d.getText(), score);
     }
 
     @Override

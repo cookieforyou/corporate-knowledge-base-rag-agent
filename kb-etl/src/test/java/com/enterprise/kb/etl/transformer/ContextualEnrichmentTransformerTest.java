@@ -8,12 +8,17 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -105,5 +110,91 @@ class ContextualEnrichmentTransformerTest {
         assertThat(out.get(0).getText()).isEqualTo(original);
         assertThat(out.get(0).getMetadata())
             .doesNotContainKey(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+    }
+
+    /**
+     * 并发实证（2026-08-12 串行→有界并发优化）：3 个可增强 chunk + 3 方 Phaser 闸门——
+     * 每个 LLM 桩调用在 phaser 上等待其余两路到齐才放行；若仍串行执行，首路永远等不到
+     * 第二路 → 超时失败。能穿过闸门即证明 ≥3 路在飞，并发真实存在。
+     */
+    @Test
+    void llmCallsRunConcurrently() {
+        Phaser gate = new Phaser(3);
+        ChatModel barrierModel = mock(ChatModel.class);
+        when(barrierModel.call(any(Prompt.class))).thenAnswer(inv -> {
+            gate.arriveAndAwaitAdvance();
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(CONTEXT))));
+        });
+        var transformer = new ContextualEnrichmentTransformer(barrierModel, 2000, 3);
+        String original = "足够长的正文内容，用于触发增强调用。".repeat(3);
+
+        List<Document> out = assertTimeoutPreemptively(Duration.ofSeconds(10),
+            () -> transformer.apply(List.of(
+                chunk(original + "A", Map.of()),
+                chunk(original + "B", Map.of()),
+                chunk(original + "C", Map.of()))));
+
+        assertThat(out).hasSize(3);
+        assertThat(out).allSatisfy(d ->
+            assertThat(d.getText()).startsWith(ContextualEnrichmentTransformer.ENRICHMENT_PREFIX));
+    }
+
+    /**
+     * 并发上限纪律：并发度 2、6 个可增强 chunk——在飞数任何时刻不得超过 2
+     * （虚拟线程无界，信号量是唯一闸门；桩内小睡制造重叠窗口）。
+     */
+    @Test
+    void inFlightCallsNeverExceedConcurrencyLimit() throws InterruptedException {
+        AtomicInteger inFlight = new AtomicInteger();
+        AtomicInteger maxSeen = new AtomicInteger();
+        ChatModel trackingModel = mock(ChatModel.class);
+        when(trackingModel.call(any(Prompt.class))).thenAnswer(inv -> {
+            int now = inFlight.incrementAndGet();
+            maxSeen.accumulateAndGet(now, Math::max);
+            Thread.sleep(30);
+            inFlight.decrementAndGet();
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(CONTEXT))));
+        });
+        var transformer = new ContextualEnrichmentTransformer(trackingModel, 2000, 2);
+        String original = "足够长的正文内容，用于触发增强调用。".repeat(3);
+        List<Document> chunks = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            chunks.add(chunk(original + i, Map.of()));
+        }
+
+        List<Document> out = transformer.apply(chunks);
+
+        assertThat(out).hasSize(6);
+        assertThat(maxSeen.get()).isLessThanOrEqualTo(2);
+    }
+
+    /** 混合批次保序：增强/跳过/失败三类交错并发处理后，输出与输入下标逐位对齐 */
+    @Test
+    void mixedBatch_preservesInputOrder() {
+        ChatModel selective = mock(ChatModel.class);
+        when(selective.call(any(Prompt.class)))
+            .thenAnswer(inv -> {
+                Prompt p = inv.getArgument(0);
+                if (p.getContents().toString().contains("会失败的")) {
+                    throw new RuntimeException("模拟失败");
+                }
+                return new ChatResponse(List.of(new Generation(new AssistantMessage(CONTEXT))));
+            });
+        var transformer = new ContextualEnrichmentTransformer(selective, 2000, 4);
+        String ok = "正常增强的正文内容，足够长度。".repeat(3);
+
+        List<Document> out = transformer.apply(List.of(
+            chunk(ok + "0", Map.of()),                                   // 增强
+            chunk("太短", Map.of()),                                      // 跳过
+            chunk("会失败的正文内容，足够长度。".repeat(3), Map.of()),       // 失败放行
+            chunk(ok + "1", Map.of())));                                  // 增强
+
+        assertThat(out).hasSize(4);
+        assertThat(out.get(0).getText()).startsWith(ContextualEnrichmentTransformer.ENRICHMENT_PREFIX);
+        assertThat(out.get(1).getText()).isEqualTo("太短");
+        assertThat(out.get(2).getText()).contains("会失败的正文内容");
+        assertThat(out.get(2).getText()).doesNotStartWith(ContextualEnrichmentTransformer.ENRICHMENT_PREFIX);
+        assertThat(out.get(3).getText()).startsWith(ContextualEnrichmentTransformer.ENRICHMENT_PREFIX);
+        assertThat(out.get(3).getText()).endsWith(ok + "1");
     }
 }

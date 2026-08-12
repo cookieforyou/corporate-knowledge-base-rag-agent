@@ -43,8 +43,9 @@ public class VectorStoreRetrievalProbe implements RetrievalProbe {
     private ProbeHit toHit(Document doc) {
         Object chunkId = doc.getMetadata().get("chunk_id");
         String id = chunkId != null ? chunkId.toString() : doc.getId();
+        Object fileName = doc.getMetadata().get("file_name");
         double score = doc.getScore() != null ? doc.getScore() : 0.0;
-        return new ProbeHit(id, doc.getText(), score);
+        return new ProbeHit(id, fileName instanceof String fn ? fn : null, doc.getText(), score);
     }
 
     @Override

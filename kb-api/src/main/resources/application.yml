@@ -68,4 +68,5 @@ kb:
       enabled: ${KB_ETL_CONTEXTUAL_ENABLED:false}
       excerpt-chars: ${KB_ETL_CONTEXTUAL_EXCERPT_CHARS:2000}      # 语境 prompt 的文档概要取前字符数
       chunk-max-chars: ${KB_ETL_CONTEXTUAL_CHUNK_MAX_CHARS:2000}  # 语境 prompt 的 chunk 文本截断长度
+      concurrency: ${KB_ETL_CONTEXTUAL_CONCURRENCY:8}             # 语境 LLM 调用并发上限（API 限流时下调）
 

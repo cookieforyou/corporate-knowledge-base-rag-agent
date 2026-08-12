@@ -62,14 +62,15 @@ public class EvalRunner {
      * <ul>
      *   <li>手动模式（默认）：全量评估 + 报告双通道发布，不做门禁判定；</li>
      *   <li>ci profile：同上，且低于阈值抛出 {@link EvalFailedException}（进程非零退出）；</li>
-     *   <li>标注辅助模式（--eval.annotate-query）：仅由 AnnotationRunner 输出候选 Chunk，
-     *       不跑全量评估——避免标注一条问题白烧一整轮模型调用。</li>
+     *   <li>标注辅助模式（--eval.annotate-query / --eval.annotate-all）：仅由
+     *       AnnotationRunner 输出候选 Chunk（单条/全量重标注表），不跑全量评估——
+     *       避免标注问题白烧一整轮模型调用。</li>
      * </ul>
      */
     @EventListener(ApplicationReadyEvent.class)
     public void runOnStartup() {
         boolean ci = props.getCi().isEnabled();
-        if (!ci && args.containsOption("eval.annotate-query")) {
+        if (!ci && (args.containsOption("eval.annotate-query") || args.containsOption("eval.annotate-all"))) {
             return;
         }
         // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」
@@ -292,11 +293,21 @@ public class EvalRunner {
         double mrr = RetrievalMetrics.reciprocalRank(hitIds, pair.expectedChunkIds());
         double precision = RetrievalMetrics.contextPrecision(hitIds, pair.expectedChunkIds());
 
+        // 2b. 文档级兜底指标（簇④ A4 修复）：file_name 匹配，跨重入库恒稳定——
+        // chunk ID 失配（重入库换代/解析漂移）时的方向性度量；无 expectedDocs → NaN
+        List<String> hitFileNames = hits.stream()
+            .map(RetrievalProbe.ProbeHit::fileName)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+        double docRecall = RetrievalMetrics.recallAtK(hitFileNames, pair.expectedDocs());
+        double docMrr = RetrievalMetrics.reciprocalRank(hitFileNames, pair.expectedDocs());
+        double docPrecision = RetrievalMetrics.contextPrecision(hitFileNames, pair.expectedDocs());
+
         // 检索-only 模式：到此为止——跳过被测生成与 Judge（生成侧指标 null，聚合自动跳过；
         // 负向用例无生成即无拒答判定，同样跳过）。语料标注核验/检索回归的秒级通道。
         if (props.isRetrievalOnly()) {
             return new EvalResult(pair, hits, null, recall, mrr, precision,
-                null, null, null, null, null);
+                docRecall, docMrr, docPrecision, null, null, null, null, null);
         }
 
         // 3. 被测链路生成
@@ -307,7 +318,7 @@ public class EvalRunner {
             JudgePrompts.JudgeScore js = judge(String.format(
                 JudgePrompts.NEGATIVE_REJECTION, pair.question(), answer));
             return new EvalResult(pair, hits, answer, recall, mrr, precision,
-                null, null, js.verdict(), scoreOf(js), js.reason());
+                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason());
         }
         String context = hits.stream()
             .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
@@ -317,6 +328,7 @@ public class EvalRunner {
         JudgePrompts.JudgeScore relevancy = judge(String.format(
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
+            docRecall, docMrr, docPrecision,
             scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason());
     }
 
@@ -351,6 +363,8 @@ public class EvalRunner {
     private EvalReport aggregate(String probeName, List<EvalResult> results) {
         List<EvalResult> withRetrieval = results.stream()
             .filter(r -> !Double.isNaN(r.recall())).toList();
+        List<EvalResult> withDocRetrieval = results.stream()
+            .filter(r -> !Double.isNaN(r.docRecall())).toList();
         List<EvalResult> generation = results.stream()
             .filter(r -> !r.isNegative() && r.faithfulness() != null).toList();
         List<EvalResult> negative = results.stream()
@@ -368,6 +382,10 @@ public class EvalRunner {
             avg(withRetrieval, EvalResult::recall),
             avg(withRetrieval, EvalResult::mrr),
             avg(withRetrieval, EvalResult::contextPrecision),
+            withDocRetrieval.size(),
+            avg(withDocRetrieval, EvalResult::docRecall),
+            avg(withDocRetrieval, EvalResult::docMrr),
+            avg(withDocRetrieval, EvalResult::docContextPrecision),
             avg(generation, r -> r.faithfulness()),
             avg(generation, r -> r.responseRelevancy()),
             negative.isEmpty() ? Double.NaN : (double) rejected / negative.size(),

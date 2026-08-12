@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -119,7 +120,7 @@ public class DocumentEtlService {
 
             // Stage 3: 落 kb_chunk 表
             progressCallback.accept(new EtlProgress(docId, EtlStage.PERSISTING));
-            List<KbChunk> entities = persistChunks(docId, chunks);
+            List<KbChunk> entities = persistChunks(doc, chunks);
 
             // Stage 4: 向量化 + 写入 VectorStore
             progressCallback.accept(new EtlProgress(docId, EtlStage.EMBEDDING));
@@ -212,15 +213,19 @@ public class DocumentEtlService {
         return null;
     }
 
-    private List<KbChunk> persistChunks(String docId, List<Document> chunks) {
+    private List<KbChunk> persistChunks(KbDocument doc, List<Document> chunks) {
         List<KbChunk> entities = new ArrayList<>();
         for (int i = 0; i < chunks.size(); i++) {
             Document chunk = chunks.get(i);
             KbChunk entity = new KbChunk();
-            String chunkId = UUID.randomUUID().toString();
+            // 确定性 chunk ID（簇④ A4 修复，9.3 v2.22）：重入库不换 ID，
+            // Golden expectedChunkIds 跨重入库/contextual A/B 两臂可比
+            Object originalText = chunk.getMetadata().get(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+            String baseText = originalText instanceof String ot && !ot.isBlank() ? ot : chunk.getText();
+            String chunkId = deterministicChunkId(doc.getName(), i, baseText);
             entity.setId(chunkId);
             entity.setVectorId(chunkId);
-            entity.setDocId(docId);
+            entity.setDocId(doc.getId());
             entity.setChunkIndex(i);
             entity.setContent(chunk.getText());
             // chunk_type 由切分器标注（2.3 保护式切分：TABLE/IMAGE；缺省 TEXT）
@@ -237,8 +242,8 @@ public class DocumentEtlService {
                 entity.setHeadingPath(hp);
             }
             // 语境增强原文（簇④ A4）：content 已是增强文本，原文落 original_content
-            // （TABLE/IMAGE 的 original_content 已被 original_html 占用，不覆盖）
-            Object originalText = chunk.getMetadata().get(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+            // （TABLE/IMAGE 的 original_content 已被 original_html 占用，不覆盖；
+            //  originalText 已于循环首部读取用于确定性 ID，此处复用）
             if (entity.getOriginalContent() == null && originalText instanceof String ot && !ot.isBlank()) {
                 entity.setOriginalContent(ot);
             }
@@ -315,6 +320,27 @@ public class DocumentEtlService {
             log.debug("向量化分批写入: docId={}, range=[{}, {})", doc.getId(), from, from + batch.size());
         }
         log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), total);
+    }
+
+    /**
+     * 确定性 chunk ID（簇④ A4 修复，9.3 v2.22）——nameUUID v3 over（文档名 + 序号 + 增强前原文）。
+     *
+     * <p>动机：随机 UUID 方案下全量重入库（删后重传）令所有 chunk 换新 ID，
+     * Golden Dataset {@code expectedChunkIds} 整体失配——2026-08-12 a4-heading-only
+     * 复跑检索三指标全 0.000 即此因（生成侧 F 反涨证明检索本身正常，纯度量尺断）。
+     *
+     * <p>确定性语义：同一文档重入库（解析/切分产物不变）→ ID 逐位复现 →
+     * Golden 标注跨重入库不失效，contextual A/B 两臂（各一次重入库）天然可比。
+     * {@code baseText} 必须取**增强前原文**（{@code original_text} 元数据）：
+     * contextual 开启后 content 带「【上下文】」前缀，若参与散列则 A/B 两臂 ID 分叉。
+     *
+     * <p>已知边界：ID 稳定性以「解析/切分产物逐位复现」为前提；深度链路 DocMind
+     * 的 LLM 增强表格 HTML 若跨调用漂移，chunk 内容变 → ID 变 → Golden 失配，
+     * 届时由文档级兜底指标（16 章 v2.21）定位。解析产物漂移本身是 C1 议题。
+     */
+    static String deterministicChunkId(String docName, int index, String baseText) {
+        String key = (docName == null ? "unknown" : docName) + "#" + index + "#" + baseText;
+        return UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     /** chunk 元数据 JSON 序列化：失败回退空对象（标记缺失不阻断入库） */

@@ -17,7 +17,11 @@ import java.util.List;
  */
 public interface RetrievalProbe extends Ordered {
 
-    record ProbeHit(String chunkId, String content, double score) {}
+    /**
+     * @param fileName 来源文件名（向量/ES 元数据 file_name，缺失时 null）——
+     *                 文档级兜底指标的匹配键（簇④ A4 修复，16 章 v2.21）
+     */
+    record ProbeHit(String chunkId, String fileName, String content, double score) {}
 
     /** 按 query 返回 Top-K 命中（chunkId 与 kb_chunk.id 一致） */
     List<ProbeHit> probe(String query, int topK);

@@ -26,6 +26,10 @@ public record EvalReport(
     double avgRecall,
     double avgMrr,
     double avgContextPrecision,
+    int docRetrievalEvaluated,       // 文档级兜底（簇④ A4 修复，16 章 v2.21）
+    double avgDocRecall,
+    double avgDocMrr,
+    double avgDocContextPrecision,
     double avgFaithfulness,
     double avgResponseRelevancy,
     double negativeRejectionRate,
@@ -119,6 +123,18 @@ public record EvalReport(
             fmt(avgRecall), fmt(avgMrr), fmt(avgContextPrecision),
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
+
+        // 文档级兜底（簇④ A4 修复）：chunk ID 失配（重入库换代/解析漂移）时
+        // chunk 级归零，此层以 file_name 匹配给出方向性读数；无门禁仅观测
+        if (docRetrievalEvaluated > 0) {
+            sb.append(String.format("""
+                ── 检索侧（文档级兜底，n=%d）──
+                Doc Recall:          %s
+                Doc MRR:             %s
+                Doc Context Prec.:   %s""",
+                docRetrievalEvaluated,
+                fmt(avgDocRecall), fmt(avgDocMrr), fmt(avgDocContextPrecision)));
+        }
 
         // 生成侧分类分解（簇④ E1）：Judge 校准漂移与 A/B 对比的维度定位依据——
         // 整体均值可能掩盖单一分类的涨跌，逐分类列出样本数与 Faithfulness/Relevancy 均值

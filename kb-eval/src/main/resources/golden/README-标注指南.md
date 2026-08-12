@@ -12,13 +12,22 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
    mvn spring-boot:run -pl kb-eval \
      -Dspring-boot.run.arguments=--eval.annotate-query=你的问题
    ```
-   输出该问题的 Top-10 命中（chunkId + 得分 + 片段）。人工判定哪些 Chunk 确实能回答问题，
+   输出该问题的 Top-10 命中（chunkId + 文件名 + 得分 + 片段）。人工判定哪些 Chunk 确实能回答问题，
    记下其 chunkId。
+
+   **全量重标注**（chunk ID 换代后的存量迁移，簇④ A4 修复）：
+   ```bash
+   mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.annotate-all
+   ```
+   对全部正向用例跑 Top-8，落 `target/golden-reannotate-sheet.md`，人工圈定后回填。
 
 3. **编写用例**：复制 `corpus-qa.json.example` 为 `corpus-qa.json`，按格式填写：
    - `id`：分类前缀 + 序号（factoid-001 / table-001 / reasoning-001 / multidoc-001）
    - `category`：FACTOID（单文档事实）/ REASONING（跨段推理）/ TABLE（表格数据）/ MULTI_DOC（多文档聚合）/ NEGATIVE（库外问题）
-   - `expectedChunkIds`：步骤 2 判定的 Chunk ID 列表（检索指标的度量依据）
+   - `expectedChunkIds`：步骤 2 判定的 Chunk ID 列表（chunk 级检索指标的度量依据；
+     chunk ID 为确定性 ID——文档名+序号+增强前原文散列，重入库不变，见设计 9.3 v2.22）
+   - `expectedDocs`：期望命中的**文件名**列表（文档级兜底检索指标，设计 16 章 v2.21）——
+     匹配探针命中元数据 file_name，跨重入库/解析漂移恒稳定；与 expectedChunkIds 同步填写
    - `expectedAnswer`/`expectedKeywords`：可选，Phase 5 Answer Correctness 指标使用
 
 4. **负向用例**：`negative-out-of-kb.json` 已内置 15 条通用库外问题（即刻可跑）。
