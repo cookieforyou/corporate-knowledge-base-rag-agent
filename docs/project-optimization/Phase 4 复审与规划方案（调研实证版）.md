@@ -23,7 +23,7 @@
 
 | # | 原任务 | 裁决 | 依据与调整形态 |
 |---|---|---|---|
-| 4.1 | OTel Java Agent 自动埋点 | **调整（方案修正）** | 调研实证：**OTel Java Agent 对 Spring AI 无 instrumentation 支持**，Spring AI 走 Micrometer Observation 自有链路。正确形态 = 保留 Micrometer Observation（已有）+ OTel SDK 将 trace 经 OTLP 导出至 LLM 观测平台；`gen_ai.*` 属性仍 experimental（13.1 v2 注的间接引用策略维持）。**「Trace 覆盖率 100%」验收修正**：业界生产实践为采样（10-20%）+ 错误/低分反馈请求全量上报；项目流量小可暂全量，但口径改为「可配置采样率 + 错误全量」 |
+| 4.1 | OTel Java Agent 自动埋点 | **调整（方案修正）** | 调研实证：Spring Boot 4 接 OTel 有两条路径——OTel Spring Boot Starter（SDK，2024-09 stable，spring.io 2025-11 博客确认）与 Java Agent（零代码）；Spring AI 的 ChatClient/RAG 调用两路均自动产 span。**但 Java Agent 的 Micrometer Bridge 默认关闭**（agent v2.0.0 起），显式开启 `-Dotel.instrumentation.micrometer.enabled=true` 后与既有 Micrometer auto-config 存在重复导出风险——项目已有 17 项 rag.* 指标走 Micrometer，**故选 Starter/SDK 路径（零改动既有指标代码）**，trace 经 OTLP 导出至 LLM 观测平台；`gen_ai.*` 属性仍处 Development（已迁独立仓库 semantic-conventions-genai，渐进稳定中），13.1 v2 注的间接引用策略维持。**「Trace 覆盖率 100%」验收修正**：业界生产实践为采样（10-20%）+ 错误/低分反馈请求全量上报；项目流量小可暂全量，但口径改为「可配置采样率 + 错误全量」 |
 | 4.2 | Prometheus 采集 + 告警规则 | **保留 + 扩展** | 采集端 Phase 3 已就绪（端点放行 + 17 项 rag.* 指标）。补告警规则两层：① 基础设施（磁盘/内存/JVM Heap/重启）；② LLM 特有（反馈比跌破阈值、空检索率突增、拒答率突增、Token 日耗环比突增、供应商错误率） |
 | 4.3 | Grafana 4 个 Dashboard | **保留** | 13.4 四面板设计与业界共识基本吻合，微调：LLM 面板补 TTFT 分位/路由决策/护栏命中（`rag.guardrail.*` 已注册，数据源现成）；业务面板补 Bad Case 队列与标注分布 |
 | 4.4 | Chunk CRUD 运维 API | **保留** | 对标结论：**chunk 级查看与编辑是全平台标配**（Dify/RAGFlow/FastGPT/MaxKB 均支持）；项目 C1 已通软删管道（只欠 REST 门面），编辑→异步重嵌入、删除、恢复三动作落 `ChunkAdminController`（14.1 草图为实现锚点，API 形态需源码级核验后落地） |
@@ -117,6 +117,8 @@
 | ⑦ | 文档与格式收尾 | 4.14 文档三件套 + N4 PPT/Excel 白名单 | 收尾小件批 | 3-4d | 文档评审 + 新格式 E2E |
 
 **合计约 26-35 人日（≈5-7 周）**——较原路线图 4 周略扩，主因 MCP 提前（+1 周）与 bad case 闭环升级；否决 K8s/Milvus 两项（-5d）部分对冲。若需压缩：簇⑤可移后段或裁剪 `ask` 工具、簇⑦可拆散伴生。
+
+> **簇① 实现提示（调研登记）**：① OTel Spring Boot Starter 是 Spring Boot 4 官方路径（零代码 Java Agent 亦可，但其 Micrometer Bridge 默认关、强开有重复导出风险，本项目既有 Micrometer 指标故走 Starter）；② **Arconia**（Thomas Vitale，Spring AI 核心贡献者）提供单配置属性切换五种 GenAI 语义约定 schema（OTel GenAI/OpenLIT/LangSmith/OpenInference/Micrometer 默认），可作 `gen_ai.*` experimental 键名风险的应对工具；③ 告警阈值参考值调研已在档（拒答率 >15% / 反馈好评比 <70% / 空检索率 >10% / Token 突增 >2σ / LLM 错误率 >5% / rerank 降级率 >10% / 配额命中率 >3%），落地时按项目实际基线校准。
 
 ### 5.2 顺序理由
 
