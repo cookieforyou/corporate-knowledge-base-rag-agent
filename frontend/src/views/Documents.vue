@@ -49,7 +49,7 @@
               </span>
               <div class="doc-names">
                 <span class="doc-name">{{ row.name }}</span>
-                <span class="t-data doc-meta">v{{ row.version ?? 1 }} · {{ fmtSize(row.size) }} · {{ fmtTime(row.createdAt) }}</span>
+                <span class="t-data doc-meta">v{{ row.version ?? 1 }} · {{ fmtSize(row.size) }} · {{ fmtTime(row.updatedAt) }}</span>
               </div>
             </div>
           </template>

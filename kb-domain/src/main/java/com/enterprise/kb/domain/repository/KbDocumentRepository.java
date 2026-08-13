@@ -1,5 +1,6 @@
 package com.enterprise.kb.domain.repository;
 
+import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.model.KbDocument;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -27,6 +28,6 @@ public interface KbDocumentRepository extends JpaRepository<KbDocument, String> 
     @Query("UPDATE KbDocument d SET d.status = :reindexing "
         + "WHERE d.id = :id AND d.status IN :acquirable")
     int acquireForReindex(@Param("id") String id,
-                          @Param("reindexing") com.enterprise.kb.domain.enums.DocumentStatus reindexing,
-                          @Param("acquirable") List<com.enterprise.kb.domain.enums.DocumentStatus> acquirable);
+                          @Param("reindexing") DocumentStatus reindexing,
+                          @Param("acquirable") List<DocumentStatus> acquirable);
 }
