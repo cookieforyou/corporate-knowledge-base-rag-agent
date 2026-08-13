@@ -131,6 +131,8 @@ class DocumentServiceTest {
 
         verify(documentRepository).acquireForReindex(DOC_ID, DocumentStatus.REINDEXING,
             List.of(DocumentStatus.SUCCESS, DocumentStatus.FAILED));
+        // 占用成功后内存态同步（@Modifying 只更新 DB，不同步则后续 save 回写旧状态）
+        assertThat(document.getStatus()).isEqualTo(DocumentStatus.REINDEXING);
         verify(metrics).recordReindexStarted();
         verify(etlService).process(eq(DOC_ID), any(), eq(ParseRoute.DEEP));  // 复现原始路由
     }
@@ -185,6 +187,11 @@ class DocumentServiceTest {
         assertThat(document.getName()).isEqualTo("手册-v2.pdf");
         assertThat(document.getType()).isEqualTo("PDF");
         assertThat(document.getSize()).isEqualTo(3L);
+        // 回归（2026-08-13 E2E 缺陷）：元数据保存必须保留 REINDEXING 占用态——
+        // 回写陈旧 SUCCESS 会使 ETL 误判首次入库（version 不递增、PARSING 顶替展示态）
+        ArgumentCaptor<KbDocument> captor = ArgumentCaptor.forClass(KbDocument.class);
+        verify(documentRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(DocumentStatus.REINDEXING);
         // 新文件不复用旧版本路由——显式参数缺省 → 自动决策
         verify(etlService).process(eq(DOC_ID), any(), eq(null));
         verify(metrics).recordReindexStarted();

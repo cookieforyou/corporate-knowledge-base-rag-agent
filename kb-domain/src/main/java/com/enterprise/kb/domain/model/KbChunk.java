@@ -55,7 +55,13 @@ public class KbChunk {
     @Column(name = "is_deleted")
     private Boolean isDeleted = false;
 
-    @Column(name = "created_at")
+    /**
+     * 创建时间——updatable=false（2026-08-13 E2E 缺陷修复）：蓝绿重入库同 ID merge
+     * 会拷贝实体全字段，persistChunks 手工设置的 createdAt=now 随 UPDATE 覆盖原创建
+     * 时间（每次重入库 created_at 全量刷新）。该列排除出 UPDATE 后仅 INSERT 写入，
+     * merge 保留原值——created_at 恢复「首次入库时刻」语义。
+     */
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")

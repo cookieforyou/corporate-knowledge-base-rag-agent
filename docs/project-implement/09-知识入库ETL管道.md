@@ -346,6 +346,23 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 > ④ **kb_document.version 列**（07 章同步）：首次入库 1、每次重入库成功 +1——
 > [ref-N] 引用经 docId 定位文档不因重入库碎裂，版本号为运维审计追溯维度。
 
+> **v2.26 修正（2026-08-13，簇⑥ C1 E2E 缺陷修复）——占用态回写与 created_at 覆写**：
+> E2E 实测发现两缺陷（reparse 正常 version+1；replace version 不递增、两文档全部
+> chunk created_at 刷新为入库时刻）：
+> ① **replace 占用态回写**：`acquireForReindex` 的 @Modifying 查询只更新 DB
+> （clearAutomatically 已使实体脱管），内存实体仍持占用前旧状态——replace 后续
+> `save(doc)` 把陈旧 SUCCESS 回写 → ETL 重读误判首次入库（version 不递增、处理期
+> REINDEXING 被 PARSING 顶替；守卫不失效——PARSING 同样不在可占用集）。
+> 修复 = 占用成功后同步内存态 `doc.setStatus(REINDEXING)`。
+> ② **chunk created_at merge 覆写**：persistChunks 手工 `createdAt=now`，蓝绿同 ID
+> merge 时 @PreUpdate 只刷 updatedAt，手工值随 UPDATE 覆盖原创建时间。
+> 修复 = `KbChunk.createdAt` @Column(updatable=false) 排除出 UPDATE（INSERT 仍写入，
+> merge 保留原值）——created_at 恢复「首次入库时刻」语义，且重入库后可经 created_at
+> 区分「覆写存活 vs 新增」chunk（观测性恢复）。
+> ③ **E2E 核验数据**：reparse（内容不变）后 7 chunk 确定性 ID 逐位复现——本地按
+> nameUUID(文档名#序号#增强前原文) 重算 7/7 全匹配，蓝绿同 ID 幂等覆写实证；
+> replace（一行规格变更）后 8 chunk 同式自洽。
+
 ---
 
 ## 9.4 ES 索引双写（v2 新增）

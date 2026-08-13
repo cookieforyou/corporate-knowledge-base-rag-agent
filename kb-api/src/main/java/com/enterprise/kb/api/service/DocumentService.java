@@ -226,6 +226,11 @@ public class DocumentService {
     /**
      * 重入库状态原子占用：仅 SUCCESS/FAILED 可占用为 REINDEXING；
      * 影响行数 0 = 并发占用或状态不可重入库 → DOC_NOT_READY（409 冲突）。
+     *
+     * <p><b>内存态同步（2026-08-13 E2E 缺陷修复）</b>：@Modifying 查询只更新 DB
+     * （clearAutomatically 已使实体脱管），内存实体仍持占用前旧状态——replace 后续
+     * save(doc) 若把陈旧 SUCCESS 回写，ETL 管线误判首次入库（version 不递增、
+     * 处理期 REINDEXING 被 PARSING 顶替）。占用成功后同步内存态，后续读写一致。
      */
     private void acquireForReindex(KbDocument doc) {
         int acquired = documentRepository.acquireForReindex(doc.getId(),
@@ -234,6 +239,7 @@ public class DocumentService {
             throw new BusinessException("DOC_NOT_READY",
                 "文档当前不可重入库（仅 SUCCESS/FAILED 允许，当前 " + doc.getStatus() + "）: " + doc.getId());
         }
+        doc.setStatus(DocumentStatus.REINDEXING);
     }
 
     /**
