@@ -170,7 +170,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                 ctx == null ? List.of() : ctx.getToolCalls(),
                 latency(startMs));
 
-            recordBusinessMetrics(snapshot);
+            recordBusinessMetrics(snapshot, error);
             auditExecutor.execute(() -> persistSafely(snapshot, queryText, answer, chatResponse, error));
         } catch (Exception e) {
             log.warn("审计记录构建失败，丢弃（旁路数据，不影响问答）: {}", e.getMessage());
@@ -222,10 +222,13 @@ public class AuditTraceAdvisor implements BaseAdvisor {
      *   <li>检索命中率：rag 模式且产生过 trace 条目（到达过检索层）计 total，
      *       final 重排序列非空计 hit；内层护栏/限流提前拒绝未达检索，不计入分母</li>
      *   <li>工具调用：按 ToolCall.status 分桶（成功/挂起见 AiBusinessMetrics）</li>
+     *   <li>请求结果（Phase 4 簇①）：全量请求计 total，BusinessException 计 rejected、
+     *       其他异常计 error——与落库三态同语义，为 4.2 告警提供拒绝率/错误率分母</li>
      * </ul>
      */
-    private void recordBusinessMetrics(AuditSnapshot snapshot) {
+    private void recordBusinessMetrics(AuditSnapshot snapshot, Throwable error) {
         try {
+            metrics.recordRequestOutcome(error);
             if ("rag".equals(snapshot.mode()) && !snapshot.traceEntries().isEmpty()) {
                 boolean hit = snapshot.traceEntries().stream()
                     .anyMatch(e -> "final".equals(e.source()) && !e.documents().isEmpty());

@@ -34,6 +34,8 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -225,6 +227,28 @@ class AuditTraceAdvisorTest {
         assertThat(audit.getStatus()).isEqualTo("ERROR");
         assertThat(audit.getErrorCode()).isEqualTo("IllegalStateException");
         assertThat(audit.getMode()).isEqualTo("tool");
+    }
+
+    /** 簇①：请求结果计数与审计三态同语义——告警拒绝率/错误率分母 */
+    @Test
+    void requestOutcomeCountersMatchAuditSemantics() {
+        // SUCCESS
+        doReturn(response("回答")).when(callChain).nextCall(any());
+        advisor.adviseCall(request(ctxWithTrace(), "rag", "问题一"), callChain);
+
+        // REJECTED（BusinessException）——重 stub 已抛异常方法须 doThrow 形态（坑位⑩）
+        doThrow(new BusinessException("RATE_LIMITED", "限流")).when(callChain).nextCall(any());
+        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题二"), callChain))
+            .isInstanceOf(BusinessException.class);
+
+        // ERROR（其他异常）
+        doThrow(new IllegalStateException("boom")).when(callChain).nextCall(any());
+        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题三"), callChain))
+            .isInstanceOf(IllegalStateException.class);
+
+        assertThat(meterRegistry.counter("rag.request.total").count()).isEqualTo(3.0);
+        assertThat(meterRegistry.counter("rag.request.rejected").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.request.error").count()).isEqualTo(1.0);
     }
 
     @Test

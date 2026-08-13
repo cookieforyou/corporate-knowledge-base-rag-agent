@@ -1,0 +1,149 @@
+# kb-rag-agent Prometheus 告警规则（Phase 4 簇① 任务 4.2）
+#
+# 命名口径（2026-08-13 actuator/prometheus 端点实证）：点转下划线；counter 追加 _total 后缀，
+# 但原名已以 total 结尾的不重复追加——rag.request.total → rag_request_total（单 total），
+# rag.request.error → rag_request_error_total（追加）。以下表达式全部按实证名校准。
+#
+# 阈值口径：规划调研参考值（拒答率 >15% / 好评比 <70% / 空检索率 >10% / Token 突增 /
+# LLM 错误率 >5% / rerank 降级率 >10% / 配额命中率 >3%）——均为首次落档参考值，
+# 待生产基线数据 1 周后按实际分布校准（各 alert annotation 内标注校准锚点）。
+#
+# 挂载方式（簇⑥ Compose 生产化时接线）：prometheus.yml 的 rule_files 指向本文件；
+# scrape 目标 actuator prometheus 端点（8090，SecurityConfig 已放行）。
+# 语法自检：promtool check rules alert-rules-kb-rag.yml
+
+groups:
+  # ── 基础设施层：JVM/进程（actuator 原生指标，当前可观测面）──
+  # 磁盘/内存主机层规则待 node_exporter 部署后启用（簇⑥ Compose 生产化随附），暂以注释留档：
+  #   - alert: HostDiskNearFull
+  #     expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"})
+  #           / node_filesystem_size_bytes{mountpoint="/"} > 0.85
+  #     for: 10m
+  #   - alert: HostMemoryNearFull
+  #     expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+  #     for: 10m
+  - name: kb-rag-jvm-process
+    rules:
+      - alert: KbProcessRecentlyRestarted
+        expr: process_uptime_seconds < 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "kb-rag-agent 进程 5 分钟内重启过"
+          description: "process_uptime_seconds={{ $value }}——非计划重启须查 OOM/部署记录；计划内部署请静默本规则。"
+
+      - alert: KbJvmHeapNearFull
+        expr: |
+          sum(jvm_memory_used_bytes{application="kb-rag-agent",area="heap"})
+          / sum(jvm_memory_max_bytes{application="kb-rag-agent",area="heap"}) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM 堆使用率 >90% 持续 10 分钟"
+          description: "堆占比={{ $value }}；排查大对象缓存/未收敛的流式缓冲，必要时扩堆。"
+
+      - alert: KbJvmGcPressureHigh
+        expr: jvm_gc_overhead{application="kb-rag-agent"} > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GC 开销 >20%（jvm_gc_overhead 平滑 gauge）"
+          description: "GC 开销={{ $value }}；影响 TTFT 分位，检查堆配置与对象分配热点。备选表达式：rate(jvm_gc_pause_seconds_sum[5m]) > 0.2。"
+
+      - alert: KbThreadsDeadlocked
+        expr: jvm_threads_deadlocked{application="kb-rag-agent"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "检测到 JVM 死锁线程"
+          description: "死锁线程数={{ $value }}；立即 jstack 取证。注：该 gauge 仅在死锁数 >0 时由 Micrometer 条件注册——序列缺席即无死锁，规则静默为正确态。"
+
+  # ── LLM 特有层：映射 AiBusinessMetrics 既有指标（13.3 + 簇①新增）──
+  - name: kb-rag-llm
+    rules:
+      - alert: KbFeedbackLikeRatioLow
+        expr: |
+          sum(increase(rag_feedback_like_total[1h]))
+          / (sum(increase(rag_feedback_like_total[1h])) + sum(increase(rag_feedback_dislike_total[1h]))) < 0.70
+          and
+          (sum(increase(rag_feedback_like_total[1h])) + sum(increase(rag_feedback_dislike_total[1h]))) >= 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "用户反馈好评比 <70%（近 1 小时）"
+          description: "好评比={{ $value }}；走簇④ Bad Case 闭环：查 kb_audit_log 点踩样本 → 根因标注 → Golden 回灌。"
+
+      - alert: KbEmptyRetrievalRateHigh
+        expr: |
+          1 - (sum(increase(rag_retrieval_hit_total[1h])) / sum(increase(rag_retrieval_total[1h]))) > 0.10
+          and sum(increase(rag_retrieval_total[1h])) >= 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "空检索率 >10%（近 1 小时）"
+          description: "空检索率={{ $value }}；空证据直接触发拒答模板，优先核查语料覆盖与切分质量（簇③ 入口线索）。"
+
+      - alert: KbRejectionRateHigh
+        expr: |
+          sum(increase(rag_request_rejected_total[30m])) / sum(increase(rag_request_total[30m])) > 0.15
+          and sum(increase(rag_request_total[30m])) >= 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "请求拒绝率 >15%（近 30 分钟）"
+          description: "拒绝率={{ $value }}（护栏/配额拒绝，审计 REJECTED 态）；区分注入攻击潮与配额误配——查 rag.guardrail.* 分列指标。"
+
+      - alert: KbRequestErrorRateHigh
+        expr: |
+          sum(increase(rag_request_error_total[10m])) / sum(increase(rag_request_total[10m])) > 0.05
+          and sum(increase(rag_request_total[10m])) >= 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "供应商/系统错误率 >5%（近 10 分钟）"
+          description: "错误率={{ $value }}（审计 ERROR 态）；核查主模型端点健康与熔断态（rag.routing.*），确认备用链路是否接管。"
+
+      - alert: KbTokenSpike
+        expr: |
+          increase(rag_token_total[1h]) > 3 * (increase(rag_token_total[24h]) / 24)
+          and increase(rag_token_total[24h]) >= 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Token 消耗突增（近 1 小时 >3× 日均小时速率）"
+          description: |
+            小时消耗={{ $value }}；调研参考值为 >2σ，PromQL 无法直接计算标准差，
+            以 3× 日均速率近似（校准锚点：积累 1 周基线后按实际方差收紧/放宽）。
+            排查长上下文会话洪峰与异常租户。
+
+      - alert: KbRerankFallbackRateHigh
+        expr: |
+          sum(increase(rag_rerank_fallback_total[30m])) / sum(increase(rag_rerank_total[30m])) > 0.10
+          and sum(increase(rag_rerank_total[30m])) >= 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "rerank 降级率 >10%（近 30 分钟）"
+          description: "降级率={{ $value }}（退化为 fusion_score 截断，排序质量受损）；核查百炼 rerank 端点可用性与超时配置 rag.rerank.timeout-seconds。"
+
+      - alert: KbQuotaHitRateHigh
+        expr: |
+          (sum(increase(rag_guardrail_rate_limited_total[30m])) + sum(increase(rag_guardrail_token_budget_total[30m])))
+          / sum(increase(rag_request_total[30m])) > 0.03
+          and sum(increase(rag_request_total[30m])) >= 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "配额命中率 >3%（限流 + Token 预算，近 30 分钟）"
+          description: "命中率={{ $value }}；配额配置可能过紧或存在异常用量租户——租户级明细走 Redis 账本键与 kb_audit_log（指标无租户标签，防基数膨胀）。"

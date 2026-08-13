@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.config;
 import com.enterprise.kb.ai.routing.SmartRoutingChatModel;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.observation.ChatModelObservationConvention;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.ObjectProvider;
@@ -54,6 +55,7 @@ public class SmartRoutingConfig {
     @Bean("deepSeekChatModel")
     public ChatModel deepSeekChatModel(
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<ChatModelObservationConvention> observationConventionProvider,
             @Value("${spring.ai.deepseek.api-key:}") String apiKey,
             @Value("${spring.ai.deepseek.base-url:https://api.deepseek.com}") String baseUrl,
             @Value("${spring.ai.deepseek.chat.model:deepseek-v4-flash}") String model,
@@ -62,7 +64,7 @@ public class SmartRoutingConfig {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("DEEPSEEK_API_KEY 未配置——主模型不可用");
         }
-        return OpenAiChatModel.builder()
+        OpenAiChatModel chatModel = OpenAiChatModel.builder()
             .options(OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
@@ -80,6 +82,9 @@ public class SmartRoutingConfig {
             // 手工装配必须显式挂 ObservationRegistry（坑位⑯）
             .observationRegistry(observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP))
             .build();
+        // 内容捕获 convention（簇①）：仅开关开启时注册，经 ObjectProvider 条件消费
+        observationConventionProvider.ifAvailable(chatModel::setObservationConvention);
+        return chatModel;
     }
 
     /**
@@ -90,6 +95,7 @@ public class SmartRoutingConfig {
     @ConditionalOnProperty(name = "rag.routing.fallback.enabled", havingValue = "true", matchIfMissing = true)
     public ChatModel fallbackChatModel(
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<ChatModelObservationConvention> observationConventionProvider,
             @Value("${rag.routing.fallback.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}") String baseUrl,
             @Value("${rag.routing.fallback.api-key:}") String apiKey,
             @Value("${rag.routing.fallback.model:qwen3.7-plus}") String model,
@@ -99,7 +105,7 @@ public class SmartRoutingConfig {
             throw new IllegalStateException(
                 "DASHSCOPE_API_KEY 未配置——备用模型不可用。关闭路由请设 rag.routing.fallback.enabled=false");
         }
-        return OpenAiChatModel.builder()
+        OpenAiChatModel chatModel = OpenAiChatModel.builder()
             .options(OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
@@ -120,6 +126,8 @@ public class SmartRoutingConfig {
             // deepSeekChatModel 由 starter 注入，手工 builder 不继承——E2E 观测实证）
             .observationRegistry(observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP))
             .build();
+        observationConventionProvider.ifAvailable(chatModel::setObservationConvention);
+        return chatModel;
     }
 
     /**
@@ -142,5 +150,19 @@ public class SmartRoutingConfig {
             return primary;
         }
         return new SmartRoutingChatModel(primary, fallback, failureThreshold, openSeconds);
+    }
+
+    /**
+     * 内容捕获 convention（Phase 4 簇①）——仅内容捕获开关开启时注册（与
+     * {@code spring.ai.chat.observations.log-prompt} 同源，同一 env 开关
+     * RAG_OBSERVABILITY_LOG_CONTENT 驱动）。把 prompt/completion 作为高基数 KeyValue
+     * 写入 ChatModel observation，经 tracing 桥落 span attribute（gen_ai.prompt/
+     * gen_ai.completion，Langfuse OTLP 映射契约），补 Spring AI 2.0 内容只进日志不进
+     * span 的缺口。主/备手工模型经 ObjectProvider 条件消费（见两 Bean）。
+     */
+    @Bean
+    @ConditionalOnProperty(name = "spring.ai.chat.observations.log-prompt", havingValue = "true")
+    public ChatModelObservationConvention contentCapturingChatModelObservationConvention() {
+        return new ContentCapturingChatModelObservationConvention();
     }
 }

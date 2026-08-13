@@ -47,6 +47,30 @@
             <artifactId>logstash-logback-encoder</artifactId>
             <version>8.0</version>
         </dependency>
+
+        <!-- 观测地基（Phase 4 簇①）：Micrometer Observation → OTel 桥接 → OTLP 导出（Langfuse Cloud）
+             Boot 4.1 模块化形态：tracing-opentelemetry 模块含核心 tracing + OTel 桥接装配 + OTLP 自动配置
+             （OtlpTracingAutoConfiguration，属性前缀 management.opentelemetry.tracing.export.otlp.*）；
+             bridge-otel 提供 Observation→Span 桥，exporter-otlp 提供 OTLP/HTTP 序列化导出。
+             仅 kb-api 宿主引入——kb-eval 评估宿主零影响（不挂导出链）。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+        <!-- 簇① trace 碎片化修复：Reactor/异步边界 ThreadLocal 传播（tracing 上下文
+             随 Reactor Context 捕获/恢复，span 父子关系复原）。Boot BOM 管理版本 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

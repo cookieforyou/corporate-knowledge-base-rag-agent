@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.metrics;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.exception.BusinessException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -37,6 +38,15 @@ import java.time.Duration;
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
  *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
+ *   <li>{@code rag.request.total / rejected / error}——双链问答请求结果计数
+ *       （Phase 4 簇①）：AuditTraceAdvisor 遍历双链全量请求旁路计数；
+ *       rejected = BusinessException（护栏/配额拒绝，审计 REJECTED），
+ *       error = 其他异常（供应商/系统，审计 ERROR）；为告警规则提供
+ *       拒绝率/错误率分母（4.2）</li>
+ *   <li>{@code rag.rerank.total / rag.rerank.fallback}——rerank 执行/降级计数
+ *       （Phase 4 簇①）：RerankDocumentPostProcessor 运行时调用计 total，
+ *       解析失败/结构异常/调用失败降级 fusion_score 截断计 fallback；
+ *       endpoint 未配置的静态降级不计入（配置态非运行态）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -68,6 +78,11 @@ public class AiBusinessMetrics {
     private final Counter documentReindexStarted;
     private final Counter documentReindexSucceeded;
     private final Counter documentReindexFailed;
+    private final Counter requestTotal;
+    private final Counter requestRejected;
+    private final Counter requestError;
+    private final Counter rerankTotal;
+    private final Counter rerankFallback;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -110,6 +125,16 @@ public class AiBusinessMetrics {
             .description("文档增量重入库成功次数（ETL 进度回调 COMPLETED，簇⑥ C1）").register(registry);
         this.documentReindexFailed = Counter.builder("rag.document.reindex.failed")
             .description("文档增量重入库失败次数（ETL 进度回调 FAILED，簇⑥ C1）").register(registry);
+        this.requestTotal = Counter.builder("rag.request.total")
+            .description("双链问答请求总数（审计旁路计数，Phase 4 簇①）").register(registry);
+        this.requestRejected = Counter.builder("rag.request.rejected")
+            .description("护栏/配额拒绝请求数（BusinessException → 审计 REJECTED，Phase 4 簇①）").register(registry);
+        this.requestError = Counter.builder("rag.request.error")
+            .description("供应商/系统错误请求数（审计 ERROR，Phase 4 簇①）").register(registry);
+        this.rerankTotal = Counter.builder("rag.rerank.total")
+            .description("rerank 运行时执行次数（Phase 4 簇①）").register(registry);
+        this.rerankFallback = Counter.builder("rag.rerank.fallback")
+            .description("rerank 降级次数（解析失败/结构异常/调用失败 → fusion_score 截断，Phase 4 簇①）").register(registry);
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */
@@ -189,5 +214,27 @@ public class AiBusinessMetrics {
     /** 文档增量重入库计数（簇⑥ C1） */
     public void recordReindexOutcome(boolean succeeded) {
         (succeeded ? documentReindexSucceeded : documentReindexFailed).increment();
+    }
+
+    /**
+     * 请求结果计数（Phase 4 簇①，告警分母）：与审计三态同语义——
+     * error=null 计 total；BusinessException（护栏/配额拒绝，审计 REJECTED）计 rejected；
+     * 其他异常（供应商/系统，审计 ERROR）计 error。拒绝率/错误率 = 对应计数/total。
+     */
+    public void recordRequestOutcome(Throwable error) {
+        requestTotal.increment();
+        if (error instanceof BusinessException) {
+            requestRejected.increment();
+        } else if (error != null) {
+            requestError.increment();
+        }
+    }
+
+    /** rerank 执行/降级计数（Phase 4 簇①）：降级率 = fallback/total */
+    public void recordRerank(boolean fallback) {
+        rerankTotal.increment();
+        if (fallback) {
+            rerankFallback.increment();
+        }
     }
 }

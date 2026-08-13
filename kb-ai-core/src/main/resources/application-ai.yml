@@ -33,10 +33,21 @@ spring:
         model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
 
     chat:
+      # 观测内容开关（Phase 4 簇①）：prompt/completion 全文附入 observation，经 OTel
+      # 桥接落 span attribute 导出 Langfuse。实证坑：本文件经 spring.config.import 导入、
+      # 优先级高于 kb-api application.yml——内容开关唯一来源在此（application.yml 不重复
+      # 定义）。SaaS 出境合规风险已在簇①定案时知悉接受；关闭置 RAG_OBSERVABILITY_LOG_CONTENT=false
       observations:
-        log-prompt: false
-        log-completion: true
+        log-prompt: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
+        log-completion: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
         include-error-logging: true
+      client:
+        observations:
+          log-prompt: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
+          log-completion: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
+    tools:
+      observations:
+        include-content: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
       # ── 会话记忆（3.1）—— Redis 热存储（设计文档 11.2，v2.3 实证修正）──
       # 连接信息（host/port/password/database）统一取自 spring.data.redis.*
       # （见 ChatMemoryRedisClientConfig 覆盖自动配置 jedisClient，支持密码认证）；

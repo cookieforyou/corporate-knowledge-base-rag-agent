@@ -1,6 +1,8 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -18,10 +20,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class RerankDocumentPostProcessorTest {
 
     private final RetrievalProperties properties = new RetrievalProperties();
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final AiBusinessMetrics metrics = new AiBusinessMetrics(meterRegistry);
 
     /** endpoint 为空 → 禁用态，走降级截断（超时参数簇③ D2 引入，禁用态不触达） */
     private final RerankDocumentPostProcessor disabled =
-        new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, "", "qwen3-rerank", "", 5);
+        new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
+            "", "qwen3-rerank", "", 5);
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
@@ -88,5 +93,29 @@ class RerankDocumentPostProcessorTest {
     void noContext_noTraceRecorded_truncationUnaffected() {
         List<Document> result = disabled.apply(new Query("q"), List.of(doc("a", 0.9)));
         assertEquals(List.of("a"), result.stream().map(Document::getId).toList());
+    }
+
+    /** 簇① 指标语义：endpoint 未配置的静态降级不计运行时计数（配置态非运行态，降级率分母不污染） */
+    @Test
+    void disabled_staticFallback_notCountedInRuntimeMetrics() {
+        disabled.apply(new Query("q"), List.of(doc("a", 0.9)));
+
+        assertEquals(0.0, meterRegistry.counter("rag.rerank.total").count());
+        assertEquals(0.0, meterRegistry.counter("rag.rerank.fallback").count());
+    }
+
+    /** 簇① 指标语义：运行时调用失败降级 → total 与 fallback 各计一次（降级率分子分母齐备） */
+    @Test
+    void enabledUnreachable_callFails_countsFallbackOnce() {
+        RerankDocumentPostProcessor unreachable =
+            new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
+                "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
+
+        List<Document> result = unreachable.apply(new Query("q"), List.of(doc("a", 0.3), doc("b", 0.7)));
+
+        // 降级路径仍可服务：fusion_score 截断兜底
+        assertEquals(List.of("b", "a"), result.stream().map(Document::getId).toList());
+        assertEquals(1.0, meterRegistry.counter("rag.rerank.total").count());
+        assertEquals(1.0, meterRegistry.counter("rag.rerank.fallback").count());
     }
 }

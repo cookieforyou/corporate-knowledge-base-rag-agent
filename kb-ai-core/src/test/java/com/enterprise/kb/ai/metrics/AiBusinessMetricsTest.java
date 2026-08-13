@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.metrics;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.exception.BusinessException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,5 +105,28 @@ class AiBusinessMetricsTest {
 
         assertThat(registry.counter("rag.token.budget.rejected").count()).isEqualTo(1.0);
         assertThat(registry.counter("rag.guardrail.token.budget").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void requestOutcomeCountersSplitByAuditSemantics() {
+        // 与审计三态同语义：SUCCESS 计 total；BusinessException 计 rejected；其他异常计 error
+        metrics.recordRequestOutcome(null);
+        metrics.recordRequestOutcome(new BusinessException("RATE_LIMITED", "限流"));
+        metrics.recordRequestOutcome(new BusinessException("PROMPT_INJECTION", "注入拦截"));
+        metrics.recordRequestOutcome(new IllegalStateException("供应商 5xx"));
+
+        assertThat(registry.counter("rag.request.total").count()).isEqualTo(4.0);
+        assertThat(registry.counter("rag.request.rejected").count()).isEqualTo(2.0);
+        assertThat(registry.counter("rag.request.error").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void rerankExecutionAndFallbackCounters() {
+        metrics.recordRerank(false);
+        metrics.recordRerank(false);
+        metrics.recordRerank(true);
+
+        assertThat(registry.counter("rag.rerank.total").count()).isEqualTo(3.0);
+        assertThat(registry.counter("rag.rerank.fallback").count()).isEqualTo(1.0);
     }
 }

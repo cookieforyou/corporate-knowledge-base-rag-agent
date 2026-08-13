@@ -31,6 +31,9 @@ spring:
         jwt:
           issuer-uri: ${JWT_ISSUER_URI:}
 
+# Spring AI 观测内容开关（Phase 4 簇①）唯一定义在 kb-ai-core/application-ai.yml
+# （spring.config.import 导入源优先级高于本文件——簇①实证：双源定义时导入源覆盖）
+
 # 日志 → 见 logback-spring.xml（dev 彩色控制台 / prod JSON 结构化）
 
 # Actuator + Prometheus
@@ -45,6 +48,25 @@ management:
   tracing:
     sampling:
       probability: ${TRACING_SAMPLING:1.0}
+    export:
+      otlp:
+        # OTLP 导出总开关（Phase 4 簇①）：默认关——未配 Langfuse 凭据时零导出零噪音；
+        # 开启须三件套同批：TRACING_OTLP_ENABLED=true + LANGFUSE_OTLP_AUTH（缺凭据会 401 噪音）
+        enabled: ${TRACING_OTLP_ENABLED:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          # Boot 4.1 属性形态（实证：management.otlp.tracing.* 已迁此前缀）；
+          # Langfuse OTLP 契约：EU Cloud /api/public/otel/v1/traces，仅 HTTP/protobuf（无 gRPC），
+          # Basic Auth = base64(pk:sk)。endpoint 缺省 None 时自动配置不创建导出器。
+          # 实证坑（簇①）：本属性为「信号专属 endpoint」，OTel Java SDK 原样使用、
+          # 不自动追加 /v1/traces（仅 base endpoint 才追加）——必须带全路径，缺路径段
+          # 则 Langfuse 回 404。直连实测 /api/public/otel/v1/traces=200、/api/public/otel=404。
+          endpoint: ${LANGFUSE_OTLP_ENDPOINT:https://cloud.langfuse.com/api/public/otel/v1/traces}
+          transport: http
+          headers:
+            Authorization: ${LANGFUSE_OTLP_AUTH:}
   prometheus:
     metrics:
       export:

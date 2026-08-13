@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.extern.slf4j.Slf4j;
@@ -48,16 +49,20 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     private final String apiKey;
     /** 检索调优参数：topK 决定 rerank top_n 与截断条数（rag.retrieval.top-k） */
     private final RetrievalProperties properties;
+    /** 业务指标（Phase 4 簇①）：rerank 执行/降级计数，供 4.2 降级率告警 */
+    private final AiBusinessMetrics metrics;
 
     public RerankDocumentPostProcessor(
             JsonMapper jsonMapper,
             RetrievalProperties properties,
+            AiBusinessMetrics metrics,
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
             @Value("${rag.rerank.api-key:}") String apiKey,
             @Value("${rag.rerank.timeout-seconds:5}") int timeoutSeconds) {
         this.jsonMapper = jsonMapper;
         this.properties = properties;
+        this.metrics = metrics;
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
@@ -121,11 +126,13 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                 log.warn("rerank 响应解析失败，降级为 fusion_score 截断: {}, 原文: {}",
                     parseError.getMessage(), raw == null ? "null"
                         : raw.substring(0, Math.min(raw.length(), 500)));
+                metrics.recordRerank(true);
                 return truncateByFusionScore(documents);
             }
             if (results == null) {
                 log.warn("rerank 响应结构异常（无 results），降级为 fusion_score 截断，原文: {}",
                     raw.substring(0, Math.min(raw.length(), 500)));
+                metrics.recordRerank(true);
                 return truncateByFusionScore(documents);
             }
 
@@ -145,6 +152,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                     .build());
             }
             // API 结果已按相关性降序；防御性再排序 + 截断
+            metrics.recordRerank(false);
             return reranked.stream()
                 .sorted(Comparator.comparingDouble(
                     (Document d) -> (Double) d.getMetadata().get("rerank_score")).reversed())
@@ -152,6 +160,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                 .toList();
         } catch (Exception e) {
             log.warn("rerank 调用失败，降级为 fusion_score 截断: {}", e.getMessage());
+            metrics.recordRerank(true);
             return truncateByFusionScore(documents);
         }
     }
