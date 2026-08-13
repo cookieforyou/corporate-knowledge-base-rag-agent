@@ -155,9 +155,11 @@ public record EvalReport(
         }
 
         // 文档级兜底（簇④ A4 修复）：chunk ID 失配（重入库换代/解析漂移）时
-        // chunk 级归零，此层以 file_name 匹配给出方向性读数；无门禁仅观测
+        // chunk 级归零，此层以 file_name 匹配给出方向性读数；无门禁仅观测。
+        // 前置换行显式补：文本块无前导换行，直接 append 会与上一小节末行粘连
+        // （簇④ A4 遗留缺陷，簇⑤ E2E 发现并修复，防回归见 EvalReportThresholdTest）
         if (docRetrievalEvaluated > 0) {
-            sb.append(String.format("""
+            sb.append(System.lineSeparator()).append(String.format("""
                 ── 检索侧（文档级兜底，n=%d）──
                 Doc Recall:          %s
                 Doc MRR:             %s

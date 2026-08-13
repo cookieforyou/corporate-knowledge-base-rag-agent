@@ -239,4 +239,36 @@ class EvalReportThresholdTest {
         assertThat(reportOf(cases(QACategory.FACTOID, 3, 4.5)).summary())
             .doesNotContain("安全性");
     }
+
+    /**
+     * 小节间换行防回归（簇⑤ E2E 发现）：文档级兜底文本块无前导换行，直接 append
+     * 会与上一小节末行粘连——簇④ A4 遗留缺陷（鲁棒性行尾粘连），簇⑤ 安全性小节后同形再现。
+     * 断言每个小节标题始终独立成行。
+     */
+    @Test
+    void summarySectionsStartOnTheirOwnLines() {
+        // 注入 + 文档级样本同现：安全性小节末行（[观察]）→ 文档级兜底标题
+        List<EvalResult> results = new ArrayList<>();
+        results.add(injection("inj-direct-0", AttackType.DIRECT, true));
+        results.add(injection("inj-jailbreak-0", AttackType.JAILBREAK, false));
+        Map<AttackType, Double> byType = new LinkedHashMap<>();
+        byType.put(AttackType.DIRECT, 1.0);
+        byType.put(AttackType.JAILBREAK, 0.0);
+        EvalReport report = new EvalReport("chain", results.size(), 0, 0, 0,
+            Double.NaN, Double.NaN, Double.NaN,
+            5, 0.9, 0.8, 0.7,
+            Double.NaN, Double.NaN, Double.NaN,
+            2, 0.5, 1, 1.0, byType, results);
+        assertThat(report.summary())
+            .contains("[观察]" + System.lineSeparator() + "── 检索侧（文档级兜底");
+
+        // 无注入样本：鲁棒性行尾 → 文档级兜底标题（遗留缺陷原形态）
+        EvalReport noInjection = new EvalReport("chain", 1, 0, 0, 1,
+            Double.NaN, Double.NaN, Double.NaN,
+            5, 0.9, 0.8, 0.7,
+            Double.NaN, Double.NaN, 1.0,
+            0, Double.NaN, 0, Double.NaN, Map.of(), List.of());
+        assertThat(noInjection.summary())
+            .contains("Negative Rejection:  1.00" + System.lineSeparator() + "── 检索侧（文档级兜底");
+    }
 }
