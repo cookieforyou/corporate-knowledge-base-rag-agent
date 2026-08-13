@@ -126,6 +126,11 @@ public class DocumentService {
      * <p><b>幂等</b>（2026-08-03）：删除不存在的文档静默成功。E2E 实测删除竞态
      * （重复点击/双 Tab/列表刷新前再删）会产生第二次 DELETE，此前抛 DOC_NOT_FOUND
      * 业务异常——对删除语义而言「目标已不存在」即「已删除」，不应报错。
+     *
+     * <p><b>处理期守卫</b>（2026-08-13，簇⑥ C1 收尾）：UPLOADING/PARSING/REINDEXING
+     * 期间禁止删除 → DOC_NOT_READY(409)。级联清理与在途 ETL 竞态会产生孤儿写回，
+     * 重入库窗口内误删更会摧毁正在重入库的文档；SUCCESS/FAILED 放行（FAILED 删除
+     * 是正当清理路径）。前端删除按钮同状态集 disable（Documents.vue）。
      */
     public void delete(String docId, String tenantId) {
         KbDocument doc = documentRepository.findById(docId).orElse(null);
@@ -134,6 +139,12 @@ public class DocumentService {
             return;
         }
         checkOwnership(doc, tenantId);
+
+        DocumentStatus status = doc.getStatus();
+        if (status != null && status.isProcessing()) {
+            throw new BusinessException("DOC_NOT_READY",
+                "文档处理中，禁止删除（当前 " + status + "）: " + docId);
+        }
 
         // 三库级联委派共享组件（簇⑥ C1）：PG chunk + 向量库 + ES deleteByQuery(doc_id)
         // 文档级扫尾形态——含 PG 外的 ES 孤儿一并清理

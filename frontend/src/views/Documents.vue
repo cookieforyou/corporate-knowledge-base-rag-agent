@@ -87,7 +87,9 @@
               @click="confirmReplace(row)">
               <el-icon><UploadFilled /></el-icon>&nbsp;替换
             </el-button>
-            <el-button size="small" text type="danger" @click="confirmDelete(row)">
+            <!-- 处理期禁删（与后端 DOC_NOT_READY 守卫同状态集，簇⑥ C1 收尾） -->
+            <el-button size="small" text type="danger" :disabled="isLiveDocStatus(row.status)"
+              @click="confirmDelete(row)">
               <el-icon><Delete /></el-icon>&nbsp;删除
             </el-button>
           </template>

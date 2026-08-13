@@ -32,7 +32,8 @@ public class GlobalExceptionHandler {
 
     /**
      * 资源状态冲突类错误码 — 目标资源当前状态不允许该操作（簇⑥ C1：文档处于
-     * 处理中仍发起重入库），语义为「与现状冲突」，映射 HTTP 409（可重试语义）。
+     * 处理中仍发起重入库 / 处理期发起删除），语义为「与现状冲突」，映射 HTTP 409
+     * （可重试语义）。
      */
     private static final Set<String> CONFLICT_ERROR_CODES = Set.of("DOC_NOT_READY");
 

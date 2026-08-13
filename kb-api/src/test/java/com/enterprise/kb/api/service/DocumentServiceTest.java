@@ -15,6 +15,8 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -115,6 +117,35 @@ class DocumentServiceTest {
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("无权");
         verifyNoInteractions(chunkCleanupService);
+    }
+
+    /**
+     * 处理期（UPLOADING/PARSING/REINDEXING）禁删（簇⑥ C1 收尾）——防级联清理与
+     * 在途 ETL 竞态、防重入库窗口误删；守卫在租户校验之后（不跨租户泄露状态）。
+     */
+    @ParameterizedTest
+    @EnumSource(names = {"UPLOADING", "PARSING", "REINDEXING"})
+    void deleteBlockedWhileProcessing(DocumentStatus status) {
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(doc(TENANT, status)));
+
+        assertThatThrownBy(() -> service.delete(DOC_ID, TENANT))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("DOC_NOT_READY");
+        verifyNoInteractions(chunkCleanupService, minioClient);
+        verify(documentRepository, never()).delete(any());
+    }
+
+    /** FAILED 态放行——失败文档删除是正当清理路径（守卫不过度拦截） */
+    @Test
+    void deleteAllowedWhenFailed() {
+        KbDocument document = doc(TENANT, DocumentStatus.FAILED);
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
+        when(chunkRepository.findByDocIdOrderByChunkIndex(DOC_ID)).thenReturn(List.of());
+
+        service.delete(DOC_ID, TENANT);
+
+        verify(chunkCleanupService).physicalDelete(DOC_ID, List.of(), true);
+        verify(documentRepository).delete(document);
     }
 
     // ── reparse（重解析）──

@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-12
+> [📑 返回目录](./README.md) · 最后更新：2026-08-13（v2.27 簇⑥ C1 收尾）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -362,6 +362,21 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 > ③ **E2E 核验数据**：reparse（内容不变）后 7 chunk 确定性 ID 逐位复现——本地按
 > nameUUID(文档名#序号#增强前原文) 重算 7/7 全匹配，蓝绿同 ID 幂等覆写实证；
 > replace（一行规格变更）后 8 chunk 同式自洽。
+> **复验通过（2026-08-13 同日）**：replace version 递增 + 处理期「重入库中」展示、
+> reparse 未变 chunk created_at 保留原值、处理中再发重入库 409、reindex 指标计数正确。
+
+> **v2.27 修正（2026-08-13，簇⑥ C1 收尾）——删除处理期守卫**：
+> 重入库窗口令「处理期删除」成为现实误操作面——级联清理与在途 ETL 竞态（孤儿写回：
+> ETL 后续 persistChunks/状态回写作用于已删文档），误删正重入库的文档更直接损失可用性。
+> ① **后端守卫**：`DocumentService.delete` 租户校验后加状态守卫——处理期三态
+> （UPLOADING/PARSING/REINDEXING）拒删 → DOC_NOT_READY(409，与重入库守卫同错误码族)；
+> SUCCESS/FAILED 放行（FAILED 删除是正当清理路径）。状态集判定经
+> `DocumentStatus.isProcessing()`（domain 枚举单一来源）。
+> ② **前端联动**：Documents.vue 删除按钮 `:disabled` 同状态集（isLiveDocStatus），
+> 与重解析/替换的 canReindex 同构；后端守卫为兜底（防列表状态滞后/绕过前端直调）。
+> ③ **语义边界**：守卫是误操作防御而非并发控制——守卫读与级联删除间存在 TOCTOU
+> 窗口，最坏并发 ETL 重读时 DOC_NOT_FOUND 即败（process() try 块之外，无 FAILED
+> 进度帧）；单机工作台规模不为删除引入原子占用。
 
 ---
 
