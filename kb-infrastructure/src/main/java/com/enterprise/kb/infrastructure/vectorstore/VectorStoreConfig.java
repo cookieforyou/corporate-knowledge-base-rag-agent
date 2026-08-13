@@ -62,6 +62,11 @@ public class VectorStoreConfig {
             .distanceType(PgVectorStore.PgDistanceType.valueOf(cfg.getDistanceType()))
             .indexType(PgVectorStore.PgIndexType.valueOf(cfg.getIndexType()))
             .initializeSchema(cfg.isInitializeSchema())
+            // kb_embeddings.id 为 VARCHAR(36) 融合键（07 章 schema，chunk id = 确定性
+            // nameUUID 字符串）；PgVectorStore 默认 idType=UUID 时 delete 以 uuid 参数
+            // 匹配 varchar 列静默失配（insert 走隐式转换能写入），须钉 TEXT 形态
+            // （簇⑥ D3 集成测试实证，2026-08-13）
+            .idType(PgVectorStore.PgIdType.TEXT)
             .build();
     }
 

@@ -3,6 +3,11 @@
 -- 与 JPA Entity（ddl-auto=validate）配套使用
 -- ============================================
 
+-- 0. pgvector 扩展（须超级用户权限；存量库已装则 IF NOT EXISTS 空操作。
+--    2026-08-13 簇⑥ D3：收入文件使 DDL 自包含——Testcontainers init script
+--    以 postgres 超级用户直接执行本文件建全套 schema）
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- 1. 文档主表
 CREATE TABLE IF NOT EXISTS kb_document (
     id              VARCHAR(36) PRIMARY KEY,

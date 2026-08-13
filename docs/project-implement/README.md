@@ -66,6 +66,7 @@
 > **v2.25 文档生命周期增量链路（2026-08-13，优化冲刺簇⑥ C1）**：① 增量重入库双端点——`POST /documents/{id}/reparse`（MinIO 原件重走 ETL，路由缺省复现原始路由）/ `POST /documents/{id}/replace`（新文件覆盖原件，路由缺省自动决策），状态守卫经 DB 级原子占用（仅 SUCCESS/FAILED 可占用为 REINDEXING，0 行 → DOC_NOT_READY 409）；② 蓝绿管线——确定性 chunk ID 令不变 chunk 三库同 ID 幂等覆写，管线统一「全量写入 → CLEANUP 阶段 diff 清理旧有新无」，重入库窗口检索不中断、失败重试幂等收敛（§9.3 v2.25）；③ kb_document.version 列（首次入库 1，重入库成功 +1）+ status 枚举增 REINDEXING（§7.1）；④ ChunkCleanupService 三库级联共享组件（文档删除/蓝绿 diff/Phase 4.5-4.6 复用）+ Chunk 软删写侧管道接通（markDeleted 零调用方历史终结，REST 门面归 4.4）（§14）；⑤ `rag.document.reindex.started/succeeded/failed` 指标 + EsIndexWriter.deleteByChunkIds（bulk，not_found 幂等）；⑥ 补零测盲区：DocumentService 删除级联/重入库守卫 + EsIndexWriter + ETL 蓝绿管线共 30 单测。
 > **v2.26 簇⑥ C1 E2E 缺陷修复批（2026-08-13）**：E2E 实测（reparse 正常 / replace version 不递增 + chunk created_at 全量刷新）定位两缺陷——① replace 占用态回写：acquireForReindex 的 @Modifying 只更新 DB 不同步内存实体（clearAutomatically 已脱管），replace 后续 save 回写陈旧 SUCCESS → ETL 误判首次入库；修复 = 占用成功后同步内存态（§9.3 v2.26）；② chunk created_at merge 覆写：手工 createdAt=now 随蓝绿同 ID merge 覆盖原创建时间；修复 = KbChunk.created_at @Column(updatable=false)（§9.3 v2.26/§7.1）。E2E 核验：reparse 确定性 ID 逐位复现 7/7（本地 nameUUID 重算全匹配，同 ID 幂等覆写实证）。
 > **v2.27 簇⑥ C1 收尾：删除处理期守卫（2026-08-13）**：E2E 复验四项全过（replace version 递增 + 处理期「重入库中」展示 / reparse 未变 chunk created_at 保留原值 / 处理中再发重入库 409 DOC_NOT_READY / `rag.document.reindex.*` 计数正确）——C1 闭环；收尾增项：处理期三态（UPLOADING/PARSING/REINDEXING）文档拒删 → DOC_NOT_READY 409（状态集经 `DocumentStatus.isProcessing()` domain 单一来源；SUCCESS/FAILED 放行），前端 Documents.vue 删除按钮同状态集 disable（§9.3 v2.27）。
+> **v2.28 簇⑥ D3：Testcontainers 集成测试落地（2026-08-13）——簇⑥ 收官**：按 3.18 留档执行并全量回写实现差异——kb-eval 宿主 + failsafe `*IT.java`（`mvn verify`），三容器单例（pgvector/pg17 init script 直接复用 kb-domain schema.sql 自包含版 / redis-stack-server REDIS_ARGS 注密码 / minio）+ StubChatModel/StubEmbeddingModel（hashing trick 词袋向量，纯哈希桩相似度≈0 缺陷修正）+ 排除 SmartRoutingConfig 以桩重建 smartRoutingChatModel（真实路由包装器保留）；**33 用例 × 11 IT 全绿**（2 context）：租户隔离/跨租户泄露/接地+空证据拒答/注入+PII/输出黑名单/限流/Token 预算/多轮记忆/审计完整性/意图路由 L1+L2/**文档生命周期**（C1 回归保险：reparse ID 复现 + created_at 保留 + version 递增、replace 蓝绿 diff 清理、软删）；Testcontainers 1.20.1→2.0.5（docker-java API 版本与 Docker Engine 29 冲突实证）。**IT 挖出生产缺陷并修复**：PgVectorStore 默认 idType=UUID 与 kb_embeddings.id VARCHAR(36) 失配 → delete 静默失效，VectorStoreConfig 钉 idType(TEXT)（§7.2 v2.28 / §15 v2.28 / 3.18 留档实现回写节）。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -91,7 +92,7 @@
 |---|---|---|
 | 第五章 | [总体架构设计](./05-总体架构设计.md) | v2 修订（Advisor 链、能力层组件更新） |
 | 第六章 | [Maven 多模块工程结构](./06-Maven多模块工程结构.md) | v1 原文 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块） |
-| 第七章 | [数据架构设计](./07-数据架构设计.md) | v1 原文 + v2.10（kb_audit_log 四列扩展：mode/status/error_code/tool_calls）+ v2.25（簇⑥ C1：kb_document version 列 + status 枚举增 REINDEXING）+ v2.26（簇⑥ C1 E2E 修复：kb_chunk created_at ORM updatable=false） |
+| 第七章 | [数据架构设计](./07-数据架构设计.md) | v1 原文 + v2.10（kb_audit_log 四列扩展：mode/status/error_code/tool_calls）+ v2.25（簇⑥ C1：kb_document version 列 + status 枚举增 REINDEXING）+ v2.26（簇⑥ C1 E2E 修复：kb_chunk created_at ORM updatable=false）+ v2.28（簇⑥ D3：pgvector idType(TEXT) 接线修复 + schema.sql CREATE EXTENSION 自包含，§7.2） |
 
 ### 第四卷：分阶段落地路线图（执行层）
 
@@ -114,7 +115,7 @@
 
 | 章 | 文档 | 修订状态 |
 |---|---|---|
-| 第十五章 | [测试策略](./15-测试策略.md) | v1 原文 |
+| 第十五章 | [测试策略](./15-测试策略.md) | v1 原文 + v2.28（簇⑥ D3：Testcontainers 集成测试落地定稿——kb-eval 宿主 + 三容器单例 + 模型桩 + 33 用例清单，15.2/15.3 草图被实现取代） |
 | 第十六章 | [AI 评估体系](./16-AI评估体系.md) | v2 修订（指标集扩充、CI 门禁、**阶段前移至 Phase 2**）+ v2.20（簇④ E1：Faithfulness 容忍策略 + 校准复跑快照 + 人工-Judge 一致率抽样，§16.4）+ v2.21（簇④ A4 修复批：双层检索度量——chunk 级确定性 ID + 文档级 expectedDocs 兜底 + 全量重标注通道与完成口径，§16.1/§16.2）+ v2.24（簇⑤ B2 S6：INJECTION 分类 + 注入拦截门禁，§16.2/§16.4） |
 | 第十七章 | [部署与运维](./17-部署与运维.md) | v1 原文 |
 | 第十八章 | [交付验收标准](./18-交付验收标准.md) | v1 原文 |

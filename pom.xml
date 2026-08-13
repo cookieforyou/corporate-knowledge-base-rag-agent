@@ -33,7 +33,9 @@
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>2.0.0</spring-ai.version>
-        <testcontainers.version>1.20.1</testcontainers.version>
+        <!-- 2.0.5：1.20.1 的 docker-java 3.4 钉死 API 1.32，Docker Engine 29（最低 API 1.40+）
+             全部请求 400；2.x 线 docker-java 3.7 兼容新引擎（2026-08-13 D3 实证） -->
+        <testcontainers.version>2.0.5</testcontainers.version>
     </properties>
 
     <dependencyManagement>
