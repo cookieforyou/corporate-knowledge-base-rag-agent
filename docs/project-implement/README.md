@@ -63,6 +63,7 @@
 > **v2.22 检索锚点修复与语境并发（2026-08-12，优化冲刺簇④ A4 修复批）**：① chunk ID 由随机 UUID 改确定性 nameUUID（文档名+序号+增强前原文）——全量重入库令 Golden expectedChunkIds 整体失配（a4-heading-only 复跑检索三指标全 0.000）的根治，确定性 ID 跨重入库/contextual A/B 两臂逐位复现，存量标注经 `--eval.annotate-all` 重标注表迁移（§9.3）；② 语境增强串行 LLM 调用改虚拟线程有界并发（`kb.etl.contextual.concurrency` 默认 8，保序/失败隔离不变），治理大文档 ETL 分钟级阻塞（§9.5）；③ kb-eval 增文档级兜底检索指标——Golden `expectedDocs`（文件名）× 探针命中 file_name 匹配，跨重入库/解析漂移恒稳定，chunk 级失配时的方向性读数（§16.1/§16.2 v2.21）；④ Golden 全量重标注完成——102 条迁移至确定性 ID（80 正向双层锚点 / 22 负向），圈定口径：全库 ground truth + 开放枚举题代表性锚点（§16.4 v2.21 注 5）。
 > **v2.23 Contextual A/B 定案与标注补漏（2026-08-12，优化冲刺簇④ A4 收官）**：① 双臂 A/B 定案——新 Golden chain 探针 Recall@5 0.902→0.931 / MRR 0.888→0.933 / CP 0.851→0.886，靶点 dm-13 拆分表 0.000→0.667，生成侧中性（F −0.088 噪声带内）→ `kb.etl.contextual.enabled` 默认转 true（§9.5 v2.23 数据表）；② cross-08 标注补漏——售后质保期表 chunk（61c58f6c）属「持续时长」参数证据，圈定口径②细化：全库证据集 ≤ K 条时圈全不适用代表性上限（§16.4 v2.21 注 6）。
 > **v2.24 护栏可观测与注入门禁（2026-08-13，优化冲刺簇⑤ B2）**：G4「拦截事件不可观测」闭环——① S3 护栏命中指标：AiBusinessMetrics 5 项 `rag.guardrail.*` 分列计数器接四护栏调用点，拒绝型审计行复用 AuditTraceAdvisor REJECTED 既有通道，非拒绝型干预（PII 掩码/输出替换）计指标不加审计标记（§12.6）；② S6 注入拦截门禁：kb-eval INJECTION 分类 + `injection-qa.json` 四类 44 条样本（Golden 102→146），evalGuardrailChatClient 确定性判定（零 Judge 零检索），门禁 ≥95% 仅对 L1 防域子集（DIRECT+ENCODING_BYPASS），JAILBREAK/MULTILINGUAL 观察集；间接注入评估口径提案移交 Phase 5/S5（§12.6/§16.2/§16.4 v2.24）。
+> **v2.25 文档生命周期增量链路（2026-08-13，优化冲刺簇⑥ C1）**：① 增量重入库双端点——`POST /documents/{id}/reparse`（MinIO 原件重走 ETL，路由缺省复现原始路由）/ `POST /documents/{id}/replace`（新文件覆盖原件，路由缺省自动决策），状态守卫经 DB 级原子占用（仅 SUCCESS/FAILED 可占用为 REINDEXING，0 行 → DOC_NOT_READY 409）；② 蓝绿管线——确定性 chunk ID 令不变 chunk 三库同 ID 幂等覆写，管线统一「全量写入 → CLEANUP 阶段 diff 清理旧有新无」，重入库窗口检索不中断、失败重试幂等收敛（§9.3 v2.25）；③ kb_document.version 列（首次入库 1，重入库成功 +1）+ status 枚举增 REINDEXING（§7.1）；④ ChunkCleanupService 三库级联共享组件（文档删除/蓝绿 diff/Phase 4.5-4.6 复用）+ Chunk 软删写侧管道接通（markDeleted 零调用方历史终结，REST 门面归 4.4）（§14）；⑤ `rag.document.reindex.started/succeeded/failed` 指标 + EsIndexWriter.deleteByChunkIds（bulk，not_found 幂等）；⑥ 补零测盲区：DocumentService 删除级联/重入库守卫 + EsIndexWriter + ETL 蓝绿管线共 30 单测。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -88,7 +89,7 @@
 |---|---|---|
 | 第五章 | [总体架构设计](./05-总体架构设计.md) | v2 修订（Advisor 链、能力层组件更新） |
 | 第六章 | [Maven 多模块工程结构](./06-Maven多模块工程结构.md) | v1 原文 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块） |
-| 第七章 | [数据架构设计](./07-数据架构设计.md) | v1 原文 + v2.10（kb_audit_log 四列扩展：mode/status/error_code/tool_calls） |
+| 第七章 | [数据架构设计](./07-数据架构设计.md) | v1 原文 + v2.10（kb_audit_log 四列扩展：mode/status/error_code/tool_calls）+ v2.25（簇⑥ C1：kb_document version 列 + status 枚举增 REINDEXING） |
 
 ### 第四卷：分阶段落地路线图（执行层）
 
@@ -100,12 +101,12 @@
 
 | 章 | 文档 | 修订状态 |
 |---|---|---|
-| 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项）+ v2.19（簇③ D2：ES 双写 refresh → wait_for，§9.4）+ v2.21（簇④ A4：heading 路径元数据 §9.2 / Contextual 增强落地 §9.5，A/B 决策未定）+ v2.22（簇④ A4 修复批：chunk ID 确定性化 §9.3 / 语境增强有界并发 §9.5）+ v2.23（簇④ A4 收官：Contextual A/B 定案默认开 §9.5） |
+| 第九章 | [知识入库 ETL 管道](./09-知识入库ETL管道.md) | v2 修订（解析路由升级、ES 双写、Contextual Retrieval 可选项）+ v2.19（簇③ D2：ES 双写 refresh → wait_for，§9.4）+ v2.21（簇④ A4：heading 路径元数据 §9.2 / Contextual 增强落地 §9.5，A/B 决策未定）+ v2.22（簇④ A4 修复批：chunk ID 确定性化 §9.3 / 语境增强有界并发 §9.5）+ v2.23（簇④ A4 收官：Contextual A/B 定案默认开 §9.5）+ v2.25（簇⑥ C1：蓝绿管线 CLEANUP 阶段 + reparse/replace 增量端点 + deleteByChunkIds，§9.3/§9.4） |
 | 第十章 | [混合检索引擎](./10-混合检索引擎.md) | v2 **完全重写**（方案甲+：模块化 RAG 架构，含决策裁决记录）+ v2.4（fail-closed 安全收敛）+ v2.15（[ref-N] 引用编号缺陷修复：编号化 documentFormatter，§10.6）+ v2.18（S2 Grounding 不可信数据标记，§10.6）+ v2.19（簇③ D2：检索执行器共享 Bean §10.2 / rerank 超时 §10.5 / 空模板渲染防御 §10.6）+ v2.21（簇④ A5：改写器切 CompressionQueryTransformer 历史感知形态，§10.6） |
 | 第十一章 | [Agent 对话链路](./11-Agent对话链路.md) | v2 修订（虚构 API 全部修正为真实 API）+ v2.3（3.1 记忆形态/Bean 拆分/会话协议）+ v2.6（3.7/3.8 配额护栏：租户参数链/fail-open/429/流式 usage 限制）+ v2.7（3.2 SmartRouting 实用形态：主备熔断切换，复杂度路由移交 5.4）+ v2.8（3.3/3.4 Mock 工具层 + HITL 四要素落地）+ v2.9（3.19 双链路拆分 + kb-ai-agent 模块独立，§11.5）+ v2.10（3.12 全链路审计落地，§11.6）+ v2.13（5.4 收窄版意图分类提前落地，§11.4/§11.5）+ v2.14（3.17 反馈闭环：DONE 帧 JSON 化 + traceId 前移 + 反馈 API，§11.3/§11.6.3）+ v2.15（[ref-N] 引用编号缺陷修复：编号锚点确定化，§11.1.2）+ v2.16（徽标内联渲染修复，§11.1.2）+ v2.17（历史会话列表与恢复：citations 归档/会话 API/记忆回填，§11.7）+ v2.17.1（会话删除反馈外键修复，§11.7.2）+ v2.19（簇③ D1：主模型手工装配 OpenAI 兼容形态 + include_usage 流式计账，§11.2.2） |
 | 第十二章 | [安全护栏体系](./12-安全护栏体系.md) | v2 修订（API 修正 + 注入检测升级路线）+ v2.4（3.5/3.6 落地修正：implements/userText()/流式聚合后验）+ v2.5（新增 12.4 护栏加固路线图 S1-S9，立项不排期）+ v2.6（12.3 TokenBudgetAdvisor 落地修正）+ v2.7（簇② B1：S1 归一化 §12.1.2 / S4+PII 入库消毒 §12.5，12.4.3 销项）+ v2.19（簇③ D1：流式 token 计账修复，§12.3）+ v2.24（簇⑤ B2：S3 护栏命中指标 + S6 注入拦截门禁，§12.6，12.4.3 销项） |
 | 第十三章 | [可观测性体系](./13-可观测性体系.md) | v2 修订（API 修正 + Langfuse LLM 原生可观测层）+ v2.11（3.13 AiBusinessMetrics 落地定稿 + Prometheus 采集放行）+ v2.14（3.17 rag.feedback.* 指标接线） |
-| 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 |
+| 第十四章 | [知识库运维](./14-知识库运维.md) | v1 原文 + v2.25（簇⑥ C1：ChunkCleanupService 三库级联共享组件 + Chunk 软删写侧管道接通） |
 
 ### 第六卷：工程质量保障（质量层）
 

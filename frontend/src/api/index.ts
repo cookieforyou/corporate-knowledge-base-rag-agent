@@ -115,6 +115,8 @@ export interface KbDoc {
   errorMessage?: string
   createdBy?: string
   createdAt: string
+  /** 版本号（簇⑥ C1）：首次入库 1，每次重入库成功 +1 */
+  version?: number
 }
 
 export interface KbChunk {
@@ -143,6 +145,20 @@ export const getChunks = (docId: string) =>
 
 export const deleteDocument = (docId: string) =>
   api.delete(`/documents/${docId}`).then(r => r.data.data)
+
+/** 增量重入库——重解析：以 MinIO 原件重走 ETL（簇⑥ C1） */
+export const reparseDocument = (docId: string, parseRoute?: string) => {
+  const params = parseRoute ? `?parseRoute=${parseRoute}` : ''
+  return api.post(`/documents/${docId}/reparse${params}`).then(r => r.data.data)
+}
+
+/** 增量重入库——替换：新文件覆盖原件后重走 ETL（簇⑥ C1） */
+export const replaceDocument = (docId: string, file: File, parseRoute?: string) => {
+  const form = new FormData()
+  form.append('file', file)
+  if (parseRoute) form.append('parseRoute', parseRoute)
+  return api.post(`/documents/${docId}/replace`, form).then(r => r.data.data)
+}
 
 // ── 检索调试（2.14）──
 

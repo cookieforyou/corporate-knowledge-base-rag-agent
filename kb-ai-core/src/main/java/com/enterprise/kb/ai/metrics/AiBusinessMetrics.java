@@ -34,6 +34,9 @@ import java.time.Duration;
  *       rate.limited / token.budget}——护栏命中计数（簇⑤ B2，S3），按事件类型
  *       分列注册（与 tool.call 分桶同形态）；注入/限流/预算拒绝同时经
  *       AuditTraceAdvisor 落 kb_audit_log REJECTED 行，指标供 Prometheus 告警</li>
+ *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
+ *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
+ *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -62,6 +65,9 @@ public class AiBusinessMetrics {
     private final Counter guardrailOutputReplaced;
     private final Counter guardrailRateLimited;
     private final Counter guardrailTokenBudget;
+    private final Counter documentReindexStarted;
+    private final Counter documentReindexSucceeded;
+    private final Counter documentReindexFailed;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -98,6 +104,12 @@ public class AiBusinessMetrics {
             .description("租户限流拒绝次数（RateLimitAdvisor，簇⑤ B2 S3）").register(registry);
         this.guardrailTokenBudget = Counter.builder("rag.guardrail.token.budget")
             .description("Token 预算拒绝次数——安全域视图（成本域同事件见 rag.token.budget.rejected，簇⑤ B2 S3）").register(registry);
+        this.documentReindexStarted = Counter.builder("rag.document.reindex.started")
+            .description("文档增量重入库发起次数（reparse/replace 占用成功，簇⑥ C1）").register(registry);
+        this.documentReindexSucceeded = Counter.builder("rag.document.reindex.succeeded")
+            .description("文档增量重入库成功次数（ETL 进度回调 COMPLETED，簇⑥ C1）").register(registry);
+        this.documentReindexFailed = Counter.builder("rag.document.reindex.failed")
+            .description("文档增量重入库失败次数（ETL 进度回调 FAILED，簇⑥ C1）").register(registry);
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */
@@ -167,5 +179,15 @@ public class AiBusinessMetrics {
     /** 护栏命中计数（簇⑤ B2 S3）：租户限流拒绝（RateLimitAdvisor 抛 RATE_LIMITED 前） */
     public void recordRateLimited() {
         guardrailRateLimited.increment();
+    }
+
+    /** 文档增量重入库计数（簇⑥ C1）：started 占用成功 / succeeded/failed 终态回调 */
+    public void recordReindexStarted() {
+        documentReindexStarted.increment();
+    }
+
+    /** 文档增量重入库计数（簇⑥ C1） */
+    public void recordReindexOutcome(boolean succeeded) {
+        (succeeded ? documentReindexSucceeded : documentReindexFailed).increment();
     }
 }

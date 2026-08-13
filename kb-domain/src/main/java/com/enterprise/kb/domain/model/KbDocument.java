@@ -59,6 +59,14 @@ public class KbDocument {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /**
+     * 文档版本号（簇⑥ C1）：首次入库 = 1，每次增量重入库成功 +1。
+     * 用途：运维审计追溯 + 前端版本展示；[ref-N] 引用经 docId 定位文档，
+     * 重入库不碎引用（引用指向文档而非特定版本 chunk）。
+     */
+    @Column(name = "version")
+    private Integer version = 1;
+
     @Column(name = "created_by", length = 50)
     private String createdBy;
 

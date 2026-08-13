@@ -49,7 +49,7 @@
               </span>
               <div class="doc-names">
                 <span class="doc-name">{{ row.name }}</span>
-                <span class="t-data doc-meta">{{ fmtSize(row.size) }} · {{ fmtTime(row.createdAt) }}</span>
+                <span class="t-data doc-meta">v{{ row.version ?? 1 }} · {{ fmtSize(row.size) }} · {{ fmtTime(row.createdAt) }}</span>
               </div>
             </div>
           </template>
@@ -73,11 +73,19 @@
             <span class="t-data chunk-num">{{ row.chunkCount ?? '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170" align="right">
+        <el-table-column label="操作" width="252" align="right">
           <template #default="{ row }">
             <el-button size="small" text type="primary" :disabled="row.status !== 'SUCCESS'"
               @click="openChunks(row)">
               <el-icon><Grid /></el-icon>&nbsp;Chunks
+            </el-button>
+            <el-button size="small" text type="warning" :disabled="!canReindex(row.status)"
+              @click="confirmReparse(row)">
+              <el-icon><RefreshRight /></el-icon>&nbsp;重解析
+            </el-button>
+            <el-button size="small" text type="warning" :disabled="!canReindex(row.status)"
+              @click="confirmReplace(row)">
+              <el-icon><UploadFilled /></el-icon>&nbsp;替换
             </el-button>
             <el-button size="small" text type="danger" @click="confirmDelete(row)">
               <el-icon><Delete /></el-icon>&nbsp;删除
@@ -107,6 +115,10 @@
       <div class="upload-note">上传后自动进入 ETL 管道（解析 → 切分 → 向量化 → ES 双写），进度实时显示在页面顶部。</div>
     </el-dialog>
 
+    <!-- 替换文件选择器（隐藏 input，簇⑥ C1） -->
+    <input ref="replaceInput" type="file" accept=".pdf,.docx,.md,.txt,.html"
+      style="display:none" @change="onReplaceFile" />
+
     <!-- ══ Chunk 抽屉 ══ -->
     <el-drawer v-model="chunkOpen" size="560" :title="`${activeDoc?.name ?? ''} · Chunk 观测`">
       <div v-if="chunks.length" class="chunk-meta-row">
@@ -135,10 +147,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { listDocuments, getChunks, deleteDocument, uploadDocument, etlProgressWsUrl } from '@/api'
+import { listDocuments, getChunks, deleteDocument, uploadDocument, reparseDocument, replaceDocument, etlProgressWsUrl } from '@/api'
 import type { KbDoc, KbChunk, EtlProgress } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UploadFilled, Delete, Grid, Loading } from '@element-plus/icons-vue'
+import { UploadFilled, Delete, Grid, Loading, RefreshRight } from '@element-plus/icons-vue'
 
 const docs = ref<KbDoc[]>([])
 const loading = ref(false)
@@ -206,6 +218,58 @@ function finish(docId: string) {
 
 onBeforeUnmount(() => Object.values(sockets).forEach(ws => ws.close()))
 
+// ── 增量重入库（簇⑥ C1）──
+
+/** 仅 SUCCESS/FAILED 可重入库（与后端状态守卫一致） */
+const canReindex = (s: string) => s === 'SUCCESS' || s === 'FAILED'
+
+async function confirmReparse(doc: KbDoc) {
+  try {
+    await ElMessageBox.confirm(
+      `以 MinIO 原件重走 ETL 管线（解析 → 切分 → 向量化 → 索引）。` +
+      `蓝绿语义：新数据写入后才清理旧 Chunk，重入库期间检索不中断。`,
+      `重解析「${doc.name}」`, { type: 'info', confirmButtonText: '重解析', cancelButtonText: '取消' })
+  } catch { return }
+  try {
+    await reparseDocument(doc.id)
+    liveProgress[doc.id] = { name: doc.name, stage: 'READING', percentage: 5 }
+    subscribe(doc.id, doc.name)
+    refresh()
+  } catch (e: any) {
+    ElMessage.error('重解析发起失败：' + (e.response?.data?.message || e.message))
+  }
+}
+
+const replaceInput = ref<HTMLInputElement | null>(null)
+const replaceTarget = ref<KbDoc | null>(null)
+
+async function confirmReplace(doc: KbDoc) {
+  try {
+    await ElMessageBox.confirm(
+      `选择新版本文件覆盖原件并重走 ETL。文档 ID 与引用保持不变，成功后版本号 +1。`,
+      `替换「${doc.name}」`, { type: 'warning', confirmButtonText: '选择文件', cancelButtonText: '取消' })
+  } catch { return }
+  replaceTarget.value = doc
+  replaceInput.value?.click()
+}
+
+async function onReplaceFile(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  const doc = replaceTarget.value
+  if (!file || !doc) return
+  try {
+    await replaceDocument(doc.id, file)
+    liveProgress[doc.id] = { name: file.name, stage: 'READING', percentage: 5 }
+    subscribe(doc.id, file.name)
+    refresh()
+  } catch (e: any) {
+    ElMessage.error('替换发起失败：' + (e.response?.data?.message || e.message))
+    refresh()
+  }
+}
+
 // ── Chunk 抽屉（2.15）──
 
 const chunkOpen = ref(false)
@@ -249,14 +313,17 @@ async function confirmDelete(doc: KbDoc) {
 
 const stageLabel = (s: string) =>
   ({ READING: '解析中', TRANSFORMING: '切分中', PERSISTING: '落库中',
-     EMBEDDING: '向量化', INDEXING: '索引中', COMPLETED: '完成', FAILED: '失败' } as Record<string, string>)[s] || s
+     EMBEDDING: '向量化', INDEXING: '索引中', CLEANUP: '清理旧块',
+     COMPLETED: '完成', FAILED: '失败' } as Record<string, string>)[s] || s
 const isLiveStage = (s: string) => s !== 'COMPLETED' && s !== 'FAILED'
 
 const statusLabel = (s: string) =>
-  ({ UPLOADING: '上传中', PARSING: '处理中', SUCCESS: '已入库', FAILED: '失败' } as Record<string, string>)[s] || s
+  ({ UPLOADING: '上传中', PARSING: '处理中', REINDEXING: '重入库中',
+     SUCCESS: '已入库', FAILED: '失败' } as Record<string, string>)[s] || s
 const statusChip = (s: string) =>
-  ({ UPLOADING: 'chip-warn', PARSING: 'chip-gold', SUCCESS: 'chip-ok', FAILED: 'chip-danger' } as Record<string, string>)[s] || 'chip-mute'
-const isLiveDocStatus = (s: string) => s === 'UPLOADING' || s === 'PARSING'
+  ({ UPLOADING: 'chip-warn', PARSING: 'chip-gold', REINDEXING: 'chip-gold',
+     SUCCESS: 'chip-ok', FAILED: 'chip-danger' } as Record<string, string>)[s] || 'chip-mute'
+const isLiveDocStatus = (s: string) => s === 'UPLOADING' || s === 'PARSING' || s === 'REINDEXING'
 
 const typeShort = (t: string) =>
   ({ PDF: 'PDF', DOCX: 'Doc', MD: 'MD', TXT: 'Txt', HTML: 'Htm' } as Record<string, string>)[t] || 'File'

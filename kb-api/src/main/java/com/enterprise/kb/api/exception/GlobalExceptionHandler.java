@@ -31,14 +31,22 @@ public class GlobalExceptionHandler {
     private static final Set<String> QUOTA_ERROR_CODES = Set.of("RATE_LIMITED", "TOKEN_BUDGET_EXCEEDED");
 
     /**
+     * 资源状态冲突类错误码 — 目标资源当前状态不允许该操作（簇⑥ C1：文档处于
+     * 处理中仍发起重入库），语义为「与现状冲突」，映射 HTTP 409（可重试语义）。
+     */
+    private static final Set<String> CONFLICT_ERROR_CODES = Set.of("DOC_NOT_READY");
+
+    /**
      * 业务异常 — 提取 errorCode 和 message；配额类（RATE_LIMITED /
-     * TOKEN_BUDGET_EXCEEDED）返回 HTTP 429，其余返回 HTTP 400
+     * TOKEN_BUDGET_EXCEEDED）返回 HTTP 429，状态冲突类返回 HTTP 409，其余 HTTP 400
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
         HttpStatus status = QUOTA_ERROR_CODES.contains(e.getErrorCode())
             ? HttpStatus.TOO_MANY_REQUESTS
-            : HttpStatus.BAD_REQUEST;
+            : CONFLICT_ERROR_CODES.contains(e.getErrorCode())
+                ? HttpStatus.CONFLICT
+                : HttpStatus.BAD_REQUEST;
         log.warn("业务异常 [{}] {} {}: {}", e.getErrorCode(), request.getMethod(),
             request.getRequestURI(), e.getMessage());
         return ResponseEntity.status(status).body(ApiResponse.error(status.value(), e.getMessage()));

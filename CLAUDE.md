@@ -4,17 +4,16 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 完成；Phase 2 收尾（Golden 74 条基线全项达标）；**Phase 3 实质收尾（17 项，含 5.4 收窄版意图路由提前落地）**；遗留口径：3.11 缓做、3.16 取消（Casdoor 统一管理）、3.18/5.4 剩余缓做（Phase 4 立项前）、护栏加固立项不排期（12.4 S1-S9）；**当前进行中：Phase 4 前优化冲刺（六簇，进度见优化文档 §8.3）**。设计唯一依据 `docs/project-implement/README.md`（v2 + v2.1-v2.23 修正）；**过程细节与 E2E 记录全部在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1 完成；Phase 2 收尾（Golden 74 基线达标）；**Phase 3 实质收尾（17 项，含 5.4 收窄版意图路由提前落地）**；遗留口径：3.11 缓做、3.16 取消（Casdoor 统一管理）、5.4 剩余缓做（Phase 4 立项前）、3.18 待执行（簇⑥ D3）、护栏加固立项不排期（12.4 S1-S9）；**当前进行中：Phase 4 前优化冲刺（六簇，进度见优化文档 §8.3）**。设计唯一依据 `docs/project-implement/README.md`（v2 + v2.1-v2.25 修正）；**过程细节与 E2E 记录全部在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) · Rerank: `qwen3-rerank`（百炼专属 MaaS 工作空间端点）· Judge: `qwen3.7-plus`（跨厂商评判，enable-thinking 默认关）
+- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) · Rerank: `qwen3-rerank`（百炼专属 MaaS 工作空间端点）· Judge: `qwen3.7-plus`（enable-thinking 默认关）
 - 向量库: pgvector (PG 扩展) / Milvus 2.6（`kb.vector-store.provider` 配置切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO
 - 认证: OAuth2 Resource Server (JWT) · 接入 Casdoor（前端 PKCE 流程）
 - 前端: Vue3 + TypeScript + Element Plus + Pinia + Vite 6
-- Maven 多模块（9 个子模块）
 
 > **版本说明**：PG/ES/Milvus/Redis 版本指 ECS 服务端；pom 客户端库版本独立管理。
 
@@ -30,7 +29,7 @@ kb-rag-agent/
 ├── kb-ai-agent/       # Agent 事务域容器（3.19 拆出）：tool/（Mock 工具 + HITL 审批账本）、config/（toolAgentChatClient + ToolCallingAdvisor(1000)）、service/（ToolChatService + toolContext）；未来真实 OA/ERP 客户端/MCP(5.11)/Multi-Agent(5.3) 落此
 ├── kb-api/            # REST Controller + SSE 命名事件 + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（空模块，待开发）
-├── kb-eval/           # AI 评估：EvalRunner + 探针组 + Golden Dataset（102 条）+ CI 门禁
+├── kb-eval/           # AI 评估：EvalRunner + 探针组 + Golden Dataset（146 条）+ CI 门禁
 ├── frontend/          # Vue3 前端（Login + Chat 溯源对话 + Documents + Debug 检索调试台 + Chunks 观测台）
 └── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
 ```
@@ -58,25 +57,25 @@ kb-rag-agent/
 
 **工具链与 HITL（3.3/3.4，kb-ai-agent）**：`EnterpriseMockTools` 契约对齐真实 OA/ERP；读工具自动执行、写工具 HITL 三段式（首调挂起 PENDING_APPROVAL+approvalId → approve 端点 → 二次对话带 `approvedToolCallId` 消费后 EXECUTED）；`ToolApprovalService` Redis 账本（`rag:tool-approval:{id}`，TTL 10 分钟 + 一次性消费 + tenant/user 绑定，Redis 故障 fail-closed 拒写）；确认态经 `.toolContext()` 通道（与 advisor 参数独立）；**ToolCallingAdvisor 自建 order 1000**（自动注册落链最外层，工具循环每轮穿越全部内层 Advisor）
 
-**多模型路由（3.2）**：`SmartRoutingChatModel`（@Primary）包装主模型（DeepSeek V4：**SmartRoutingConfig 手工装配 OpenAI 兼容形态并开 include_usage**——簇③ D1 流式计账；starter 经 `spring.ai.model.chat=none` 门控让位，勿回写 deepseek）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼端点，凭据回落 DASHSCOPE_API_KEY）；熔断三态无锁原子（阈值 rag.routing.circuit 可配）；失败即切，流式 onErrorResume 切备用流整段重发；转发异构备用前须以备用自身 options 重建 Prompt（见注意事项⑭）；`rag.routing.fallback.enabled=false` 单模型透传；复杂度三级路由移交 5.4
+**多模型路由（3.2）**：`SmartRoutingChatModel`（@Primary）包装主模型（DeepSeek V4：**SmartRoutingConfig 手工装配 OpenAI 兼容形态并开 include_usage**——簇③ D1 流式计账；starter 经 `spring.ai.model.chat=none` 门控让位，勿回写 deepseek）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼端点，凭据回落 DASHSCOPE_API_KEY）；熔断三态无锁原子（阈值 rag.routing.circuit 可配）；失败即切，流式 onErrorResume 切备用流整段重发；转发异构备用前须以备用自身 options 重建 Prompt（见注意事项⑭）；`rag.routing.fallback.enabled=false` 单模型透传
 
 **检索与对话链路（Phase 2 + Phase 3 护栏）**
 
 - 主链路：`RetrievalAugmentationAdvisor`(500) = CompressionQueryTransformer（历史感知追问消解，`rag.retrieval.rewrite.enabled` 默认开）→ `HybridDocumentRetriever` 双路并行（共享执行器 Bean，tenant/is_deleted 过滤，单路 5s 超时降级，参数见 rag.retrieval.*）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（qwen3-rerank **扁平契约**，故障/超时降级 fusion_score 截断，超时 `rag.rerank.timeout-seconds`）→ `ContextualQueryAugmenter`（**编号化 documentFormatter** 锚定 [ref-N] + `allowEmptyContext=false` 空证据拒答模板）；参数收编 `rag.retrieval.*`（RetrievalProperties，改参须配 kb-eval）；多查询扩展 `rag.retrieval.expansion.*` 默认关（A1 A/B：增益不抵 TTFT 代价）；ETL 向量化批次 `kb.etl.embed-batch-size`
-- **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推 SSE TRACE。**禁用 @RequestScope/ThreadLocal**
+- **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推 SSE TRACE
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（v2.14 起 DONE 为 JSON {messageId,traceId}——反馈定位句柄）+ 命名 TRACE（三路溯源，final 与 [ref-N] 对齐；ChunkTrace 含 docId——「查看原文」通道）/ TOOL_CALL（仅 tool 链）
 - 前端对话窗（3.15）：chat store 自备 sessionId 多轮 + rag/tool 切换；TOOL_CALL→审批卡片（approve 后自动确认轮）；[ref-N]/溯源条目经 docId 弹原文；marked+DOMPurify 渲染
 - 租户隔离 fail-closed 两层（3.9+3.10）：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② HybridDocumentRetriever 有 ctx 无租户返回空结果双路零触达。kb-eval 无 ctx 不过滤；跨租户集成用例归 3.18；RBAC 属 3.11
-- 护栏与配额（3.5-3.8，详见 12 章）：`InputSanitizeAdvisor`(300) 归一化检测视图（S1：NFKC+零宽+空白，仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本 `rag:token-budget:{tenant}:{日期}`；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；流式计账已开（include_usage，簇③）
+- 护栏与配额（3.5-3.8，详见 12 章）：`InputSanitizeAdvisor`(300) 归一化检测视图（S1：NFKC+零宽+空白，仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本 `rag:token-budget:{tenant}:{日期}`；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；流式计账已开
 - **用户反馈闭环（3.17）**：POST /api/v1/feedback（messageId+userId upsert 可改评 + 期望回答/tags；归属经 message→session 校验 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ GET Bad Case 查询（租户收敛、附原始问答）；kb_audit_log.feedback 凭 trace_id 回填 + audit_log_id 关联（旁路容错）；like/dislike 指标接线；前端 👍/👎 + 点踩期望回答表单
 - 多轮记忆（3.1）：`agentChatMemory` 显式装配 RedisChatMemoryRepository（连接取自 `spring.data.redis.*`，**REDIS_DB 必须 0**，见注意事项⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条（`rag.chat.memory.max-messages`）；PG 归档 `ChatSessionService` 异步旁路（失败只丢归档）；v2.17 历史会话：citations 归档 + 会话端点 + 过期会话续聊回填；kb-eval `initialize-schema: false` 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器测本征质量（无改写/扩展/重排）；chain 走全链度量前置收益，须配 `eval.chain-probe.tenant-id`（有 ctx 无租户 fail-closed）；`chatClient` 独立注入；Golden 146 条（含注入样本 44，门禁限 L1 子集；确定性 chunk ID 双层锚点 + 文档级兜底，口径见 16 章 v2.21+）；报告 stdout+target/ 落盘
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器测本征质量（无改写/扩展/重排）；chain 走全链度量前置收益，须配 `eval.chain-probe.tenant-id`（有 ctx 无租户 fail-closed）；`chatClient` 独立注入；Golden 146 条（含注入样本 44，门禁限 L1 子集；确定性 chunk ID 双层锚点 + 文档级兜底，口径见 16 章 v2.21+）
 
-**解析支线（2.1-2.3，详见 9 章）**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / deep-by-default 或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动路由失败回落 NATIVE，显式路由失败上抛）；DocMind 契约（详见 9 章 v2.2）：OutputHtmlTable+LlmEnhancement 同开、表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>` + heading_path 落三存储面；**Contextual 语境增强默认开**（9.5 v2.23 A/B 定案；回退 `KB_ETL_CONTEXTUAL_ENABLED=false`）；chunk 确定性 ID（文档名#序号#增强前原文）跨重入库复现；向量化 10 条/批（DashScope ≤20 条硬限制）
+**解析支线（2.1-2.3，详见 9 章）**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / deep-by-default 或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动路由失败回落 NATIVE，显式路由失败上抛）；DocMind 契约（详见 9 章 v2.2）：OutputHtmlTable+LlmEnhancement 同开、表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>` + heading_path 落三存储面；**Contextual 语境增强默认开**（9.5 v2.23 A/B 定案；回退 `KB_ETL_CONTEXTUAL_ENABLED=false`）；chunk 确定性 ID（文档名#序号#增强前原文）跨重入库复现；向量化 10 条/批（DashScope ≤20 硬限制）
 
 **基础设施（Phase 1）**
 
-- 上传/ETL：`DocumentService`（PDF/DOCX/MD/TXT/HTML 白名单 → MinIO → kb_document）；`DocumentEtlService`（解析 → 切分 → **SanitizingTransformer**（S4+PII 入库消毒：三存储面脱敏态、注入打标 `injection_hit` 入 metadata JSONB 不阻断、MinIO 原件保留）→ kb_chunk → 向量化 → ES 双写，INDEXING 失败不阻断）
+- 上传/ETL：`DocumentService`（PDF/DOCX/MD/TXT/HTML 白名单 → MinIO → kb_document）；`DocumentEtlService`（解析 → 切分 → **SanitizingTransformer**（S4+PII 入库消毒：三存储面脱敏态、注入打标 `injection_hit` 入 metadata JSONB 不阻断、MinIO 原件保留）→ kb_chunk → 向量化 → ES 双写，INDEXING 失败不阻断）；**增量重入库（簇⑥ C1）**：reparse/replace 端点 + version 列 + REINDEXING 占用 + CLEANUP 蓝绿 diff 清理（ChunkCleanupService 组件）；软删写侧已通
 - 认证：`SecurityConfig`（/actuator/health|info|prometheus|metrics/** permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，按 `kb.vector-store.provider` 条件装配 PgVectorStore / MilvusVectorStore
 - 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml` + `application-ai.yml`

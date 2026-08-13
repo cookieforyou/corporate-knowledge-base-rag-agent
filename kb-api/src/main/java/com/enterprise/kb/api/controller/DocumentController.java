@@ -59,4 +59,29 @@ public class DocumentController {
         documentService.delete(id, jwtUtils.getCurrentTenantId());
         return ApiResponse.success(Map.of("deleted", id));
     }
+
+    /**
+     * 增量重入库 — 重解析（簇⑥ C1）：以 MinIO 现有原件重走 ETL；
+     * 蓝绿语义（先写后删 diff），成功后 version+1。仅 SUCCESS/FAILED 态可发起。
+     */
+    @PostMapping("/{id}/reparse")
+    public ApiResponse<Map<String, String>> reparse(
+            @PathVariable String id,
+            @RequestParam(value = "parseRoute", required = false) String parseRoute) {
+        documentService.reparse(id, jwtUtils.getCurrentTenantId(), parseRoute);
+        return ApiResponse.success(Map.of("docId", id, "status", "REINDEXING"));
+    }
+
+    /**
+     * 增量重入库 — 替换（簇⑥ C1）：新文件覆盖原件后重走 ETL（文档更新场景）；
+     * 路由缺省自动决策（新文件不复用旧版本路由）。仅 SUCCESS/FAILED 态可发起。
+     */
+    @PostMapping("/{id}/replace")
+    public ApiResponse<Map<String, String>> replace(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "parseRoute", required = false) String parseRoute) {
+        documentService.replace(id, jwtUtils.getCurrentTenantId(), file, parseRoute);
+        return ApiResponse.success(Map.of("docId", id, "status", "REINDEXING"));
+    }
 }

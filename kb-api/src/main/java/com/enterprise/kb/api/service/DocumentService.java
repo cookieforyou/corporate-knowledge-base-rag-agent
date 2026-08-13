@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.service;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.enums.ParseRoute;
@@ -8,14 +9,14 @@ import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
+import com.enterprise.kb.etl.pipeline.EtlStage;
+import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
-import com.enterprise.kb.etl.writer.EsIndexWriter;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,9 +24,11 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * 文档管理服务 — MinIO 上传 + PG 元数据落库 + 生命周期管理（2.15）
+ * + 增量重入库 reparse/replace（簇⑥ C1）
  */
 @Slf4j
 @Service
@@ -37,8 +40,8 @@ public class DocumentService {
     private final KbChunkRepository chunkRepository;
     private final DocumentEtlService etlService;
     private final EtlProgressRedisWriter progressWriter;
-    private final VectorStore vectorStore;
-    private final EsIndexWriter esIndexWriter;
+    private final ChunkCleanupService chunkCleanupService;
+    private final AiBusinessMetrics metrics;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -132,22 +135,12 @@ public class DocumentService {
         }
         checkOwnership(doc, tenantId);
 
+        // 三库级联委派共享组件（簇⑥ C1）：PG chunk + 向量库 + ES deleteByQuery(doc_id)
+        // 文档级扫尾形态——含 PG 外的 ES 孤儿一并清理
         List<String> chunkIds = chunkRepository.findByDocIdOrderByChunkIndex(docId)
             .stream().map(KbChunk::getId).toList();
-        chunkRepository.deleteAllById(chunkIds);
+        chunkCleanupService.physicalDelete(docId, chunkIds, true);
 
-        try {
-            if (!chunkIds.isEmpty()) {
-                vectorStore.delete(chunkIds);   // vectorId = chunkId（9.3 不变量）
-            }
-        } catch (Exception e) {
-            log.warn("向量库清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
-        }
-        try {
-            esIndexWriter.deleteByDocId(docId);
-        } catch (Exception e) {
-            log.warn("ES 索引清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
-        }
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()
                 .bucket(bucket).object(doc.getOssPath()).build());
@@ -157,6 +150,112 @@ public class DocumentService {
 
         documentRepository.delete(doc);
         log.info("文档已删除: id={}, name={}, chunks={}", docId, doc.getName(), chunkIds.size());
+    }
+
+    /**
+     * 增量重入库 — 重解析（簇⑥ C1）：以 MinIO 现有原件重走 ETL 管线
+     * （解析管线升级 / 单文档修复场景，无需新文件）。
+     *
+     * <p><b>状态守卫</b>：仅 SUCCESS/FAILED 可重入库，经 DB 级原子占用
+     * （UPDATE ... WHERE status IN）防并发双占用；处理中/上传中 → DOC_NOT_READY(409)。
+     * <p><b>路由语义</b>：显式参数 &gt; 文档留存的原始路由——重解析默认复现
+     * 首次入库管线形态（parse_route 记录的是实际使用路由）。
+     * <p>蓝绿清理与版本号由 ETL 管线统一承接（DocumentEtlService，先写后删 diff）。
+     */
+    public void reparse(String docId, String tenantId, String parseRoute) {
+        KbDocument doc = getOwned(docId, tenantId);
+        acquireForReindex(doc);
+        ParseRoute route = firstRoute(parseRoute, doc.getParseRoute());
+        metrics.recordReindexStarted();
+        log.info("文档重解析已发起: docId={}, route={}", docId, route);
+        etlService.process(docId, reindexProgressCallback(doc.getName()), route);
+    }
+
+    /**
+     * 增量重入库 — 替换（簇⑥ C1）：新文件覆盖 MinIO 原件后重走 ETL（文档更新场景）。
+     *
+     * <p><b>顺序</b>：先原子占用（快速失败，避免无谓 MinIO 写入）→ 覆盖原件
+     * （新文件名不同则新路径写入 + 尽力删旧对象）→ 元数据更新 → 触发 ETL。
+     * 原件覆盖失败：占用已生效，落 FAILED + error_message（FAILED 态可重试
+     * reparse——原件未被破坏，或重试 replace）。
+     * <p><b>路由语义</b>：显式参数 &gt; 自动决策——新文件不复用旧版本路由
+     * （文档内容已变，密度特征可能不同，与首次上传语义对齐）。
+     */
+    public void replace(String docId, String tenantId, MultipartFile file, String parseRoute) {
+        KbDocument doc = getOwned(docId, tenantId);
+        validateFile(file);
+        acquireForReindex(doc);
+
+        String newPath = docId + "/" + file.getOriginalFilename();
+        try {
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(newPath)
+                    .stream(file.getInputStream(), file.getSize(), -1)
+                    .contentType(file.getContentType())
+                    .build());
+            if (!newPath.equals(doc.getOssPath())) {
+                try {
+                    minioClient.removeObject(RemoveObjectArgs.builder()
+                        .bucket(bucket).object(doc.getOssPath()).build());
+                } catch (Exception e) {
+                    log.warn("旧版本 MinIO 对象清理失败（不阻断）: docId={}, {}", docId, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            doc.setStatus(DocumentStatus.FAILED);
+            doc.setErrorMessage("替换原件失败: " + e.getMessage());
+            documentRepository.save(doc);
+            throw new BusinessException("UPLOAD_FAILED", "替换文件上传失败: " + e.getMessage(), e);
+        }
+
+        doc.setOssPath(newPath);
+        doc.setName(file.getOriginalFilename());
+        doc.setOriginalName(file.getOriginalFilename());
+        doc.setType(extractFileType(file.getContentType()));
+        doc.setSize(file.getSize());
+        documentRepository.save(doc);
+
+        ParseRoute route = firstRoute(parseRoute, null);
+        metrics.recordReindexStarted();
+        log.info("文档替换重入库已发起: docId={}, name={}", docId, file.getOriginalFilename());
+        etlService.process(docId, reindexProgressCallback(doc.getName()), route);
+    }
+
+    /**
+     * 重入库状态原子占用：仅 SUCCESS/FAILED 可占用为 REINDEXING；
+     * 影响行数 0 = 并发占用或状态不可重入库 → DOC_NOT_READY（409 冲突）。
+     */
+    private void acquireForReindex(KbDocument doc) {
+        int acquired = documentRepository.acquireForReindex(doc.getId(),
+            DocumentStatus.REINDEXING, List.of(DocumentStatus.SUCCESS, DocumentStatus.FAILED));
+        if (acquired == 0) {
+            throw new BusinessException("DOC_NOT_READY",
+                "文档当前不可重入库（仅 SUCCESS/FAILED 允许，当前 " + doc.getStatus() + "）: " + doc.getId());
+        }
+    }
+
+    /**
+     * 重入库进度回调：Redis 双通道 + 终态指标计数。
+     * 异步 ETL 管线的成败观测点在进度回调层（COMPLETED/FAILED 终态帧）。
+     */
+    private Consumer<com.enterprise.kb.etl.pipeline.EtlProgress> reindexProgressCallback(String docName) {
+        return progressWriter.andThen(p -> {
+            if (p.getStage() == EtlStage.COMPLETED) {
+                metrics.recordReindexOutcome(true);
+                log.info("文档重入库完成: docId={}, name={}", p.getDocId(), docName);
+            } else if (p.getStage() == EtlStage.FAILED) {
+                metrics.recordReindexOutcome(false);
+                log.warn("文档重入库失败: docId={}, name={}", p.getDocId(), docName);
+            }
+        });
+    }
+
+    /** 解析路由优先级：显式参数 &gt; 回落值（均经合法性解析，非法/空视为 null） */
+    private static ParseRoute firstRoute(String paramRoute, String fallbackRoute) {
+        ParseRoute param = parseForcedRoute(paramRoute);
+        return param != null ? param : parseForcedRoute(fallbackRoute);
     }
 
     private void checkOwnership(KbDocument doc, String tenantId) {

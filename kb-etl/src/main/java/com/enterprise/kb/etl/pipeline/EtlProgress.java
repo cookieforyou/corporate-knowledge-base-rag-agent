@@ -28,6 +28,7 @@ public class EtlProgress {
             case PERSISTING -> 30;
             case EMBEDDING -> 50;
             case INDEXING -> 85;
+            case CLEANUP -> 92;
             case COMPLETED -> 100;
             case FAILED -> 0;
         };

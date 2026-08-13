@@ -41,7 +41,13 @@ import java.util.function.Consumer;
 
 /**
  * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3，簇④ A4 起含 heading 路径）
- * → 安全消毒（簇② B1）→ 语境增强（簇④ A4，默认关）→ PG 落库 → 向量化 → ES 双写
+ * → 安全消毒（簇② B1）→ 语境增强（簇④ A4）→ PG 落库 → 向量化 → ES 双写
+ * → 蓝绿 diff 清理（簇⑥ C1）
+ *
+ * <p><b>蓝绿重入库语义（簇⑥ C1）</b>：确定性 chunk ID（9.3 v2.22）令不变 chunk
+ * 三库同 ID 幂等覆写，故管线统一为「全量写入 → diff 清理」——尾段物理删除
+ * 「旧有新无」chunk。首次入库旧集为空即空操作，两路径归一无分叉。
+ * 失败语义：新数据未全量写入前旧数据大体保留，重试幂等收敛。
  */
 @Slf4j
 @Service
@@ -56,6 +62,7 @@ public class DocumentEtlService {
     private final SmartParsingRouter parsingRouter;
     private final HtmlProtectingSplitter protectingSplitter;
     private final SanitizingTransformer sanitizingTransformer;
+    private final ChunkCleanupService chunkCleanupService;
     private final JsonMapper jsonMapper;
     /** 语境增强器（kb.etl.contextual.enabled=true 才有 Bean，缺省 absent 即跳过） */
     private final ObjectProvider<ContextualEnrichmentTransformer> contextualEnrichmentProvider;
@@ -84,10 +91,20 @@ public class DocumentEtlService {
         KbDocument doc = documentRepository.findById(docId)
             .orElseThrow(() -> new BusinessException("DOC_NOT_FOUND", "文档不存在: " + docId));
 
+        // 簇⑥ C1：REINDEXING 由 reparse/replace 原子占用（KbDocumentRepository.acquireForReindex），
+        // 处理期间保持该状态与前端「重入库中」展示；首次入库走 PARSING
+        boolean isReindex = doc.getStatus() == DocumentStatus.REINDEXING;
+
+        // 蓝绿 diff 清理的旧 chunk 快照——任何写入前捕获（首次入库为空集）
+        List<String> oldChunkIds = chunkRepository.findByDocIdOrderByChunkIndex(docId)
+            .stream().map(KbChunk::getId).toList();
+
         try {
-            // 更新状态为解析中
-            doc.setStatus(DocumentStatus.PARSING);
-            documentRepository.save(doc);
+            // 更新状态为解析中（重入库保持 REINDEXING）
+            if (!isReindex) {
+                doc.setStatus(DocumentStatus.PARSING);
+                documentRepository.save(doc);
+            }
 
             // Stage 1: MinIO 读取 + 智能路由解析（NATIVE/DEEP/OCR，9.1）
             progressCallback.accept(new EtlProgress(docId, EtlStage.READING));
@@ -131,9 +148,24 @@ public class DocumentEtlService {
             progressCallback.accept(new EtlProgress(docId, EtlStage.INDEXING));
             esIndexWriter.indexChunks(doc, entities);
 
-            // 更新文档状态
+            // Stage 6（簇⑥ C1）: 蓝绿 diff 清理——新数据已全量写入，此时物理删除
+            // 「旧有新无」chunk（同 ID 覆写者不在 diff 内）。首次入库旧集为空即空操作；
+            // 清理失败上抛 → FAILED 态，重试幂等收敛（ES 按 ID 精确删，不误伤存活 chunk）
+            progressCallback.accept(new EtlProgress(docId, EtlStage.CLEANUP));
+            List<String> staleIds = staleChunkIds(oldChunkIds,
+                entities.stream().map(KbChunk::getId).toList());
+            if (!staleIds.isEmpty()) {
+                log.info("蓝绿 diff 清理: docId={}, stale={}", docId, staleIds.size());
+                chunkCleanupService.physicalDelete(docId, staleIds, false);
+            }
+
+            // 更新文档状态；重入库成功版本号 +1（簇⑥ C1）
             doc.setStatus(DocumentStatus.SUCCESS);
             doc.setChunkCount(chunks.size());
+            doc.setErrorMessage(null);
+            if (isReindex) {
+                doc.setVersion(Objects.requireNonNullElse(doc.getVersion(), 1) + 1);
+            }
             documentRepository.save(doc);
 
             EtlProgress done = new EtlProgress(docId, EtlStage.COMPLETED);
@@ -151,6 +183,15 @@ public class DocumentEtlService {
             progressCallback.accept(new EtlProgress(docId, EtlStage.FAILED));
             throw new BusinessException("ETL_FAILED", "文档处理失败: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 蓝绿 diff（簇⑥ C1）：旧集中不属于新集的 chunkId——即被新版本合并/删除、
+     * 需物理清理的残留。保序输出便于日志定位。
+     */
+    static List<String> staleChunkIds(List<String> oldIds, List<String> newIds) {
+        java.util.Set<String> newIdSet = java.util.Set.copyOf(newIds);
+        return oldIds.stream().filter(id -> !newIdSet.contains(id)).toList();
     }
 
     // ── 私有方法 ──

@@ -292,7 +292,11 @@ EMBEDDING      VectorStore.add() 批量向量化（pgvector / Milvus，内部自
    ↓
 INDEXING ★新增  ES kb_chunks 索引双写（9.4）
    ↓
-COMPLETED      kb_document 状态回写（chunk_count / table_count / parse_route）
+CLEANUP ★v2.25  蓝绿 diff 清理——三库物理删除「旧有新无」chunk（9.3 v2.25；
+               首次入库旧集为空即空操作）
+   ↓
+COMPLETED      kb_document 状态回写（chunk_count / table_count / parse_route；
+               重入库入口成功时 version +1）
 ```
 
 **关键不变量**（混合检索依赖，禁止破坏）：
@@ -324,7 +328,23 @@ progressCallback.accept(new EtlProgress(docId, EtlStage.INDEXING));
 esIndexWriter.indexChunks(doc, entities);   // 9.4
 ```
 
-`EtlStage` 枚举扩充：`READING, TRANSFORMING, PERSISTING, EMBEDDING, INDEXING, COMPLETED, FAILED`。
+`EtlStage` 枚举扩充：`READING, TRANSFORMING, PERSISTING, EMBEDDING, INDEXING, CLEANUP, COMPLETED, FAILED`。
+
+> **v2.25 修正（2026-08-13，簇⑥ C1 增量重入库）——蓝绿管线与增量 API**：
+> ① **管线统一为「全量写入 → diff 清理」**：确定性 chunk ID（v2.22）令不变 chunk
+> 三库同 ID 幂等覆写（PG merge / 向量 upsert / ES 同 `_id` 覆盖），故写入前捕获
+> 旧 chunkId 快照，INDEXING 后计算 diff = 旧有新无 → 经 `ChunkCleanupService.physicalDelete`
+> 三库精确清理（ES 走 `deleteByChunkIds` bulk 删，**不可用 deleteByDocId**——会误删
+> 同文档存活 chunk）。首次入库旧集为空即空操作，两路径归一无分叉。
+> ② **失败语义**：清理前失败 = 新旧混合仍可检索（旧数据大体保留），重试幂等收敛；
+> 清理自身失败上抛 FAILED（残留旧 chunk 可见 = 潜在过期答案，须重试收敛）。
+> ③ **增量 API**：`POST /documents/{id}/reparse`（MinIO 原件重走 ETL，路由缺省复现
+> 原始路由）/ `POST /documents/{id}/replace`（新文件覆盖原件，路由缺省自动决策）；
+> 状态守卫经 DB 级原子占用 `UPDATE kb_document SET status='REINDEXING' WHERE id=?
+> AND status IN ('SUCCESS','FAILED')`（影响行数 0 → DOC_NOT_READY 409，零 Redis 依赖）；
+> 处理期保持 REINDEXING 状态（不回写 PARSING），成功 version+1 + 清空 error_message。
+> ④ **kb_document.version 列**（07 章同步）：首次入库 1、每次重入库成功 +1——
+> [ref-N] 引用经 docId 定位文档不因重入库碎裂，版本号为运维审计追溯维度。
 
 ---
 
@@ -388,8 +408,18 @@ public class EsIndexWriter {
         esClient.deleteByQuery(d -> d.index(INDEX)
             .query(q -> q.term(t -> t.field("doc_id").value(docId))));
     }
+
+    /** 按 chunkId 批量物理删除（v2.25 簇⑥ C1，蓝绿 diff 清理专用，bulk + refresh(true)；
+     *  not_found 视为幂等成功——目标本就不在 ES） */
+    public void deleteByChunkIds(List<String> chunkIds) { /* bulk delete ops */ }
 }
 ```
+
+> **v2.25 修正（2026-08-13，簇⑥ C1）**：`markDeleted` 软删写侧接线（此前零调用方）——
+> 读侧管道早已就位（ES 检索 term filter `is_deleted=false` + 向量路 RetrievalContext
+> FilterExpression 双路过滤），C1 经 `ChunkCleanupService.softDelete` 补齐写侧
+> （PG is_deleted=true + ES markDeleted + 向量库物理删——向量库无软删形态，
+> 恢复需重嵌入，REST 门面归 Phase 4.4）。`deleteByChunkIds` 为蓝绿 diff 清理新增。
 
 **一致性模型**：ES 是向量库的**从属副本**——PG `kb_chunk` 为唯一事实源，ES 与向量库均可从 PG 全量重建（第十四章索引重建 API）。双写失败不阻断 ETL，由重建任务兜底。
 

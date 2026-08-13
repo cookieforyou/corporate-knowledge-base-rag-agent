@@ -94,6 +94,42 @@ public class EsIndexWriter {
     }
 
     /**
+     * 按 chunkId 批量物理删除（簇⑥ C1 蓝绿重入库 diff 清理）。
+     *
+     * <p>与 {@link #deleteByDocId(String)} 同为运维路径 {@code refresh(true)} 强刷
+     * （删除即时可见性优先）；从属副本语义不变——失败仅告警不阻断，
+     * 且「ES 缺失」方向安全（BM25 路检索不到 > 残留旧版本）。
+     * bulk 中 not_found 结果视为幂等成功（目标本就不在 ES）。
+     */
+    public void deleteByChunkIds(List<String> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) return;
+        try {
+            BulkRequest.Builder bulk = new BulkRequest.Builder().refresh(Refresh.True);
+            for (String chunkId : chunkIds) {
+                bulk.operations(op -> op
+                    .delete(del -> del.index(EsChunkDoc.INDEX).id(chunkId)));
+            }
+            BulkResponse response = esClient.bulk(bulk.build());
+            if (response.errors()) {
+                long realFailed = response.items().stream()
+                    .filter(i -> i.error() != null && !"not_found".equals(i.error().type()))
+                    .count();
+                if (realFailed > 0) {
+                    List<String> failedIds = response.items().stream()
+                        .filter(i -> i.error() != null && !"not_found".equals(i.error().type()))
+                        .map(BulkResponseItem::id).limit(5).toList();
+                    log.error("ES 按 ID 删除部分失败: failed={}/{}, 示例 chunkId={}",
+                        realFailed, chunkIds.size(), failedIds);
+                }
+            } else {
+                log.info("ES 按 ID 删除完成: chunks={}", chunkIds.size());
+            }
+        } catch (Exception e) {
+            log.error("ES 按 ID 删除异常（不阻断）: chunks={}, error={}", chunkIds.size(), e.getMessage());
+        }
+    }
+
+    /**
      * 文档物理删除时级联清理（第十四章）
      *
      * <p>2026-08-03 修复：查询字段曾为 camelCase "docId"——与 2.6 snake_case 对齐

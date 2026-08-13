@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS kb_document (
     image_count     INT,
     chunk_count     INT,
     error_message   TEXT,
+    -- 簇⑥ C1 增量重入库：版本号（首次入库 1，每次重入库成功 +1）
+    -- 存量库升级 DDL：
+    --   ALTER TABLE kb_document ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
+    version         INT NOT NULL DEFAULT 1,
     created_by      VARCHAR(50),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
