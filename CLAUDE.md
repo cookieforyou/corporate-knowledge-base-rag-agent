@@ -9,7 +9,7 @@
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) · Rerank: `qwen3-rerank`（百炼专属 MaaS 工作空间端点）· Judge: `qwen3.7-plus`（enable-thinking 默认关）
+- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) · Rerank: `qwen3-rerank`（百炼 DashScope 端点）· Judge: `qwen3.7-plus`（enable-thinking 默认关）
 - 向量库: pgvector (PG 扩展) / Milvus 2.6（`kb.vector-store.provider` 配置切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO
 - 认证: OAuth2 Resource Server (JWT) · 接入 Casdoor（前端 PKCE 流程）
