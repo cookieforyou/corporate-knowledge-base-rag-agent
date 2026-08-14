@@ -15,14 +15,18 @@ import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugment
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
 import org.springframework.ai.rag.preretrieval.query.transformation.CompressionQueryTransformer;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
+import io.micrometer.context.ContextExecutorService;
+import io.micrometer.context.ContextSnapshot;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
+import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -208,20 +212,53 @@ public class RetrievalConfig {
         return builder.build();
     }
 
-    /** Advisor 内部并行执行器：虚拟线程（与 ETL/检索路径技术栈一致） */
+    /**
+     * Advisor 内部并行执行器：虚拟线程（与 ETL/检索路径技术栈一致）。
+     *
+     * <p><b>上下文传递包裹（Phase 4 簇②，簇① trace 碎片化留档修复）</b>：RAA 经本执行器
+     * 提交检索任务，裸虚拟线程不继承请求线程的当前观测——rerank/embedding 观测寻父落空
+     * 成独立 trace 根。经 {@link ContextPropagatingTaskDecorator} 包裹：提交线程捕获
+     * 快照（含 {@code micrometer.observation}，坑位㉖ 静态自动注册的 accessor），
+     * 任务线程 restore 开 scope（ObservationThreadLocalAccessor.setValue = openScope，
+     * 源码核验），检索任务内 rerank 观测得以挂回 Advisor 树。无当前观测的入口
+     * （kb-eval / 检索调试台）捕获为空快照，行为不变。
+     */
     @Bean
     public AsyncTaskExecutor retrievalExecutor() {
-        return new VirtualThreadTaskExecutor("retrieval-");
+        return contextPropagatingRetrievalExecutor();
     }
 
     /**
      * 混合检索双路并行执行器（v2.19 簇③ D2）：此前 HybridDocumentRetriever 每请求
      * {@code new} 虚拟线程 executor——收编为共享 Bean（与 etlExecutor 同形态），
      * 消除高频请求下的重复创建/关闭开销。
+     *
+     * <p><b>上下文传递包裹（Phase 4 簇②）</b>：嵌套二级提交同样逃逸——向量路
+     * embedding 观测发生在二级任务内。{@link ContextExecutorService#wrap} 对
+     * submit/execute 全形态捕获-恢复，embedding 观测挂回检索任务上下文
+     * （其上下文已由 retrievalExecutor 装饰器 restore，两级串联成链）。
      */
     @Bean(destroyMethod = "close")
     public ExecutorService hybridRetrievalExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
+        return contextPropagatingHybridExecutor();
+    }
+
+    /** retrievalExecutor 构造逻辑提取（单测直调同构实例，防装配漂移） */
+    static AsyncTaskExecutor contextPropagatingRetrievalExecutor() {
+        VirtualThreadTaskExecutor delegate = new VirtualThreadTaskExecutor("retrieval-");
+        TaskDecorator decorator = new ContextPropagatingTaskDecorator();
+        return new AsyncTaskExecutor() {
+            @Override
+            public void execute(Runnable task) {
+                delegate.execute(decorator.decorate(task));
+            }
+        };
+    }
+
+    /** hybridRetrievalExecutor 构造逻辑提取（单测直调同构实例，防装配漂移） */
+    static ExecutorService contextPropagatingHybridExecutor() {
+        return ContextExecutorService.wrap(
+            Executors.newVirtualThreadPerTaskExecutor(), ContextSnapshot::captureAll);
     }
 
     /**

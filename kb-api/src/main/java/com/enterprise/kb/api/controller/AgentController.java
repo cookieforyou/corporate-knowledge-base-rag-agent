@@ -2,6 +2,7 @@ package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.commons.security.TextSanitizer;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
@@ -28,10 +29,12 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Agent 对话 Controller — 同步 + SSE 流式（命名事件，设计文档 11.3）
@@ -66,6 +69,7 @@ public class AgentController {
     private final ChatSessionService chatSessionService;
     private final JwtUtils jwtUtils;
     private final ObservationRegistry observationRegistry;
+    private final AiBusinessMetrics aiBusinessMetrics;
 
     /**
      * 同步问答（多轮：请求带 sessionId，响应回传）
@@ -146,6 +150,10 @@ public class AgentController {
         traceCtx.setTraceId(UUID.randomUUID().toString());
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
+        // TTFT 计量（rag.ttft，簇② 4.3）：请求进入 → 首个非空 token，双链共记；
+        // 计时起点取 Controller 入口（含 Advisor 链前置开销，端到端口径）
+        long requestStartNanos = System.nanoTime();
+        AtomicBoolean ttftRecorded = new AtomicBoolean();
 
         boolean toolMode = MODE_TOOL.equals(mode);
         if (!toolMode) {
@@ -157,6 +165,11 @@ public class AgentController {
 
         Flux<ServerSentEvent<Object>> sseFlux = tokens
             .filter(token -> token != null && !token.isEmpty())
+            .doOnNext(token -> {
+                if (ttftRecorded.compareAndSet(false, true)) {
+                    aiBusinessMetrics.recordTtft(Duration.ofNanos(System.nanoTime() - requestStartNanos));
+                }
+            })
             .doOnNext(answerBuffer::append)
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build());
         // SSE 事件按链路精简（11.5）：tool 链只可能产生 TOOL_CALL（无溯源数据不推空 TRACE）；

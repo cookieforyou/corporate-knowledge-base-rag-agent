@@ -1,0 +1,56 @@
+# 监控栈（Phase 4 簇② 任务 4.3 本地自核验形态）
+#
+# 用途：
+#   1. 簇② 面板自采核验——Prometheus 抓宿主 kb-api（8090）+ Grafana provisioning 四面板
+#   2. trace 残余（embedding/rerank 独立 trace）验证——Jaeger all-in-one 收 OTLP HTTP
+#      （kb-api 侧 management.opentelemetry.tracing.export.otlp.endpoint 指向
+#      http://localhost:4318/v1/traces，exporter 与 Langfuse 同契约：信号专属全路径）
+#
+# 生产化归簇⑥（Compose 生产加固）：届时 targets 改服务名、密码改密文管理、
+# Jaeger 按需保留/移除、补 restart/资源限额策略。
+#
+# 启停：docker compose -f infra/docker-compose.monitoring.yml up -d
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert-rules-kb-rag.yml:/etc/prometheus/rules/alert-rules-kb-rag.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      # 本地核验态口令（簇⑥ 生产化时替换为密文管理）
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  jaeger:
+    # trace 残余验证用 OTLP 后端（簇⑥ 生产化评估保留/移除；Langfuse 仍是 LLM 观测主平台）
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # UI
+      - "4318:4318"     # OTLP HTTP（/v1/traces）
+
+volumes:
+  prometheus-data:
+  grafana-data:

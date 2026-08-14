@@ -1,10 +1,12 @@
 package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.agent.service.ToolChatService;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.exception.BusinessException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +41,7 @@ class AgentControllerTenantGuardTest {
     @BeforeEach
     void setUp() {
         controller = new AgentController(ragChatService, toolChatService, chatSessionService, jwtUtils,
-            ObservationRegistry.create());
+            ObservationRegistry.create(), new AiBusinessMetrics(new SimpleMeterRegistry()));
         when(jwtUtils.getCurrentUsername()).thenReturn("user_test");
     }
 

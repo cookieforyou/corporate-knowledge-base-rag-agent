@@ -47,6 +47,9 @@ import java.time.Duration;
  *       （Phase 4 簇①）：RerankDocumentPostProcessor 运行时调用计 total，
  *       解析失败/结构异常/调用失败降级 fusion_score 截断计 fallback；
  *       endpoint 未配置的静态降级不计入（配置态非运行态）</li>
+ *   <li>{@code rag.ttft}——流式首 Token 延迟 Timer（p50/p95/p99，Phase 4 簇② 4.3）：
+ *       AgentController 流式路径自请求进入至首个非空 token 送达的端到端时延，
+ *       双链共记（无 mode 标签，延续零标签纪律）；同步路径无首 token 语义不记</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -83,6 +86,7 @@ public class AiBusinessMetrics {
     private final Counter requestError;
     private final Counter rerankTotal;
     private final Counter rerankFallback;
+    private final Timer ttft;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -93,8 +97,11 @@ public class AiBusinessMetrics {
             .description("混合检索执行次数").register(registry);
         this.retrievalHit = Counter.builder("rag.retrieval.hit")
             .description("检索命中次数（final 序列非空）").register(registry);
+        // v2.11 草图承诺 p50/p95/p99，实现期遗漏——簇② 4.3 面板消费分位时补齐
         this.retrievalLatency = Timer.builder("rag.retrieval.latency")
-            .description("混合检索耗时").register(registry);
+            .description("混合检索耗时")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(registry);
         this.toolCallTotal = Counter.builder("rag.tool.call.total")
             .description("工具调用次数").register(registry);
         this.toolCallSuccess = Counter.builder("rag.tool.call.success")
@@ -135,6 +142,15 @@ public class AiBusinessMetrics {
             .description("rerank 运行时执行次数（Phase 4 簇①）").register(registry);
         this.rerankFallback = Counter.builder("rag.rerank.fallback")
             .description("rerank 降级次数（解析失败/结构异常/调用失败 → fusion_score 截断，Phase 4 簇①）").register(registry);
+        this.ttft = Timer.builder("rag.ttft")
+            .description("流式首 Token 延迟（Phase 4 簇② 4.3）")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(registry);
+    }
+
+    /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */
+    public void recordTtft(Duration elapsed) {
+        ttft.record(elapsed);
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */

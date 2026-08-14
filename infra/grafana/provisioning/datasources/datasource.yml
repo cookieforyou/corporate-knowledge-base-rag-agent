@@ -1,0 +1,12 @@
+# Grafana 数据源 provisioning（Phase 4 簇② 任务 4.3）
+# uid 钉死 "prometheus"——四面板 JSON 的 datasource 引用以此为准，改则面板失链。
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
