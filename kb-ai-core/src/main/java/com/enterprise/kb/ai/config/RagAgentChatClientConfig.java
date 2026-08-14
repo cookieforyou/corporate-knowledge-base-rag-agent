@@ -9,6 +9,7 @@ import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -84,6 +85,7 @@ public class RagAgentChatClientConfig {
      */
     @Bean
     public ChatClient ragAgentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+                                         ObservationRegistry observationRegistry,
                                          ChatMemory agentChatMemory,
                                          AuditTraceAdvisor auditTraceAdvisor,
                                          TokenBudgetAdvisor tokenBudgetAdvisor,
@@ -93,7 +95,11 @@ public class RagAgentChatClientConfig {
                                          QueryRoutingAdvisor queryRoutingAdvisor,
                                          RetrievalTraceAdvisor retrievalTraceAdvisor,
                                          RetrievalGateAdvisor retrievalGateAdvisor) {
-        return ChatClient.builder(chatModel)
+        // 实证坑（Phase 4 簇① trace 碎片化定案）：ChatClient.builder(chatModel) 单参重载
+        // 默认传 ObservationRegistry.NOOP（ChatClient 接口源码）——chat_client 与全部
+        // Advisor 观测静默 NOOP，Langfuse 只见模型层裸 span、主链树整体缺失。
+        // 必须显式传入应用 ObservationRegistry Bean
+        return ChatClient.builder(chatModel, observationRegistry, null, null)
             .defaultSystem("你是企业知识库 RAG Agent 助手。用户提出知识库相关问题时，"
                 + "基于检索到的参考资料回答；用户寒暄、致谢或询问对话本身时，友好自然地直接回应。")
             .defaultAdvisors(

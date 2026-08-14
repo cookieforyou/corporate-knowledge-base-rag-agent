@@ -16,6 +16,9 @@ import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -62,6 +65,7 @@ public class AgentController {
     private final ToolChatService toolChatService;
     private final ChatSessionService chatSessionService;
     private final JwtUtils jwtUtils;
+    private final ObservationRegistry observationRegistry;
 
     /**
      * 同步问答（多轮：请求带 sessionId，响应回传）
@@ -169,7 +173,7 @@ public class AgentController {
                 : Mono.fromSupplier(() ->
                     ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event("TRACE").build())));
         }
-        return sseFlux
+        Flux<ServerSentEvent<Object>> result = sseFlux
             .concatWith(Mono.just(ServerSentEvent.<Object>builder(
                 new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
@@ -182,6 +186,27 @@ public class AgentController {
                 return Flux.just(ServerSentEvent.<Object>builder(
                     new ErrorEvent(String.valueOf(e.getMessage()))).build());
             });
+        return bridgeTraceContext(result);
+    }
+
+    /**
+     * 请求线程观测桥入 Reactor Context（Phase 4 簇① trace 碎片化修复）。
+     *
+     * <p>Spring AI 2.0 流式链不依赖 ThreadLocal 上下文自动恢复——chat_client / Advisor
+     * 观测在 {@code Flux.deferContextual} 内**显式**经 {@link ObservationThreadLocalAccessor#KEY}
+     * （{@code micrometer.observation}）从 ContextView 读取父观测（DefaultChatClient 源码契约，
+     * 注释明示 "without relying on automatic context propagation"）。请求线程上 server
+     * observation 作用域必然开启（ServerHttpObservationFilter 作用域内），此处显式捕获写入，
+     * 直击 Spring AI 读取契约——不依赖 MVC 快照回写 / Reactor 钩子的隐式捕获，确定性兜底
+     * （BaseAdvisor.adviseStream 会将下游链 publishOn 至 boundedElastic，ThreadLocal
+     * 作用域不再可靠）。无当前观测（如评估宿主）原样返回。
+     */
+    private Flux<ServerSentEvent<Object>> bridgeTraceContext(Flux<ServerSentEvent<Object>> flux) {
+        Observation currentObservation = observationRegistry.getCurrentObservation();
+        if (currentObservation == null) {
+            return flux;
+        }
+        return flux.contextWrite(ctx -> ctx.put(ObservationThreadLocalAccessor.KEY, currentObservation));
     }
 
     /** TOOL_CALL 载荷投影（RetrievalContext.ToolCall → SSE DTO） */

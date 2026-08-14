@@ -5,6 +5,7 @@ import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
 import com.enterprise.kb.commons.exception.BusinessException;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,7 +38,8 @@ class AgentControllerTenantGuardTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AgentController(ragChatService, toolChatService, chatSessionService, jwtUtils);
+        controller = new AgentController(ragChatService, toolChatService, chatSessionService, jwtUtils,
+            ObservationRegistry.create());
         when(jwtUtils.getCurrentUsername()).thenReturn("user_test");
     }
 
