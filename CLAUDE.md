@@ -2,108 +2,100 @@
 
 ## 项目概述
 
-企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台，目标能力：多格式文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
+企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1 完成；Phase 2 收尾（Golden 74 基线达标）；**Phase 3 实质收尾（17 项，含 5.4 收窄版意图路由提前落地）**；遗留口径：3.11 缓做、3.16 取消（Casdoor 统一管理）、5.4 剩余缓做（Phase 4 立项前）、护栏加固立项不排期（12.4 S1-S9）；**优化冲刺六簇收官**；**Phase 4 启动（七簇推进，簇① 观测地基收官，含 trace 碎片化定案修复 v2.31）**。设计唯一依据 `docs/project-implement/README.md`（v2 + v2.1-v2.28 修正）；**过程细节与 E2E 记录全部在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1-3 与优化冲刺完成；**Phase 4 七簇推进：簇① 收官（含 v2.31 trace 碎片化定案），下一棒簇②面板与统计**；遗留口径 3.11/5.4 缓做、3.16 取消、12.4 不排期。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) · Rerank: `qwen3-rerank`（百炼 DashScope 端点）· Judge: `qwen3.7-plus`（enable-thinking 默认关）
-- 向量库: pgvector (PG 扩展) / Milvus 2.6（`kb.vector-store.provider` 配置切换，默认 milvus）
-- PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO
-- 认证: OAuth2 Resource Server (JWT) · 接入 Casdoor（前端 PKCE 流程）
-- 前端: Vue3 + TypeScript + Element Plus + Pinia + Vite 6
-
-> **版本说明**：PG/ES/Milvus/Redis 版本指 ECS 服务端；pom 客户端库版本独立管理。
+- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · Judge: `qwen3.7-plus`
+- 向量库: pgvector / Milvus 2.6（`kb.vector-store.provider` 切换，默认 milvus）
+- PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO（版本指 ECS 服务端，pom 客户端独立）
+- 认证: OAuth2 Resource Server (JWT) · Casdoor（前端 PKCE）
+- 前端: Vue3 + TS + Element Plus + Pinia + Vite 6
 
 ## 项目结构
 
 ```
 kb-rag-agent/
-├── kb-commons/        # ApiResponse、BusinessException、Constants（分页）、TextSanitizer 消毒共享组件（对话/ETL 同源）
-├── kb-domain/         # 8 JPA Entity + 8 Repository + 6 枚举 + schema.sql（8 业务表 + kb_embeddings）
-├── kb-infrastructure/ # vectorstore/（pgvector+Milvus 条件装配）、MinIO、elasticsearch/、parsing/（DocMind + qwen3.5-ocr 客户端）
-├── kb-etl/            # ETL：MinIO → SmartParsingRouter（NATIVE/DEEP/OCR）→ HtmlProtectingSplitter → PG → 向量化 → ES 双写；进度 Redis 双通道
-├── kb-ai-core/        # 纯 RAG 核心（3.19 起不含工具链）：retriever/（双路并行+RRF+重排）、advisor/（审计/护栏/配额/溯源）、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient + RagChatService
-├── kb-ai-agent/       # Agent 事务域容器（3.19 拆出）：tool/（Mock 工具 + HITL 审批账本）、config/（toolAgentChatClient + ToolCallingAdvisor(1000)）、service/（ToolChatService + toolContext）；未来真实 OA/ERP 客户端/MCP(5.11)/Multi-Agent(5.3) 落此
-├── kb-api/            # REST Controller + SSE 命名事件 + SecurityConfig + JwtUtils + GlobalExceptionHandler（启动入口 KbRagAgentApplication）
-├── kb-admin/          # 运维后台（空模块，待开发）
-├── kb-eval/           # AI 评估：EvalRunner + 探针组 + Golden Dataset（146 条）+ CI 门禁
-├── frontend/          # Vue3 前端（Login + Chat 溯源对话 + Documents + Debug 检索调试台 + Chunks 观测台）
-└── docs/              # 设计文档（project-implement/ 按章拆分，入口 README.md）+ 进度追踪
+├── kb-commons/        # ApiResponse/BusinessException/Constants/TextSanitizer（对话/ETL 同源）
+├── kb-domain/         # 8 Entity + 8 Repository + 6 枚举 + schema.sql
+├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
+├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写
+├── kb-ai-core/        # 纯 RAG（无工具链）：retriever/（双路+RRF+重排）、advisor/、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient
+├── kb-ai-agent/       # Agent 事务域：tool/（Mock 工具+HITL 账本）、config/（toolAgentChatClient）、service/；未来 MCP/Multi-Agent 落此
+├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
+├── kb-admin/          # 运维后台（空模块）
+├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(146) + CI 门禁
+├── frontend/          # Vue3（Login/Chat 溯源对话/Documents/Debug 检索台/Chunks 观测台）
+└── docs/              # project-implement/ 设计按章 + project-progress/ 进度
 ```
-
-模块依赖：kb-commons ← kb-domain ← kb-infrastructure ← kb-etl / kb-ai-core ← kb-api；kb-ai-agent 依赖 kb-ai-core，kb-api 依赖 kb-ai-core + kb-ai-agent；kb-admin、kb-eval 依赖 kb-ai-core。
 
 ## 运行环境
 
-- **基础设施托管于 ECS**：PG / Milvus / ES / Redis / MinIO 均部署在远程 ECS 服务器，**本地无需搭建**。
-- **API 端口 8090**：8080 被占，`SERVER_PORT=8090` 注入；前端 `frontend/.env` BACKEND_URL 配套（Vite 代理 `/api`）。
-- 常用环境变量（默认值见 infra/ai.yml）：`DB_*`/`KB_VECTOR_STORE_PROVIDER`（pgvector|milvus）/`KB_MILVUS_*`/`KB_PGVECTOR_*`/`MINIO_*`/`ES_URIS`/`REDIS_HOST`/`JWT_ISSUER_URI`/`DEEPSEEK_API_KEY`/`DASHSCOPE_API_KEY`。
+- **基础设施托管于 ECS**（均远程），**本地无需搭建**。
+- **API 端口 8090**（8080 被占，`SERVER_PORT=8090` 注入）；前端 `.env` BACKEND_URL 配套（Vite 代理 `/api`）。
+- 环境变量名与默认值见 infra/ai.yml（`DB_*`/`KB_*`/`MINIO_*`/`ES_URIS`/`REDIS_HOST`/`JWT_ISSUER_URI`/API keys）。
 - 启动：后端 `mvn spring-boot:run -pl kb-api`；前端 `npm run dev`。
 
 ## 当前实现要点
 
-> 本节只记约束未来实现的架构事实；各功能的过程细节、E2E 记录在进度文档对应任务行，设计详情见 project-implement/ 对应章节。
+**双链路架构**：`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索 + defaultTools）；请求体 `mode: rag|tool` 显式分流（缺省 rag，非法值 400）；共享 smartRoutingChatModel / agentChatMemory（跨链互通）/ 护栏配额 Advisor / RetrievalContext；toolContext 仅 ToolChatService 组装（RagChatService 签名物理消除 HITL 凭证）；kb-eval 独立注入 chatClient；链序见 11.2
 
-**双链路架构（3.19）**：`ragAgentChatClient`（kb-ai-core，纯检索零工具，链 10/30/100/110/300/400/440/450/500）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索，链 10/30/100/110/300/400/1000 + defaultTools）；请求体 `mode: rag|tool` 显式分流（缺省 rag，非法值 400，跨链自动路由留 5.4）；共享 smartRoutingChatModel / agentChatMemory（跨链互通）/ 护栏配额 Advisor / RetrievalContext；toolContext 仅 ToolChatService 组装（RagChatService 签名物理消除 HITL 凭证）；kb-eval 注入独立 chatClient 零影响
+**全链路审计**：`AuditTraceAdvisor`(order 10 最外层)挂双链，异步虚拟线程落 kb_audit_log（旁路容错：失败丢弃不击穿）；捕获被拒请求，status 三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏落库、rewritten_query 经 `RewriteCapturingQueryTransformer` 捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
-**全链路审计（3.12）**：`AuditTraceAdvisor`(order 10 最外层)挂双链，异步虚拟线程落 kb_audit_log（旁路容错：失败丢弃不击穿问答）；覆写 adviseCall/adviseStream 捕获被拒请求，status 三态 SUCCESS/REJECTED(errorCode)/ERROR；query_text 脱敏落库、rewritten_query 经 `RewriteCapturingQueryTransformer` 捕获；表 v2.10 四列 mode/status/error_code/tool_calls；kb-eval 不挂；`rag.audit.enabled` 可关
+**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank.* 计数（request.* 与审计三态同语义）；不带租户标签防基数膨胀
 
-**业务指标（3.13）**：`metrics/AiBusinessMetrics` 统一注册中心——rag.feedback.*/rag.retrieval.*/rag.tool.call.*（ToolCall.status 分桶）/rag.token.*/rag.routing.*/rag.guardrail.*（簇⑤）/rag.request.*（簇① 审计三态同语义）/rag.rerank.*（簇① 执行/降级）计数；不带租户标签防基数膨胀；SecurityConfig 放行 prometheus/metrics/** 端点
+**观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse（依赖仅 kb-api 宿主）；总开关 `management.tracing.export.otlp.enabled` 默认关；内容捕获 `RAG_OBSERVABILITY_LOG_CONTENT` **唯一定义在 kb-ai-core/application-ai.yml**（import 源优先），内容自桥接 gen_ai.prompt/completion（坑位㉔㉕）；trace 合树：双链显式装配 registry + Controller contextWrite 桥接（坑位㉗）；残余：embedding/rerank span 独立 trace，留簇②/⑥；告警阈值待基线校准
 
-**观测地基（Phase 4 簇①）**：Micrometer Observation → micrometer-tracing-bridge-otel → OTLP 导出 Langfuse Cloud EU（仅 kb-api 宿主挂四依赖含 context-propagation，kb-eval 零影响）；`management.tracing.export.otlp.enabled` 总开关默认关（未配凭据零导出零噪音），endpoint 必须全路径（含 /v1/traces）+ Basic Auth 经 `management.opentelemetry.tracing.export.otlp.*`（Boot 4.1 迁移前缀）；内容捕获 `RAG_OBSERVABILITY_LOG_CONTENT` 开关**唯一定义在 kb-ai-core/application-ai.yml**（import 源优先级高于 application.yml），内容经 `ContentCapturingChatModelObservationConvention` 桥接为 gen_ai.prompt/completion span attribute（Spring AI log-prompt 只打日志不进 span 的缺口补救，SmartRoutingConfig 双模型条件接线）；告警 infra/prometheus/alert-rules-kb-rag.yml 11 条（阈值调研参考值待基线校准，真实触发自检随簇⑥ Prometheus 部署）；**trace 合树定稿（v2.31）**：碎片化双根因——`ChatClient.builder(chatModel)` 单参重载默认 NOOP registry（主链 chat_client/Advisor 观测静默缺失）+ BaseAdvisor.adviseStream publishOn 线程跳跃（坑位㉗）；rag/tool 双链显式装配应用 registry + AgentController 请求线程观测 contextWrite 入 Reactor Context（Spring AI 流式链 deferContextual 显式读 `micrometer.observation` 键作父级），E2E http post trace 28 观测合树（chat_client→9 Advisor 全链→主/分类双 GENERATION）；**残余限制**：embedding/rerank 检索层 span 独立 trace（RAA 裸 executor 线程跳跃逃逸上下文恢复），留簇②/⑥ 专项；Arconia flavor 属性登记为 gen_ai.* 键名变更应对工具（未引入）
+**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写单次调用，预写 rewrittenQuery）→ skipRetrieval；`RetrievalGateAdvisor`(500) 组合式门控包裹 RAA——skip 旁路携记忆直答，fail-open 回落检索；`rag.routing.intent.enabled` 可关，闲聊免 TRACE 帧
 
-**意图路由（5.4 收窄版）**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类与改写合并单次调用，预写 rewrittenQuery）→ skipRetrieval；`RetrievalGateAdvisor`(500) 组合式门控包裹 RAA（框架类 final）——skip 旁路管线携记忆直答，fail-open 回落检索；`rag.routing.intent.enabled` 可关，闲聊免 TRACE 帧
+**工具链与 HITL（kb-ai-agent）**：`EnterpriseMockTools` 契约对齐真实 OA/ERP；读工具自动执行、写工具 HITL 三段式（首调挂起 PENDING_APPROVAL+approvalId → approve 端点 → 二次对话带 `approvedToolCallId` 消费后 EXECUTED）；Redis 账本 TTL 10 分钟 + 一次性消费 + tenant/user 绑定，Redis 故障 fail-closed 拒写；确认态经 `.toolContext()` 通道；**ToolCallingAdvisor 自建 order 1000**（自动注册落最外层致工具循环穿越内层 Advisor）
 
-**工具链与 HITL（3.3/3.4，kb-ai-agent）**：`EnterpriseMockTools` 契约对齐真实 OA/ERP；读工具自动执行、写工具 HITL 三段式（首调挂起 PENDING_APPROVAL+approvalId → approve 端点 → 二次对话带 `approvedToolCallId` 消费后 EXECUTED）；`ToolApprovalService` Redis 账本（`rag:tool-approval:{id}`，TTL 10 分钟 + 一次性消费 + tenant/user 绑定，Redis 故障 fail-closed 拒写）；确认态经 `.toolContext()` 通道（与 advisor 参数独立）；**ToolCallingAdvisor 自建 order 1000**（自动注册落链最外层，工具循环每轮穿越全部内层 Advisor）
+**多模型路由**：`SmartRoutingChatModel`（@Primary）包装主模型 DeepSeek V4（SmartRoutingConfig 手工装配 OpenAI 兼容 + include_usage 流式计账；starter 经 `spring.ai.model.chat=none` 门控让位，勿回写 deepseek）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼端点，凭据回落 DASHSCOPE_API_KEY）；熔断三态无锁原子（rag.routing.circuit）；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传
 
-**多模型路由（3.2）**：`SmartRoutingChatModel`（@Primary）包装主模型（DeepSeek V4：**SmartRoutingConfig 手工装配 OpenAI 兼容形态并开 include_usage**——簇③ D1 流式计账；starter 经 `spring.ai.model.chat=none` 门控让位，勿回写 deepseek）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼端点，凭据回落 DASHSCOPE_API_KEY）；熔断三态无锁原子（阈值 rag.routing.circuit 可配）；失败即切，流式 onErrorResume 切备用流整段重发；转发异构备用前须以备用自身 options 重建 Prompt（见注意事项⑭）；`rag.routing.fallback.enabled=false` 单模型透传
+**检索与对话链路**
 
-**检索与对话链路（Phase 2 + Phase 3 护栏）**
+- 主链路：`RetrievalAugmentationAdvisor`(500) = CompressionQueryTransformer（追问消解，`rag.retrieval.rewrite.enabled` 默认开）→ `HybridDocumentRetriever` 双路并行（tenant/is_deleted 过滤，5s 超时降级）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（qwen3-rerank **扁平契约**，故障/超时降级 fusion_score 截断）→ `ContextualQueryAugmenter`（**编号化 documentFormatter** 锚定 [ref-N] + `allowEmptyContext=false` 空证据拒答）；参数收编 `rag.retrieval.*`（改参须配 kb-eval）；多查询扩展默认关
+- **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 创建并填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末直读推 TRACE
+- SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE 为 JSON {messageId,traceId}——反馈定位句柄）+ 命名 TRACE（三路溯源与 [ref-N] 对齐；ChunkTrace 含 docId——查看原文）/ TOOL_CALL（仅 tool 链）
+- 前端对话窗：chat store 自备 sessionId 多轮 + rag/tool 切换；TOOL_CALL→审批卡片（approve 后自动确认轮）
+- 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② HybridDocumentRetriever 有 ctx 无租户返回空结果双路零触达
+- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测（仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**
+- **用户反馈闭环**：POST /api/v1/feedback（messageId+userId upsert 可改评；归属 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填；前端 👍/👎
+- 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档 `ChatSessionService` 异步旁路；历史会话：会话端点 + 过期续聊回填；kb-eval 零 Redis 依赖
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；chatClient 独立注入；Golden 146 条（含注入 44，门禁限 L1 子集；chunk ID 确定性锚点）
 
-- 主链路：`RetrievalAugmentationAdvisor`(500) = CompressionQueryTransformer（历史感知追问消解，`rag.retrieval.rewrite.enabled` 默认开）→ `HybridDocumentRetriever` 双路并行（共享执行器 Bean，tenant/is_deleted 过滤，单路 5s 超时降级，参数见 rag.retrieval.*）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（qwen3-rerank **扁平契约**，故障/超时降级 fusion_score 截断，超时 `rag.rerank.timeout-seconds`）→ `ContextualQueryAugmenter`（**编号化 documentFormatter** 锚定 [ref-N] + `allowEmptyContext=false` 空证据拒答模板）；参数收编 `rag.retrieval.*`（RetrievalProperties，改参须配 kb-eval）；多查询扩展 `rag.retrieval.expansion.*` 默认关（A1 A/B：增益不抵 TTFT 代价）；ETL 向量化批次 `kb.etl.embed-batch-size`
-- **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 请求线程创建并以 JwtUtils 填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末 Controller 直读同一实例推 SSE TRACE
-- SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（v2.14 起 DONE 为 JSON {messageId,traceId}——反馈定位句柄）+ 命名 TRACE（三路溯源，final 与 [ref-N] 对齐；ChunkTrace 含 docId——「查看原文」通道）/ TOOL_CALL（仅 tool 链）
-- 前端对话窗（3.15）：chat store 自备 sessionId 多轮 + rag/tool 切换；TOOL_CALL→审批卡片（approve 后自动确认轮）；[ref-N]/溯源条目经 docId 弹原文；marked+DOMPurify 渲染
-- 租户隔离 fail-closed 两层（3.9+3.10）：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② HybridDocumentRetriever 有 ctx 无租户返回空结果双路零触达。kb-eval 无 ctx 不过滤；跨租户集成用例归 3.18；RBAC 属 3.11
-- 护栏与配额（3.5-3.8，详见 12 章）：`InputSanitizeAdvisor`(300) 归一化检测视图（S1：NFKC+零宽+空白，仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本 `rag:token-budget:{tenant}:{日期}`；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；流式计账已开
-- **用户反馈闭环（3.17）**：POST /api/v1/feedback（messageId+userId upsert 可改评 + 期望回答/tags；归属经 message→session 校验 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ GET Bad Case 查询（租户收敛、附原始问答）；kb_audit_log.feedback 凭 trace_id 回填 + audit_log_id 关联（旁路容错）；like/dislike 指标接线；前端 👍/👎 + 点踩期望回答表单
-- 多轮记忆（3.1）：`agentChatMemory` 显式装配 RedisChatMemoryRepository（连接取自 `spring.data.redis.*`，**REDIS_DB 必须 0**，见注意事项⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条（`rag.chat.memory.max-messages`）；PG 归档 `ChatSessionService` 异步旁路（失败只丢归档）；v2.17 历史会话：citations 归档 + 会话端点 + 过期会话续聊回填；kb-eval `initialize-schema: false` 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器测本征质量（无改写/扩展/重排）；chain 走全链度量前置收益，须配 `eval.chain-probe.tenant-id`（有 ctx 无租户 fail-closed）；`chatClient` 独立注入；Golden 146 条（含注入样本 44，门禁限 L1 子集；确定性 chunk ID 双层锚点 + 文档级兜底）
+**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落 NATIVE，显式失败上抛）；DocMind：OutputHtmlTable+LlmEnhancement 同开、表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>` + heading_path 落三存储面；**Contextual 语境增强默认开**（回退 `KB_ETL_CONTEXTUAL_ENABLED=false`）；chunk 确定性 ID（文档名#序号#增强前原文）跨重入库复现；向量化 10 条/批（DashScope ≤20）
 
-**解析支线（2.1-2.3，详见 9 章）**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / deep-by-default 或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动路由失败回落 NATIVE，显式路由失败上抛）；DocMind 契约（详见 9 章 v2.2）：OutputHtmlTable+LlmEnhancement 同开、表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>` + heading_path 落三存储面；**Contextual 语境增强默认开**（9.5 v2.23 A/B 定案；回退 `KB_ETL_CONTEXTUAL_ENABLED=false`）；chunk 确定性 ID（文档名#序号#增强前原文）跨重入库复现；向量化 10 条/批（DashScope ≤20 硬限制）
+**基础设施**
 
-**基础设施（Phase 1）**
-
-- 上传/ETL：`DocumentService`（PDF/DOCX/MD/TXT/HTML 白名单 → MinIO → kb_document）；`DocumentEtlService`（解析 → 切分 → **SanitizingTransformer**（S4+PII 入库消毒：三存储面脱敏态、注入打标 `injection_hit` 入 metadata JSONB 不阻断、MinIO 原件保留）→ kb_chunk → 向量化 → ES 双写，INDEXING 失败不阻断）；**增量重入库（簇⑥ C1）**：reparse/replace 端点 + version 列 + REINDEXING 占用 + CLEANUP 蓝绿 diff 清理（ChunkCleanupService 组件）；软删写侧已通
-- 认证：`SecurityConfig`（/actuator/health|info|prometheus|metrics/** permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` 映射 Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
-- 双向量库：`spring.ai.vectorstore.type=custom` 禁用原生 auto-config，按 `kb.vector-store.provider` 条件装配 PgVectorStore / MilvusVectorStore；**pgvector 接线钉 idType=TEXT**（默认 UUID 型致 delete 静默失效，簇⑥ D3 实证）
-- 配置拆分：`application.yml`（kb-api）经 `spring.config.import` 导入 `application-infra.yml` + `application-ai.yml`
-- **Redis 连接信息单一来源**：`application-infra.yml` 的 `spring.data.redis.*` 被 Redisson 自动配置与会话记忆 Jedis 共消费，**不可移除**
-- **多 ChatClient Bean 纪律（3.19 起）**：chatClient（评估）/ ragAgentChatClient / toolAgentChatClient / evalGuardrailChatClient（簇⑤ 注入门禁），所有注入点必须显式 `@Qualifier`；新增 Advisor 核对 order 与链序表（11.2）一致
-- 测试：全模块单测绿 + kb-eval 宿主 33 Testcontainers IT（`mvn verify -pl kb-eval -am`，Docker 必需、无 Docker 加 -DskipITs；细节 15 章 v2.28）
+- 上传/ETL：`DocumentService`（PDF/DOCX/MD/TXT/HTML 白名单 → MinIO → kb_document）；`DocumentEtlService`（解析→切分→**SanitizingTransformer**（S4+PII 入库消毒：脱敏态 + 注入打标 `injection_hit` 不阻断，MinIO 原件保留）→kb_chunk→向量化→ES 双写，INDEXING 失败不阻断）；**增量重入库**：reparse/replace + version 列 + REINDEXING 占用 + CLEANUP 蓝绿 diff 清理
+- 认证：`SecurityConfig`（/actuator/health|info|prometheus|metrics/** permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
+- 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
+- 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 连接单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆 Jedis 共消费，**不可移除**
+- **多 ChatClient Bean 纪律**：chatClient（评估）/ragAgentChatClient/toolAgentChatClient/evalGuardrailChatClient，注入点必须显式 `@Qualifier`；新增 Advisor 核对 order 与链序表（11.2）一致
+- 测试：全模块单测绿 + kb-eval 33 Testcontainers IT（`mvn verify -pl kb-eval -am`，Docker 必需，无则 -DskipITs）
 
 ## 注意事项
 
-- Maven 4 reactor 自动解析父子关系，子模块使用 `<parent/>` 即可；**单模块构建需 `-am`**（兄弟模块不在本地仓库时单 `-pl` 解析失败）
-- JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`（Hibernate 7.x 要求）；**ddl-auto=validate**：实体新增字段须先在 ECS 执行 ALTER（schema.sql 注释内附升级语句），缺列启动即失败
-- 父 POM dependencyManagement 已预埋后续阶段依赖：elasticsearch-java 8.14.3、jsoup 1.18.1、redisson 4.6.1、testcontainers 2.0.5；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递的 4.38.0 以最短路径覆盖 spring-ai 5.0.0 → `.entity()` 结构化输出 NoClassDefFoundError: JacksonSchemaModule）
-- pgvector 模式需先以 superuser 执行 `CREATE EXTENSION IF NOT EXISTS vector;`（服务器 PG 若已启用可跳过）
-- Phase 2 检索架构为 Spring AI 2.0 模块化 RAG；Milvus 原生混合检索经源码级核验否决（见 10 章 §10.0）
-- **Spring AI 2.0 API 实证坑**（设计稿已回写 v2.1 修正）：① `OpenAiChatModel` 的异步 client 不继承预建同步 client 凭证，baseUrl/apiKey 必须经 `OpenAiChatOptions` 传入；② `ContextualQueryAugmenter.allowEmptyContext=true` 语义是「空证据原样返回问题由模型自由作答」，拒答需 `false` + `emptyContextPromptTemplate`；③ `TokenTextSplitter.maxNumChunks` 是切片**数**上限，触顶尾部并入超大块；④ Spring AI Document metadata 禁 null 值，可空字段须条件写入；⑤ `ChatClientRequest`/`ChatClientResponse` 是 record，位于 `chat.client` 包；⑥ `MessageChatMemoryAdvisor` 缺失 CONVERSATION_ID 是 Assert 硬断言直接抛错（Controller 保证非空）；⑦ **自动配置条件让位陷阱**：`RedisChatMemoryAutoConfiguration` 的 `@ConditionalOnMissingBean` 含 ChatMemory 类型检查——用户 ChatMemory Bean 先注册时 Redis 仓储静默让位回退 InMemory；修复 = 显式装配 + 防回归测试；⑧ `Usage.getTotalTokens()` 返回 **Integer 可空**须判空；流式 usage 需 `stream_options.include_usage` 开启才随末块下发；⑨ Redisson 4.x `getRateLimiter` 双重载致 Mockito `any()` 歧义须用 `anyString()`；定稿 `RateLimiterArgs.of(RateType, rate, interval)`；⑩ Mockito 重 stub 已抛异常方法时 `when(mock.method())` 真实触发原异常，须用 `doReturn(...).when(mock)`；⑪ **多 ChatModel Bean 装配歧义**：自动装配按类型裸注入，多 ChatModel Bean 歧义致启动失败——`smartRoutingChatModel` 标 `@Primary` 消解（装配变更须真实启动验证）；⑫ 2.0 GA `ChatModel.getDefaultOptions()` 已 Deprecated，自定义 ChatModel 只覆写 `getOptions()`；⑬ **Spring Boot 4.1 已迁 Jackson 3（tools.jackson 命名空间）**：自动装配的 JSON mapper 是 `tools.jackson.databind.json.JsonMapper`，注入须用 JsonMapper 具体类（注旧命名空间 ObjectMapper 无 Bean 启动失败）；注解包仍为 `com.fasterxml.jackson.annotation`（保留旧命名空间，勿迁）；⑭ **跨厂商路由 Prompt options 屏障**：Prompt 携带主模型 options，`OpenAiChatModel.createRequest` 强转 `OpenAiChatOptions` + 非空断言——转发异构备用前须以备用自身 options 重建 Prompt（经 `fallback.getOptions()`）；⑮ **qwen3.5/3.6/3.7 商业版默认开思考模式**：单调用 20-60s——OpenAI 兼容端点须经 `OpenAiChatOptions.extraBody(Map.of("enable_thinking", false))` 显式关闭；⑯ 手工 `OpenAiChatModel.builder()` 装配的模型不继承自动装配的 ObservationRegistry——须显式 `.observationRegistry(...)`；⑰ **ContextualQueryAugmenter 默认格式器拼接不编号**——[ref-N] 契约须配编号化格式器（每条资料前缀 [ref-N] 行），否则模型猜编号；⑱ **surefire 测试 JVM 必须带 `--enable-preview` argLine**（父 POM 已配）：javac 仅对用 preview 语法的 class 打标，缺 argLine 类加载失败；⑲ **Boot 4.1 同名 Bean 不让位**：用户 Bean 与 starter @Bean 同名抛 BeanDefinitionOverrideException——令 starter 让位须经其类级 @ConditionalOnProperty 门控（簇③ 实证）；⑳ **Boot 4.1 OTLP tracing 属性迁移**：`management.otlp.tracing.*` 已迁至 `management.opentelemetry.tracing.export.otlp.*`，tracing OTLP 自动配置移出 actuator-autoconfigure 至模块化 `spring-boot-micrometer-tracing-opentelemetry`（簇① jar 元数据实证）；㉑ **Prometheus counter 命名实证**：原名以 total 结尾的 counter 不重复追加 `_total`（rag.request.total → rag_request_total 单 total）——告警/面板表达式按 /actuator/prometheus 实证名，勿凭规约推演；㉒ **spring-boot:run fork JVM 同样必须 `--enable-preview`**（坑位⑱ 延展，`-Dspring-boot.run.jvmArguments` 注入）；㉓ **Langfuse OTLP 契约**：EU `https://cloud.langfuse.com/api/public/otel/v1/traces` + Authorization Basic base64(pk:sk)，仅 HTTP/protobuf 无 gRPC；**信号专属 endpoint 原样使用不追加路径**——`management.opentelemetry.tracing.export.otlp.endpoint` 必须带全路径 `/v1/traces`，缺路径段 Langfuse 回 404（簇① 直连实测：/v1/traces=200、无路径=404）；㉔ **spring.config.import 导入源优先级高于导入方**：application-ai/infra.yml 的同名键覆盖 kb-api application.yml——共享配置单源定义落导入侧（簇① log-prompt 静默被覆盖 false 实证）；㉕ **Spring AI 2.0 GA log-prompt/log-completion 只打应用日志不进 span**（纯日志 handler + TracingAware 作用域包装）——观测平台内容须自桥接：convention 高基数 KeyValue 落 `gen_ai.prompt`/`gen_ai.completion`（Langfuse 映射契约键）；打标型 ObservationHandler.onStop 与 span 结束存在顺序竞态（实测静默丢失），勿用；㉖ **ContextRegistry accessor 装载口径修正（v2.31 实证）**：context-propagation 1.2.1 全局实例静态初始化即经 ServiceLoader 装载 ContextAccessor + ThreadLocalAccessor（显式 `loadThreadLocalAccessors()` 幂等无害）；簇① 碎片化疑点「MVC 异步 SSE 作用域生命周期」证伪——探针实证 MVC 快照回写（ReactiveTypeHandler#writeReactorContext）与订阅捕获均有效，真根因见坑位㉗
-㉗ **Spring AI 2.0 流式 trace 双坑（簇① 碎片化定案）**：① `ChatClient.builder(chatModel)` 单参重载默认传 `ObservationRegistry.NOOP`——chat_client 与全部 Advisor 观测静默 NOOP（主链树整体缺失，仅剩模型层裸 span），须 `builder(chatModel, observationRegistry, null, null)` 显式装配；② `BaseAdvisor.adviseStream` 模板将 before() 与下游链 `publishOn(boundedElastic)`——ThreadLocal 作用域不跨线程，流式链父观测须经 Reactor Context `micrometer.observation` 键显式传递（DefaultChatClient deferContextual 读取契约，不依赖自动恢复），SSE Controller 请求线程捕获观测 contextWrite 入 Context 为确定性兜底
+- Maven 4 **单模块构建需 `-am`**（兄弟模块不在本地仓库）
+- JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`；**ddl-auto=validate**：实体新增字段须先在 ECS 执行 ALTER（schema.sql 注释附升级语句），缺列启动即失败
+- 父 POM dependencyManagement 预埋后续依赖；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递 4.38.0 覆盖 → `.entity()` NoClassDefFoundError）
+- pgvector 需先以 superuser `CREATE EXTENSION IF NOT EXISTS vector;`
+- 检索为 Spring AI 2.0 模块化 RAG；Milvus 原生混合检索否决（10 §10.0）
+- **实证坑**：① OpenAiChatModel 异步 client 不继承同步 client 凭证，baseUrl/apiKey 须经 OpenAiChatOptions；② allowEmptyContext=true 即「空证据原样返回问题自由作答」，拒答需 false+emptyContextPromptTemplate；③ maxNumChunks 是切片**数**上限，触顶尾部并入超大块；④ Document metadata 禁 null；⑤ ChatClientRequest/Response 是 record（chat.client 包）；⑥ MessageChatMemoryAdvisor 缺 CONVERSATION_ID 硬断言抛错；⑦ **自动配置让位陷阱**：用户 ChatMemory Bean 先注册时静默让位回退 InMemory，须显式装配 + 防回归测试；⑧ Usage.getTotalTokens() Integer 可空须判空；流式 usage 需 include_usage；⑨ Redisson getRateLimiter 双重载 Mockito 歧义须 anyString()；RateLimiterArgs.of(RateType,rate,interval)；⑩ Mockito 重 stub 已抛异常方法须 doReturn().when()；⑪ 多 ChatModel Bean 歧义——smartRoutingChatModel @Primary（装配变更须真实启动验证）；⑫ getDefaultOptions() Deprecated，自定义只覆写 getOptions()；⑬ **Boot 4.1 迁 Jackson 3**：注入 tools.jackson.databind.json.JsonMapper（旧命名空间无 Bean 启动失败）；注解仍 com.fasterxml.jackson.annotation；⑭ **跨厂商路由 Prompt options 屏障**：转发异构备用前须以备用自身 options 重建 Prompt（fallback.getOptions()，createRequest 强转）；⑮ **qwen3.5/3.6/3.7 商业版默认开思考**（20-60s/调用）——须 extraBody enable_thinking=false；⑯ 手工 builder() 不继承自动装配 ObservationRegistry——须显式 .observationRegistry()；⑰ ContextualQueryAugmenter 默认格式器不编号——[ref-N] 须配编号化格式器；⑱ **surefire JVM 必须带 --enable-preview argLine**（父 POM 已配）；⑲ **Boot 4.1 同名 Bean 不让位**：与 starter Bean 同名抛 BeanDefinitionOverrideException——starter 让位经其类级 @ConditionalOnProperty 门控；⑳ **Boot 4.1 OTLP tracing 前缀**：management.otlp.tracing.*→management.opentelemetry.tracing.export.otlp.*，移至 spring-boot-micrometer-tracing-opentelemetry；㉑ **Prometheus counter**：以 total 结尾不重复追加 _total——表达式按 /actuator/prometheus 实证名；㉒ **spring-boot:run fork JVM 同需 --enable-preview**（-Dspring-boot.run.jvmArguments）；㉓ **Langfuse OTLP**：EU endpoint 带全路径 /api/public/otel/v1/traces（缺路径 404）+ Basic base64(pk:sk)，仅 HTTP/protobuf；㉔ **spring.config.import 导入源优先于导入方**——共享配置单源落导入侧；㉕ **log-prompt/log-completion 只打日志不进 span**——内容须自桥接 gen_ai.prompt/completion；打标型 ObservationHandler.onStop 与 span 结束竞态勿用；㉖ context-propagation 1.2.1 静态初始化即自动装载 accessor；MVC 快照回写/订阅捕获有效；㉗ **流式 trace 双坑（碎片化定案）**：builder(chatModel) 单参默认 NOOP registry（chat_client/Advisor 观测静默缺失）——须 builder(chatModel, observationRegistry, null, null)；BaseAdvisor.adviseStream publishOn(boundedElastic) ThreadLocal 不跨线程——流式父观测须经 Reactor Context micrometer.observation 键传递（deferContextual 读取契约），Controller contextWrite 兜底
 - **请求状态传递只用参数链**（RetrievalContext 模式），不用 @RequestScope/ThreadLocal（异步完结后作用域代理不可解析、Reactor 线程不继承）；CONVERSATION_ID 同理
 
 ## 开发工作流约定（用户定案）
 
-文档是项目的 DNA，**功能实现/修 bug 完成并校验无误后，第一时间更新文档，再提交代码**，顺序不可颠倒、不可遗漏：
+文档是项目的 DNA：**功能实现/修 bug 校验后先更新文档再提交代码**，不可颠倒遗漏：
 
-1. **设计回写**：实现期对设计草图的实证修正（失效 API、语义反转、契约差异等）回写 `docs/project-implement/` 对应章节（版本号递增 + 修订注记），与 v2.1-v2.4 先例同格式
-2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行的完成情况 + 顶部日期状态行
-3. **CLAUDE.md 同步**：「当前实现要点」/「注意事项」中受影响的架构事实（只记架构事实，过程细节入进度文档，控制本文件体积 ≤20KB）
-4. **git 提交**：按改动功能点提交（一功能一提交，代码 + 文档同批或紧随其后），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
-5. **落码约束**：写代码前先进行源码级核验（框架 API 形态、契约、默认行为），如遇不确定或知识盲区请 Web 搜索以最新官方文档为准，先核验再落码，避免凭感觉瞎写
-6. **通盘思考优先**：按项目文档推进时不机械照搬，实现每个功能点前先审视设计合理性与架构可维护性，有更优方案（如 3.19 双链路拆分否掉了 3.14 单链全挂形态）先提出与用户讨论定案，再实现并回写设计文档
-7. **Token 与会话纪律**（2026-08-07 定案，实证见进度文档当日状态行）：① **功能点即会话边界**——单功能「代码+文档提交 + E2E 步骤交付」闭环后，主动提示用户 `/compact` 或新开会话续下一功能；② **交付 E2E 步骤前是压缩最佳时机**（用户离开 >5 分钟提示缓存即失效，离开时上下文越小返回重读越省）。缓存 TTL 不可配置；中空窗（≤50 分钟）由 cache-keepalive 插件心跳保活（盈亏平衡 ~50 分钟），超时不保活，靠压缩/新会话；③ **分段读取**——设计文档只读当前任务相关小节（Grep/offset-limit 定位，勿整章读），进度文档按任务行定位编辑；④ **构建静音**——`mvn -q --no-transfer-progress`，失败只读对应模块 surefire 报告；⑤ **日志按关键行提取**（grep/tail，勿整读 service.log）；⑥ **大范围探索委派 Explore 子代理**，只回结论不进主上下文
+1. **设计回写**：实证性设计修正回写 `docs/project-implement/` 对应章节（版本号递增 + 修订注记）
+2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行 + 顶部日期状态行
+3. **CLAUDE.md 同步**：受影响的架构事实（只记架构事实，过程细节入进度文档，控制体积 ≤16KB）
+4. **git 提交**：一功能一提交（代码 + 文档同批），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
+5. **落码约束**：写代码前源码级核验（API 形态/契约/默认行为），不确定搜索官方文档，先核验再落码
+6. **通盘思考优先**：实现前先审视设计合理性与可维护性，有更优方案先与用户定案，再实现并回写设计
+7. **Token 与会话纪律**：① **功能点即会话边界**——单功能闭环后主动提示 `/compact` 或新开会话；② **交付 E2E 前是压缩最佳时机**（离开 >5 分钟缓存失效；中空窗 ≤50 分钟靠 keepalive 保活）；③ **分段读取**——设计文档只读相关小节（Grep/offset-limit），进度文档按任务行编辑；④ **构建静音**——`mvn -q --no-transfer-progress`，失败只读 surefire 报告；⑤ **日志按关键行提取**（grep/tail，勿整读）；⑥ **大范围探索委派 Explore 子代理**，只回结论
