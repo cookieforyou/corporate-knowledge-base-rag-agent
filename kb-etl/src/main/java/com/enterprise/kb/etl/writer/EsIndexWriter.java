@@ -79,6 +79,34 @@ public class EsIndexWriter {
     }
 
     /**
+     * 查询指定文档在 ES 中的全部 chunk _id（Phase 4 簇③ 4.5 重建 ES 孤儿清扫）。
+     *
+     * <p>重建漂移收敛语义：蓝绿管线以 PG 为事实源全量重写，ES 中「PG 已无对应行」
+     * 的残留 doc 即孤儿——调用方以 PG chunk ID 集 diff 后经
+     * {@link #deleteByChunkIds(List)} 精确清除（不走 deleteByDocId 全清，
+     * 避免误删刚重写完成的存活 doc）。
+     *
+     * <p>尽力而为：查询失败返回空列表（孤儿清扫跳过，不误删）；单文档 chunk 规模
+     * 上限取 ES 默认 max_result_window（10000），超限文档的尾部孤儿留待下轮重建。
+     */
+    public List<String> findChunkIdsByDocId(String docId) {
+        try {
+            var response = esClient.search(s -> s
+                    .index(EsChunkDoc.INDEX)
+                    .query(q -> q.term(t -> t.field("doc_id").value(docId)))
+                    .size(10_000)
+                    .source(sc -> sc.fetch(false)),
+                EsChunkDoc.class);
+            return response.hits().hits().stream()
+                .map(co.elastic.clients.elasticsearch.core.search.Hit::id)
+                .toList();
+        } catch (Exception e) {
+            log.warn("ES 按文档查询失败（孤儿清扫跳过，不误删）: docId={}, error={}", docId, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
      * 软删除同步（Chunk 编辑/删除运维 API 调用，第十四章）
      */
     public void markDeleted(String chunkId) {

@@ -337,30 +337,37 @@ public class DocumentEtlService {
         for (int from = 0; from < total; from += embedBatchSize) {
             List<KbChunk> batch = entities.subList(from, Math.min(from + embedBatchSize, total));
             List<Document> vectorDocs = batch.stream()
-                .map(e -> {
-                    Map<String, Object> meta = new HashMap<>();
-                    meta.put("chunk_id", e.getId());
-                    meta.put("doc_id", doc.getId());
-                    meta.put("tenant_id", doc.getTenantId());
-                    meta.put("chunk_type", e.getChunkType().name());
-                    // file_name 随向量元数据携带（2.14 调试台/溯源展示；
-                    // 存量向量缺此字段，重新入库后补齐）
-                    meta.put("file_name", doc.getName() != null ? doc.getName() : "unknown");
-                    meta.put("page_num", e.getPageNum() != null ? e.getPageNum() : 0);
-                    meta.put("is_deleted", Objects.requireNonNullElse(e.getIsDeleted(), false));
-                    // heading 路径（簇④ A4）：调试台/溯源展示与后续检索消费；
-                    // 元数据禁 null（Spring AI 约束），缺省不写键
-                    if (e.getHeadingPath() != null) {
-                        meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, e.getHeadingPath());
-                    }
-                    return new Document(e.getId(), e.getContent(), meta);
-                })
+                .map(e -> new Document(e.getId(), e.getContent(), vectorMetadata(e, doc)))
                 .toList();
 
             vectorStore.add(vectorDocs);
             log.debug("向量化分批写入: docId={}, range=[{}, {})", doc.getId(), from, from + batch.size());
         }
         log.info("向量化写入完成: docId={}, vectors={}", doc.getId(), total);
+    }
+
+    /**
+     * 向量库文档元数据契约（单一来源）——ETL 入库与簇③ Chunk 运维重嵌入共用，
+     * 防契约散点漂移：检索侧 FilterExpression（tenant_id/is_deleted）与调试台/
+     * 溯源展示（file_name/page_num/heading_path）均消费这些键。
+     *
+     * <p>元数据禁 null（Spring AI 约束，坑位④）：可空字段缺省写兜底值或不写键。
+     */
+    public static Map<String, Object> vectorMetadata(KbChunk chunk, KbDocument doc) {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("chunk_id", chunk.getId());
+        meta.put("doc_id", doc.getId());
+        meta.put("tenant_id", doc.getTenantId());
+        meta.put("chunk_type", chunk.getChunkType() != null ? chunk.getChunkType().name() : "TEXT");
+        // file_name 随向量元数据携带（2.14 调试台/溯源展示；存量向量缺此字段，重新入库后补齐）
+        meta.put("file_name", doc.getName() != null ? doc.getName() : "unknown");
+        meta.put("page_num", chunk.getPageNum() != null ? chunk.getPageNum() : 0);
+        meta.put("is_deleted", Objects.requireNonNullElse(chunk.getIsDeleted(), false));
+        // heading 路径（簇④ A4）：调试台/溯源展示与后续检索消费；缺省不写键
+        if (chunk.getHeadingPath() != null) {
+            meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, chunk.getHeadingPath());
+        }
+        return meta;
     }
 
     /**

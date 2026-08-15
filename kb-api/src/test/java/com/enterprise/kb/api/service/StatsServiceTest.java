@@ -4,6 +4,7 @@ import com.enterprise.kb.api.dto.DocumentProcessingView;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.model.KbDocument;
+import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,16 +21,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 统计服务测试（Phase 4 簇② 任务 4.6）：聚合映射 + 补 0 口径
+ * 统计服务测试（Phase 4 簇② 任务 4.6）：聚合映射 + 补 0 口径；
+ * chunkTotal 自簇③ 起走 kb_chunk 存活精确口径（countAliveByTenantId）
  */
 class StatsServiceTest {
 
     private final KbDocumentRepository documentRepository = mock(KbDocumentRepository.class);
+    private final KbChunkRepository chunkRepository = mock(KbChunkRepository.class);
     private StatsService statsService;
 
     @BeforeEach
     void setUp() {
-        statsService = new StatsService(documentRepository);
+        statsService = new StatsService(documentRepository, chunkRepository);
     }
 
     @Test
@@ -41,7 +44,7 @@ class StatsServiceTest {
         when(documentRepository.countGroupByParseRoute("t1")).thenReturn(List.of(
             new Object[]{"DEEP", 3L},
             new Object[]{null, 2L}));
-        when(documentRepository.sumChunkCountByStatus("t1", DocumentStatus.SUCCESS)).thenReturn(42L);
+        when(chunkRepository.countAliveByTenantId("t1")).thenReturn(42L);
         when(documentRepository.dailyIngestion(eq("t1"), any(LocalDateTime.class))).thenReturn(List.of());
 
         StatsOverview overview = statsService.overview("t1");
@@ -70,7 +73,7 @@ class StatsServiceTest {
         when(documentRepository.countByTenantId(anyString())).thenReturn(0L);
         when(documentRepository.countGroupByStatus(anyString())).thenReturn(List.of());
         when(documentRepository.countGroupByParseRoute(anyString())).thenReturn(List.of());
-        when(documentRepository.sumChunkCountByStatus(anyString(), any())).thenReturn(0L);
+        when(chunkRepository.countAliveByTenantId(anyString())).thenReturn(0L);
         when(documentRepository.dailyIngestion(eq("t1"), any(LocalDateTime.class))).thenReturn(List.of(
             new Object[]{today, 2L, 30L},
             new Object[]{today.minusDays(3), 1L, 7L}));

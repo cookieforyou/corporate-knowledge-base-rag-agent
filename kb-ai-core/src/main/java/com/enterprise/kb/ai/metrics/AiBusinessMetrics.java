@@ -50,6 +50,9 @@ import java.time.Duration;
  *   <li>{@code rag.ttft}——流式首 Token 延迟 Timer（p50/p95/p99，Phase 4 簇② 4.3）：
  *       AgentController 流式路径自请求进入至首个非空 token 送达的端到端时延，
  *       双链共记（无 mode 标签，延续零标签纪律）；同步路径无首 token 语义不记</li>
+ *   <li>{@code rag.chunk.edit / soft.delete / restore}——Chunk 运维操作计数
+ *       （Phase 4 簇③ 4.4）：kb-admin ChunkOpsService 成功路径计；操作类型经
+ *       recordChunkOps(String) 收口为独立 Counter（不加 operation 标签）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -87,6 +90,9 @@ public class AiBusinessMetrics {
     private final Counter rerankTotal;
     private final Counter rerankFallback;
     private final Timer ttft;
+    private final Counter chunkEdit;
+    private final Counter chunkSoftDelete;
+    private final Counter chunkRestore;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -146,6 +152,22 @@ public class AiBusinessMetrics {
             .description("流式首 Token 延迟（Phase 4 簇② 4.3）")
             .publishPercentiles(0.5, 0.95, 0.99)
             .register(registry);
+        this.chunkEdit = Counter.builder("rag.chunk.edit")
+            .description("Chunk 运维编辑次数（Phase 4 簇③ 4.4）").register(registry);
+        this.chunkSoftDelete = Counter.builder("rag.chunk.soft.delete")
+            .description("Chunk 软删除次数（Phase 4 簇③ 4.4）").register(registry);
+        this.chunkRestore = Counter.builder("rag.chunk.restore")
+            .description("Chunk 软删恢复次数（Phase 4 簇③ 4.4）").register(registry);
+    }
+
+    /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
+    public void recordChunkOps(String operation) {
+        switch (operation) {
+            case "edit" -> chunkEdit.increment();
+            case "soft_delete" -> chunkSoftDelete.increment();
+            case "restore" -> chunkRestore.increment();
+            default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
+        }
     }
 
     /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */

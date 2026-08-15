@@ -8,7 +8,9 @@ import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
+import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
+import com.enterprise.kb.etl.pipeline.EtlStage;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
 import io.minio.MinioClient;
@@ -199,6 +201,49 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> service.reparse(DOC_ID, TENANT, null))
             .isInstanceOf(BusinessException.class);
         verify(documentRepository, never()).acquireForReindex(anyString(), any(), anyList());
+    }
+
+    /**
+     * 终态 future 汇聚（簇③ 4.5 重建编排消费点）：ETL 进度回调 COMPLETED/FAILED
+     * 终态帧分别完成 future true/false——进度回调透传形态下捕获回调直接驱动。
+     */
+    @Test
+    void reparseFutureCompletesOnEtlTerminalFrames() {
+        // andThen 原样透传回调（捕获终态帧处理 lambda 直接驱动）
+        when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
+        KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
+        when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
+
+        java.util.concurrent.CompletableFuture<Boolean> outcome = service.reparse(DOC_ID, TENANT, null);
+        assertThat(outcome).isNotCompleted();
+
+        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        verify(etlService).process(eq(DOC_ID), captor.capture(), any());
+
+        captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
+        assertThat(outcome).isCompletedWithValue(true);
+    }
+
+    @Test
+    void reparseFutureCompletesFalseOnFailedFrame() {
+        when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
+        KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
+        when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
+
+        java.util.concurrent.CompletableFuture<Boolean> outcome = service.reparse(DOC_ID, TENANT, null);
+
+        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        verify(etlService).process(eq(DOC_ID), captor.capture(), any());
+
+        captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
+        assertThat(outcome).isCompletedWithValue(false);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static ArgumentCaptor<java.util.function.Consumer<EtlProgress>> callbackCaptor() {
+        return ArgumentCaptor.forClass((Class) java.util.function.Consumer.class);
     }
 
     // ── replace（替换原件）──

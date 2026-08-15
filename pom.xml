@@ -90,6 +90,11 @@
                 <artifactId>kb-ai-agent</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.enterprise</groupId>
+                <artifactId>kb-admin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!-- Testcontainers BOM -->
             <dependency>

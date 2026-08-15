@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -172,14 +173,19 @@ public class DocumentService {
      * <p><b>路由语义</b>：显式参数 &gt; 文档留存的原始路由——重解析默认复现
      * 首次入库管线形态（parse_route 记录的是实际使用路由）。
      * <p>蓝绿清理与版本号由 ETL 管线统一承接（DocumentEtlService，先写后删 diff）。
+     *
+     * @return 重入库终态 future（簇③ 4.5 重建编排消费）：true = COMPLETED，
+     *         false = FAILED；同步快速失败（占用/所有权）仍直接抛 BusinessException
      */
-    public void reparse(String docId, String tenantId, String parseRoute) {
+    public CompletableFuture<Boolean> reparse(String docId, String tenantId, String parseRoute) {
         KbDocument doc = getOwned(docId, tenantId);
         acquireForReindex(doc);
         ParseRoute route = firstRoute(parseRoute, doc.getParseRoute());
         metrics.recordReindexStarted();
         log.info("文档重解析已发起: docId={}, route={}", docId, route);
-        etlService.process(docId, reindexProgressCallback(doc.getName()), route);
+        CompletableFuture<Boolean> outcome = new CompletableFuture<>();
+        etlService.process(docId, reindexProgressCallback(doc.getName(), outcome), route);
+        return outcome;
     }
 
     /**
@@ -231,7 +237,8 @@ public class DocumentService {
         ParseRoute route = firstRoute(parseRoute, null);
         metrics.recordReindexStarted();
         log.info("文档替换重入库已发起: docId={}, name={}", docId, file.getOriginalFilename());
-        etlService.process(docId, reindexProgressCallback(doc.getName()), route);
+        // replace 端点不消费终态 future（回调层仍需汇聚以统一指标计数路径）
+        etlService.process(docId, reindexProgressCallback(doc.getName(), new CompletableFuture<>()), route);
     }
 
     /**
@@ -254,16 +261,19 @@ public class DocumentService {
     }
 
     /**
-     * 重入库进度回调：Redis 双通道 + 终态指标计数。
+     * 重入库进度回调：Redis 双通道 + 终态指标计数 + 终态 future 汇聚（簇③ 4.5）。
      * 异步 ETL 管线的成败观测点在进度回调层（COMPLETED/FAILED 终态帧）。
      */
-    private Consumer<com.enterprise.kb.etl.pipeline.EtlProgress> reindexProgressCallback(String docName) {
+    private Consumer<com.enterprise.kb.etl.pipeline.EtlProgress> reindexProgressCallback(
+            String docName, CompletableFuture<Boolean> outcome) {
         return progressWriter.andThen(p -> {
             if (p.getStage() == EtlStage.COMPLETED) {
                 metrics.recordReindexOutcome(true);
+                outcome.complete(true);
                 log.info("文档重入库完成: docId={}, name={}", p.getDocId(), docName);
             } else if (p.getStage() == EtlStage.FAILED) {
                 metrics.recordReindexOutcome(false);
+                outcome.complete(false);
                 log.warn("文档重入库失败: docId={}, name={}", p.getDocId(), docName);
             }
         });

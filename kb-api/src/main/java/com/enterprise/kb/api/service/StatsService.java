@@ -5,6 +5,7 @@ import com.enterprise.kb.api.dto.DocumentProcessingView.ProcessingDocument;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.api.dto.StatsOverview.DailyIngestion;
 import com.enterprise.kb.domain.enums.DocumentStatus;
+import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,10 @@ import java.util.Map;
 /**
  * 知识库统计服务（Phase 4 簇② 任务 4.6：运维仪表盘数据接口）
  *
- * <p>只读聚合，全部按租户隔离；聚合源为 kb_document 单表——chunk 规模取
- * 文档侧 chunk_count 口径（重入库成功后回写），不直查 kb_chunk 大表。
+ * <p>只读聚合，全部按租户隔离。聚合源以 kb_document 单表为主；chunk 总量
+ * （chunkTotal）自簇③ 4.4 软删门面生效起切换为 kb_chunk 精确口径——JOIN
+ * 文档租户维度排除软删 chunk（簇② 4.6 曾取文档侧 chunk_count 近似）。
+ * 入库趋势的 chunk 曲线仍取文档侧口径（按日聚合不直查 kb_chunk 大表）。
  */
 @Service
 @RequiredArgsConstructor
@@ -37,6 +40,7 @@ public class StatsService {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final KbDocumentRepository documentRepository;
+    private final KbChunkRepository chunkRepository;
 
     /** 知识库统计总览：文档/状态分布/chunk 规模/路由分布/入库趋势 */
     public StatsOverview overview(String tenantId) {
@@ -54,7 +58,7 @@ public class StatsService {
         return new StatsOverview(
             documentRepository.countByTenantId(tenantId),
             byStatus,
-            documentRepository.sumChunkCountByStatus(tenantId, DocumentStatus.SUCCESS),
+            chunkRepository.countAliveByTenantId(tenantId),
             byRoute,
             dailyIngestion(tenantId));
     }
