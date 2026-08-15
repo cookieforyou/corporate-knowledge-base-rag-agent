@@ -17,7 +17,9 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
@@ -143,7 +145,7 @@ class FeedbackServiceTest {
 
         assertThat(saved.getId()).isEqualTo("fb-existing");
         assertThat(saved.getRating()).isEqualTo(FeedbackRating.NEGATIVE);
-        verify(feedbackRepository, never()).delete(any());
+        verify(feedbackRepository, never()).delete(any(KbFeedback.class));
     }
 
     @Test
@@ -229,8 +231,8 @@ class FeedbackServiceTest {
         row.setResolved(false);
         row.setCreatedAt(LocalDateTime.now());
         row.setAuditLogId(7L);
-        when(feedbackRepository.searchTenantFeedback(eq(TENANT), eq("NEGATIVE"), eq(false), any(Pageable.class)))
-            .thenReturn(List.of(row));
+        when(feedbackRepository.findAll(any(Specification.class), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(row)));
 
         KbMessage userMessage = new KbMessage();
         userMessage.setId("m-9");

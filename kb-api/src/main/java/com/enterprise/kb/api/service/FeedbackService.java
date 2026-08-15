@@ -12,6 +12,7 @@ import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import com.enterprise.kb.domain.repository.KbFeedbackRepository;
 import com.enterprise.kb.domain.repository.KbMessageRepository;
 import com.enterprise.kb.domain.repository.KbSessionRepository;
+import com.enterprise.kb.domain.spec.FeedbackSpecs;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -120,13 +121,17 @@ public class FeedbackService {
 
     /**
      * Bad Case 查询（验收 #13）：租户可见域内反馈列表（rating/resolved 可选过滤），
-     * 附带原始问答文本。resolved 标记更新归 Phase 4.8 运维面板。
+     * 附带原始问答文本。resolved 标记更新归簇④（PUT /api/v1/admin/feedback/{id}/resolved）。
+     *
+     * <p>v2.35：查询经 {@link FeedbackSpecs} 动态谓词执行（原 @Query 可选参数
+     * PG 预编译类型推断缺陷修正）。
      */
     public List<FeedbackItem> search(String tenantId, String rating, Boolean resolved, Integer limit) {
-        String ratingFilter = rating == null || rating.isBlank() ? null : parseRating(rating).name();
+        FeedbackRating ratingFilter = rating == null || rating.isBlank() ? null : parseRating(rating);
         int capped = limit == null || limit <= 0 ? DEFAULT_LIMIT : Math.min(limit, MAX_LIMIT);
-        List<KbFeedback> rows = feedbackRepository.searchTenantFeedback(
-            tenantId, ratingFilter, resolved, PageRequest.of(0, capped));
+        List<KbFeedback> rows = feedbackRepository.findAll(
+            FeedbackSpecs.tenantFeedback(tenantId, ratingFilter, resolved),
+            PageRequest.of(0, capped)).getContent();
         return attachConversation(rows);
     }
 

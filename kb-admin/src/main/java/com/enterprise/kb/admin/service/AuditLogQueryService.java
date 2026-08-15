@@ -8,6 +8,7 @@ import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.model.KbFeedback;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import com.enterprise.kb.domain.repository.KbFeedbackRepository;
+import com.enterprise.kb.domain.spec.AuditLogSpecs;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,9 +25,10 @@ import java.util.stream.Collectors;
 /**
  * 审计日志查询服务（Phase 4 簇④ 4.7）——Bad Case 运营闭环的查询入口。
  *
- * <p>租户过滤恒在（仓储层 tenantId 必传，fail-closed 纪律）；过滤项传 null 不生效。
- * 视图组装附带关联反馈的期望回答（kb_feedback.audit_log_id 批量联查），
- * 供前端 Golden 回灌对话框预填。
+ * <p>租户过滤恒在（Spec 层 tenantId 必传，fail-closed 纪律）；过滤项传 null 不生效。
+ * 查询经 {@link AuditLogSpecs} 动态谓词执行（v2.35：原 @Query 可选参数形态触发 PG
+ * 服务端预编译类型推断缺陷修正）。视图组装附带关联反馈的期望回答
+ * （kb_feedback.audit_log_id 批量联查），供前端 Golden 回灌对话框预填。
  */
 @Slf4j
 @Service
@@ -66,9 +68,10 @@ public class AuditLogQueryService {
         int cappedSize = size == null || size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
         int pageIndex = page == null || page < 0 ? 0 : page;
 
-        Page<KbAuditLog> result = auditLogRepository.search(tenantId, fromTime, toTime,
-            blankToNull(userId), blankToNull(sessionId),
-            feedbackFilter, statusFilter, rootCauseFilter, annotated,
+        Page<KbAuditLog> result = auditLogRepository.findAll(
+            AuditLogSpecs.search(tenantId, fromTime, toTime,
+                blankToNull(userId), blankToNull(sessionId),
+                feedbackFilter, statusFilter, rootCauseFilter, annotated),
             PageRequest.of(pageIndex, cappedSize));
 
         Map<Long, String> expectedAnswerByAuditId = expectedAnswers(result.getContent());
