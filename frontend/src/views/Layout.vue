@@ -59,7 +59,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
-  ChatLineSquare, FolderOpened, DataAnalysis, Grid, SwitchButton
+  ChatLineSquare, FolderOpened, DataAnalysis, Grid, SwitchButton, Odometer
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -69,7 +69,8 @@ const navItems = [
   { to: '/', label: '智能问答', icon: ChatLineSquare },
   { to: '/documents', label: '文档管理', icon: FolderOpened },
   { to: '/debug', label: '检索调试', icon: DataAnalysis },
-  { to: '/chunks', label: 'Chunk 观测', icon: Grid }
+  { to: '/chunks', label: 'Chunk 观测', icon: Grid },
+  { to: '/admin', label: '运维中心', icon: Odometer }
 ]
 
 /** 解析 JWT payload（不校验，仅展示） */

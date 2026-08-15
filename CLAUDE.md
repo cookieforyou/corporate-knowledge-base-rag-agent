@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3 与优化冲刺完成；**Phase 4 七簇推进：簇①②③ 收官，下一棒簇④ Bad Case 闭环**；遗留口径 3.11/5.4 缓做、3.16 取消、12.4 不排期。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1-3 与优化冲刺完成；**Phase 4 七簇推进：簇①②④ 收官（簇③ E2E 并入簇④ 前端验证），下一棒簇⑤ MCP Server**；遗留口径 3.11/5.4 缓做、3.16 取消、12.4 不排期。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -26,7 +26,7 @@ kb-rag-agent/
 ├── kb-ai-core/        # 纯 RAG（无工具链）：retriever/（双路+RRF+重排）、advisor/、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient
 ├── kb-ai-agent/       # Agent 事务域：tool/（Mock 工具+HITL 账本）、config/（toolAgentChatClient）、service/；未来 MCP/Multi-Agent 落此
 ├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
-├── kb-admin/          # 运维后台（Chunk 运维与重建，kb-api 聚合）
+├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
 ├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(146) + CI 门禁
 ├── frontend/          # Vue3（Login/Chat 溯源对话/Documents/Debug 检索台/Chunks 观测台）
 └── docs/              # project-implement/ 设计按章 + project-progress/ 进度
@@ -45,13 +45,15 @@ kb-rag-agent/
 
 **全链路审计**：`AuditTraceAdvisor`(order 10 最外层)挂双链，异步落 kb_audit_log（旁路容错）；捕获被拒请求，status 三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏落库、rewritten_query 经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
-**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.* 计数（request.* 与审计三态同语义）；不带租户标签防基数膨胀
+**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）；不带租户标签防基数膨胀
 
 **观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse；总开关 `management.tracing.export.otlp.enabled` 默认关；内容捕获 `RAG_OBSERVABILITY_LOG_CONTENT` 唯一定义在 kb-ai-core/application-ai.yml（import 源优先），内容自桥接 gen_ai.prompt/completion（坑位㉔㉕）；trace 合树：双链显式装配 registry + Controller contextWrite 桥接（坑位㉗）+ 检索双执行器传播包裹；残余：流式主生成 POST 独立 trace 留簇⑥
 
 **面板与统计（簇②）**：Grafana 四面板 + 监控 compose 落 infra/（本地形态，ECS 归簇⑥）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）；无指标支撑面板不设
 
 **Chunk 运维与重建（簇③）**：kb-admin 首建，kb-api fat jar 聚合（禁反向依赖）；租户守卫 @AuthenticationPrincipal Jwt 直消费（owner claim，不复用 JwtUtils 防成环）。Chunk CRUD：编辑 = 同源消毒 → PG 同步 → 异步重嵌入（**统一 delete→add 两步**——Milvus add 非 upsert 实证，chunk ID/original_content 不变）+ ES 覆写；软删委派 C1；恢复经重嵌入；守卫 fail-closed（跨租户 → CHUNK_NOT_FOUND，处理中 → DOC_NOT_READY）。重建：ReindexGateway 倒置委派 reparse（终态 future 汇聚）——PG 事实源全量重解析（蓝绿既有）+ ES 孤儿清扫（向量孤儿留离线）。统计 chunkTotal = kb_chunk 存活计数（排除软删）
+
+**Bad Case 运营闭环（簇④）**：kb-admin 四端点——审计查询 GET /admin/audit-logs（时间/用户/会话/反馈/状态/根因/标注态可选 + feedbackExpectedAnswer 联查预填）；根因标注 PUT /audit-logs/{id}/root-cause（四分类 RootCause 枚举，kb_audit_log 新列 root_cause + (tenant_id,created_at DESC) 索引，**ECS 先 ALTER**）；Golden 回灌 POST /badcase/reingest——**Git Ops 文件通道**：审计行转用例写 `rag.admin.golden.dir`/badcase-qa.json（默认 kb-eval 语料目录，id=bc-{auditLogId} upsert 幂等，成功联动反馈 resolved），回灌→commit→CI 复跑闭环；反馈处理态 PUT /feedback/{id}/resolved（message→session 租户链）。守卫：跨租户/不存在一律 AUDIT_LOG_NOT_FOUND（不泄露存在性）。前端 /admin 运维中心三 Tab（仪表盘消费簇② stats / 日志查询详情抽屉 / 标注+回灌对话框，检索快照候选快填）
 
 **意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写单次调用预写）→ skipRetrieval；`RetrievalGateAdvisor`(500) 组合式门控包裹 RAA——skip 旁路携记忆直答，fail-open 回落；`rag.routing.intent.enabled` 可关
 
@@ -98,7 +100,7 @@ kb-rag-agent/
 
 1. **设计回写**：实证性设计修正回写 `docs/project-implement/` 对应章节（版本号递增 + 修订注记）
 2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行 + 顶部日期状态行
-3. **CLAUDE.md 同步**：受影响的架构事实（只记架构事实，过程细节入进度文档，控制体积 ≤16KB）
+3. **CLAUDE.md 同步**：受影响的架构事实（只记架构事实，过程细节入进度文档，控制体积 ≤20KB）
 4. **git 提交**：一功能一提交（代码 + 文档同批），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
 5. **落码约束**：写代码前源码级核验（API 形态/契约/默认行为），不确定搜索官方文档，先核验再落码
 6. **通盘思考优先**：实现前先审视设计合理性与可维护性，有更优方案先与用户定案，再实现并回写设计

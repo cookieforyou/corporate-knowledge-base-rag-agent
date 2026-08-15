@@ -1,7 +1,13 @@
 package com.enterprise.kb.admin.controller;
 
+import com.enterprise.kb.admin.dto.AuditLogPage;
 import com.enterprise.kb.admin.dto.ChunkUpdateRequest;
 import com.enterprise.kb.admin.dto.RebuildRequest;
+import com.enterprise.kb.admin.dto.ReingestRequest;
+import com.enterprise.kb.admin.dto.ResolvedRequest;
+import com.enterprise.kb.admin.dto.RootCauseRequest;
+import com.enterprise.kb.admin.service.AuditLogQueryService;
+import com.enterprise.kb.admin.service.BadCaseService;
 import com.enterprise.kb.admin.service.ChunkOpsService;
 import com.enterprise.kb.admin.service.IndexRebuildService;
 import com.enterprise.kb.commons.exception.BusinessException;
@@ -18,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,15 +39,21 @@ class AdminControllerTenantGuardTest {
 
     private ChunkOpsService chunkOpsService;
     private IndexRebuildService indexRebuildService;
+    private AuditLogQueryService auditLogQueryService;
+    private BadCaseService badCaseService;
     private ChunkAdminController chunkController;
     private RebuildController rebuildController;
+    private BadCaseAdminController badCaseController;
 
     @BeforeEach
     void setUp() {
         chunkOpsService = mock(ChunkOpsService.class);
         indexRebuildService = mock(IndexRebuildService.class);
+        auditLogQueryService = mock(AuditLogQueryService.class);
+        badCaseService = mock(BadCaseService.class);
         chunkController = new ChunkAdminController(chunkOpsService);
         rebuildController = new RebuildController(indexRebuildService);
+        badCaseController = new BadCaseAdminController(auditLogQueryService, badCaseService);
     }
 
     private static Jwt jwtWithOwner(String owner) {
@@ -144,5 +157,61 @@ class AdminControllerTenantGuardTest {
         assertThatThrownBy(() -> rebuildController.task(jwtWithOwner("t-1"), "missing"))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("REBUILD_TASK_NOT_FOUND");
+    }
+
+    // ── BadCaseAdminController（簇④）──
+
+    @Test
+    void badCaseEndpointsRejectMissingTenant() {
+        assertThatThrownBy(() -> badCaseController.search(null, null, null, null, null,
+            null, null, null, null, null, null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> badCaseController.annotate(jwtWithOwner(" "), 1L,
+            new RootCauseRequest("HALLUCINATION")))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> badCaseController.reingest(null,
+            new ReingestRequest(1L, null, null, null, null, null)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> badCaseController.resolve(null, "f-1", new ResolvedRequest(true)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        verify(auditLogQueryService, never()).search(anyString(), any(), any(), any(), any(),
+            any(), any(), any(), any(), any(), any());
+        verify(badCaseService, never()).annotate(anyString(), any(), anyString());
+    }
+
+    @Test
+    void badCaseSearchPassesOwnerClaimAsTenant() {
+        when(auditLogQueryService.search(eq("t-1"), any(), any(), any(), any(),
+            any(), any(), any(), any(), any(), any()))
+            .thenReturn(new AuditLogPage(List.of(), 0, 0, 20));
+
+        var response = badCaseController.search(jwtWithOwner("t-1"), null, null, null, null,
+            "NEGATIVE", null, null, null, null, null);
+
+        assertThat(response.data().total()).isZero();
+        verify(auditLogQueryService).search(eq("t-1"), isNull(), isNull(), isNull(), isNull(),
+            eq("NEGATIVE"), isNull(), isNull(), isNull(), isNull(), isNull());
+    }
+
+    @Test
+    void badCaseAnnotateAndReingestPassOwnerClaimAsTenant() {
+        when(badCaseService.annotate("t-1", 3L, "RETRIEVAL_MISS")).thenReturn("RETRIEVAL_MISS");
+        when(badCaseService.reingest(eq("t-1"), any()))
+            .thenReturn(new com.enterprise.kb.admin.dto.ReingestResult(
+                "bc-3", "f", "q", "FACTOID", null));
+
+        var annotateResponse = badCaseController.annotate(jwtWithOwner("t-1"), 3L,
+            new RootCauseRequest("RETRIEVAL_MISS"));
+        var reingestResponse = badCaseController.reingest(jwtWithOwner("t-1"),
+            new ReingestRequest(3L, null, null, null, null, null));
+
+        assertThat(annotateResponse.data().get("rootCause")).isEqualTo("RETRIEVAL_MISS");
+        assertThat(reingestResponse.data().goldenId()).isEqualTo("bc-3");
+        verify(badCaseService).annotate("t-1", 3L, "RETRIEVAL_MISS");
+        verify(badCaseService).reingest(eq("t-1"), any());
     }
 }

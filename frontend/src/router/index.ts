@@ -17,7 +17,8 @@ const router = createRouter({
         { path: '', name: 'chat', component: () => import('@/views/Chat.vue') },
         { path: 'documents', name: 'documents', component: () => import('@/views/Documents.vue') },
         { path: 'debug', name: 'debug', component: () => import('@/views/Debug.vue') },
-        { path: 'chunks', name: 'chunks', component: () => import('@/views/Chunks.vue') }
+        { path: 'chunks', name: 'chunks', component: () => import('@/views/Chunks.vue') },
+        { path: 'admin', name: 'admin', component: () => import('@/views/Admin.vue') }
       ]
     }
   ]

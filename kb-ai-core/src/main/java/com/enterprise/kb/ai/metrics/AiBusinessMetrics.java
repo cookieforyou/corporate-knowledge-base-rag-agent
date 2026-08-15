@@ -53,6 +53,9 @@ import java.time.Duration;
  *   <li>{@code rag.chunk.edit / soft.delete / restore}——Chunk 运维操作计数
  *       （Phase 4 簇③ 4.4）：kb-admin ChunkOpsService 成功路径计；操作类型经
  *       recordChunkOps(String) 收口为独立 Counter（不加 operation 标签）</li>
+ *   <li>{@code rag.badcase.annotate / rag.badcase.reingest}——Bad Case 运营闭环
+ *       计数（Phase 4 簇④ 4.7）：根因标注 / Golden Set 回灌成功路径计，
+ *       recordBadCaseOps(String) 收口（同款零标签纪律）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -93,6 +96,8 @@ public class AiBusinessMetrics {
     private final Counter chunkEdit;
     private final Counter chunkSoftDelete;
     private final Counter chunkRestore;
+    private final Counter badCaseAnnotate;
+    private final Counter badCaseReingest;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -158,6 +163,10 @@ public class AiBusinessMetrics {
             .description("Chunk 软删除次数（Phase 4 簇③ 4.4）").register(registry);
         this.chunkRestore = Counter.builder("rag.chunk.restore")
             .description("Chunk 软删恢复次数（Phase 4 簇③ 4.4）").register(registry);
+        this.badCaseAnnotate = Counter.builder("rag.badcase.annotate")
+            .description("Bad Case 根因标注次数（Phase 4 簇④ 4.7）").register(registry);
+        this.badCaseReingest = Counter.builder("rag.badcase.reingest")
+            .description("Bad Case Golden Set 回灌次数（Phase 4 簇④ 4.7）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -166,6 +175,15 @@ public class AiBusinessMetrics {
             case "edit" -> chunkEdit.increment();
             case "soft_delete" -> chunkSoftDelete.increment();
             case "restore" -> chunkRestore.increment();
+            default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
+        }
+    }
+
+    /** Bad Case 运营闭环计数（Phase 4 簇④ 4.7：annotate 根因标注 / reingest Golden 回灌） */
+    public void recordBadCaseOps(String operation) {
+        switch (operation) {
+            case "annotate" -> badCaseAnnotate.increment();
+            case "reingest" -> badCaseReingest.increment();
             default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
         }
     }

@@ -19,6 +19,12 @@ public interface KbFeedbackRepository extends JpaRepository<KbFeedback, String> 
     /** 3.17 upsert 幂等键：同一用户对同一回答仅一条反馈（可更改评价） */
     Optional<KbFeedback> findByMessageIdAndUserId(String messageId, String userId);
 
+    /** 簇④ 4.7：审计行关联反馈（一轮问答至多一条，audit_log_id 经 3.17 回填） */
+    Optional<KbFeedback> findFirstByAuditLogId(Long auditLogId);
+
+    /** 簇④ 4.7：审计查询页联查期望回答（批量，避免 N+1） */
+    List<KbFeedback> findByAuditLogIdIn(List<Long> auditLogIds);
+
     /** 历史消息反馈回显：批量查当前用户对一组消息的既有评价（至多每消息一条） */
     List<KbFeedback> findByMessageIdInAndUserId(List<String> messageIds, String userId);
 

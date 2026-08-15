@@ -189,6 +189,106 @@ export interface RetrievalDebugResult {
 export const retrievalSearch = (query: string) =>
   api.post('/retrieval/search', { query }).then(r => r.data.data as RetrievalDebugResult)
 
+// ── 运维中心（Phase 4 簇②④：统计仪表盘 + 审计日志 + Bad Case 闭环）──
+
+export interface StatsOverview {
+  documentTotal: number
+  documentsByStatus: Record<string, number>
+  chunkTotal: number
+  documentsByParseRoute: Record<string, number>
+  dailyIngestion: { date: string; documents: number; chunks: number }[]
+}
+
+export interface ProcessingDocument {
+  id: string
+  name: string
+  status: string
+  parseRoute?: string
+  updatedAt: string
+}
+
+export interface ProcessingView {
+  counts: Record<string, number>
+  documents: ProcessingDocument[]
+}
+
+export const getStatsOverview = () =>
+  api.get('/stats/overview').then(r => r.data.data as StatsOverview)
+
+export const getProcessingStats = () =>
+  api.get('/stats/documents/processing').then(r => r.data.data as ProcessingView)
+
+/** 审计日志条目（簇④ 4.7）；JSON 快照列为原始字符串，前端按需解析 */
+export interface AuditLogItem {
+  id: number
+  traceId?: string
+  sessionId?: string
+  userId?: string
+  mode?: string
+  queryText: string
+  rewrittenQuery?: string
+  retrievalType?: string
+  retrievedChunks?: string
+  rerankedChunks?: string
+  finalAnswer?: string
+  toolCalls?: string
+  modelName?: string
+  latencyMs?: number
+  tokenUsage?: string
+  status?: string
+  errorCode?: string
+  feedback?: string
+  rootCause?: string
+  createdAt: string
+  feedbackExpectedAnswer?: string
+}
+
+export interface AuditLogPage {
+  items: AuditLogItem[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface AuditQuery {
+  from?: string
+  to?: string
+  userId?: string
+  sessionId?: string
+  feedback?: string
+  status?: string
+  rootCause?: string
+  annotated?: boolean
+  page?: number
+  size?: number
+}
+
+export const searchAuditLogs = (params: AuditQuery) =>
+  api.get('/admin/audit-logs', { params }).then(r => r.data.data as AuditLogPage)
+
+export type RootCause = 'RETRIEVAL_MISS' | 'REWRITE_DRIFT' | 'HALLUCINATION' | 'PARSING_GAP'
+
+/** Bad Case 根因标注（簇④ 4.7 四分类） */
+export const annotateRootCause = (auditLogId: number, rootCause: RootCause) =>
+  api.put(`/admin/audit-logs/${auditLogId}/root-cause`, { rootCause })
+    .then(r => r.data.data as { auditLogId: number; rootCause: string })
+
+export interface ReingestPayload {
+  auditLogId: number
+  category?: string
+  expectedChunkIds?: string[]
+  expectedDocs?: string[]
+  expectedAnswer?: string
+  expectedKeywords?: string
+}
+
+/** Golden Set 回灌（簇④ 4.7）：写入 badcase-qa.json，id=bc-{auditLogId} upsert */
+export const reingestGolden = (payload: ReingestPayload) =>
+  api.post('/admin/badcase/reingest', payload).then(r => r.data.data as {
+    goldenId: string; file: string; question: string; category: string
+    resolvedFeedbackId: string | null
+  })
+
 // ── ETL 进度 WebSocket（2.13）──
 
 /**

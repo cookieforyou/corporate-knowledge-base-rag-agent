@@ -100,11 +100,14 @@ CREATE INDEX IF NOT EXISTS idx_session_msg ON kb_message (session_id, created_at
 
 -- 6. 审计日志表
 -- v2.10 扩展（3.12 审计落地，双链路时代补列）：mode/status/error_code/tool_calls
+-- v2.34 扩展（Phase 4 簇④ 4.7 Bad Case 闭环）：root_cause 根因标注
 -- 存量库升级 DDL：
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS mode VARCHAR(10);
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS status VARCHAR(20);
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS error_code VARCHAR(50);
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS tool_calls JSONB;
+--   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS root_cause VARCHAR(20);
+--   CREATE INDEX IF NOT EXISTS idx_audit_tenant_created ON kb_audit_log (tenant_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS kb_audit_log (
     id              BIGSERIAL PRIMARY KEY,
     trace_id        VARCHAR(100),
@@ -125,12 +128,14 @@ CREATE TABLE IF NOT EXISTS kb_audit_log (
     status          VARCHAR(20),
     error_code      VARCHAR(50),
     feedback        VARCHAR(10),
+    root_cause      VARCHAR(20),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_audit_trace ON kb_audit_log (trace_id);
 CREATE INDEX IF NOT EXISTS idx_audit_session ON kb_audit_log (session_id);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON kb_audit_log (user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON kb_audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant_created ON kb_audit_log (tenant_id, created_at DESC);
 
 -- 7. 用户反馈表
 CREATE TABLE IF NOT EXISTS kb_feedback (
