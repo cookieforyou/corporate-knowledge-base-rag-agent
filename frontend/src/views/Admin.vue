@@ -262,7 +262,7 @@
         <el-pagination v-model:current-page="logPage" :page-size="logSize" :total="logTotal"
           layout="prev, pager, next, total" style="margin-top: 14px" @current-change="loadLogs()" />
 
-        <el-drawer v-model="detailVisible" title="审计详情" size="560px">
+        <el-drawer v-model="detailVisible" title="审计详情" size="40%" :append-to-body="true" :modal-append-to-body="true" destroy-on-close>
           <template v-if="detail">
             <div class="detail-kv"><span class="t-label">Trace</span><span class="t-data">{{ detail.traceId ?? '—' }}</span></div>
             <div class="detail-kv"><span class="t-label">会话</span><span class="t-data">{{ detail.sessionId ?? '—' }}</span></div>
@@ -340,7 +340,7 @@
           layout="prev, pager, next, total" style="margin-top: 14px" @current-change="loadBadCases()" />
 
         <!-- 根因标注对话框 -->
-        <el-dialog v-model="annotateVisible" title="根因标注（四分类）" width="460px">
+        <el-dialog v-model="annotateVisible" title="根因标注（四分类）" width="550px" :append-to-body="true" :modal-append-to-body="true" top="20vh" destroy-on-close>
           <div class="annotate-q">{{ annotateTarget?.queryText }}</div>
           <el-radio-group v-model="annotateChoice" class="annotate-group">
             <el-radio v-for="(label, key) in ROOT_CAUSES" :key="key" :value="key" class="annotate-opt">
@@ -356,7 +356,7 @@
         </el-dialog>
 
         <!-- Golden 回灌对话框 -->
-        <el-dialog v-model="reingestVisible" title="回灌 Golden Set" width="640px">
+        <el-dialog v-model="reingestVisible" title="回灌 Golden Set" width="640px" :append-to-body="true" :modal-append-to-body="true" top="10vh" destroy-on-close>
           <div class="annotate-q">{{ reingestTarget?.queryText }}</div>
           <el-form label-position="top" class="reingest-form">
             <el-form-item label="用例分类">
@@ -868,7 +868,7 @@ onUnmounted(() => {
   margin-bottom: 14px; word-break: break-word;
 }
 .annotate-group { display: flex; flex-direction: column; gap: 4px; }
-.annotate-opt { display: flex; align-items: baseline; height: auto; margin: 0; white-space: normal; }
+.annotate-opt { display: flex; align-items: baseline; height: auto; margin: 1px; white-space: normal; justify-content: flex-start; width: 100%; }
 .annotate-hint { margin-left: 8px; font-size: 11.5px; }
 
 .reingest-form { margin-top: 4px; }
