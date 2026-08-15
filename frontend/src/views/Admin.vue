@@ -180,7 +180,7 @@
         </div>
 
         <!-- Chunk 编辑对话框 -->
-        <el-dialog v-model="chunkEditVisible" title="编辑 Chunk 内容" width="640px">
+        <el-dialog v-model="chunkEditVisible" title="编辑 Chunk 内容" width="640px" :append-to-body="true" :modal-append-to-body="true" top="20vh" destroy-on-close>
           <div class="t-label chunk-edit-meta">
             #{{ chunkEditTarget?.chunkIndex }} · {{ chunkEditTarget?.id }}
             <template v-if="chunkEditTarget?.headingPath"> · {{ chunkEditTarget.headingPath }}</template>
