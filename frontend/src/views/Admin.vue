@@ -219,10 +219,11 @@
 
         <el-table v-loading="logLoading" :data="logs" class="log-table" stripe
           @row-click="openDetail">
-          <el-table-column label="时间" width="165">
+          <el-table-column label="时间" width="120">
             <template #default="{ row }"><span class="t-data">{{ fmtTime(row.createdAt) }}</span></template>
           </el-table-column>
-          <el-table-column prop="userId" label="用户" width="110" show-overflow-tooltip />
+          <el-table-column prop="userId" label="用户" width="150" show-overflow-tooltip />
+          <el-table-column prop="sessionId" label="会话" width="150" show-overflow-tooltip />
           <el-table-column prop="mode" label="链路" width="70">
             <template #default="{ row }">
               <el-tag size="small" :type="row.mode === 'tool' ? 'warning' : 'success'" effect="plain">
