@@ -3,7 +3,7 @@
     <header class="page-head reveal">
       <div>
         <h1 class="t-display page-title">运维中心</h1>
-        <p class="page-desc">统计仪表盘 · 审计日志查询 · Bad Case 标注与 Golden 回灌闭环</p>
+        <p class="page-desc">统计仪表盘 · Chunk 运维与索引重建 · 审计日志查询 · Bad Case 标注与 Golden 回灌闭环</p>
       </div>
     </header>
 
@@ -72,6 +72,129 @@
             </div>
           </div>
         </div>
+      </el-tab-pane>
+
+      <!-- ════ Chunk 运维（簇③ 4.4/4.5 前端面） ════ -->
+      <el-tab-pane label="Chunk 运维" name="chunks">
+        <div class="filter-bar panel">
+          <el-select v-model="chunkDocId" placeholder="选择文档" filterable style="width: 320px"
+            @change="loadAdminChunks">
+            <el-option v-for="d in docs" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
+          <el-button :disabled="!chunkDocId" @click="loadAdminChunks">刷新</el-button>
+          <span class="t-label bc-hint">编辑 = 同源消毒 + 异步重嵌入（chunk ID 不变）· 软删可恢复 · 列表含软删行</span>
+        </div>
+
+        <el-table v-loading="chunkLoading" :data="adminChunks" class="log-table" stripe>
+          <el-table-column prop="chunkIndex" label="#" width="60">
+            <template #default="{ row }"><span class="t-data">{{ row.chunkIndex }}</span></template>
+          </el-table-column>
+          <el-table-column label="类型" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.chunkType === 'TABLE' ? 'warning' : 'success'" effect="plain">
+                {{ row.chunkType }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="content" label="内容" min-width="300" show-overflow-tooltip />
+          <el-table-column label="页 / tokens" width="110">
+            <template #default="{ row }">
+              <span class="t-data">{{ row.pageNum ?? '—' }} / {{ row.tokenCount ?? '—' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.isDeleted ? 'danger' : 'success'" effect="plain">
+                {{ row.isDeleted ? '已软删' : '存活' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="160" fixed="right">
+            <template #default="{ row }">
+              <template v-if="!row.isDeleted">
+                <el-button size="small" @click="openChunkEdit(row)">编辑</el-button>
+                <el-popconfirm title="软删该 Chunk？检索立即不可见，可恢复" @confirm="doSoftDeleteChunk(row)">
+                  <template #reference>
+                    <el-button size="small" type="danger">软删</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+              <el-button v-else size="small" type="primary" @click="doRestoreChunk(row)">恢复</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 索引重建（4.5） -->
+        <div class="rebuild-panel panel">
+          <div class="rebuild-head">
+            <div>
+              <div class="t-label rebuild-title">索引重建（文档级 reparse 蓝绿编排 + ES 孤儿清扫）</div>
+              <div class="t-label rebuild-sub">以 MinIO 原件重走管线——手工编辑将被原件覆写（设计行为）；内存任务表，重启丢失</div>
+            </div>
+            <div class="rebuild-actions">
+              <el-select v-model="rebuildDocIds" multiple collapse-tags collapse-tags-tooltip
+                placeholder="留空 = 租户全量" style="width: 280px">
+                <el-option v-for="d in docs" :key="d.id" :label="d.name" :value="d.id" />
+              </el-select>
+              <el-popconfirm title="确认发起重建？目标文档将重解析重入库" @confirm="doStartRebuild">
+                <template #reference>
+                  <el-button type="primary" :loading="rebuildStarting">发起重建</el-button>
+                </template>
+              </el-popconfirm>
+            </div>
+          </div>
+          <el-table v-loading="rebuildLoading" :data="rebuildTasks" size="small">
+            <el-table-column label="任务" width="120">
+              <template #default="{ row }"><span class="t-data">{{ row.taskId.slice(0, 8) }}…</span></template>
+            </el-table-column>
+            <el-table-column label="状态" width="110">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.status === 'COMPLETED' ? 'success' : 'warning'" effect="plain">
+                  {{ row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="进度" min-width="200">
+              <template #default="{ row }">
+                <span class="t-data">{{ row.succeeded + row.failed + row.skipped }} / {{ row.total }}</span>
+                <span class="t-label">（成功 {{ row.succeeded }} · 失败 {{ row.failed }} · 跳过 {{ row.skipped }}）</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="发起时间" width="165">
+              <template #default="{ row }"><span class="t-data">{{ fmtTime(row.startedAt) }}</span></template>
+            </el-table-column>
+            <el-table-column label="失败/跳过明细" min-width="140">
+              <template #default="{ row }">
+                <el-tooltip v-if="row.failures?.length" placement="top" effect="light">
+                  <template #content>
+                    <div v-for="f in row.failures" :key="f.docId" class="rebuild-fail-line">
+                      {{ f.docId.slice(0, 8) }}…：{{ f.reason }}
+                    </div>
+                  </template>
+                  <span class="t-data rebuild-fail-count">{{ row.failures.length }} 条</span>
+                </el-tooltip>
+                <span v-else class="t-label">—</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <!-- Chunk 编辑对话框 -->
+        <el-dialog v-model="chunkEditVisible" title="编辑 Chunk 内容" width="640px">
+          <div class="t-label chunk-edit-meta">
+            #{{ chunkEditTarget?.chunkIndex }} · {{ chunkEditTarget?.id }}
+            <template v-if="chunkEditTarget?.headingPath"> · {{ chunkEditTarget.headingPath }}</template>
+          </div>
+          <el-input v-model="chunkEditContent" type="textarea" :rows="10" placeholder="Chunk 内容" />
+          <div class="t-label chunk-edit-hint">
+            提交后：同源消毒（PII 掩码 / 注入打标不阻断）→ PG 同步更新 → 异步重嵌入（向量 delete→add + ES 覆写）；chunk ID 不变，检索短暂窗口缺失属运维形态
+          </div>
+          <template #footer>
+            <el-button @click="chunkEditVisible = false">取消</el-button>
+            <el-button type="primary" :loading="chunkEditBusy"
+              :disabled="!chunkEditContent.trim()" @click="submitChunkEdit">保存</el-button>
+          </template>
+        </el-dialog>
       </el-tab-pane>
 
       <!-- ════ 日志查询 ════ -->
@@ -276,13 +399,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  getStatsOverview, getProcessingStats, searchAuditLogs, annotateRootCause, reingestGolden
+  getStatsOverview, getProcessingStats, searchAuditLogs, annotateRootCause, reingestGolden,
+  listDocuments, getChunks, editChunk, softDeleteChunk, restoreChunk,
+  startRebuild, listRebuildTasks
 } from '@/api'
 import type {
-  StatsOverview, ProcessingView, AuditLogItem, RootCause, AuditQuery
+  StatsOverview, ProcessingView, AuditLogItem, RootCause, AuditQuery,
+  KbDoc, KbChunk, RebuildTask
 } from '@/api'
 
 const tab = ref('dashboard')
@@ -316,6 +442,118 @@ async function loadDashboard() {
     ElMessage.error(e?.response?.data?.message || '统计加载失败')
   } finally {
     dashLoading.value = false
+  }
+}
+
+// ── Chunk 运维（簇③ 4.4/4.5 前端面）──
+
+const docs = ref<KbDoc[]>([])
+const chunkDocId = ref('')
+const adminChunks = ref<KbChunk[]>([])
+const chunkLoading = ref(false)
+
+async function loadDocs() {
+  try {
+    docs.value = await listDocuments()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '文档列表加载失败')
+  }
+}
+
+async function loadAdminChunks() {
+  if (!chunkDocId.value) return
+  chunkLoading.value = true
+  try {
+    adminChunks.value = await getChunks(chunkDocId.value)
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || 'Chunk 列表加载失败')
+  } finally {
+    chunkLoading.value = false
+  }
+}
+
+// 编辑对话框
+const chunkEditVisible = ref(false)
+const chunkEditTarget = ref<KbChunk | null>(null)
+const chunkEditContent = ref('')
+const chunkEditBusy = ref(false)
+
+function openChunkEdit(row: KbChunk) {
+  chunkEditTarget.value = row
+  chunkEditContent.value = row.content
+  chunkEditVisible.value = true
+}
+
+async function submitChunkEdit() {
+  if (!chunkEditTarget.value) return
+  chunkEditBusy.value = true
+  try {
+    await editChunk(chunkEditTarget.value.id, chunkEditContent.value)
+    ElMessage.success('已保存，重嵌入异步进行（短暂检索窗口缺失属预期）')
+    chunkEditVisible.value = false
+    loadAdminChunks()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || 'Chunk 编辑失败')
+  } finally {
+    chunkEditBusy.value = false
+  }
+}
+
+async function doSoftDeleteChunk(row: KbChunk) {
+  try {
+    await softDeleteChunk(row.id)
+    ElMessage.success('已软删（检索不可见，可恢复）')
+    loadAdminChunks()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '软删失败')
+  }
+}
+
+async function doRestoreChunk(row: KbChunk) {
+  try {
+    await restoreChunk(row.id)
+    ElMessage.success('已恢复，重嵌入异步进行')
+    loadAdminChunks()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '恢复失败')
+  }
+}
+
+// 索引重建（4.5）
+const rebuildDocIds = ref<string[]>([])
+const rebuildTasks = ref<RebuildTask[]>([])
+const rebuildStarting = ref(false)
+const rebuildLoading = ref(false)
+let rebuildTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadRebuildTasks() {
+  rebuildLoading.value = !rebuildTimer   // 仅手动刷新显示 loading，轮询静默
+  try {
+    rebuildTasks.value = await listRebuildTasks()
+  } catch {
+    /* 轮询期静默，避免刷屏 */
+  } finally {
+    rebuildLoading.value = false
+  }
+  const running = rebuildTasks.value.some(t => t.status === 'RUNNING')
+  if (running && !rebuildTimer) {
+    rebuildTimer = setInterval(loadRebuildTasks, 3000)
+  } else if (!running && rebuildTimer) {
+    clearInterval(rebuildTimer)
+    rebuildTimer = null
+  }
+}
+
+async function doStartRebuild() {
+  rebuildStarting.value = true
+  try {
+    const task = await startRebuild(rebuildDocIds.value.length ? rebuildDocIds.value : undefined)
+    ElMessage.success(`重建已受理：${task.taskId.slice(0, 8)}…（异步执行，轮询进度）`)
+    await loadRebuildTasks()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '重建发起失败')
+  } finally {
+    rebuildStarting.value = false
   }
 }
 
@@ -530,8 +768,17 @@ const pretty = (json?: string) => {
 
 onMounted(() => {
   loadDashboard()
+  loadDocs()
+  loadRebuildTasks()
   loadLogs()
   loadBadCases()
+})
+
+onUnmounted(() => {
+  if (rebuildTimer) {
+    clearInterval(rebuildTimer)
+    rebuildTimer = null
+  }
 })
 </script>
 
@@ -598,6 +845,20 @@ onMounted(() => {
   background: #0F2B25; color: #B9E8DC; border-radius: 8px; padding: 10px 12px;
   margin: 0;
 }
+
+/* ── Chunk 运维 ── */
+.rebuild-panel { margin-top: 14px; padding: 14px 17px; }
+.rebuild-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 14px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.rebuild-title { font-weight: 700; color: var(--pine-900); font-size: 13px; }
+.rebuild-sub { margin-top: 4px; font-size: 11.5px; }
+.rebuild-actions { display: flex; align-items: center; gap: 10px; }
+.rebuild-fail-count { cursor: help; border-bottom: 1px dashed var(--ink-3); }
+.rebuild-fail-line { max-width: 420px; }
+.chunk-edit-meta { margin-bottom: 10px; word-break: break-all; }
+.chunk-edit-hint { margin-top: 10px; line-height: 1.7; }
 
 /* ── Bad Case 对话框 ── */
 .annotate-q {

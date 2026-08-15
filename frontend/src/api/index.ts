@@ -128,6 +128,10 @@ export interface KbChunk {
   pageNum?: number
   content: string
   createdAt: string
+  /** 软删标记（簇③ 4.4 运维面：列表含软删行，恢复操作可见性前提） */
+  isDeleted?: boolean
+  updatedAt?: string
+  headingPath?: string
 }
 
 export const uploadDocument = (file: File, parseRoute?: string) => {
@@ -288,6 +292,56 @@ export const reingestGolden = (payload: ReingestPayload) =>
     goldenId: string; file: string; question: string; category: string
     resolvedFeedbackId: string | null
   })
+
+// ── Chunk 运维与索引重建（Phase 4 簇③ 4.4/4.5，运维中心前端面）──
+
+/** Chunk 运维视图（ChunkView 投影同形） */
+export interface ChunkOpsView {
+  id: string
+  docId: string
+  chunkIndex: number
+  content: string
+  chunkType?: string
+  pageNum?: number
+  isDeleted: boolean
+  headingPath?: string
+  updatedAt?: string
+}
+
+/** Chunk 编辑：同源消毒 → PG 同步 → 异步重嵌入（chunk ID 不变） */
+export const editChunk = (chunkId: string, content: string) =>
+  api.put(`/admin/chunks/${chunkId}`, { content }).then(r => r.data.data as ChunkOpsView)
+
+/** Chunk 软删（C1 管道），幂等 */
+export const softDeleteChunk = (chunkId: string) =>
+  api.delete(`/admin/chunks/${chunkId}`).then(r => r.data.data as ChunkOpsView)
+
+/** 软删 Chunk 恢复：PG 复活 + 异步重嵌入 */
+export const restoreChunk = (chunkId: string) =>
+  api.post(`/admin/chunks/${chunkId}/restore`).then(r => r.data.data as ChunkOpsView)
+
+export interface RebuildTask {
+  taskId: string
+  status: string
+  total: number
+  succeeded: number
+  failed: number
+  skipped: number
+  startedAt?: string
+  finishedAt?: string
+  failures?: { docId: string; reason: string }[]
+}
+
+/** 发起索引重建：docIds 缺省 = 租户全量 */
+export const startRebuild = (docIds?: string[]) =>
+  api.post('/admin/rebuild', docIds?.length ? { docIds } : {})
+    .then(r => r.data.data as RebuildTask)
+
+export const listRebuildTasks = () =>
+  api.get('/admin/rebuild/tasks').then(r => r.data.data as RebuildTask[])
+
+export const getRebuildTask = (taskId: string) =>
+  api.get(`/admin/rebuild/tasks/${taskId}`).then(r => r.data.data as RebuildTask)
 
 // ── ETL 进度 WebSocket（2.13）──
 
