@@ -41,5 +41,46 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-jose</artifactId>
         </dependency>
+
+        <!-- 集成测试（v2.36 RedisRebuildTaskStoreIT）：真 Redis 回归任务表形态。
+             宿主选本模块而非 kb-eval——kb-eval IT 上下文组件扫描全域，kb-admin
+             运维 Bean（ReindexGateway 实现缺位）会击穿其启动；本模块 IT 纯 JUnit
+             手工建连无 Spring 上下文，自含不传染 -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- *IT.java 经 failsafe 在 mvn verify 执行（Docker 必需，无 Docker 加 -DskipITs）；
+                 surefire 默认模式不收 *IT，单测阶段零 Docker 依赖 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <argLine>--enable-preview</argLine>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

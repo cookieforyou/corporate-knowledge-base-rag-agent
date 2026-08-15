@@ -3,7 +3,7 @@ package com.enterprise.kb.admin.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 重建任务视图（4.5）——内存任务表投影；重启丢失为运维工具既定形态 */
+/** 重建任务视图（4.5）——Redis 任务表投影（v2.36，重启保留 TTL 窗口内、租户域隔离） */
 public record RebuildTaskView(
     String taskId,
     String status,

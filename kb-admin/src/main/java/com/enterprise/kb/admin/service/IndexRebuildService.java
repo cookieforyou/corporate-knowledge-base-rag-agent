@@ -14,10 +14,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,8 +41,10 @@ import java.util.stream.Collectors;
  * 向量库孤儿不在本簇范围：双向量库列表 API 异构（pgvector SQL / Milvus query），
  * 产生条件仅「清理期向量删除失败」罕见路径，留离线清理（9.4 一致性模型既定）。
  *
- * <p><b>任务表形态</b>：内存 ConcurrentHashMap（近 {@value #MAX_TASKS} 条），
- * 重启丢失为运维工具既定形态（重建可重发，幂等收敛）；不占 Redis/PG 持久面。
+ * <p><b>任务表形态（v2.36）</b>：迁 Redis（{@link RedisRebuildTaskStore}）——
+ * 重启保留（TTL 窗口内）、租户域隔离（v2.33 内存表任务列表全局共享、跨租户
+ * 可见失败明细 docId 的收敛）、受理实例执行 + 任意实例轮询；任务执行仍在
+ * 受理实例（执行中实例宕机则任务残留 RUNNING 至 TTL，重建幂等可重发）。
  *
  * <p><b>并发控制</b>：滑动窗口 {@code rag.admin.rebuild.concurrency}（默认 4）——
  * ETL 瓶颈在 embedding 批量调用（10 条/批供应商硬限制），窗口并发摊薄串行时延；
@@ -55,14 +54,12 @@ import java.util.stream.Collectors;
 @Service
 public class IndexRebuildService {
 
-    /** 任务表保留上限（FIFO 淘汰） */
-    static final int MAX_TASKS = 20;
-
     private final KbDocumentRepository documentRepository;
     private final KbChunkRepository chunkRepository;
     private final ReindexGateway reindexGateway;
     private final EsIndexWriter esIndexWriter;
     private final Executor etlExecutor;
+    private final RebuildTaskStore taskStore;
 
     @Value("${rag.admin.rebuild.concurrency:4}")
     private int concurrency;
@@ -70,24 +67,24 @@ public class IndexRebuildService {
     @Value("${rag.admin.rebuild.doc-timeout-minutes:30}")
     private long docTimeoutMinutes;
 
-    /** 任务表：insertion-order LinkedHashMap + 显式同步（读写均在服务线程） */
-    private final Map<String, RebuildTask> tasks = Collections.synchronizedMap(new LinkedHashMap<>());
-
     public IndexRebuildService(KbDocumentRepository documentRepository,
                                KbChunkRepository chunkRepository,
                                ReindexGateway reindexGateway,
                                EsIndexWriter esIndexWriter,
-                               @Qualifier("etlExecutor") Executor etlExecutor) {
+                               @Qualifier("etlExecutor") Executor etlExecutor,
+                               RebuildTaskStore taskStore) {
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;
         this.reindexGateway = reindexGateway;
         this.esIndexWriter = esIndexWriter;
         this.etlExecutor = etlExecutor;
+        this.taskStore = taskStore;
     }
 
     /**
      * 发起重建任务：docIds 空 = 租户全量（SUCCESS + FAILED，FAILED 重入库是
      * 正当修复路径）；指定 = 目标文档增量（越权/处理中前置记 skipped）。
+     * 任务表登记 fail-closed（Redis 故障 → REBUILD_STORE_UNAVAILABLE，不无表启动）。
      */
     public RebuildTaskView start(String tenantId, List<String> docIds) {
         List<KbDocument> targets = new ArrayList<>();
@@ -111,37 +108,36 @@ public class IndexRebuildService {
             }
         }
 
-        RebuildTask task = new RebuildTask(UUID.randomUUID().toString(), targets.size());
-        task.failures.addAll(preSkipped);
-        task.skipped.addAndGet(preSkipped.size());
-        register(task);
+        String taskId = UUID.randomUUID().toString();
+        taskStore.create(tenantId, taskId, targets.size(), preSkipped);
         log.info("索引重建任务已创建: taskId={}, mode={}, targets={}, preSkipped={}",
-            task.taskId, docIds == null || docIds.isEmpty() ? "FULL" : "TARGETED",
+            taskId, docIds == null || docIds.isEmpty() ? "FULL" : "TARGETED",
             targets.size(), preSkipped.size());
 
-        etlExecutor.execute(() -> runTask(task, targets, tenantId));
-        return toView(task);
+        etlExecutor.execute(() -> runTask(taskId, targets, tenantId));
+        return taskStore.find(taskId, tenantId).orElse(null);
     }
 
-    /** 任务详情：不存在返回 null（Controller 层转 REBUILD_TASK_NOT_FOUND） */
-    public RebuildTaskView detail(String taskId) {
-        RebuildTask task = tasks.get(taskId);
-        return task != null ? toView(task) : null;
+    /** 任务详情：不存在/跨租户返回 null（Controller 层转 REBUILD_TASK_NOT_FOUND） */
+    public RebuildTaskView detail(String tenantId, String taskId) {
+        return taskStore.find(taskId, tenantId).orElse(null);
     }
 
-    /** 任务列表（insertion order，最新在后） */
-    public List<RebuildTaskView> list() {
-        synchronized (tasks) {
-            return tasks.values().stream().map(this::toView).toList();
-        }
+    /** 租户任务列表（insertion order，最新在后，近 20 条 FIFO） */
+    public List<RebuildTaskView> list(String tenantId) {
+        return taskStore.listByTenant(tenantId);
     }
 
     // ── 内部方法 ──
 
     /** 重建主循环：滑动窗口并发 + 单文档终态汇聚 + ES 孤儿清扫 */
-    private void runTask(RebuildTask task, List<KbDocument> targets, String tenantId) {
+    private void runTask(String taskId, List<KbDocument> targets, String tenantId) {
         Map<String, CompletableFuture<Boolean>> pending = new ConcurrentHashMap<>();
         int window = Math.max(1, concurrency);
+        // 本地镜像计数仅供完成日志（任务表事实源在 Redis）
+        AtomicInteger succeeded = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
 
         for (KbDocument doc : targets) {
             while (pending.size() >= window) {
@@ -152,7 +148,8 @@ public class IndexRebuildService {
             try {
                 future = reindexGateway.reparse(doc.getId(), tenantId, null);
             } catch (Exception e) {
-                task.recordSkipped(doc.getId(), e.getMessage());
+                taskStore.recordSkipped(taskId, doc.getId(), e.getMessage());
+                skipped.incrementAndGet();
                 continue;
             }
             String docId = doc.getId();
@@ -160,12 +157,15 @@ public class IndexRebuildService {
                 .orTimeout(docTimeoutMinutes, TimeUnit.MINUTES)
                 .whenComplete((ok, ex) -> {
                     if (ex != null) {
-                        task.recordFailure(docId, "重入库异常: " + ex.getMessage());
+                        taskStore.recordFailure(taskId, docId, "重入库异常: " + ex.getMessage());
+                        failed.incrementAndGet();
                     } else if (Boolean.TRUE.equals(ok)) {
                         sweepEsOrphans(docId);
-                        task.recordSuccess();
+                        taskStore.recordSuccess(taskId);
+                        succeeded.incrementAndGet();
                     } else {
-                        task.recordFailure(docId, "ETL 重入库失败（见文档 error_message）");
+                        taskStore.recordFailure(taskId, docId, "ETL 重入库失败（见文档 error_message）");
+                        failed.incrementAndGet();
                     }
                 }));
         }
@@ -174,9 +174,9 @@ public class IndexRebuildService {
             drainCompleted(pending);
         }
 
-        task.finish();
+        taskStore.finish(taskId);
         log.info("索引重建任务完成: taskId={}, total={}, succeeded={}, failed={}, skipped={}",
-            task.taskId, task.total, task.succeeded.get(), task.failed.get(), task.skipped.get());
+            taskId, targets.size(), succeeded.get(), failed.get(), skipped.get());
     }
 
     /** 等待窗口内任一 future 终态（异常吞掉——结果已由 whenComplete 汇聚） */
@@ -213,62 +213,6 @@ public class IndexRebuildService {
             }
         } catch (Exception e) {
             log.warn("重建 ES 孤儿清扫失败（不阻断）: docId={}, {}", docId, e.getMessage());
-        }
-    }
-
-    private void register(RebuildTask task) {
-        synchronized (tasks) {
-            tasks.put(task.taskId, task);
-            while (tasks.size() > MAX_TASKS) {
-                tasks.remove(tasks.keySet().iterator().next());
-            }
-        }
-    }
-
-    private RebuildTaskView toView(RebuildTask task) {
-        List<FailureView> failures;
-        synchronized (task.failures) {
-            failures = List.copyOf(task.failures);
-        }
-        return new RebuildTaskView(task.taskId, task.status, task.total,
-            task.succeeded.get(), task.failed.get(), task.skipped.get(),
-            task.startedAt, task.finishedAt, failures);
-    }
-
-    /** 重建任务可变状态（单写者 runTask + 原子计数，视图经 toView 快照） */
-    static final class RebuildTask {
-        final String taskId;
-        final int total;
-        final LocalDateTime startedAt = LocalDateTime.now();
-        final AtomicInteger succeeded = new AtomicInteger();
-        final AtomicInteger failed = new AtomicInteger();
-        final AtomicInteger skipped = new AtomicInteger();
-        final List<FailureView> failures = Collections.synchronizedList(new ArrayList<>());
-        volatile String status = "RUNNING";
-        volatile LocalDateTime finishedAt;
-
-        RebuildTask(String taskId, int total) {
-            this.taskId = taskId;
-            this.total = total;
-        }
-
-        void recordSuccess() {
-            succeeded.incrementAndGet();
-        }
-
-        void recordFailure(String docId, String reason) {
-            failed.incrementAndGet();
-            failures.add(new FailureView(docId, reason));
-        }
-
-        void recordSkipped(String docId, String reason) {
-            skipped.incrementAndGet();
-            failures.add(new FailureView(docId, reason));
-        }
-
-        void finish() {
-            status = "COMPLETED";
-            finishedAt = LocalDateTime.now();
         }
     }
 }

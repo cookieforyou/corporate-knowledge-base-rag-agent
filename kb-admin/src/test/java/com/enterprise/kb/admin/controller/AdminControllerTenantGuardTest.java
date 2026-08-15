@@ -152,11 +152,26 @@ class AdminControllerTenantGuardTest {
 
     @Test
     void rebuildTaskNotFoundRaisesBusinessError() {
-        when(indexRebuildService.detail("missing")).thenReturn(null);
+        when(indexRebuildService.detail("t-1", "missing")).thenReturn(null);
 
         assertThatThrownBy(() -> rebuildController.task(jwtWithOwner("t-1"), "missing"))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("REBUILD_TASK_NOT_FOUND");
+        verify(indexRebuildService).detail("t-1", "missing");
+    }
+
+    /** v2.36：任务列表/详情按租户收敛，守卫透传 owner claim */
+    @Test
+    void rebuildListAndDetailPassOwnerClaimAsTenant() {
+        when(indexRebuildService.detail("t-1", "task-1"))
+            .thenReturn(new com.enterprise.kb.admin.dto.RebuildTaskView(
+                "task-1", "RUNNING", 0, 0, 0, 0, null, null, List.of()));
+
+        rebuildController.tasks(jwtWithOwner("t-1"));
+        rebuildController.task(jwtWithOwner("t-1"), "task-1");
+
+        verify(indexRebuildService).list("t-1");
+        verify(indexRebuildService).detail("t-1", "task-1");
     }
 
     // ── BadCaseAdminController（簇④）──

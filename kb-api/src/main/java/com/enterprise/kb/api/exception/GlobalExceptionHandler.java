@@ -38,8 +38,17 @@ public class GlobalExceptionHandler {
     private static final Set<String> CONFLICT_ERROR_CODES = Set.of("DOC_NOT_READY", "CHUNK_NOT_DELETED");
 
     /**
+     * 依赖存储不可用类错误码 — Redis 故障致状态账本/任务表读写 fail-closed
+     * （HITL 审批账本 / 重建任务表 v2.36），语义为「服务端依赖暂不可用」，
+     * 映射 HTTP 503（区别于请求本身错误的 400，客户端可重试）。
+     */
+    private static final Set<String> STORE_UNAVAILABLE_ERROR_CODES =
+        Set.of("APPROVAL_STORE_UNAVAILABLE", "REBUILD_STORE_UNAVAILABLE");
+
+    /**
      * 业务异常 — 提取 errorCode 和 message；配额类（RATE_LIMITED /
-     * TOKEN_BUDGET_EXCEEDED）返回 HTTP 429，状态冲突类返回 HTTP 409，其余 HTTP 400
+     * TOKEN_BUDGET_EXCEEDED）返回 HTTP 429，状态冲突类返回 HTTP 409，
+     * 存储不可用类返回 HTTP 503，其余 HTTP 400
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
@@ -47,7 +56,9 @@ public class GlobalExceptionHandler {
             ? HttpStatus.TOO_MANY_REQUESTS
             : CONFLICT_ERROR_CODES.contains(e.getErrorCode())
                 ? HttpStatus.CONFLICT
-                : HttpStatus.BAD_REQUEST;
+                : STORE_UNAVAILABLE_ERROR_CODES.contains(e.getErrorCode())
+                    ? HttpStatus.SERVICE_UNAVAILABLE
+                    : HttpStatus.BAD_REQUEST;
         log.warn("业务异常 [{}] {} {}: {}", e.getErrorCode(), request.getMethod(),
             request.getRequestURI(), e.getMessage());
         return ResponseEntity.status(status).body(ApiResponse.error(status.value(), e.getMessage()));

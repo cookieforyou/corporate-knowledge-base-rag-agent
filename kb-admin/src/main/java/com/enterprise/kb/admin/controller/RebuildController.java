@@ -21,7 +21,8 @@ import java.util.List;
  * 索引重建 API（Phase 4 簇③ 4.5）——全量/目标文档重建任务编排与查询。
  *
  * <p>任务为异步形态：POST 返回 taskId 即受理，进度经任务查询端点轮询；
- * 任务表内存态（重启丢失，重建幂等可重发，见 IndexRebuildService 注记）。
+ * 任务表 Redis 态（v2.36：重启保留 TTL 窗口内、租户域隔离——列表/详情均按
+ * JWT owner claim 收敛，跨租户任务不可见，见 RedisRebuildTaskStore 注记）。
  */
 @RestController
 @RequestMapping("/api/v1/admin/rebuild")
@@ -38,19 +39,17 @@ public class RebuildController {
         return ApiResponse.success(indexRebuildService.start(requireTenantId(jwt), docIds));
     }
 
-    /** 重建任务列表（内存任务表，近 20 条，insertion order） */
+    /** 重建任务列表（租户域任务表，近 20 条，insertion order） */
     @GetMapping("/tasks")
     public ApiResponse<List<RebuildTaskView>> tasks(@AuthenticationPrincipal Jwt jwt) {
-        requireTenantId(jwt);
-        return ApiResponse.success(indexRebuildService.list());
+        return ApiResponse.success(indexRebuildService.list(requireTenantId(jwt)));
     }
 
-    /** 重建任务详情 */
+    /** 重建任务详情（跨租户不可见——与不存在同返 REBUILD_TASK_NOT_FOUND） */
     @GetMapping("/tasks/{taskId}")
     public ApiResponse<RebuildTaskView> task(@AuthenticationPrincipal Jwt jwt,
                                              @PathVariable String taskId) {
-        requireTenantId(jwt);
-        RebuildTaskView view = indexRebuildService.detail(taskId);
+        RebuildTaskView view = indexRebuildService.detail(requireTenantId(jwt), taskId);
         if (view == null) {
             throw new BusinessException("REBUILD_TASK_NOT_FOUND", "重建任务不存在: " + taskId);
         }

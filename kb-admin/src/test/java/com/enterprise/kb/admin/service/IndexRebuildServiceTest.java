@@ -1,6 +1,7 @@
 package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.RebuildTaskView;
+import com.enterprise.kb.admin.dto.RebuildTaskView.FailureView;
 import com.enterprise.kb.admin.gateway.ReindexGateway;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -13,7 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -31,6 +36,8 @@ import static org.mockito.Mockito.when;
  * IndexRebuildService 单测（Phase 4 簇③ 4.5）——重建编排：全量/目标模式、
  * 终态汇聚计数、ES 孤儿清扫 diff、同步快速失败 skipped 语义。
  * 执行器注入 Runnable::run 直跑形态，start() 同步完成任务便于断言。
+ * 任务表经内存 fake（{@link InMemoryTaskStore}）隔离，Redis 形态回归见
+ * RedisRebuildTaskStoreTest / kb-eval RedisRebuildTaskStoreIT。
  */
 class IndexRebuildServiceTest {
 
@@ -40,6 +47,7 @@ class IndexRebuildServiceTest {
     private KbChunkRepository chunkRepository;
     private ReindexGateway reindexGateway;
     private EsIndexWriter esIndexWriter;
+    private InMemoryTaskStore taskStore;
     private IndexRebuildService service;
 
     @BeforeEach
@@ -48,8 +56,9 @@ class IndexRebuildServiceTest {
         chunkRepository = mock(KbChunkRepository.class);
         reindexGateway = mock(ReindexGateway.class);
         esIndexWriter = mock(EsIndexWriter.class);
+        taskStore = new InMemoryTaskStore();
         service = new IndexRebuildService(documentRepository, chunkRepository,
-            reindexGateway, esIndexWriter, Runnable::run);
+            reindexGateway, esIndexWriter, Runnable::run, taskStore);
         ReflectionTestUtils.setField(service, "concurrency", 2);
         ReflectionTestUtils.setField(service, "docTimeoutMinutes", 5L);
     }
@@ -80,7 +89,7 @@ class IndexRebuildServiceTest {
         when(esIndexWriter.findChunkIdsByDocId(anyString())).thenReturn(List.of());
 
         RebuildTaskView started = service.start(TENANT, null);
-        RebuildTaskView view = service.detail(started.taskId());
+        RebuildTaskView view = service.detail(TENANT, started.taskId());
 
         assertThat(view).isNotNull();
         assertThat(view.status()).isEqualTo("COMPLETED");
@@ -140,7 +149,7 @@ class IndexRebuildServiceTest {
 
         assertThat(started.total()).isEqualTo(1);
         assertThat(started.skipped()).isEqualTo(2);
-        assertThat(started.failures()).extracting(RebuildTaskView.FailureView::docId)
+        assertThat(started.failures()).extracting(FailureView::docId)
             .containsExactly("d-other", "d-busy");
         verify(reindexGateway).reparse("d-1", TENANT, null);
         verify(reindexGateway, never()).reparse(eq("d-other"), anyString(), any());
@@ -172,8 +181,85 @@ class IndexRebuildServiceTest {
 
         RebuildTaskView started = service.start(TENANT, null);
 
-        assertThat(service.detail(started.taskId())).isNotNull();
-        assertThat(service.detail("unknown-task")).isNull();
-        assertThat(service.list()).extracting(RebuildTaskView::taskId).contains(started.taskId());
+        assertThat(service.detail(TENANT, started.taskId())).isNotNull();
+        assertThat(service.detail(TENANT, "unknown-task")).isNull();
+        // v2.36 租户收敛：跨租户详情不可见（同不存在语义）
+        assertThat(service.detail("t-other", started.taskId())).isNull();
+        assertThat(service.list(TENANT)).extracting(RebuildTaskView::taskId).contains(started.taskId());
+        assertThat(service.list("t-other")).isEmpty();
+    }
+
+    /**
+     * 内存 fake 任务表——实现 RebuildTaskStore 契约（insertion order + 租户
+     * 收敛 + 计数语义与 Redis 形态一致），隔离编排测试与存储形态。
+     */
+    static final class InMemoryTaskStore implements RebuildTaskStore {
+
+        private final Map<String, RebuildTaskView> tasks = new LinkedHashMap<>();
+
+        @Override
+        public void create(String tenantId, String taskId, int total, List<FailureView> initialSkipped) {
+            tenants.put(taskId, tenantId);
+            tasks.put(taskId, new RebuildTaskView(taskId, "RUNNING", total, 0, 0,
+                initialSkipped.size(), LocalDateTime.now(), null,
+                new ArrayList<>(initialSkipped)));
+        }
+
+        @Override
+        public void recordSuccess(String taskId) {
+            mutate(taskId, v -> new RebuildTaskView(v.taskId(), v.status(), v.total(),
+                v.succeeded() + 1, v.failed(), v.skipped(), v.startedAt(), v.finishedAt(), v.failures()));
+        }
+
+        @Override
+        public void recordFailure(String taskId, String docId, String reason) {
+            mutate(taskId, v -> {
+                List<FailureView> failures = new ArrayList<>(v.failures());
+                failures.add(new FailureView(docId, reason));
+                return new RebuildTaskView(v.taskId(), v.status(), v.total(),
+                    v.succeeded(), v.failed() + 1, v.skipped(), v.startedAt(), v.finishedAt(), failures);
+            });
+        }
+
+        @Override
+        public void recordSkipped(String taskId, String docId, String reason) {
+            mutate(taskId, v -> {
+                List<FailureView> failures = new ArrayList<>(v.failures());
+                failures.add(new FailureView(docId, reason));
+                return new RebuildTaskView(v.taskId(), v.status(), v.total(),
+                    v.succeeded(), v.failed(), v.skipped() + 1, v.startedAt(), v.finishedAt(), failures);
+            });
+        }
+
+        @Override
+        public void finish(String taskId) {
+            mutate(taskId, v -> new RebuildTaskView(v.taskId(), "COMPLETED", v.total(),
+                v.succeeded(), v.failed(), v.skipped(), v.startedAt(), LocalDateTime.now(), v.failures()));
+        }
+
+        @Override
+        public Optional<RebuildTaskView> find(String taskId, String requiredTenantId) {
+            if (!requiredTenantId.equals(tenants.get(taskId))) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(tasks.get(taskId));
+        }
+
+        @Override
+        public List<RebuildTaskView> listByTenant(String tenantId) {
+            return tasks.entrySet().stream()
+                .filter(e -> tenantId.equals(tenants.get(e.getKey())))
+                .map(Map.Entry::getValue)
+                .toList();
+        }
+
+        private final Map<String, String> tenants = new LinkedHashMap<>();
+
+        private void mutate(String taskId, java.util.function.UnaryOperator<RebuildTaskView> fn) {
+            RebuildTaskView view = tasks.get(taskId);
+            if (view != null) {
+                tasks.put(taskId, fn.apply(view));
+            }
+        }
     }
 }
