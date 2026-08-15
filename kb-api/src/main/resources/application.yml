@@ -31,6 +31,22 @@ spring:
         jwt:
           issuer-uri: ${JWT_ISSUER_URI:}
 
+  # MCP Server（Phase 4 簇⑤ 4.10）：Streamable HTTP 传输，端点 /mcp（RouterFunction
+  # 形态，SecurityConfig requestMatchers 拦截）。@McpTool 注解扫描器默认开——
+  # kb-ai-agent McpKnowledgeTools 三件套自动收编；type=sync 同步执行（工具在
+  # 请求线程跑，SecurityContext 可用，身份经 McpIdentityGuard 捕获转参数链）。
+  # scope 治理 rag.mcp.scope.required / 文档截断 rag.mcp.get-document.max-chunks
+  # 经 @Value 默认值收口（McpIdentityGuard / McpKnowledgeTools）
+  ai:
+    mcp:
+      server:
+        name: kb-rag-agent
+        version: 1.0.0
+        instructions: >-
+          企业知识库 MCP Server。三件套工具：search（混合检索：向量+BM25+重排）、
+          get_document（按文档 ID 读全文）、ask（带 [ref-N] 引用的 RAG 问答）。
+          调用受租户隔离、安全护栏与配额治理；注入载荷将被拒绝。
+
 # Spring AI 观测内容开关（Phase 4 簇①）唯一定义在 kb-ai-core/application-ai.yml
 # （spring.config.import 导入源优先级高于本文件——簇①实证：双源定义时导入源覆盖）
 

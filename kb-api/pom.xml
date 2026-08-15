@@ -48,6 +48,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
+        <!-- MCP Server 宿主（Phase 4 簇⑤ 4.10）：Streamable HTTP 传输（/mcp）+
+             @McpTool 注解扫描自动收编 kb-ai-agent 三件套工具；身份治理经
+             SecurityConfig /mcp authenticated + McpIdentityGuard（租户/scope fail-closed）。
+             版本经父 POM spring-ai BOM 管理；spring-ai#6465（starter 传递 Boot 依赖）
+             由 Boot BOM 导入钉死 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>

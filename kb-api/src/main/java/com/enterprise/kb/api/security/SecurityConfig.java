@@ -30,6 +30,9 @@ public class SecurityConfig {
                 // 复用同一 JwtDecoder 完成（2.13；浏览器 WS API 无法携带 Authorization 头）
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/**").authenticated()
+                // MCP Server 端点（簇⑤ 4.10，Streamable HTTP）：JWT bearer 鉴权同 /api/**；
+                // 租户/scope 治理在工具调用层经 McpIdentityGuard fail-closed 二次收敛
+                .requestMatchers("/mcp").authenticated()
                 .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-11
+> [📑 返回目录](./README.md) · 最后更新：2026-08-16 · v2.37（Phase 4 簇⑤ 4.10 MCP Server 产品化，§11.8 新增）
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
@@ -710,3 +710,76 @@ kb_message.id、traceId/feedback 回显）经 `openSession` 整替 store，sessi
 流式中禁切换。**归档竞态**：首轮归档为异步旁路，DONE 后延迟 1s 刷新列表防空窗。
 历史消息与实时轮同一渲染链路——markdown 占位管线（v2.16）、溯源面板、原文对话框、
 反馈按钮全部复用；存量消息 citations=null → 无溯源面板（降级预期）。
+
+## 11.8 MCP Server 产品化（v2.37 新增，Phase 4 簇⑤ 4.10）
+
+**定位**：企业知识底座对外 MCP 暴露面——Claude/Cursor/内部 Agent 多入口共享
+同一知识库（v2.29 复审最大变量 N1：MCP 为 2026 Agent 互操作事实标准 +
+Spring AI 2.0 GA 原生 starter + Vectara/Notion 商业先例，四条件同时成立提前落地）。
+
+**装配形态（源码级核验证）**：
+- 宿主 starter `spring-ai-starter-mcp-server-webmvc`（spring-ai BOM 2.0.0 管理）落
+  kb-api——Streamable HTTP 传输，端点 `spring.ai.mcp.server.streamable-http.mcp-endpoint`
+  默认 `/mcp`，**RouterFunction 形态**（SecurityConfig requestMatchers 直接拦截）；
+  `type=sync` 同步执行（工具在请求线程跑，SecurityContext 可用）。
+- 工具注册经 **@McpTool 注解扫描器**（McpServerAnnotationScannerAutoConfiguration
+  默认开）：带 @McpTool 方法的 Bean 自动收编为 MCP 工具，零手工 specification。
+  `@McpArg` 的 `required` 默认 false——必填参数须显式钉 true。
+- **泄漏面核验**：ToolCallbackConverterAutoConfiguration 会自动收编容器内全部
+  ToolCallback/ToolCallbackProvider Bean——项目工具链经 `.defaultTools()` 内联
+  装配（EnterpriseMockTools 非 Provider Bean），容器内无此类 Bean，HITL Mock
+  工具不漏进 MCP。
+- 已知坑位登记：spring-ai#6465（starter 传递 Boot 依赖）经父 POM Boot BOM 导入
+  钉死；MCP SDK 2.0.0（mcp-core/mcp-spring-webmvc/mcp-json-jackson3）对齐
+  2025-11-25 规范。
+
+**模块落位**：三件套工具 `McpKnowledgeTools` + 身份守卫 `McpIdentityGuard` 落
+kb-ai-agent（CLAUDE.md「MCP 落此」定位；依赖 kb-ai-core 检索器/RagChatService +
+kb-domain 仓储传递可达）；kb-ai-agent 不可反向依赖 kb-api——JWT 消费直取
+SecurityContextHolder principal（同 kb-admin 纪律，不复用 JwtUtils 防成环）。
+
+**三件套**（工具粒度对齐业界共识）：
+1. `search(query)`——直调检索链（Compression 改写 → 双路召回 → RRF → qwen3-rerank，
+   同 RetrievalDebugController 形态），返回 Top-K SearchHitView（chunkId/文件名/
+   标题路径/页码/正文/重排分/最终序）。top-k 不开放逐请求参数——`rag.retrieval.*`
+   为 kb-eval 门禁关联参数（改参须配评估纪律），MCP 面与链路配置同源。
+2. `get_document(documentId)`——纯 PG 读：文档元信息 + 存活 chunk 序列
+   （**软删行不返回**——MCP 消费面只读活数据；heading_path 经 metadata JSONB
+   容错解析回填）；`rag.mcp.get-document.max-chunks` 默认 50 截断防工具响应爆炸。
+3. `ask(question)`——经 ragAgentChatClient 全链：意图路由/护栏/配额/审计/
+   多模型路由**自动复用**；每次调用独立 `mcp-{uuid}` 会话（MCP 无会话语义，
+   记忆 Advisor 硬断言需非空 CONVERSATION_ID）；注入载荷 → PROMPT_INJECTION
+   经 MCP 错误帧回传（DoD 护栏验证项）。
+
+**身份与 scope 治理（fail-closed）**：/mcp 端点 SecurityConfig authenticated
+（JWT bearer，OAuth2 Resource Server 同 /api/** 链）→ McpIdentityGuard 请求线程
+捕获 Jwt **立即物化 RetrievalContext 纯实例**（其后参数链传递，无 ThreadLocal
+跨越异步边界）：① JWT 缺失 → IDENTITY_INCOMPLETE；② owner claim 空白 →
+IDENTITY_INCOMPLETE（绝不无过滤进检索链，同 AgentController 口径）；
+③ `rag.mcp.scope.required` 非空时 JWT scope 声明（Collection / 空格分隔字符串
+双形态容错）须包含之 → 否则 MCP_SCOPE_DENIED（Casdoor 应用级 scope 的治理抓手；
+默认空 = 仅租户纪律，兼容存量令牌）。**调用级强制**；tools/list 注册面为静态
+全集（注解扫描器形态），部署级可见性经网关/客户端配置治理留档不内建。
+
+**审计形态**：ask 落 kb_audit_log 全链路快照（AuditTraceAdvisor 链上既有，
+mode=rag）；search/get_document 非对话调用，审计经 `rag.mcp.search /
+get_document / ask` 指标面（AiBusinessMetrics recordMcpToolCall 收口，
+零标签纪律同款 chunk.*/badcase.*）。
+
+**错误语义**：工具方法抛 BusinessException 经注解提供器传播为 MCP 错误帧
+（InvocationTargetException 解包）——MCP_DOC_NOT_FOUND（不存在与跨租户同返，
+不泄露存在性）/ MCP_QUERY_EMPTY / MCP_SCOPE_DENIED / 链路既有码族
+（PROMPT_INJECTION/RATE_LIMITED/TOKEN_BUDGET_EXCEEDED）。
+
+```java
+@Component
+public class McpKnowledgeTools {
+    @McpTool(name = "search", description = "...", annotations = @McpTool.McpAnnotations(readOnlyHint = true))
+    public List<SearchHitView> search(@McpArg(name = "query", required = true) String query) {
+        RetrievalContext ctx = identityGuard.requireIdentity();   // 请求线程 JWT → 纯实例
+        // 改写 → 双路召回 → RRF → 重排（同 RetrievalDebugController 链形）
+    }
+    // get_document：findById 租户守卫 → 存活 chunk 序列（软删过滤 + maxChunks 截断）
+    // ask：ragChatService.chatRag(question, "mcp-" + UUID, ctx) 全链复用
+}
+```

@@ -98,6 +98,9 @@ public class AiBusinessMetrics {
     private final Counter chunkRestore;
     private final Counter badCaseAnnotate;
     private final Counter badCaseReingest;
+    private final Counter mcpSearch;
+    private final Counter mcpGetDocument;
+    private final Counter mcpAsk;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -167,6 +170,12 @@ public class AiBusinessMetrics {
             .description("Bad Case 根因标注次数（Phase 4 簇④ 4.7）").register(registry);
         this.badCaseReingest = Counter.builder("rag.badcase.reingest")
             .description("Bad Case Golden Set 回灌次数（Phase 4 簇④ 4.7）").register(registry);
+        this.mcpSearch = Counter.builder("rag.mcp.search")
+            .description("MCP search 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
+        this.mcpGetDocument = Counter.builder("rag.mcp.get_document")
+            .description("MCP get_document 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
+        this.mcpAsk = Counter.builder("rag.mcp.ask")
+            .description("MCP ask 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -184,6 +193,16 @@ public class AiBusinessMetrics {
         switch (operation) {
             case "annotate" -> badCaseAnnotate.increment();
             case "reingest" -> badCaseReingest.increment();
+            default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
+        }
+    }
+
+    /** MCP 三件套工具调用计数（Phase 4 簇⑤ 4.10：search / get_document / ask，调用审计的指标面） */
+    public void recordMcpToolCall(String operation) {
+        switch (operation) {
+            case "search" -> mcpSearch.increment();
+            case "get_document" -> mcpGetDocument.increment();
+            case "ask" -> mcpAsk.increment();
             default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
         }
     }

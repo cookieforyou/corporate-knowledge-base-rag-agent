@@ -24,7 +24,7 @@ kb-rag-agent/
 ├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
 ├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写
 ├── kb-ai-core/        # 纯 RAG（无工具链）：retriever/（双路+RRF+重排）、advisor/、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient
-├── kb-ai-agent/       # Agent 事务域：tool/（Mock 工具+HITL 账本）、config/（toolAgentChatClient）、service/；未来 MCP/Multi-Agent 落此
+├── kb-ai-agent/       # Agent 事务域：tool/（Mock 工具+HITL 账本）、config/（toolAgentChatClient）、service/、mcp/（4.10 三件套+身份守卫）；未来 Multi-Agent 落此
 ├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
 ├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(146) + CI 门禁
@@ -54,6 +54,8 @@ kb-rag-agent/
 **Chunk 运维与重建（簇③）**：kb-admin 首建，kb-api fat jar 聚合（禁反向依赖）；租户守卫 @AuthenticationPrincipal Jwt 直消费（owner claim，不复用 JwtUtils 防成环）。Chunk CRUD：编辑 = 同源消毒 → PG 同步 → 异步重嵌入（**统一 delete→add 两步**——Milvus add 非 upsert 实证，chunk ID/original_content 不变）+ ES 覆写；软删委派 C1；恢复经重嵌入；守卫 fail-closed（跨租户 → CHUNK_NOT_FOUND，处理中 → DOC_NOT_READY）。重建：ReindexGateway 倒置委派 reparse（终态 future 汇聚）——PG 事实源全量重解析（蓝绿既有）+ ES 孤儿清扫（向量孤儿留离线）；任务表 Redis 形态（v2.36：RebuildTaskStore 抽象——RAtomicLong 计数 + 租户域索引 20 条 FIFO + TTL 24h；create/find/list fail-closed REBUILD_STORE_UNAVAILABLE 503、在途更新不阻断）。统计 chunkTotal = kb_chunk 存活计数（排除软删）。前端操作面归簇④ v2.35 扩展（运维中心「Chunk 运维」Tab，后端零改动）
 
 **Bad Case 运营闭环（簇④）**：kb-admin 四端点——审计查询 GET /admin/audit-logs（时间/用户/会话/反馈/状态/根因/标注态可选 + feedbackExpectedAnswer 联查预填）；根因标注 PUT /audit-logs/{id}/root-cause（四分类 RootCause 枚举，kb_audit_log 新列 root_cause + (tenant_id,created_at DESC) 索引，**ECS 先 ALTER**）；Golden 回灌 POST /badcase/reingest——**Git Ops 文件通道**：审计行转用例写 `rag.admin.golden.dir`/badcase-qa.json（默认 kb-eval 语料目录，id=bc-{auditLogId} upsert 幂等，成功联动反馈 resolved），回灌→commit→CI 复跑闭环；反馈处理态 PUT /feedback/{id}/resolved（message→session 租户链）。守卫：跨租户/不存在一律 AUDIT_LOG_NOT_FOUND（不泄露存在性）。前端 /admin 运维中心四 Tab（仪表盘消费簇② stats / **Chunk 运维：编辑/软删/恢复 + 重建任务轮询** / 日志查询详情抽屉 / 标注+回灌对话框，检索快照候选快填）
+
+**MCP Server（簇⑤ 4.10）**：`spring-ai-starter-mcp-server-webmvc` 落 kb-api（Streamable HTTP `/mcp` RouterFunction，SecurityConfig authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent——@McpTool 注解扫描器自动收编（required 须显式钉）：search（检索链直调）/get_document（租户守卫+软删过滤+max-chunks 截断）/ask（ragAgentChatClient 全链——护栏/配额/审计自动复用，每次调用独立 mcp-{uuid} 会话）；`McpIdentityGuard` 请求线程 JWT 物化 RetrievalContext（owner 空白 IDENTITY_INCOMPLETE，`rag.mcp.scope.required` scope 治理 MCP_SCOPE_DENIED，直消费 principal 不复用 JwtUtils 防成环）；容器内无 ToolCallback/Provider Bean（defaultTools 内联）HITL 工具不漏进 MCP；rag.mcp.* 三计数
 
 **意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写单次调用预写）→ skipRetrieval；`RetrievalGateAdvisor`(500) 组合式门控包裹 RAA——skip 旁路携记忆直答，fail-open 回落；`rag.routing.intent.enabled` 可关
 

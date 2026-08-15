@@ -6,13 +6,35 @@
     <parent/>
     <artifactId>kb-ai-agent</artifactId>
     <name>kb-ai-agent</name>
-    <description>AI Agent 事务模块：工具链 ChatClient、@Tool 工具层、HITL 审批（3.19 双链路拆分自 kb-ai-core；未来真实 OA/ERP 工具客户端、MCP 宿主 5.11、Multi-Agent 5.3 落此）</description>
+    <description>AI Agent 事务模块：工具链 ChatClient、@Tool 工具层、HITL 审批、MCP 三件套工具（4.10，簇⑤）（3.19 双链路拆分自 kb-ai-core；未来真实 OA/ERP 工具客户端、Multi-Agent 5.3 落此）</description>
 
     <dependencies>
         <!-- 复用 kb-ai-core：护栏/配额/记忆 Advisor、RetrievalContext、smartRoutingChatModel -->
         <dependency>
             <groupId>com.enterprise</groupId>
             <artifactId>kb-ai-core</artifactId>
+        </dependency>
+        <!-- MCP 三件套工具注解（4.10）：@McpTool/@McpArg 经 server starter 注解扫描器
+             自动注册；starter 本体与传输装配落 kb-api（宿主聚合层） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-mcp-annotations</artifactId>
+        </dependency>
+        <!-- MCP 身份守卫：SecurityContextHolder + Jwt 编译期类。同 kb-admin 纪律——
+             kb-api 聚合本模块（反向依赖成环），不复用其 JwtUtils，直消费
+             OAuth2 Resource Server principal，claim 映射同源 Casdoor 口径 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+        <!-- metadata JSONB 解析（heading_path 回填）：Jackson 3 JsonMapper 自动装配 Bean -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
         </dependency>
     </dependencies>
 </project>
