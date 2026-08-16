@@ -1,0 +1,9 @@
+# 输出检测词表（安全簇① A1/A3，设计 12.7 词表工程）
+#
+# 词项模型同 injection-rules.yml；family 取输出分类三分类名（中性）：
+#   BUSINESS_CONFIDENTIAL（业务保密）/ COMPLIANCE_SENSITIVE（合规敏感）/
+#   COMPETITOR_COMPARISON（竞品对比）——各分类独立 action 与指标子项（A3）。
+# value 同样逐条 Base64 编码态存储，加载层解码消费（第七节条 2）。
+#
+# 三源合并：本文件 ∪ rag.guardrail.output.blacklist（兼容并入）。
+rules: []

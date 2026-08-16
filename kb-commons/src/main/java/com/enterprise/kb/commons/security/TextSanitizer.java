@@ -1,5 +1,7 @@
 package com.enterprise.kb.commons.security;
 
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
+
 import java.text.Normalizer;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -119,5 +121,18 @@ public final class TextSanitizer {
         }
         String lower = text.toLowerCase();
         return keywords.stream().anyMatch(lower::contains);
+    }
+
+    /**
+     * 结构化词表匹配（安全簇① A1）：返回命中的启用词项列表（含族系/动作元数据），
+     * 由调用方按 {@code action} 解释（BLOCK 拒绝 / FLAG 观察）。调用方应先以
+     * {@link #normalize} 构造归一化检测视图传入；KEYWORD 大小写不敏感子串、
+     * REGEX 预编译模式 find，匹配语义收编 {@link GuardrailRule#matches}。
+     */
+    public static List<GuardrailRule> matchRules(String normalizedText, List<GuardrailRule> rules) {
+        if (normalizedText == null || normalizedText.isEmpty() || rules == null || rules.isEmpty()) {
+            return List.of();
+        }
+        return rules.stream().filter(rule -> rule.matches(normalizedText)).toList();
     }
 }

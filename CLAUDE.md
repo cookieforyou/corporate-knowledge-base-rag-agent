@@ -71,6 +71,7 @@ kb-rag-agent/
 - 前端对话窗：sessionId 多轮 + rag/tool 切换 + TOOL_CALL 审批卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空双路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测（仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**
+- **词表工程（簇① v2.40）**：注入词表结构化——`guardrail` 包词项模型（id/family/lang/type/value/action/enabled，value 逐条 Base64 编码态加载层解码）+`GuardrailRulesLoader` 三源合并（内置默认∪CSV∪结构化文件，外部文件优先；CSV 语义替换→并入）；结构化文件 `guardrail/injection-rules.yml`/`output-rules.yml`（`rag.guardrail.rules.*-location` 外部覆盖）；攻击族七分法中性枚举+KEYWORD/REGEX+BLOCK/FLAG 双动作；双消费方同源按 action 分流（BLOCK 拒/FLAG 放行）；见 §12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId+userId upsert 可改评；归属 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档 `ChatSessionService` 异步旁路；历史会话：会话端点 + 过期续聊回填；kb-eval 零 Redis 依赖
 - 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；Golden 150 条（含注入 48，门禁限 L1 子集；chunk ID 确定性锚点）

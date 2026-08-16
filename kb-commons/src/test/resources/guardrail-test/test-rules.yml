@@ -1,0 +1,30 @@
+# GuardrailRulesLoaderTest 专用测试词表（占位词，无攻击语义）
+# 覆盖五态：KEYWORD / REGEX / FLAG 动作 / enabled=false / 畸形 Base64（应跳过）
+rules:
+  - id: test-kw-01
+    family: INSTRUCTION_OVERRIDE
+    lang: zh
+    type: KEYWORD
+    value: "5rWL6K+V5YWz6ZSu6K+N55Sy"
+    action: BLOCK
+    enabled: true
+  - id: test-regex-01
+    family: ENCODING_OBFUSCATION
+    lang: zh
+    type: REGEX
+    value: "5rWL6K+VLirmqKHlvI8="
+    action: FLAG
+    enabled: true
+  - id: test-kw-disabled
+    family: UNCLASSIFIED
+    lang: zh
+    type: KEYWORD
+    value: "5Y2g5L2N5YWz6ZSu6K+N5LmZ"
+    action: BLOCK
+    enabled: false
+  - id: test-bad-b64
+    family: UNCLASSIFIED
+    type: KEYWORD
+    value: "!!!not-base64!!!"
+    action: BLOCK
+    enabled: true

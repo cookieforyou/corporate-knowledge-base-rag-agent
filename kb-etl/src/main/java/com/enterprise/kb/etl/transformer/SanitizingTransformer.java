@@ -1,5 +1,7 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -37,23 +39,26 @@ public class SanitizingTransformer implements DocumentTransformer {
     /** 注入命中标记键：Document 元数据 → kb_chunk.metadata JSONB */
     public static final String INJECTION_HIT_KEY = "injection_hit";
 
-    private final List<String> injectionKeywords;
+    private final List<GuardrailRule> injectionRules;
     private final boolean piiEnabled;
     private final boolean injectionScanEnabled;
 
     /**
-     * 注入词表与对话链路同源：同一配置项 {@code rag.guardrail.input.injection-keywords}
-     * （同 Spring 上下文，单一词表口径）；PII 掩码正则同源于 {@link TextSanitizer}。
+     * 注入词表与对话链路同源：{@link GuardrailRulesLoader#loadInjectionRules} 三源合并
+     * （结构化文件 ∪ 内置默认 ∪ {@code rag.guardrail.input.injection-keywords} 兼容并入，
+     * 同一 Spring 上下文单一词表口径，安全簇① A1 结构化）；PII 掩码正则同源于
+     * {@link TextSanitizer}。入库侧打标不区分 BLOCK/FLAG——任意启用词项命中即打标。
      */
     public SanitizingTransformer(
+            @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
             @Value("${kb.etl.sanitize.pii-enabled:true}") boolean piiEnabled,
             @Value("${kb.etl.sanitize.injection-scan:true}") boolean injectionScanEnabled) {
-        this.injectionKeywords = TextSanitizer.loadInjectionKeywords(keywordsCsv);
+        this.injectionRules = GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv);
         this.piiEnabled = piiEnabled;
         this.injectionScanEnabled = injectionScanEnabled;
         log.info("ETL 入库消毒装配: pii={}, injectionScan={}, 词表 {} 条",
-            piiEnabled, injectionScanEnabled, injectionKeywords.size());
+            piiEnabled, injectionScanEnabled, injectionRules.size());
     }
 
     @Override
@@ -82,9 +87,9 @@ public class SanitizingTransformer implements DocumentTransformer {
                 }
             }
 
-            // 2. 注入扫描：归一化检测视图命中 → 打标不阻断（扫描存储态文本）
+            // 2. 注入扫描：归一化检测视图命中结构化词表 → 打标不阻断（扫描存储态文本）
             if (injectionScanEnabled
-                    && TextSanitizer.containsInjectionKeyword(TextSanitizer.normalize(text), injectionKeywords)) {
+                    && !TextSanitizer.matchRules(TextSanitizer.normalize(text), injectionRules).isEmpty()) {
                 current = current.mutate().metadata(INJECTION_HIT_KEY, true).build();
                 injectionHits++;
                 log.warn("ETL 注入扫描命中: 第 {} 个 chunk 打标 injection_hit（不阻断入库，S2 模板标记兜底）", i);

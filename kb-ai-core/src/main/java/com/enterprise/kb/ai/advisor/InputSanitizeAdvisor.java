@@ -2,6 +2,9 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -41,23 +44,32 @@ import java.util.List;
  * （抛异常前）、PII 掩码 {@code rag.guardrail.pii.masked}（非拒绝型干预，
  * 只记事实不落原文）；拒绝型拦截的审计行经 AuditTraceAdvisor REJECTED 三态
  * 既有通道落 kb_audit_log，本 Advisor 不重复落库。
+ *
+ * <p><b>v2.40 修正（安全簇① A1，词表结构化）</b>：注入词表由单行 CSV 升级为结构化
+ * 词表——经 {@link GuardrailRulesLoader#loadInjectionRules} 三源合并装载
+ * {@link GuardrailRule}（族系 / 动作 / KEYWORD+REGEX 双型）。命中按 {@code action} 分流：
+ * BLOCK 拒绝（语义不变）、FLAG 观察档放行只计数（{@code rag.guardrail.flagged} T7 接入）。
+ * 词项 value 编码态存储、加载层解码（第七节敏感词交付纪律条 2）。
  */
 @Slf4j
 @Component
 public class InputSanitizeAdvisor implements BaseAdvisor {
 
-    /** 生效词表：配置优先、空则内置默认（{@link TextSanitizer#loadInjectionKeywords}） */
-    private final List<String> injectionKeywords;
+    /** 生效结构化词表：三源合并（内置默认 ∪ 结构化文件 ∪ CSV 兼容），action 分流 */
+    private final List<GuardrailRule> injectionRules;
 
     /** 护栏命中计数（簇⑤ B2 S3）——注入拦截/PII 掩码事件入 Prometheus */
     private final AiBusinessMetrics metrics;
 
     public InputSanitizeAdvisor(
+            @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
             AiBusinessMetrics metrics) {
-        this.injectionKeywords = TextSanitizer.loadInjectionKeywords(keywordsCsv);
+        this.injectionRules = GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv);
         this.metrics = metrics;
-        log.info("注入检测词表加载: {} 条", injectionKeywords.size());
+        long blocks = injectionRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
+        log.info("注入检测词表加载: {} 条（BLOCK {} / FLAG {}）",
+            injectionRules.size(), blocks, injectionRules.size() - blocks);
     }
 
     @Override
@@ -72,11 +84,18 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
         //    仅用于检测不回写——NFKC 会归一全角标点，回写改变正常中文查询形态
         String detectionView = TextSanitizer.normalize(userText);
 
-        // 2. Prompt 注入检测——命中即拒，不进入后续链路（同步 400 / 流式 ERROR 事件）
-        if (TextSanitizer.containsInjectionKeyword(detectionView, injectionKeywords)) {
+        // 2. Prompt 注入检测——结构化词表匹配，按 action 分流（v2.40）：
+        //    BLOCK 命中即拒（同步 400 / 流式 ERROR 事件）；FLAG 观察档放行只计数
+        List<GuardrailRule> matched = TextSanitizer.matchRules(detectionView, injectionRules);
+        boolean blocked = matched.stream().anyMatch(r -> r.action() == RuleAction.BLOCK);
+        if (blocked) {
             metrics.recordInjectionBlocked();
-            log.warn("检测到 Prompt 注入攻击，请求已拦截");
+            log.warn("检测到 Prompt 注入攻击，请求已拦截（命中 {} 条规则）", matched.size());
             throw new BusinessException("PROMPT_INJECTION", "检测到 Prompt 注入攻击，请求已被拦截");
+        }
+        if (!matched.isEmpty()) {
+            // FLAG 观察档：放行，计数指标 rag.guardrail.flagged 于 T7 接入
+            log.info("注入词表 FLAG 观察档命中 {} 条，放行", matched.size());
         }
 
         // 3. PII 脱敏（幂等：掩码形态不会被二次匹配）：先剥零宽防数字串被拆断，

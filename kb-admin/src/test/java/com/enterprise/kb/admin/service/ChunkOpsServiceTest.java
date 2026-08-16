@@ -63,7 +63,7 @@ class ChunkOpsServiceTest {
         metrics = mock(AiBusinessMetrics.class);
         // 真实消毒器（同源语义）：PII 开 + 注入扫描开（词表按需构造用例注入）
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
-            vectorStore, esIndexWriter, new SanitizingTransformer("", true, true),
+            vectorStore, esIndexWriter, new SanitizingTransformer("", "", true, true),
             metrics, new JsonMapper(), (Executor) Runnable::run);
     }
 
@@ -146,7 +146,7 @@ class ChunkOpsServiceTest {
     void editMergesInjectionHitIntoMetadata() {
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter,
-            new SanitizingTransformer("忽略之前指令", true, true),
+            new SanitizingTransformer("", "忽略之前指令", true, true),
             metrics, new JsonMapper(), (Executor) Runnable::run);
         KbChunk chunk = chunk(false, "{\"heading_path\":\"A > B\"}");
         stubOwned(chunk, doc(TENANT, DocumentStatus.SUCCESS));

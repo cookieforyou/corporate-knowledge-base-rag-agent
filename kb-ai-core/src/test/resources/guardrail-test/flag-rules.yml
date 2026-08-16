@@ -1,0 +1,9 @@
+# InputSanitizeAdvisorTest FLAG 观察档测试词表（占位词，无攻击语义）
+rules:
+  - id: flag-test-01
+    family: UNCLASSIFIED
+    lang: en
+    type: KEYWORD
+    value: "ZmxhZ3Rlc3QtYWxwaGE="
+    action: FLAG
+    enabled: true
