@@ -8,10 +8,14 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 护栏词表结构化加载器测试（安全簇① A1，设计 12.7）。
+ * 护栏词表结构化加载器测试（安全簇① A1/T2，设计 12.7）。
  *
  * <p>测试词表资源 {@code guardrail-test/test-rules.yml} 全部使用无害占位词
  * （Base64 编码态），不含攻击语义字面——遵循第七节敏感词交付纪律。
+ *
+ * <p>T2 起「内置默认」源收敛入 bundled 结构化文件（{@code builtin-*} 词项），
+ * 加载器为双源合并（结构化文件 ∪ CSV 兼容）；bundled 基线规模随词表运营增长，
+ * 断言以「非空 + ID 段前缀」表达，不硬编码条数。
  */
 class GuardrailRulesLoaderTest {
 
@@ -22,33 +26,33 @@ class GuardrailRulesLoaderTest {
             .orElseThrow(() -> new AssertionError("词项缺失: " + id));
     }
 
-    // ── 三源合并与内置默认 ──
+    // ── 双源合并与 bundled 基线 ──
 
     @Test
-    void emptyConfigFallsBackToBuiltinDefaults() {
+    void emptyConfigLoadsBundledBaselineWordlist() {
         List<GuardrailRule> rules = GuardrailRulesLoader.loadInjectionRules(null, "");
 
-        // 结构化文件缺省（默认 classpath 为空 rules）+ 无 CSV → 仅剩内置默认
-        assertThat(rules).hasSize(TextSanitizer.DEFAULT_INJECTION_KEYWORDS.size());
+        // bundled 结构化文件随 jar 发布即基线词表（T2 字面词表迁入）
+        assertThat(rules).isNotEmpty();
         assertThat(rules).allMatch(r -> r.action() == RuleAction.BLOCK && r.enabled());
-        assertThat(rules.get(0).id()).startsWith("builtin-inj-");
+        assertThat(rules).anyMatch(r -> r.id().startsWith("builtin-inj-"));
     }
 
     @Test
-    void structuredFileMergesWithBuiltinDefaults() {
+    void externalLocationReplacesBundledDefault() {
         List<GuardrailRule> rules = GuardrailRulesLoader.loadInjectionRules(TEST_LOCATION, "");
 
-        // 内置默认仍在（合并而非替换）+ 结构化词项并入
-        assertThat(rules).anyMatch(r -> r.id().startsWith("builtin-inj-"));
+        // location 覆盖 = 替换缺省文件来源：仅测试词表词项，bundled 基线不叠加
         assertThat(byId(rules, "test-kw-01").value()).isEqualTo("测试关键词甲");
         assertThat(byId(rules, "test-kw-01").family()).isEqualTo("INSTRUCTION_OVERRIDE");
+        assertThat(rules).noneMatch(r -> r.id().startsWith("builtin-inj-"));
     }
 
     @Test
-    void csvCompatMergesWithoutReplacingDefaults() {
+    void csvCompatMergesWithoutReplacingBaseline() {
         List<GuardrailRule> rules = GuardrailRulesLoader.loadInjectionRules(null, "自定义测试词, 另一个词");
 
-        // v2.40 语义演进：CSV 由「整体替换」转「并入合并」——内置默认仍生效
+        // v2.40 语义：CSV「并入合并」——bundled 基线仍生效
         assertThat(rules).anyMatch(r -> r.id().startsWith("builtin-inj-"));
         GuardrailRule legacy = byId(rules, "legacy-csv-0");
         assertThat(legacy.value()).isEqualTo("自定义测试词");
@@ -58,11 +62,25 @@ class GuardrailRulesLoaderTest {
     }
 
     @Test
-    void outputRulesHaveNoBuiltinDefaults() {
-        assertThat(GuardrailRulesLoader.loadOutputRules(null, "")).isEmpty();
+    void outputBaselineLoadsFromBundledFileAndMergesCsv() {
+        // 输出侧无内置默认源，基线来自 bundled output-rules.yml（T2 存量黑名单迁入）
+        List<GuardrailRule> baseline = GuardrailRulesLoader.loadOutputRules(null, "");
+        assertThat(baseline).isNotEmpty();
+        assertThat(baseline).anyMatch(r -> r.id().startsWith("builtin-out-"));
 
-        List<GuardrailRule> fromCsv = GuardrailRulesLoader.loadOutputRules(null, "输出测试词");
-        assertThat(byId(fromCsv, "legacy-csv-0").value()).isEqualTo("输出测试词");
+        List<GuardrailRule> merged = GuardrailRulesLoader.loadOutputRules(null, "输出测试词");
+        assertThat(byId(merged, "legacy-csv-0").value()).isEqualTo("输出测试词");
+        assertThat(merged).anyMatch(r -> r.id().startsWith("builtin-out-"));
+    }
+
+    @Test
+    void missingExternalLocationFallsBackToBundledDefault() {
+        List<GuardrailRule> rules =
+            GuardrailRulesLoader.loadInjectionRules("classpath:guardrail-test/no-such-file.yml", "");
+
+        // 外部覆盖资源缺失 → warn 回落内置缺省文件，基线词表不静默失效（T2 fail-safe 定案）
+        assertThat(rules).isNotEmpty();
+        assertThat(rules).anyMatch(r -> r.id().startsWith("builtin-inj-"));
     }
 
     // ── 词项五态解析 ──
@@ -88,14 +106,6 @@ class GuardrailRulesLoaderTest {
     void malformedBase64EntryIsSkipped() {
         List<GuardrailRule> rules = GuardrailRulesLoader.loadInjectionRules(TEST_LOCATION, "");
         assertThat(rules).noneMatch(r -> r.id().equals("test-bad-b64"));
-    }
-
-    @Test
-    void missingLocationYieldsEmptyStructuredSource() {
-        List<GuardrailRule> rules =
-            GuardrailRulesLoader.loadInjectionRules("classpath:guardrail-test/no-such-file.yml", "");
-        // 资源缺失 → 该源视为空，内置默认兜底
-        assertThat(rules).hasSize(TextSanitizer.DEFAULT_INJECTION_KEYWORDS.size());
     }
 
     // ── 匹配联动（TextSanitizer.matchRules）──

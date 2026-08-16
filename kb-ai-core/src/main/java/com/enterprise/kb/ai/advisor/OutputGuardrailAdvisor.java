@@ -1,6 +1,10 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.RuleAction;
+import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -15,9 +19,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * 输出安全护栏（设计文档 12.2，任务 3.6）—— 敏感词/竞品黑名单拦截替换
@@ -30,14 +32,21 @@ import java.util.stream.Stream;
  * 回答，违规则整段替换为安全话术，合规则原样顺序放行全部块（内容不变，
  * 仅到达时刻后移）。同步路径（/chat）经默认 adviseCall + after() 全量拦截。
  *
- * <p>L1 形态（12.2.1）：黑名单规则链，词表经 {@code rag.guardrail.output.blacklist}
- * 配置（生产接配置中心动态加载为升级项）。幻觉拦截（引用忠实性）归评估体系
+ * <p>L1 形态（12.2.1）：黑名单规则链。幻觉拦截（引用忠实性）归评估体系
  * （16.2 Citation Attribution），不在本 Advisor 做脆弱文本后处理。
  *
  * <p><b>v2.24 修正（簇⑤ B2，S3 护栏可观测）</b>：替换事件接
  * {@code rag.guardrail.output.replaced} 计数（同步 after() 与流式聚合后验两路径）。
  * 替换属非拒绝型干预（不抛异常），审计行仍落 SUCCESS + 安全话术 final_answer
  * （不加 error_code 标记，维持「SUCCESS→null」不变量）——观测走指标 + 话术取证。
+ *
+ * <p><b>v2.40 修正（安全簇① T2，词表结构化）</b>：输出黑名单由单行 CSV 升级为结构化
+ * 词表——经 {@link GuardrailRulesLoader#loadOutputRules} 双源合并装载
+ * {@link GuardrailRule}（结构化文件 ∪ {@code rag.guardrail.output.blacklist} 兼容并入）。
+ * 命中按 {@code action} 分流：BLOCK 整段替换（语义不变）、FLAG 观察档放行只计数
+ * （{@code rag.guardrail.flagged} T7 接入）。词项 value 编码态存储、加载层解码
+ * （第七节敏感词交付纪律条 2）；KEYWORD 匹配为大小写不敏感子串（较旧版大小写敏感
+ * contains 收紧拦截面，安全方向）。
  */
 @Slf4j
 @Component
@@ -45,21 +54,24 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
 
     private static final String SAFE_RESPONSE = "抱歉，由于合规要求，无法提供该信息。";
 
-    private final Set<String> blacklist;
+    /** 生效结构化词表：双源合并（结构化文件 ∪ CSV 兼容），action 分流 */
+    private final List<GuardrailRule> outputRules;
 
     /** 护栏命中计数（簇⑤ B2 S3）——黑名单替换事件入 Prometheus */
     private final AiBusinessMetrics metrics;
 
     public OutputGuardrailAdvisor(
+            @Value("${rag.guardrail.rules.output-location:}") String rulesLocation,
             @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv,
             AiBusinessMetrics metrics) {
-        this.blacklist = Stream.of(blacklistCsv.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.toSet());
+        this.outputRules = GuardrailRulesLoader.loadOutputRules(rulesLocation, blacklistCsv);
         this.metrics = metrics;
-        if (blacklist.isEmpty()) {
-            log.warn("rag.guardrail.output.blacklist 为空，输出护栏无拦截词表");
+        long blocks = outputRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
+        if (outputRules.isEmpty()) {
+            log.warn("输出护栏词表为空，无拦截词项");
+        } else {
+            log.info("输出检测词表加载: {} 条（BLOCK {} / FLAG {}）",
+                outputRules.size(), blocks, outputRules.size() - blocks);
         }
     }
 
@@ -72,7 +84,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
     @Override
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
         String output = extractText(response);
-        if (output == null || !containsBlacklisted(output)) {
+        if (output == null || !blocked(output)) {
             return response;
         }
         metrics.recordOutputReplaced();
@@ -94,7 +106,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
                     .map(OutputGuardrailAdvisor::extractText)
                     .filter(text -> text != null)
                     .collect(Collectors.joining());
-                if (containsBlacklisted(fullText)) {
+                if (blocked(fullText)) {
                     metrics.recordOutputReplaced();
                     log.warn("流式输出命中敏感词黑名单，整段替换为安全话术");
                     ChatClientResponse last = responses.isEmpty() ? null : responses.get(responses.size() - 1);
@@ -109,8 +121,17 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         return 110;
     }
 
-    private boolean containsBlacklisted(String text) {
-        return blacklist.stream().anyMatch(text::contains);
+    /** 结构化词表命中判定（action 分流）：BLOCK 命中即替换；FLAG 观察档放行只计数（T7 接指标） */
+    private boolean blocked(String text) {
+        List<GuardrailRule> matched = TextSanitizer.matchRules(text, outputRules);
+        if (matched.isEmpty()) {
+            return false;
+        }
+        boolean block = matched.stream().anyMatch(r -> r.action() == RuleAction.BLOCK);
+        if (!block) {
+            log.info("输出词表 FLAG 观察档命中 {} 条，放行", matched.size());
+        }
+        return block;
     }
 
     /** 空安全文本提取（响应/结果/输出任一环节为空均返回 null） */

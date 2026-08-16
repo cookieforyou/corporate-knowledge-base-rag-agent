@@ -28,6 +28,9 @@ import java.util.List;
  *                         匹配键为检索命中元数据 file_name；跨重入库/解析漂移/
  *                         contextual 增强恒稳定，是 chunk 级失配时的度量兜底
  * @param attackType       注入攻击类型（仅 INJECTION 用例，簇⑤ B2 S6；其余分类为 null）
+ * @param questionEncoding question 编码形态（{@code base64}；null 为明文——过渡期双形态兼容，
+ *                         安全簇① T2 敏感样本引用形态；解码由 {@link GoldenDatasetLoader} 承担）
+ * @param questionSha256   question 原文 SHA-256 指纹锚点（解码层完整性校验，腐化 fail-fast）
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record GoldenQAPair(
@@ -38,7 +41,9 @@ public record GoldenQAPair(
     String expectedAnswer,
     List<String> expectedChunkIds,
     List<String> expectedDocs,
-    AttackType attackType
+    AttackType attackType,
+    String questionEncoding,
+    String questionSha256
 ) {
     public boolean isNegative() {
         return category == QACategory.NEGATIVE;
@@ -46,6 +51,11 @@ public record GoldenQAPair(
 
     public boolean isInjection() {
         return category == QACategory.INJECTION;
+    }
+
+    /** question 是否编码态（引用形态）——加载器解码后产出的实例恒为 false */
+    public boolean hasEncodedQuestion() {
+        return questionEncoding != null && !questionEncoding.isBlank();
     }
 
     /**

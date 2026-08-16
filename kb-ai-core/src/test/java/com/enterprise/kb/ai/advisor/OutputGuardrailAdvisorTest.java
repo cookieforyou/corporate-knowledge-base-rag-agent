@@ -24,12 +24,15 @@ import static org.mockito.Mockito.when;
 
 /**
  * 输出安全护栏测试（3.6）—— 同步 after() 拦截 + 流式聚合后验 + 护栏命中计数（簇⑤ B2 S3）
+ *
+ * <p>v2.41/T2：词表切结构化加载（双源合并），测试词表经 CSV 兼容源注入占位词；
+ * bundled 基线输出词表随 jar 发布并在构造时并入（不影响占位词断言语义）。
  */
 class OutputGuardrailAdvisorTest {
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final OutputGuardrailAdvisor advisor =
-        new OutputGuardrailAdvisor("competitor_x,competitor_y", new AiBusinessMetrics(meterRegistry));
+        new OutputGuardrailAdvisor("", "competitor_x,competitor_y", new AiBusinessMetrics(meterRegistry));
     private final AdvisorChain chain = mock(AdvisorChain.class);
 
     private ChatClientResponse response(String text) {
@@ -101,8 +104,9 @@ class OutputGuardrailAdvisorTest {
     }
 
     @Test
-    void emptyBlacklistConfigPassesEverything() {
-        OutputGuardrailAdvisor open = new OutputGuardrailAdvisor("", new AiBusinessMetrics(meterRegistry));
+    void blankCsvCompatStillPassesUnrelatedOutput() {
+        // CSV 空 → 仅 bundled 基线输出词表生效；无关输出照常放行
+        OutputGuardrailAdvisor open = new OutputGuardrailAdvisor("", "", new AiBusinessMetrics(meterRegistry));
         ChatClientResponse original = response("competitor_x");
 
         assertThat(open.after(original, chain)).isSameAs(original);

@@ -1,4 +1,6 @@
 # InputSanitizeAdvisorTest FLAG 观察档测试词表（占位词，无攻击语义）
+# location 覆盖为「替换缺省文件」语义——本文件自带 FLAG + BLOCK 双档占位词，
+# 独立验证 action 分流，不依赖 bundled 基线。
 rules:
   - id: flag-test-01
     family: UNCLASSIFIED
@@ -6,4 +8,11 @@ rules:
     type: KEYWORD
     value: "ZmxhZ3Rlc3QtYWxwaGE="
     action: FLAG
+    enabled: true
+  - id: block-test-01
+    family: UNCLASSIFIED
+    lang: en
+    type: KEYWORD
+    value: "YmxvY2t0ZXN0LWJldGE="
+    action: BLOCK
     enabled: true

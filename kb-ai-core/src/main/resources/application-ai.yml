@@ -108,14 +108,18 @@ rag:
   token-budget:
     enabled: ${RAG_TOKEN_BUDGET_ENABLED:true}
     daily-limit: ${RAG_TOKEN_BUDGET_DAILY_LIMIT:1000000}
-  # 安全护栏（3.5/3.6，设计文档 12.1/12.2）—— 均为逗号分隔静态词表，
-  # 生产接配置中心动态加载为升级项（12.1.1/12.2.1）
+  # 安全护栏（3.5/3.6，设计文档 12.1/12.2/12.7）—— 词表本体收编结构化文件
+  # guardrail/injection-rules.yml / output-rules.yml（逐条 Base64 编码态，
+  # 安全簇① T2 起字面词表退役）；本处 CSV 键仅保留为运维侧带外扩充兼容源
+  # （并入合并语义）。词表文件外部覆盖：rag.guardrail.rules.injection-location /
+  # output-location（classpath:/file: 前缀；资源缺失回落内置缺省文件）。
   guardrail:
     input:
-      # 注入检测词表：留空 → 内置默认词表（InputSanitizeAdvisor.DEFAULT_INJECTION_PATTERNS）
-      injection-keywords: ${RAG_GUARDRAIL_INJECTION_KEYWORDS:}
+      # 注入检测兼容词表（CSV 并入结构化基线）：留空 → 仅 bundled 基线词表
+      injection-keywords:
     output:
-      blacklist: ${RAG_GUARDRAIL_BLACKLIST:competitor_x,competitor_y}
+      # 输出检测兼容词表（CSV 并入结构化基线）：留空 → 仅 bundled 基线词表
+      blacklist:
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）
   retrieval:
     rewrite:

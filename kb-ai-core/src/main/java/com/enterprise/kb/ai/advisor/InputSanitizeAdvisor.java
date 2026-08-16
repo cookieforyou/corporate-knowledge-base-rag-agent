@@ -45,9 +45,10 @@ import java.util.List;
  * 只记事实不落原文）；拒绝型拦截的审计行经 AuditTraceAdvisor REJECTED 三态
  * 既有通道落 kb_audit_log，本 Advisor 不重复落库。
  *
- * <p><b>v2.40 修正（安全簇① A1，词表结构化）</b>：注入词表由单行 CSV 升级为结构化
- * 词表——经 {@link GuardrailRulesLoader#loadInjectionRules} 三源合并装载
- * {@link GuardrailRule}（族系 / 动作 / KEYWORD+REGEX 双型）。命中按 {@code action} 分流：
+ * <p><b>v2.40 修正（安全簇① A1/T2，词表结构化）</b>：注入词表由单行 CSV 升级为结构化
+ * 词表——经 {@link GuardrailRulesLoader#loadInjectionRules} 双源合并装载
+ * {@link GuardrailRule}（族系 / 动作 / KEYWORD+REGEX 双型；内置基线词项 T2 迁入
+ * 结构化文件，字面硬编码退役）。命中按 {@code action} 分流：
  * BLOCK 拒绝（语义不变）、FLAG 观察档放行只计数（{@code rag.guardrail.flagged} T7 接入）。
  * 词项 value 编码态存储、加载层解码（第七节敏感词交付纪律条 2）。
  */
@@ -55,7 +56,7 @@ import java.util.List;
 @Component
 public class InputSanitizeAdvisor implements BaseAdvisor {
 
-    /** 生效结构化词表：三源合并（内置默认 ∪ 结构化文件 ∪ CSV 兼容），action 分流 */
+    /** 生效结构化词表：双源合并（结构化文件 ∪ CSV 兼容），action 分流 */
     private final List<GuardrailRule> injectionRules;
 
     /** 护栏命中计数（簇⑤ B2 S3）——注入拦截/PII 掩码事件入 Prometheus */

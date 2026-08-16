@@ -1,0 +1,182 @@
+{
+  "task": "安全簇① T2 存量字面编码迁移",
+  "note": "仅元数据（指纹/长度/族系占位），不含词值；family=PENDING_ANNOTATION 待人工标注",
+  "sources": {
+    "java-builtin": 14,
+    "ai-yml-injection-keywords": 1,
+    "ai-yml-blacklist": 2,
+    "corpus-questions": 48
+  },
+  "entries": [
+    {
+      "id": "builtin-inj-01",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "1b4ba8279b3011c4f2f7620f0625b8b6de4b5d710f001f46248e891fd6612d02",
+      "char_len": 15
+    },
+    {
+      "id": "builtin-inj-02",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "f201d617d984d9f2e2e5338af996583bbf83631e27a1c74959973da167e2841c",
+      "char_len": 10
+    },
+    {
+      "id": "builtin-inj-03",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "74091a0f4cf4b2d9ae5b4643a31af6859ab3d7861ac00499236a28ac65b01103",
+      "char_len": 17
+    },
+    {
+      "id": "builtin-inj-04",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "e16202309c92180728dd7fd1c59f16004a6d5ee245538c28d2a9a22edf2dd2ab",
+      "char_len": 13
+    },
+    {
+      "id": "builtin-inj-05",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "2993da0bb1295a975b5307946d587c6b722c4296e951cd22120df95792c08036",
+      "char_len": 11
+    },
+    {
+      "id": "builtin-inj-06",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "beecc2816633ffe1ab368691465a0d009a45df96f5f4d00eac7379291b931f9a",
+      "char_len": 16
+    },
+    {
+      "id": "builtin-inj-07",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "e2dc6c0619b20a84df0def505500c7ed8376b94bef815738eb5ea7ef730cd470",
+      "char_len": 5
+    },
+    {
+      "id": "builtin-inj-08",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "45f40550abcdf662eb12344bae2c65119bf4a6457a81e6505ca025df41a2642b",
+      "char_len": 4
+    },
+    {
+      "id": "builtin-inj-09",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "741736a9b55ab72820af3cc1857d589409376200047d14252c9ef1bfbf103370",
+      "char_len": 4
+    },
+    {
+      "id": "builtin-inj-10",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "5d0a177cbb70923c7eef314fbc4e153e7f28edaac3b615f42410df9d80d18af6",
+      "char_len": 7
+    },
+    {
+      "id": "builtin-inj-11",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "50f805903a3b4fe89796c938b32d20f971d84ac4c2ba994b7e3d3ea4de8bafe9",
+      "char_len": 4
+    },
+    {
+      "id": "builtin-inj-12",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "d68e771bb0bcfc9f68a92e211616a5593c656bb640fb293919ce8dac799af009",
+      "char_len": 6
+    },
+    {
+      "id": "builtin-inj-13",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "38b2775d5fdb84c44a464ed3bf89a687f71939f910e126720890a433180731d1",
+      "char_len": 7
+    },
+    {
+      "id": "builtin-inj-14",
+      "source": "java-builtin",
+      "family": "PENDING_ANNOTATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "003b1abc70db625cccfe392102b69e1cf665827b4a025293c8147389b04f6188",
+      "char_len": 7
+    },
+    {
+      "id": "builtin-inj-15",
+      "source": "ai-yml-injection-keywords",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "2dfad05406252c6d78b2bb330a98a528c065469723957ea113810b0e74bea9cc",
+      "char_len": 36
+    },
+    {
+      "id": "builtin-out-01",
+      "source": "ai-yml-blacklist",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "d2a6b0d828b2a9e522ada6ccc8df00280ae101f5bb2fc9a9f5ce01dba0af6dd5",
+      "char_len": 38
+    },
+    {
+      "id": "builtin-out-02",
+      "source": "ai-yml-blacklist",
+      "family": "PENDING_ANNOTATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "4bca9ccd9ff329b1f40a327ffa8bd25d65d8afc8cd8bcafab9c2657ebcf3fb6e",
+      "char_len": 13
+    }
+  ]
+}

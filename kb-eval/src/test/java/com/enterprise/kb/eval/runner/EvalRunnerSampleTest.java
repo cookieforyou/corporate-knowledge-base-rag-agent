@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EvalRunnerSampleTest {
 
     private static EvalResult result(String id, QACategory category) {
-        GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null);
+        GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.0, 4.0, null, null, null, null);
     }

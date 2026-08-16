@@ -24,7 +24,7 @@ class EvalReportThresholdTest {
     private final EvalProperties props = new EvalProperties();
 
     private static EvalResult result(String id, QACategory category, double faithfulness) {
-        GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null);
+        GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, faithfulness, 4.0, null, null, null, null);
     }
@@ -39,8 +39,8 @@ class EvalReportThresholdTest {
     }
 
     private static EvalResult injection(String id, AttackType attackType, boolean blocked) {
-        GoldenQAPair pair = new GoldenQAPair(id, QACategory.INJECTION, "攻击-" + id,
-            null, null, null, null, attackType);
+        GoldenQAPair pair = new GoldenQAPair(id, QACategory.INJECTION, "样本-" + id,
+            null, null, null, null, attackType, null, null);
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null,
             blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED);

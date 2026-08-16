@@ -44,9 +44,9 @@ public class SanitizingTransformer implements DocumentTransformer {
     private final boolean injectionScanEnabled;
 
     /**
-     * 注入词表与对话链路同源：{@link GuardrailRulesLoader#loadInjectionRules} 三源合并
-     * （结构化文件 ∪ 内置默认 ∪ {@code rag.guardrail.input.injection-keywords} 兼容并入，
-     * 同一 Spring 上下文单一词表口径，安全簇① A1 结构化）；PII 掩码正则同源于
+     * 注入词表与对话链路同源：{@link GuardrailRulesLoader#loadInjectionRules} 双源合并
+     * （结构化文件 ∪ {@code rag.guardrail.input.injection-keywords} 兼容并入，
+     * 同一 Spring 上下文单一词表口径，安全簇① A1 结构化 / T2 字面退役）；PII 掩码正则同源于
      * {@link TextSanitizer}。入库侧打标不区分 BLOCK/FLAG——任意启用词项命中即打标。
      */
     public SanitizingTransformer(

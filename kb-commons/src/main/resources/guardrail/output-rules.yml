@@ -1,9 +1,24 @@
-# 输出检测词表（安全簇① A1/A3，设计 12.7 词表工程）
+# 输出检测词表（安全簇① A1/A3/T2，设计 12.7 词表工程）
 #
 # 词项模型同 injection-rules.yml；family 取输出分类三分类名（中性）：
 #   BUSINESS_CONFIDENTIAL（业务保密）/ COMPLIANCE_SENSITIVE（合规敏感）/
 #   COMPETITOR_COMPARISON（竞品对比）——各分类独立 action 与指标子项（A3）。
 # value 同样逐条 Base64 编码态存储，加载层解码消费（第七节条 2）。
+# （T2 存量黑名单迁入，family 待人工标注，指纹见 tools/guardrail/migration-manifest.json）
 #
-# 三源合并：本文件 ∪ rag.guardrail.output.blacklist（兼容并入）。
-rules: []
+# 双源合并：本文件 ∪ rag.guardrail.output.blacklist（兼容并入）。
+rules:
+- id: builtin-out-01
+  family: UNCLASSIFIED
+  lang: en
+  type: KEYWORD
+  value: JHtSQUdfR1VBUkRSQUlMX0JMQUNLTElTVDpjb21wZXRpdG9yX3g=
+  action: BLOCK
+  enabled: true
+- id: builtin-out-02
+  family: UNCLASSIFIED
+  lang: en
+  type: KEYWORD
+  value: Y29tcGV0aXRvcl95fQ==
+  action: BLOCK
+  enabled: true

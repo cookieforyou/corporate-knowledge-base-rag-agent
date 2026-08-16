@@ -1,12 +1,21 @@
 package com.enterprise.kb.eval.dataset;
 
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -27,6 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>用例 id 全局唯一</li>
  *   <li>INJECTION 用例携带合法 attackType、无检索锚点，且样本与 L1 词表防域
  *       自洽（簇⑤ B2 S6）——防假红/假绿</li>
+ *   <li>INJECTION 语料落盘为编码引用形态（安全簇① T2，第七节交付纪律），
+ *       加载层透明解码且指纹锚点自洽</li>
  * </ul>
  */
 class GoldenDatasetLoaderTest {
@@ -128,24 +139,27 @@ class GoldenDatasetLoaderTest {
     }
 
     /**
-     * 样本与 L1 词表防域自洽（防门禁假红/假绿）：以 {@link TextSanitizer} 默认词表
-     * 逐条编程式校验——DIRECT 归一后必命中干词；ENCODING_BYPASS 归一前不命中
-     * （编码必须真实存在）且归一后命中（S1 视图必须还原）；JAILBREAK/MULTILINGUAL
-     * 归一前后均不命中（L1 不拦截属设计行为，观察集）。
-     * 注：校验锚定默认词表；生产以 rag.guardrail.input.injection-keywords 覆盖
-     * 词表时须同步更新样本集。
+     * 样本与 L1 词表防域自洽（防门禁假红/假绿）：以随 jar 发布的结构化基线词表
+     * （{@code guardrail/injection-rules.yml}，BLOCK 档启用词项）逐条编程式校验——
+     * DIRECT 归一后必命中干词；ENCODING_BYPASS 归一前不命中（编码必须真实存在）
+     * 且归一后命中（S1 视图必须还原）；JAILBREAK/MULTILINGUAL 归一前后均不命中
+     * （L1 不拦截属设计行为，观察集）。
+     * 注：安全簇① T2 起字面词表退役，本校验锚定结构化词表 bundled 基线；
+     * 生产以外部词表覆盖时须同步更新样本集。
      */
     @Test
     void injectionSamplesMatchGuardrailExpectations() {
-        List<String> keywords = TextSanitizer.loadInjectionKeywords("");
+        List<GuardrailRule> blockRules = GuardrailRulesLoader.loadInjectionRules("", "").stream()
+            .filter(r -> r.action() == RuleAction.BLOCK && r.enabled())
+            .toList();
+        assertFalse(blockRules.isEmpty(), "bundled 基线词表不得为空（门禁自洽锚点失效）");
         for (GoldenQAPair pair : pairs) {
             if (!pair.isInjection()) {
                 continue;
             }
             String raw = pair.question();
-            boolean rawHit = TextSanitizer.containsInjectionKeyword(raw, keywords);
-            boolean normalizedHit = TextSanitizer.containsInjectionKeyword(
-                TextSanitizer.normalize(raw), keywords);
+            boolean rawHit = blockRules.stream().anyMatch(r -> r.matches(raw));
+            boolean normalizedHit = blockRules.stream().anyMatch(r -> r.matches(TextSanitizer.normalize(raw)));
             switch (pair.attackType()) {
                 case DIRECT -> assertTrue(normalizedHit,
                     pair.id() + " 为 DIRECT 却未命中词表干词（归一化后）");
@@ -159,6 +173,42 @@ class GoldenDatasetLoaderTest {
                     pair.id() + " 为观察集却命中词表干词（应归门禁子集）");
             }
         }
+    }
+
+    // ── 编码引用形态（安全簇① T2，第七节交付纪律）──
+
+    /** 落盘形态不变量：INJECTION 语料全部为 base64 编码 + SHA-256 指纹锚点，无明文 question */
+    @Test
+    void injectionSamplesStoredEncodedOnDisk() throws IOException {
+        Resource resource = new ClassPathResource("golden/injection-qa.json");
+        List<Map<String, Object>> rawItems;
+        try (InputStream is = resource.getInputStream()) {
+            rawItems = new JsonMapper().readValue(is, new TypeReference<List<Map<String, Object>>>() {});
+        }
+        assertEquals(48, rawItems.size(), "注入语料规模");
+        for (Map<String, Object> item : rawItems) {
+            Object id = item.get("id");
+            assertEquals("base64", item.get("questionEncoding"), id + " 语料未落编码引用形态");
+            assertNotNull(item.get("questionSha256"), id + " 缺少指纹锚点");
+            String encoded = String.valueOf(item.get("question"));
+            assertTrue(encoded.matches("^[A-Za-z0-9+/]+={0,2}$"), id + " question 非 Base64 形态");
+        }
+    }
+
+    /** 加载层透明解码：加载产物恒为明文形态（编码字段已卸），question 非空可用 */
+    @Test
+    void loaderDecodesEncodedQuestionsTransparently() {
+        long injections = 0;
+        for (GoldenQAPair pair : pairs) {
+            if (!pair.isInjection()) {
+                continue;
+            }
+            injections++;
+            assertFalse(pair.hasEncodedQuestion(), pair.id() + " 加载后应已解码为明文形态");
+            assertNotNull(pair.question(), pair.id() + " 解码后 question 为 null");
+            assertFalse(pair.question().isBlank(), pair.id() + " 解码后 question 为空");
+        }
+        assertEquals(48, injections, "注入语料规模");
     }
 
     @Test

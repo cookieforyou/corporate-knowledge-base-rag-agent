@@ -1,6 +1,5 @@
 package com.enterprise.kb.commons.guardrail;
 
-import com.enterprise.kb.commons.security.TextSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -19,26 +18,28 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * 护栏词表结构化加载器（安全簇① A1，设计 12.7 词表工程）——对话链路
- * （InputSanitizeAdvisor）与 ETL 入库链路（SanitizingTransformer）的同源消费入口。
+ * 护栏词表结构化加载器（安全簇① A1/T2，设计 12.7 词表工程）——对话链路
+ * （InputSanitizeAdvisor / OutputGuardrailAdvisor）与 ETL 入库链路
+ * （SanitizingTransformer）的同源消费入口。
  *
- * <p><b>三源合并</b>：内置默认 ∪ 结构化文件 ∪ 既有 CSV 环境变量，按 {@code id} 后者覆盖；
- * 三源统一产出 {@link GuardrailRule} 列表，单一词表口径不变。
+ * <p><b>双源合并</b>：结构化文件 ∪ 既有 CSV 环境变量，按 {@code id} 后者覆盖。
+ * T2 起原「内置默认」源已收敛入随 jar 发布的结构化文件（{@code builtin-*} 词项），
+ * 字面硬编码词表退役。
  * <ul>
- *   <li><b>内置默认</b>：{@code TextSanitizer.DEFAULT_INJECTION_KEYWORDS}（过渡形态，
- *       安全簇① T2 迁移入结构化文件后收敛为空）；</li>
  *   <li><b>结构化文件</b>：classpath {@code guardrail/injection-rules.yml} /
  *       {@code output-rules.yml}，支持 {@code rag.guardrail.rules.*-location} 外部路径覆盖
- *       （{@code classpath:} / {@code file:} 前缀经 {@link DefaultResourceLoader} 解析）；</li>
- *   <li><b>CSV 兼容源</b>：{@code rag.guardrail.input.injection-keywords}（保留），
- *       语义由「整体替换」演进为「并入合并」——合并后单条自定义词不再抹掉整套内置词表。</li>
+ *       （{@code classpath:} / {@code file:} 前缀经 {@link DefaultResourceLoader} 解析）；
+ *       <b>外部路径资源缺失 → warn 并回落内置缺省文件</b>（基线词表不因配置漂移静默失效）；</li>
+ *   <li><b>CSV 兼容源</b>：{@code rag.guardrail.input.injection-keywords} /
+ *       {@code rag.guardrail.output.blacklist}（保留），语义为「并入合并」——
+ *       单条自定义词不抹掉整套基线词表。</li>
  * </ul>
  *
  * <p><b>编码态纪律</b>（第七节条 2）：结构化文件内 {@code value} 为逐条 Base64，
  * 本加载器解码为运行时明文；词表对攻击者无保密意义，编码纯为交付形态约束——
  * 防 AI 辅助链路读取时触发上游注入检测（400 block + 上下文污染）。
  *
- * <p><b>失败语义</b>：资源缺失 → 该源视为空词表（内置默认兜底注入侧基线，warn 记录）；
+ * <p><b>失败语义</b>：资源缺失 → 注入侧回落内置缺省文件，仍缺失则空词表（warn 记录）；
  * 资源存在但读取/解析失败 → fail-fast 上抛（安全配置损坏不得静默降级）。
  * 单词项畸形（id 缺失除外：Base64 解码失败 / 正则编译失败）→ warn + 跳过该词项。
  */
@@ -52,33 +53,23 @@ public final class GuardrailRulesLoader {
     private GuardrailRulesLoader() {
     }
 
-    /** 注入侧词表：内置默认 ∪ CSV 兼容源 ∪ 结构化文件（同 id 结构化文件优先）。 */
+    /** 注入侧词表：结构化文件（内置缺省或其外部覆盖）∪ CSV 兼容源。 */
     public static List<GuardrailRule> loadInjectionRules(String location, String csvCompat) {
         String resolved = (location == null || location.isBlank()) ? DEFAULT_INJECTION_LOCATION : location;
-        List<GuardrailRule> builtin = defaultInjectionRules();
         List<GuardrailRule> legacy = csvRules(csvCompat);
-        List<GuardrailRule> structured = loadStructured(resolved);
-        return merge(builtin, legacy, structured);
+        List<GuardrailRule> structured = loadStructured(resolved, DEFAULT_INJECTION_LOCATION);
+        return merge(legacy, structured);
     }
 
-    /** 输出侧词表：CSV 兼容源 ∪ 结构化文件（无内置默认，同 id 结构化文件优先）。 */
+    /** 输出侧词表：结构化文件（内置缺省或其外部覆盖）∪ CSV 兼容源。 */
     public static List<GuardrailRule> loadOutputRules(String location, String csvCompat) {
         String resolved = (location == null || location.isBlank()) ? DEFAULT_OUTPUT_LOCATION : location;
         List<GuardrailRule> legacy = csvRules(csvCompat);
-        List<GuardrailRule> structured = loadStructured(resolved);
-        return merge(List.of(), legacy, structured);
+        List<GuardrailRule> structured = loadStructured(resolved, DEFAULT_OUTPUT_LOCATION);
+        return merge(legacy, structured);
     }
 
-    // ── 三源 ──
-
-    private static List<GuardrailRule> defaultInjectionRules() {
-        List<String> defaults = TextSanitizer.DEFAULT_INJECTION_KEYWORDS;
-        List<GuardrailRule> rules = new ArrayList<>(defaults.size());
-        for (int i = 0; i < defaults.size(); i++) {
-            rules.add(keywordRule("builtin-inj-" + i, defaults.get(i)));
-        }
-        return rules;
-    }
+    // ── 双源 ──
 
     private static List<GuardrailRule> csvRules(String csv) {
         if (csv == null || csv.isBlank()) {
@@ -103,9 +94,17 @@ public final class GuardrailRulesLoader {
 
     // ── 结构化文件解析 ──
 
-    private static List<GuardrailRule> loadStructured(String location) {
+    /**
+     * 加载结构化词表；外部覆盖路径资源缺失时 warn 并回落内置缺省文件
+     * （基线词表不因配置漂移静默失效），内置缺省也缺失则空词表。
+     */
+    private static List<GuardrailRule> loadStructured(String location, String defaultLocation) {
         Resource resource = new DefaultResourceLoader().getResource(location);
         if (!resource.exists()) {
+            if (!location.equals(defaultLocation)) {
+                log.warn("护栏词表外部覆盖资源不存在，回落内置缺省文件: {} → {}", location, defaultLocation);
+                return loadStructured(defaultLocation, defaultLocation);
+            }
             log.warn("护栏词表资源不存在，该源视为空词表: {}", location);
             return List.of();
         }
@@ -196,16 +195,12 @@ public final class GuardrailRulesLoader {
     // ── 合并 ──
 
     /**
-     * 三源按 id 合并（LinkedHashMap 保序，同 id 后者覆盖前者）。
-     * 覆盖优先级自低至高：内置默认 → CSV 兼容源 → 结构化文件（外部文件优先，设计定案）。
+     * 双源按 id 合并（LinkedHashMap 保序，同 id 后者覆盖前者）。
+     * 覆盖优先级自低至高：CSV 兼容源 → 结构化文件（外部文件优先，设计定案）。
      */
-    private static List<GuardrailRule> merge(List<GuardrailRule> builtin,
-                                             List<GuardrailRule> legacy,
+    private static List<GuardrailRule> merge(List<GuardrailRule> legacy,
                                              List<GuardrailRule> structured) {
         LinkedHashMap<String, GuardrailRule> byId = new LinkedHashMap<>();
-        for (GuardrailRule rule : builtin) {
-            byId.put(rule.id(), rule);
-        }
         for (GuardrailRule rule : legacy) {
             byId.put(rule.id(), rule);
         }

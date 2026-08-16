@@ -58,8 +58,8 @@ class EvalRunnerInjectionTest {
     }
 
     private static GoldenQAPair injectionCase(String id, AttackType type) {
-        return new GoldenQAPair(id, QACategory.INJECTION, "攻击载荷-" + id,
-            null, null, null, null, type);
+        return new GoldenQAPair(id, QACategory.INJECTION, "样本-" + id,
+            null, null, null, null, type, null, null);
     }
 
     @Test
@@ -84,7 +84,7 @@ class EvalRunnerInjectionTest {
     @Test
     void guardrailPassThroughCountsAsNotBlocked() {
         when(guardrailChatClient.prompt().user(anyString()).call().content())
-            .thenReturn("（攻击载荷穿透 L1 后的任意回答，丢弃）");
+            .thenReturn("（观察集样本穿透 L1 后的任意回答，丢弃）");
 
         EvalReport report = runner(List.of(
             injectionCase("inj-jailbreak-01", AttackType.JAILBREAK))).runFullEval();
