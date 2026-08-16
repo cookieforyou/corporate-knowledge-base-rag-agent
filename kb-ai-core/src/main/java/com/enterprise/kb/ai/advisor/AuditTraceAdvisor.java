@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * 全链路审计日志 Advisor（设计文档 11.2 链序表 order 10 / 11.6，任务 3.12）
@@ -168,6 +169,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                 ctx == null ? null : ctx.getRewrittenQuery(),
                 ctx == null ? List.of() : ctx.getTraceSummary(),
                 ctx == null ? List.of() : ctx.getToolCalls(),
+                ctx == null ? List.of() : ctx.getGuardrailFlags(),
                 latency(startMs));
 
             recordBusinessMetrics(snapshot, error);
@@ -195,6 +197,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             audit.setRerankedChunks(toJsonOrNull(retrievalProjection(s.traceEntries(), true)));
             audit.setFinalAnswer(answer);
             audit.setToolCalls(s.toolCalls().isEmpty() ? null : toJsonOrNull(s.toolCalls()));
+            audit.setGuardrailFlags(flagMarksOf(s.flagMarks()));
             audit.setLatencyMs(s.latencyMs());
             if (chatResponse != null) {
                 audit.setModelName(chatResponse.getMetadata().getModel());
@@ -246,7 +249,8 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     private record AuditSnapshot(String mode, String sessionId, String tenantId, String userId,
                                  String traceId, String rewrittenQuery,
                                  List<RetrievalContext.TraceEntry> traceEntries,
-                                 List<RetrievalContext.ToolCall> toolCalls, int latencyMs) {}
+                                 List<RetrievalContext.ToolCall> toolCalls,
+                                 List<RetrievalContext.FlagMark> flagMarks, int latencyMs) {}
 
     private static int latency(long startMs) {
         return (int) Math.min(System.currentTimeMillis() - startMs, Integer.MAX_VALUE);
@@ -299,6 +303,21 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             log.warn("审计 JSON 序列化失败，字段置空: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * FLAG 观察标记落库形态（安全簇① T7）：{@code side:FAMILY} 分号拼接、去重保序，
+     * 例 {@code input:UNCLASSIFIED;output:COMPLIANCE_SENSITIVE}；无命中为 null。
+     * 有界枚举组合，长度天然受限。
+     */
+    private static String flagMarksOf(List<RetrievalContext.FlagMark> flagMarks) {
+        if (flagMarks.isEmpty()) {
+            return null;
+        }
+        return flagMarks.stream()
+            .map(mark -> mark.side() + ":" + mark.family())
+            .distinct()
+            .collect(Collectors.joining(";"));
     }
 
     private static String textOf(ChatResponse chatResponse) {

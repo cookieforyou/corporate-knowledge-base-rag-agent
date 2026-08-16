@@ -126,6 +126,49 @@ class AiBusinessMetricsTest {
         assertThat(registry.counter("rag.guardrail.output.replaced").count()).isZero();
     }
 
+    // ── FLAG 观察档计数（安全簇① T7：低基数标签 side/family）──
+
+    @Test
+    void flaggedAllSideFamilyCombosPreRegistered() {
+        // 形态钉死：input 侧注入七分法（含 UNCLASSIFIED）8 条 + output 侧三分类 + UNCLASSIFIED 4 条
+        assertThat(registry.find("rag.guardrail.flagged").counters()).hasSize(12);
+    }
+
+    @Test
+    void flaggedCounterSplitBySideAndFamilyTags() {
+        metrics.recordFlagged(AiBusinessMetrics.SIDE_INPUT, "JAILBREAK");
+        metrics.recordFlagged(AiBusinessMetrics.SIDE_INPUT, "JAILBREAK");
+        metrics.recordFlagged(AiBusinessMetrics.SIDE_OUTPUT, "COMPLIANCE_SENSITIVE");
+
+        assertThat(registry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "JAILBREAK").count()).isEqualTo(2.0);
+        assertThat(registry.counter("rag.guardrail.flagged",
+            "side", "output", "family", "COMPLIANCE_SENSITIVE").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "ROLE_HIJACK").count()).isZero();
+    }
+
+    @Test
+    void flaggedUnknownFamilyFallsBackToUnclassifiedBucket() {
+        metrics.recordFlagged(AiBusinessMetrics.SIDE_INPUT, "NOT_A_FAMILY");
+        metrics.recordFlagged(AiBusinessMetrics.SIDE_OUTPUT, null);
+        metrics.recordFlagged(AiBusinessMetrics.SIDE_INPUT, "  ");
+
+        assertThat(registry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "UNCLASSIFIED").count()).isEqualTo(2.0);
+        assertThat(registry.counter("rag.guardrail.flagged",
+            "side", "output", "family", "UNCLASSIFIED").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void flaggedUnknownSideNotCountedAnywhere() {
+        metrics.recordFlagged("sideways", "JAILBREAK");
+
+        double total = registry.find("rag.guardrail.flagged").counters().stream()
+            .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
+        assertThat(total).isZero();
+    }
+
     @Test
     void tokenBudgetRejectedCountsInBothDomains() {
         // 同一事件双计数：成本域 rag.token.budget.rejected + 安全域 rag.guardrail.token.budget

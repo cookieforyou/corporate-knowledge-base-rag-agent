@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.ai.retriever.RetrievalContext;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -48,6 +49,14 @@ class OutputGuardrailAdvisorTest {
             .build();
     }
 
+    /** 带 RetrievalContext 的响应（T7：同步 after() 经 response.context() 取 ctx） */
+    private ChatClientResponse responseWithCtx(String text, RetrievalContext ctx) {
+        return ChatClientResponse.builder()
+            .chatResponse(new ChatResponse(List.of(new Generation(new AssistantMessage(text)))))
+            .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx))
+            .build();
+    }
+
     // ── 同步路径 after() ──
 
     @Test
@@ -82,6 +91,17 @@ class OutputGuardrailAdvisorTest {
         StreamAdvisorChain streamChain = mock(StreamAdvisorChain.class);
         ChatClientRequest request = new ChatClientRequest(
             new Prompt(List.of(new UserMessage("q"))), Map.of());
+        when(streamChain.nextStream(any())).thenReturn(Flux.fromIterable(chunks));
+        return target.adviseStream(request, streamChain);
+    }
+
+    /** 带 RetrievalContext 的流式驱动（T7：adviseStream 经 request 取 ctx） */
+    private Flux<ChatClientResponse> streamThroughWithCtx(OutputGuardrailAdvisor target,
+                                                          List<ChatClientResponse> chunks,
+                                                          RetrievalContext ctx) {
+        StreamAdvisorChain streamChain = mock(StreamAdvisorChain.class);
+        ChatClientRequest request = new ChatClientRequest(
+            new Prompt(List.of(new UserMessage("q"))), Map.of(RetrievalContext.CONTEXT_KEY, ctx));
         when(streamChain.nextStream(any())).thenReturn(Flux.fromIterable(chunks));
         return target.adviseStream(request, streamChain);
     }
@@ -177,6 +197,59 @@ class OutputGuardrailAdvisorTest {
 
         assertThat(target.after(original, chain)).isSameAs(original);
         assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isZero();
+        // T7：无 ctx 形态仍计数（非 Web 入口只计数不落标记）
+        assertThat(meterRegistry.counter("rag.guardrail.flagged",
+            "side", "output", "family", "COMPLIANCE_SENSITIVE").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void flagOnlySyncHitCountsAndWritesCtxMarkViaResponseContext() {
+        // T7：同步 after() 经 response.context() 取 ctx（终端 ChatModelCallAdvisor Map.copyOf 实证）
+        OutputGuardrailAdvisor target = familyAdvisor();
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
+        ChatClientResponse original = responseWithCtx("包含 familytest-flagtoken 的输出", ctx);
+
+        assertThat(target.after(original, chain)).isSameAs(original);
+        assertThat(meterRegistry.counter("rag.guardrail.flagged",
+            "side", "output", "family", "COMPLIANCE_SENSITIVE").count()).isEqualTo(1.0);
+        assertThat(ctx.getGuardrailFlags())
+            .containsExactly(new RetrievalContext.FlagMark("output", "COMPLIANCE_SENSITIVE"));
+    }
+
+    @Test
+    void flagOnlyStreamHitCountsAndWritesCtxMarkViaRequest() {
+        // T7：流式 adviseStream 直接持有 request → ctx 标记同语义
+        OutputGuardrailAdvisor target = familyAdvisor();
+        RetrievalContext ctx = new RetrievalContext();
+
+        List<ChatClientResponse> results =
+            streamThroughWithCtx(target, List.of(response("包含 familytest-"), response("flagtoken 的输出")), ctx)
+                .collectList().block();
+
+        assertThat(results).hasSize(2);
+        assertThat(meterRegistry.counter("rag.guardrail.flagged",
+            "side", "output", "family", "COMPLIANCE_SENSITIVE").count()).isEqualTo(1.0);
+        assertThat(ctx.getGuardrailFlags())
+            .containsExactly(new RetrievalContext.FlagMark("output", "COMPLIANCE_SENSITIVE"));
+    }
+
+    @Test
+    void blockHitDoesNotCountFlagEvenWhenFlagRulesCoMatched() {
+        // BLOCK 替换路径不计 FLAG（内容未放行）——同词表 BLOCK 词与 FLAG 词同文本命中
+        OutputGuardrailAdvisor target = familyAdvisor();
+        RetrievalContext ctx = new RetrievalContext();
+
+        ChatClientResponse result = target.after(
+            responseWithCtx("familytest-confidential 与 familytest-flagtoken 同时出现", ctx), chain);
+
+        assertThat(result.chatResponse().getResult().getOutput().getText())
+            .isEqualTo("抱歉，该内容涉及企业内部保密信息，无法提供。");
+        assertThat(meterRegistry.counter("rag.guardrail.output.replaced.business_confidential").count())
+            .isEqualTo(1.0);
+        assertThat(meterRegistry.find("rag.guardrail.flagged").counters().stream()
+            .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isZero();
+        assertThat(ctx.getGuardrailFlags()).isEmpty();
     }
 
     // ── T5 系统提示金丝雀：回显即确证泄露，校验先于词表判定 ──

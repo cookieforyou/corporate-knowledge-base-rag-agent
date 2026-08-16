@@ -18,7 +18,7 @@
 | `family` | — | 注入侧七族系 / 输出侧三分类枚举名（缺省 `UNCLASSIFIED`，须精确拼写） |
 | `lang` | — | `zh` / `en` / …（缺省空） |
 | `type` | — | `KEYWORD`（缺省）/ `REGEX` |
-| `action` | — | `BLOCK`（缺省）/ `FLAG`。**新词建议先 FLAG 观察，零误伤后转 BLOCK** |
+| `action` | — | `FLAG`（缺省）/ `BLOCK`。**词表变更流程定案（A4）：新增词项默认 FLAG 观察（指标 `rag.guardrail.flagged` + 审计 `guardrail_flags` 可查），零误伤确认后方可显式钉 `BLOCK`** |
 | `encoding` | — | `base64`（value 已编码时声明，脚本校验后原样落盘）；省略 = 明文由脚本编码 |
 
 合法 family 枚举：

@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
@@ -65,6 +66,12 @@ class InputSanitizeAdvisorTest {
         return new ChatClientRequest(
             new Prompt(List.of(new UserMessage(userText))),
             Map.of("trace_start_ms", 1L));
+    }
+
+    private ChatClientRequest requestWithCtx(String userText, RetrievalContext ctx) {
+        return new ChatClientRequest(
+            new Prompt(List.of(new UserMessage(userText))),
+            Map.of(RetrievalContext.CONTEXT_KEY, ctx));
     }
 
     private void assertRejected(String userText, String ruleId) {
@@ -198,7 +205,7 @@ class InputSanitizeAdvisorTest {
             .isEqualTo("PROMPT_INJECTION");
     }
 
-    // ── FLAG 观察档（v2.40，A1）：命中放行只计数，不拒绝 ──
+    // ── FLAG 观察档（v2.40 A1 / v2.43 T7）：命中放行 + 计数 + 审计标记，不拒绝 ──
 
     @Test
     void flagRuleMatchesButDoesNotReject() {
@@ -216,6 +223,49 @@ class InputSanitizeAdvisorTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
             .isEqualTo("PROMPT_INJECTION");
+    }
+
+    @Test
+    void flagHitCountsTaggedMetricAndWritesCtxMark() {
+        // T7：FLAG 放行 → rag.guardrail.flagged{side=input,family} + RetrievalContext 审计标记
+        InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
+
+        ChatClientRequest result = flagged.before(requestWithCtx(
+            "this contains flagtest-alpha token", ctx), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(meterRegistry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "UNCLASSIFIED").count()).isEqualTo(1.0);
+        assertThat(ctx.getGuardrailFlags())
+            .containsExactly(new RetrievalContext.FlagMark("input", "UNCLASSIFIED"));
+    }
+
+    @Test
+    void flagHitWithoutCtxStillCountsMetric() {
+        // 非 Web 入口（无 RetrievalContext）：只计数不落标记，不抛错
+        InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+
+        assertThat(flagged.before(request("this contains flagtest-alpha token"), chain)).isNotNull();
+        assertThat(meterRegistry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "UNCLASSIFIED").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void blockHitDoesNotCountFlagObservation() {
+        // BLOCK 拒绝路径不计 FLAG（请求未放行，观察语义只覆盖放行流量）
+        InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+        RetrievalContext ctx = new RetrievalContext();
+
+        assertThatThrownBy(() -> flagged.before(requestWithCtx("this contains blocktest-beta token", ctx), chain))
+            .isInstanceOf(BusinessException.class);
+        assertThat(meterRegistry.find("rag.guardrail.flagged").counters().stream()
+            .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isZero();
+        assertThat(ctx.getGuardrailFlags()).isEmpty();
     }
 
     // ── 护栏命中计数（簇⑤ B2 S3）──

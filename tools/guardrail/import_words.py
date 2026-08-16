@@ -18,11 +18,12 @@ inbox 文件格式（每文件逐条，文件间合并；.jsonl 与 .csv 均支�
     {"value": "...", "side": "injection|output",
      "family": "七分法/三分类枚举名（可选，缺省 UNCLASSIFIED）",
      "lang": "zh|en|...（可选）", "type": "KEYWORD|REGEX（可选，缺省 KEYWORD）",
-     "action": "BLOCK|FLAG（可选，缺省 BLOCK）",
+     "action": "BLOCK|FLAG（可选，缺省 FLAG——词表变更流程定案 A4：新增 → FLAG 观察
+                （指标+审计可查）→ 零误伤确认后方可转 BLOCK；高置信词项可显式钉 BLOCK）",
      "encoding": "base64（可选——value 已是 Base64 编码态时声明，脚本校验后原样落盘）"}
 
   CSV 首行表头（列序固定）：value,side,family,lang,type,action
-    （CSV 不支持 encoding 列，值一律明文由脚本编码）
+    （CSV 不支持 encoding 列，值一律明文由脚本编码；action 列留空同缺省 FLAG）
 
 用法：
   python3 tools/guardrail/import_words.py --inbox <目录> [--dry-run]
@@ -167,7 +168,8 @@ def normalize_item(obj: dict, loc: str) -> dict:
     rtype = str(obj.get("type", "") or "KEYWORD").strip().upper()
     if rtype not in TYPES:
         raise ImportFailure(f"{loc} type 非法（须 KEYWORD|REGEX）")
-    action = str(obj.get("action", "") or "BLOCK").strip().upper()
+    # 缺省 FLAG（词表变更流程定案 A4）：新增词项先观察，零误伤确认后方可显式转 BLOCK
+    action = str(obj.get("action", "") or "FLAG").strip().upper()
     if action not in ACTIONS:
         raise ImportFailure(f"{loc} action 非法（须 BLOCK|FLAG）")
     lang = str(obj.get("lang", "") or "").strip().lower()

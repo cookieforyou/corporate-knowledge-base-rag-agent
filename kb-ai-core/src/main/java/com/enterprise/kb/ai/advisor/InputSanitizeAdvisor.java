@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
@@ -49,8 +50,14 @@ import java.util.List;
  * 词表——经 {@link GuardrailRulesLoader#loadInjectionRules} 双源合并装载
  * {@link GuardrailRule}（族系 / 动作 / KEYWORD+REGEX 双型；内置基线词项 T2 迁入
  * 结构化文件，字面硬编码退役）。命中按 {@code action} 分流：
- * BLOCK 拒绝（语义不变）、FLAG 观察档放行只计数（{@code rag.guardrail.flagged} T7 接入）。
+ * BLOCK 拒绝（语义不变）、FLAG 观察档放行只计数。
  * 词项 value 编码态存储、加载层解码（第七节敏感词交付纪律条 2）。
+ *
+ * <p><b>v2.43 修正（安全簇① T7，FLAG 观察语义）</b>：FLAG 档命中放行 + 计数
+ * {@code rag.guardrail.flagged}（side=input + family 低基数标签）+ 经参数链
+ * {@link RetrievalContext.FlagMark} 写审计标记（AuditTraceAdvisor 落
+ * kb_audit_log.guardrail_flags）——词表变更流程「新增 → FLAG 观察 → 零误伤确认
+ * 转 BLOCK」的可查面（指标 + 审计）。BLOCK 拒绝路径不计 FLAG（请求未放行）。
  */
 @Slf4j
 @Component
@@ -95,8 +102,8 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
             throw new BusinessException("PROMPT_INJECTION", "检测到 Prompt 注入攻击，请求已被拦截");
         }
         if (!matched.isEmpty()) {
-            // FLAG 观察档：放行，计数指标 rag.guardrail.flagged 于 T7 接入
-            log.info("注入词表 FLAG 观察档命中 {} 条，放行", matched.size());
+            // FLAG 观察档（T7）：放行 + 计数 rag.guardrail.flagged + 审计标记（不拒绝）
+            recordFlagObservation(request, matched);
         }
 
         // 3. PII 脱敏（幂等：掩码形态不会被二次匹配）：先剥零宽防数字串被拆断，
@@ -110,6 +117,28 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
         log.info("PII 掩码触发，用户输入已脱敏后进入后续链路");
         Prompt mutated = prompt.augmentUserMessage(sanitized);
         return new ChatClientRequest(mutated, request.context());
+    }
+
+    /**
+     * FLAG 观察档记录（安全簇① T7）：命中族系去重后逐一计数
+     * {@code rag.guardrail.flagged}（side=input + family）并经参数链写
+     * {@link RetrievalContext.FlagMark} 审计标记（非 Web 入口无 ctx 时只计数）。
+     * 只记事实（族系名 + 计数），不回显命中词值。
+     */
+    private void recordFlagObservation(ChatClientRequest request, List<GuardrailRule> matched) {
+        RetrievalContext ctx = request.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
+            ? rc : null;
+        List<String> families = matched.stream()
+            .map(r -> new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_INPUT, r.family()).family())
+            .distinct()
+            .toList();
+        for (String family : families) {
+            metrics.recordFlagged(AiBusinessMetrics.SIDE_INPUT, family);
+            if (ctx != null) {
+                ctx.addGuardrailFlag(new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_INPUT, family));
+            }
+        }
+        log.info("注入词表 FLAG 观察档命中 {} 条，放行（族系 {}）", matched.size(), families);
     }
 
     @Override

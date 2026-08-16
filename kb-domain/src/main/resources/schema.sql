@@ -101,12 +101,14 @@ CREATE INDEX IF NOT EXISTS idx_session_msg ON kb_message (session_id, created_at
 -- 6. 审计日志表
 -- v2.10 扩展（3.12 审计落地，双链路时代补列）：mode/status/error_code/tool_calls
 -- v2.34 扩展（Phase 4 簇④ 4.7 Bad Case 闭环）：root_cause 根因标注
+-- v2.43 扩展（安全簇① T7 FLAG 观察语义）：guardrail_flags 观察标记
 -- 存量库升级 DDL：
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS mode VARCHAR(10);
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS status VARCHAR(20);
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS error_code VARCHAR(50);
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS tool_calls JSONB;
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS root_cause VARCHAR(20);
+--   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS guardrail_flags VARCHAR(255);
 --   CREATE INDEX IF NOT EXISTS idx_audit_tenant_created ON kb_audit_log (tenant_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS kb_audit_log (
     id              BIGSERIAL PRIMARY KEY,
@@ -129,6 +131,7 @@ CREATE TABLE IF NOT EXISTS kb_audit_log (
     error_code      VARCHAR(50),
     feedback        VARCHAR(10),
     root_cause      VARCHAR(20),
+    guardrail_flags VARCHAR(255),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_audit_trace ON kb_audit_log (trace_id);

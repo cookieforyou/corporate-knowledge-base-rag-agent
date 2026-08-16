@@ -89,6 +89,9 @@ public class RetrievalContext {
     /** 工具调用记录（3.4 HITL）：工具在模型调用线程内写入，Controller 流末读取投影 SSE TOOL_CALL */
     private final List<ToolCall> toolCalls = new CopyOnWriteArrayList<>();
 
+    /** 护栏 FLAG 观察标记（安全簇① T7）：命中侧 advisor 写入，AuditTraceAdvisor 落 kb_audit_log.guardrail_flags */
+    private final List<FlagMark> guardrailFlags = new CopyOnWriteArrayList<>();
+
     /**
      * 向量库安全过滤表达式（懒构建，双检锁）：tenant_id 等值 + 软删除过滤。
      * Phase 3 在此追加 allowed_doc_ids / allowed_dept_ids 维度（10.2.1）。
@@ -150,8 +153,7 @@ public class RetrievalContext {
         return List.copyOf(toolCalls);
     }
 
-    /**
-     * 工具调用记录（3.4 HITL）：工具名 + 状态（PENDING_APPROVAL / EXECUTED / REJECTED）
+    /** 工具调用记录（3.4 HITL）：工具名 + 状态（PENDING_APPROVAL / EXECUTED / REJECTED）
      * + 审批 ID（写工具挂起时携带，前端确认后回传）+ 操作摘要（用户可读确认文案）。
      * 状态常量统一于此（3.13：AiBusinessMetrics 按状态分桶计数，消除散点魔法值）。
      */
@@ -163,5 +165,27 @@ public class RetrievalContext {
         public static final String STATUS_EXECUTED = "EXECUTED";
         /** 审批拒绝/凭证失效 */
         public static final String STATUS_REJECTED = "REJECTED";
+    }
+
+    /** 护栏 FLAG 观察标记写入（安全簇① T7）：命中侧 advisor（输入/输出护栏）调用 */
+    public void addGuardrailFlag(FlagMark mark) {
+        guardrailFlags.add(mark);
+    }
+
+    /** FLAG 观察标记快照（AuditTraceAdvisor 落库数据源；side:FAMILY 去重拼接） */
+    public List<FlagMark> getGuardrailFlags() {
+        return List.copyOf(guardrailFlags);
+    }
+
+    /**
+     * 护栏 FLAG 观察标记（安全簇① T7，词表变更流程定案 A4）：FLAG 档命中只计数 +
+     * 审计标记、不拒绝；side 取 {@code input|output}，family 为命中词项族系
+     * （中性枚举名，注入侧七分法 / 输出侧三分类）。构造即归一化（空白/null →
+     * UNCLASSIFIED，大写化），保证指标 tag 与审计列取值一致。
+     */
+    public record FlagMark(String side, String family) {
+        public FlagMark {
+            family = (family == null || family.isBlank()) ? "UNCLASSIFIED" : family.trim().toUpperCase();
+        }
     }
 }

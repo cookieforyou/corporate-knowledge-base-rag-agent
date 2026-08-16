@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
  * <p>v2.10 扩展（3.12）：mode（双链路问答模式）/ status（SUCCESS/REJECTED/ERROR）/
  * error_code（拒绝错误码）/ tool_calls（工具调用记录 JSON）。
  * <p>v2.34 扩展（簇④ 4.7）：root_cause（Bad Case 根因四分类人工标注）。
+ * <p>v2.43 扩展（安全簇① T7）：guardrail_flags（FLAG 观察标记，side:FAMILY 分号拼接）。
  * <b>注意</b>：ddl-auto=validate，存量库须先执行 schema.sql 注释中的 ALTER 语句。
  */
 @Data
@@ -89,6 +90,15 @@ public class KbAuditLog {
     /** Bad Case 根因标注（簇④ 4.7）：RootCause 四分类之一，未标注为 null */
     @Column(name = "root_cause", length = 20)
     private String rootCause;
+
+    /**
+     * 护栏 FLAG 观察标记（安全簇① T7）：{@code side:FAMILY} 分号拼接
+     * （如 {@code input:UNCLASSIFIED;output:COMPLIANCE_SENSITIVE}），无 FLAG 命中为 null。
+     * FLAG 档命中只计数 + 审计标记、不拒绝——词表变更流程「新增 → FLAG 观察 →
+     * 零误伤确认转 BLOCK」的审计可查面。
+     */
+    @Column(name = "guardrail_flags", length = 255)
+    private String guardrailFlags;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

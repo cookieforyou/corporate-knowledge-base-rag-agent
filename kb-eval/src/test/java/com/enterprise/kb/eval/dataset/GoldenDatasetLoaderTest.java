@@ -189,6 +189,34 @@ class GoldenDatasetLoaderTest {
         }
     }
 
+    // ── 干净回归集零误伤门禁（安全簇① T8，A4）──
+
+    /**
+     * 干净回归集 = 全部非注入用例（正向 + 负向正常问题）：门禁口径为 BLOCK 档
+     * <b>零命中</b>（归一化检测视图，KEYWORD + REGEX 全档）。FLAG 观察档命中
+     * 容忍（观察语义不拒绝）。任一命中即误伤——对应 BLOCK 词项应降 FLAG 档
+     * 或退役（误伤铁律：领域裸词/正常业务表达不入 BLOCK）。
+     */
+    @Test
+    void cleanRegressionSetHasZeroBlockHits() {
+        List<GuardrailRule> blockRules = GuardrailRulesLoader.loadInjectionRules("", "").stream()
+            .filter(r -> r.action() == RuleAction.BLOCK && r.enabled())
+            .toList();
+        long checked = 0;
+        for (GoldenQAPair pair : pairs) {
+            if (pair.isInjection()) {
+                continue;
+            }
+            checked++;
+            String normalized = TextSanitizer.normalize(pair.question());
+            for (GuardrailRule rule : blockRules) {
+                assertFalse(rule.matches(normalized),
+                    pair.id() + " 为正常用例却命中 BLOCK 档词项 " + rule.id() + "（误伤，须降 FLAG 或退役）");
+            }
+        }
+        assertEquals(102, checked, "干净回归集规模 = Golden 总量 - 注入用例（80 正向 + 22 负向）");
+    }
+
     // ── 编码引用形态（安全簇① T2，第七节交付纪律）──
 
     /** 落盘形态不变量：INJECTION 语料全部为 base64 编码 + SHA-256 指纹锚点，无明文 question */

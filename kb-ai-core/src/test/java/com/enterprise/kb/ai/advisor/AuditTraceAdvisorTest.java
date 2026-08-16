@@ -302,4 +302,30 @@ class AuditTraceAdvisorTest {
 
         verifyNoInteractions(repository);
     }
+
+    // ── FLAG 观察标记落库（安全簇① T7）──
+
+    @Test
+    void flagMarksPersistedToGuardrailFlagsColumnDeduplicated() {
+        RetrievalContext ctx = ctxWithTrace();
+        ctx.addGuardrailFlag(new RetrievalContext.FlagMark("input", "JAILBREAK"));
+        ctx.addGuardrailFlag(new RetrievalContext.FlagMark("output", "COMPLIANCE_SENSITIVE"));
+        ctx.addGuardrailFlag(new RetrievalContext.FlagMark("input", "JAILBREAK"));
+        when(callChain.nextCall(any())).thenReturn(response("回答"));
+
+        advisor.adviseCall(request(ctx, "rag", "问题"), callChain);
+
+        KbAuditLog audit = captureSaved();
+        assertThat(audit.getStatus()).isEqualTo("SUCCESS");
+        assertThat(audit.getGuardrailFlags()).isEqualTo("input:JAILBREAK;output:COMPLIANCE_SENSITIVE");
+    }
+
+    @Test
+    void noFlagMarksLeavesGuardrailFlagsColumnNull() {
+        when(callChain.nextCall(any())).thenReturn(response("回答"));
+
+        advisor.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain);
+
+        assertThat(captureSaved().getGuardrailFlags()).isNull();
+    }
 }

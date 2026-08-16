@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.OutputFamily;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -62,6 +64,13 @@ import java.util.stream.Collectors;
  *   <li><b>PII 回显探测钩子位</b>：{@link #piiEchoHit} 簇①只留 FLAG 钩子
  *       （识别器注册表依赖安全簇③ C 组，届时接入）。</li>
  * </ul>
+ *
+ * <p><b>v2.43 修正（安全簇① T7，FLAG 观察语义）</b>：FLAG 档命中（无 BLOCK 命中时）
+ * 放行 + 计数 {@code rag.guardrail.flagged}（side=output + family 低基数标签）
+ * + 写 {@link RetrievalContext.FlagMark} 审计标记。ctx 取用路径实证：同步 after()
+ * 经 {@code response.context()}——终端 ChatModelCallAdvisor 以
+ * {@code Map.copyOf(request.context())} 将 advisor 参数（含本实例）写入响应 context；
+ * 流式 adviseStream 直接持有 request。BLOCK 替换路径不计 FLAG（内容未放行）。
  */
 @Slf4j
 @Component
@@ -115,12 +124,14 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         if (output == null) {
             return response;
         }
+        // ctx 经响应 context 取（实证：终端 ChatModelCallAdvisor 以 Map.copyOf 写入请求 advisor 参数）
+        RetrievalContext ctx = ctxOf(response.context());
         if (canary.leakedIn(output)) {
             metrics.recordOutputCanary();
             log.warn("系统提示金丝雀在输出中回显——确证提示泄露，整段替换");
             return replaceResponse(response, SAFE_RESPONSE_COMPLIANCE);
         }
-        Optional<GuardrailRule> hit = blockHit(output);
+        Optional<GuardrailRule> hit = blockHit(output, ctx);
         if (hit.isEmpty()) {
             return response;
         }
@@ -137,6 +148,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
      */
     @Override
     public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
+        RetrievalContext ctx = ctxOf(request.context());
         return chain.nextStream(request)
             .collectList()
             .flatMapMany(responses -> {
@@ -150,7 +162,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
                     ChatClientResponse last = responses.isEmpty() ? null : responses.get(responses.size() - 1);
                     return Flux.just(replaceResponse(last, SAFE_RESPONSE_COMPLIANCE));
                 }
-                Optional<GuardrailRule> hit = blockHit(fullText);
+                Optional<GuardrailRule> hit = blockHit(fullText, ctx);
                 if (hit.isPresent()) {
                     metrics.recordOutputReplaced(hit.get().family());
                     log.warn("流式输出命中敏感词表（词项 {}，族系 {}），整段替换",
@@ -169,17 +181,34 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
 
     /**
      * 结构化词表命中判定（action 分流）：返回首个 BLOCK 命中词项；
-     * 仅 FLAG 命中时记录观察日志返回 empty（{@code rag.guardrail.flagged} T7 接指标）。
+     * 仅 FLAG 命中时记录观察（T7：计数 rag.guardrail.flagged + 审计标记，放行不替换）。
+     * BLOCK 替换路径不计 FLAG——被替换内容未放行，其 FLAG 族系无观察价值。
      */
-    private Optional<GuardrailRule> blockHit(String text) {
+    private Optional<GuardrailRule> blockHit(String text, RetrievalContext ctx) {
         List<GuardrailRule> matched = TextSanitizer.matchRules(text, outputRules);
         Optional<GuardrailRule> block = matched.stream()
             .filter(r -> r.action() == RuleAction.BLOCK)
             .findFirst();
         if (block.isEmpty() && !matched.isEmpty()) {
-            log.info("输出词表 FLAG 观察档命中 {} 条，放行", matched.size());
+            List<String> families = matched.stream()
+                .map(r -> new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_OUTPUT, r.family()).family())
+                .distinct()
+                .toList();
+            for (String family : families) {
+                metrics.recordFlagged(AiBusinessMetrics.SIDE_OUTPUT, family);
+                if (ctx != null) {
+                    ctx.addGuardrailFlag(new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_OUTPUT, family));
+                }
+            }
+            log.info("输出词表 FLAG 观察档命中 {} 条，放行（族系 {}）", matched.size(), families);
         }
         return block;
+    }
+
+    /** 从 advisor 参数 context 提取检索上下文（无则 null——非 Web 入口只计数不写审计标记） */
+    private static RetrievalContext ctxOf(Map<String, Object> context) {
+        return context != null && context.get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
+            ? rc : null;
     }
 
     /** PII 回显探测钩子位（T5 预留）：识别器注册表依赖安全簇③ C 组，届时接 FLAG 语义 */

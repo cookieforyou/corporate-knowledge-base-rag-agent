@@ -2,12 +2,16 @@ package com.enterprise.kb.ai.metrics;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.guardrail.GuardrailFamily;
+import com.enterprise.kb.commons.guardrail.OutputFamily;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * AI 业务指标统一注册中心（设计文档 13.3，任务 3.13）
@@ -37,7 +41,11 @@ import java.time.Duration;
  *       AuditTraceAdvisor 落 kb_audit_log REJECTED 行，指标供 Prometheus 告警。
  *       安全簇① T5 扩充：{@code output.replaced.{business_confidential /
  *       compliance_sensitive / competitor_comparison}} 三分类子项（switch 收口
- *       独立 Counter，零标签纪律）+ {@code output.canary} 系统提示金丝雀回显拦截</li>
+ *       独立 Counter，零标签纪律）+ {@code output.canary} 系统提示金丝雀回显拦截。
+ *       安全簇① T7 扩充：{@code rag.guardrail.flagged} FLAG 观察档命中计数——
+ *       低基数标签 side=input/output + family 中性枚举（注入侧七分法 ∪ 输出侧
+ *       三分类，各含 UNCLASSIFIED 兜底），side×family 全组合构造期预注册
+ *       （有界枚举，无租户/用户维度，Prometheus 侧 sum/group by 聚合）</li>
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
  *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
@@ -62,13 +70,21 @@ import java.time.Duration;
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
- * 租户级观测走 Redis 账本键与 kb_audit_log。
+ * 租户级观测走 Redis 账本键与 kb_audit_log。唯一标签例外 {@code rag.guardrail.flagged}
+ * （安全簇① T7）：side/family 均为有界中性枚举（任务分解定案的低基数标签形态）。
  *
  * <p>设计稿 13.3 其余指标暂不注册：{@code rag.retrieval.cache.hit}（语义缓存
  * 未实现，Phase 5.6）、{@code rag.llm.*}（模型层调用计数随 Phase 4 可观测增强）。
  */
 @Component
 public class AiBusinessMetrics {
+
+    /** FLAG 观察档命中侧标识（安全簇① T7）：输入护栏 / 输出护栏 */
+    public static final String SIDE_INPUT = "input";
+    public static final String SIDE_OUTPUT = "output";
+
+    /** 族系兜底值（未标注/未知族系统一归口，防 tag 取值漂移） */
+    private static final String FAMILY_UNCLASSIFIED = "UNCLASSIFIED";
 
     private final Counter feedbackLike;
     private final Counter feedbackDislike;
@@ -89,6 +105,8 @@ public class AiBusinessMetrics {
     private final Counter guardrailOutputReplacedComplianceSensitive;
     private final Counter guardrailOutputReplacedCompetitorComparison;
     private final Counter guardrailOutputCanary;
+    /** FLAG 观察档计数（安全簇① T7）：键 side:family，side×family 全组合预注册 */
+    private final Map<String, Counter> guardrailFlagged;
     private final Counter guardrailRateLimited;
     private final Counter guardrailTokenBudget;
     private final Counter documentReindexStarted;
@@ -156,6 +174,30 @@ public class AiBusinessMetrics {
                 .description("输出替换次数——竞品对比分类（安全簇① T5）").register(registry);
         this.guardrailOutputCanary = Counter.builder("rag.guardrail.output.canary")
             .description("系统提示金丝雀回显拦截次数——确证提示泄露（安全簇① T5）").register(registry);
+        // FLAG 观察档计数（安全簇① T7）：side×family 全组合预注册——side 两值、
+        // family 取两套中性枚举（注入侧七分法 ∪ 输出侧三分类，各含 UNCLASSIFIED），
+        // 序列数有界（低基数标签，任务分解定案形态），Prometheus 侧 sum/group by 聚合
+        Map<String, Counter> flagged = new LinkedHashMap<>();
+        for (GuardrailFamily family : GuardrailFamily.values()) {
+            flagged.put(flagKey(SIDE_INPUT, family.name()),
+                Counter.builder("rag.guardrail.flagged")
+                    .description("护栏 FLAG 观察档命中次数——只计数+审计标记不拒绝（安全簇① T7）")
+                    .tags("side", SIDE_INPUT, "family", family.name())
+                    .register(registry));
+        }
+        for (OutputFamily family : OutputFamily.values()) {
+            flagged.put(flagKey(SIDE_OUTPUT, family.name()),
+                Counter.builder("rag.guardrail.flagged")
+                    .description("护栏 FLAG 观察档命中次数——只计数+审计标记不拒绝（安全簇① T7）")
+                    .tags("side", SIDE_OUTPUT, "family", family.name())
+                    .register(registry));
+        }
+        flagged.put(flagKey(SIDE_OUTPUT, FAMILY_UNCLASSIFIED),
+            Counter.builder("rag.guardrail.flagged")
+                .description("护栏 FLAG 观察档命中次数——只计数+审计标记不拒绝（安全簇① T7）")
+                .tags("side", SIDE_OUTPUT, "family", FAMILY_UNCLASSIFIED)
+                .register(registry));
+        this.guardrailFlagged = Map.copyOf(flagged);
         this.guardrailRateLimited = Counter.builder("rag.guardrail.rate.limited")
             .description("租户限流拒绝次数（RateLimitAdvisor，簇⑤ B2 S3）").register(registry);
         this.guardrailTokenBudget = Counter.builder("rag.guardrail.token.budget")
@@ -312,6 +354,30 @@ public class AiBusinessMetrics {
     /** 护栏命中计数（安全簇① T5）：系统提示金丝雀回显——确证提示泄露，整段替换 */
     public void recordOutputCanary() {
         guardrailOutputCanary.increment();
+    }
+
+    /**
+     * 护栏 FLAG 观察档计数（安全簇① T7，词表变更流程定案 A4）：命中只计数 +
+     * 审计标记、不拒绝。side 取 {@link #SIDE_INPUT}/{@link #SIDE_OUTPUT}，
+     * family 为中性枚举名（null/空白/未知族系 → UNCLASSIFIED 兜底桶）；
+     * 未知 side 不计（调用方固定为两侧护栏 advisor）。
+     */
+    public void recordFlagged(String side, String family) {
+        Counter counter = guardrailFlagged.get(flagKey(side, canonicalFamily(family)));
+        if (counter == null) {
+            counter = guardrailFlagged.get(flagKey(side, FAMILY_UNCLASSIFIED));
+        }
+        if (counter != null) {
+            counter.increment();
+        }
+    }
+
+    private static String flagKey(String side, String family) {
+        return side + ":" + family;
+    }
+
+    private static String canonicalFamily(String family) {
+        return (family == null || family.isBlank()) ? FAMILY_UNCLASSIFIED : family.trim().toUpperCase();
     }
 
     /** 护栏命中计数（簇⑤ B2 S3）：租户限流拒绝（RateLimitAdvisor 抛 RATE_LIMITED 前） */
