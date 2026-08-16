@@ -6,7 +6,6 @@ import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.commons.exception.BusinessException;
-import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
@@ -61,7 +60,7 @@ public class McpKnowledgeTools {
     private final McpIdentityGuard identityGuard;
     private final AiBusinessMetrics metrics;
     private final JsonMapper jsonMapper;
-    private final int getDocumentMaxChunks;
+    private final int documentMaxChunks;
 
     public McpKnowledgeTools(HybridDocumentRetriever hybridRetriever,
                              RerankDocumentPostProcessor rerankPostProcessor,
@@ -72,7 +71,7 @@ public class McpKnowledgeTools {
                              McpIdentityGuard identityGuard,
                              AiBusinessMetrics metrics,
                              JsonMapper jsonMapper,
-                             @Value("${rag.mcp.get-document.max-chunks:50}") int getDocumentMaxChunks) {
+                             @Value("${rag.mcp.get-document.max-chunks:50}") int documentMaxChunks) {
         this.hybridRetriever = hybridRetriever;
         this.rerankPostProcessor = rerankPostProcessor;
         this.rewriteQueryTransformer = rewriteQueryTransformer;
@@ -82,7 +81,7 @@ public class McpKnowledgeTools {
         this.identityGuard = identityGuard;
         this.metrics = metrics;
         this.jsonMapper = jsonMapper;
-        this.getDocumentMaxChunks = Math.max(1, getDocumentMaxChunks);
+        this.documentMaxChunks = Math.max(1, documentMaxChunks);
     }
 
     /** 混合检索：改写 → 双路召回 → RRF 融合 → 重排，返回 Top-K 候选（不经 LLM） */
@@ -138,8 +137,8 @@ public class McpKnowledgeTools {
 
         List<ChunkTextView> chunks = chunkRepository.findByDocIdOrderByChunkIndex(documentId).stream()
             .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
-            .limit(getDocumentMaxChunks)
-            .<ChunkTextView>map(c -> new ChunkTextView(c.getChunkIndex(), headingPathOf(c.getMetadata()),
+            .limit(documentMaxChunks)
+            .map(c -> new ChunkTextView(c.getChunkIndex(), headingPathOf(c.getMetadata()),
                 c.getPageNum(), c.getContent()))
             .toList();
         return new DocumentView(doc.getId(), doc.getName(), doc.getType(),
@@ -170,7 +169,7 @@ public class McpKnowledgeTools {
             return null;
         }
         try {
-            Map<String, Object> meta = jsonMapper.readValue(metadataJson, Map.class);
+            Map meta = jsonMapper.readValue(metadataJson, Map.class);
             Object value = meta.get("heading_path");
             return value != null ? String.valueOf(value) : null;
         } catch (Exception e) {
