@@ -110,8 +110,9 @@ rag:
     daily-limit: ${RAG_TOKEN_BUDGET_DAILY_LIMIT:1000000}
   # 安全护栏（3.5/3.6，设计文档 12.1/12.2/12.7）—— 词表本体收编结构化文件
   # guardrail/injection-rules.yml / output-rules.yml（逐条 Base64 编码态，
-  # 安全簇① T2 起字面词表退役）；本处 CSV 键仅保留为运维侧带外扩充兼容源
-  # （并入合并语义）。词表文件外部覆盖：rag.guardrail.rules.injection-location /
+  # 安全簇① T2 起字面词表退役；T3 增 REGEX 结构模式轨，词面经 T4 带外通道
+  # tools/guardrail/import_words.py 注入）；本处 CSV 键仅保留为运维侧带外扩充
+  # 兼容源（并入合并语义）。词表文件外部覆盖：rag.guardrail.rules.injection-location /
   # output-location（classpath:/file: 前缀；资源缺失回落内置缺省文件）。
   guardrail:
     input:
@@ -120,6 +121,10 @@ rag:
     output:
       # 输出检测兼容词表（CSV 并入结构化基线）：留空 → 仅 bundled 基线词表
       blacklist:
+      # 系统提示金丝雀（安全簇① T5）：启动时随机 token 内嵌双链系统提示，
+      # 输出回显即确证提示泄露 → 整段替换 + 指标 rag.guardrail.output.canary
+      canary:
+        enabled: ${RAG_GUARDRAIL_OUTPUT_CANARY_ENABLED:true}
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）
   retrieval:
     rewrite:

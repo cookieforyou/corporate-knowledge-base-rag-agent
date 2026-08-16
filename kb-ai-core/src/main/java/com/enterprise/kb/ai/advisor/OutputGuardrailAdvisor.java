@@ -1,8 +1,10 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.OutputFamily;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
@@ -19,10 +21,11 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * 输出安全护栏（设计文档 12.2，任务 3.6）—— 敏感词/竞品黑名单拦截替换
+ * 输出安全护栏（设计文档 12.2，任务 3.6）—— 敏感词拦截替换 + 系统提示金丝雀
  *
  * <p>Order 110：after() 在内层 Advisor（记忆/检索）之后执行，审查最终输出。
  *
@@ -47,31 +50,56 @@ import java.util.stream.Collectors;
  * （{@code rag.guardrail.flagged} T7 接入）。词项 value 编码态存储、加载层解码
  * （第七节敏感词交付纪律条 2）；KEYWORD 匹配为大小写不敏感子串（较旧版大小写敏感
  * contains 收紧拦截面，安全方向）。
+ *
+ * <p><b>v2.42 修正（安全簇① T5，输出面分类化 + 系统提示金丝雀）</b>：
+ * <ul>
+ *   <li><b>分类化替换</b>：BLOCK 命中按词项 {@code family}（{@link OutputFamily}
+ *       三分类）选取对应安全话术，替换计数按分类落子项指标
+ *       （{@code rag.guardrail.output.replaced.{分类}}，未知族系只计总项）；</li>
+ *   <li><b>系统提示金丝雀</b>（OWASP LLM01 / Rebuff 同款）：校验先于词表判定——
+ *       输出回显 {@link PromptCanary} 运行时随机 token 即确证提示泄露，整段替换
+ *       + 独立指标 {@code rag.guardrail.output.canary}；</li>
+ *   <li><b>PII 回显探测钩子位</b>：{@link #piiEchoHit} 簇①只留 FLAG 钩子
+ *       （识别器注册表依赖安全簇③ C 组，届时接入）。</li>
+ * </ul>
  */
 @Slf4j
 @Component
 public class OutputGuardrailAdvisor implements BaseAdvisor {
 
-    private static final String SAFE_RESPONSE = "抱歉，由于合规要求，无法提供该信息。";
+    /** 默认/合规敏感分类安全话术 */
+    private static final String SAFE_RESPONSE_COMPLIANCE = "抱歉，由于合规要求，无法提供该信息。";
+    private static final String SAFE_RESPONSE_BUSINESS_CONFIDENTIAL =
+        "抱歉，该内容涉及企业内部保密信息，无法提供。";
+    private static final String SAFE_RESPONSE_COMPETITOR_COMPARISON =
+        "抱歉，我们无法提供竞品对比相关的倾向性信息。";
 
     /** 生效结构化词表：双源合并（结构化文件 ∪ CSV 兼容），action 分流 */
     private final List<GuardrailRule> outputRules;
 
-    /** 护栏命中计数（簇⑤ B2 S3）——黑名单替换事件入 Prometheus */
+    /** 护栏命中计数（簇⑤ B2 S3）——替换/金丝雀事件入 Prometheus */
     private final AiBusinessMetrics metrics;
+
+    /** 系统提示金丝雀（T5）：回显校验先于词表判定 */
+    private final PromptCanary canary;
 
     public OutputGuardrailAdvisor(
             @Value("${rag.guardrail.rules.output-location:}") String rulesLocation,
             @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv,
-            AiBusinessMetrics metrics) {
+            AiBusinessMetrics metrics,
+            PromptCanary canary) {
         this.outputRules = GuardrailRulesLoader.loadOutputRules(rulesLocation, blacklistCsv);
         this.metrics = metrics;
+        this.canary = canary;
         long blocks = outputRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
         if (outputRules.isEmpty()) {
-            log.warn("输出护栏词表为空，无拦截词项");
+            log.warn("输出护栏词表为空，无拦截词项（内容经 T4 带外通道注入后生效）");
         } else {
             log.info("输出检测词表加载: {} 条（BLOCK {} / FLAG {}）",
                 outputRules.size(), blocks, outputRules.size() - blocks);
+        }
+        if (canary.enabled()) {
+            log.info("系统提示金丝雀已启用（运行时随机 token，输出回显即拦截）");
         }
     }
 
@@ -80,16 +108,26 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         return request;
     }
 
-    /** 同步路径拦截：命中黑名单整段替换（保留响应上下文供审计/溯源消费） */
+    /** 同步路径拦截：金丝雀回显 → 分类词表命中整段替换（保留响应上下文供审计/溯源消费） */
     @Override
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
         String output = extractText(response);
-        if (output == null || !blocked(output)) {
+        if (output == null) {
             return response;
         }
-        metrics.recordOutputReplaced();
-        log.warn("输出命中敏感词黑名单，已替换为安全话术");
-        return replaceResponse(response);
+        if (canary.leakedIn(output)) {
+            metrics.recordOutputCanary();
+            log.warn("系统提示金丝雀在输出中回显——确证提示泄露，整段替换");
+            return replaceResponse(response, SAFE_RESPONSE_COMPLIANCE);
+        }
+        Optional<GuardrailRule> hit = blockHit(output);
+        if (hit.isEmpty()) {
+            return response;
+        }
+        metrics.recordOutputReplaced(hit.get().family());
+        log.warn("输出命中敏感词表（词项 {}，族系 {}），整段替换为分类安全话术",
+            hit.get().id(), hit.get().family());
+        return replaceResponse(response, safeTextFor(hit.get().family()));
     }
 
     /**
@@ -106,11 +144,19 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
                     .map(OutputGuardrailAdvisor::extractText)
                     .filter(text -> text != null)
                     .collect(Collectors.joining());
-                if (blocked(fullText)) {
-                    metrics.recordOutputReplaced();
-                    log.warn("流式输出命中敏感词黑名单，整段替换为安全话术");
+                if (canary.leakedIn(fullText)) {
+                    metrics.recordOutputCanary();
+                    log.warn("流式输出回显系统提示金丝雀——确证提示泄露，整段替换");
                     ChatClientResponse last = responses.isEmpty() ? null : responses.get(responses.size() - 1);
-                    return Flux.just(replaceResponse(last));
+                    return Flux.just(replaceResponse(last, SAFE_RESPONSE_COMPLIANCE));
+                }
+                Optional<GuardrailRule> hit = blockHit(fullText);
+                if (hit.isPresent()) {
+                    metrics.recordOutputReplaced(hit.get().family());
+                    log.warn("流式输出命中敏感词表（词项 {}，族系 {}），整段替换",
+                        hit.get().id(), hit.get().family());
+                    ChatClientResponse last = responses.isEmpty() ? null : responses.get(responses.size() - 1);
+                    return Flux.just(replaceResponse(last, safeTextFor(hit.get().family())));
                 }
                 return Flux.fromIterable(responses);
             });
@@ -121,17 +167,40 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         return 110;
     }
 
-    /** 结构化词表命中判定（action 分流）：BLOCK 命中即替换；FLAG 观察档放行只计数（T7 接指标） */
-    private boolean blocked(String text) {
+    /**
+     * 结构化词表命中判定（action 分流）：返回首个 BLOCK 命中词项；
+     * 仅 FLAG 命中时记录观察日志返回 empty（{@code rag.guardrail.flagged} T7 接指标）。
+     */
+    private Optional<GuardrailRule> blockHit(String text) {
         List<GuardrailRule> matched = TextSanitizer.matchRules(text, outputRules);
-        if (matched.isEmpty()) {
-            return false;
-        }
-        boolean block = matched.stream().anyMatch(r -> r.action() == RuleAction.BLOCK);
-        if (!block) {
+        Optional<GuardrailRule> block = matched.stream()
+            .filter(r -> r.action() == RuleAction.BLOCK)
+            .findFirst();
+        if (block.isEmpty() && !matched.isEmpty()) {
             log.info("输出词表 FLAG 观察档命中 {} 条，放行", matched.size());
         }
         return block;
+    }
+
+    /** PII 回显探测钩子位（T5 预留）：识别器注册表依赖安全簇③ C 组，届时接 FLAG 语义 */
+    private boolean piiEchoHit(String text) {
+        return false;
+    }
+
+    /** 分类安全话术：未知族系/UNCLASSIFIED 落默认合规话术 */
+    private static String safeTextFor(String family) {
+        if (family == null) {
+            return SAFE_RESPONSE_COMPLIANCE;
+        }
+        try {
+            return switch (OutputFamily.valueOf(family.trim().toUpperCase())) {
+                case BUSINESS_CONFIDENTIAL -> SAFE_RESPONSE_BUSINESS_CONFIDENTIAL;
+                case COMPLIANCE_SENSITIVE -> SAFE_RESPONSE_COMPLIANCE;
+                case COMPETITOR_COMPARISON -> SAFE_RESPONSE_COMPETITOR_COMPARISON;
+            };
+        } catch (IllegalArgumentException e) {
+            return SAFE_RESPONSE_COMPLIANCE;
+        }
     }
 
     /** 空安全文本提取（响应/结果/输出任一环节为空均返回 null） */
@@ -144,10 +213,10 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         return response.chatResponse().getResult().getOutput().getText();
     }
 
-    /** 替换响应：安全话术 + 保留原响应上下文（无原响应时以空上下文兜底） */
-    private static ChatClientResponse replaceResponse(ChatClientResponse original) {
+    /** 替换响应：给定安全话术 + 保留原响应上下文（无原响应时以空上下文兜底） */
+    private static ChatClientResponse replaceResponse(ChatClientResponse original, String safeText) {
         ChatClientResponse.Builder builder = ChatClientResponse.builder()
-            .chatResponse(new ChatResponse(List.of(new Generation(new AssistantMessage(SAFE_RESPONSE)))));
+            .chatResponse(new ChatResponse(List.of(new Generation(new AssistantMessage(safeText)))));
         if (original != null && original.context() != null) {
             builder.context(original.context());
         }

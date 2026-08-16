@@ -89,13 +89,41 @@ class AiBusinessMetricsTest {
         metrics.recordInjectionBlocked();
         metrics.recordInjectionBlocked();
         metrics.recordPiiMasked();
-        metrics.recordOutputReplaced();
+        metrics.recordOutputReplaced("COMPLIANCE_SENSITIVE");
         metrics.recordRateLimited();
 
         assertThat(registry.counter("rag.guardrail.injection.blocked").count()).isEqualTo(2.0);
         assertThat(registry.counter("rag.guardrail.pii.masked").count()).isEqualTo(1.0);
         assertThat(registry.counter("rag.guardrail.output.replaced").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.output.replaced.compliance_sensitive").count())
+            .isEqualTo(1.0);
         assertThat(registry.counter("rag.guardrail.rate.limited").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void outputReplacedFamilySubCountersSplitByClassification() {
+        // 安全簇① T5：总项恒计 + 三分类子项 switch 收口；未知族系只计总项
+        metrics.recordOutputReplaced("BUSINESS_CONFIDENTIAL");
+        metrics.recordOutputReplaced("COMPETITOR_COMPARISON");
+        metrics.recordOutputReplaced("COMPETITOR_COMPARISON");
+        metrics.recordOutputReplaced("UNCLASSIFIED");
+        metrics.recordOutputReplaced(null);
+
+        assertThat(registry.counter("rag.guardrail.output.replaced").count()).isEqualTo(5.0);
+        assertThat(registry.counter("rag.guardrail.output.replaced.business_confidential").count())
+            .isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.output.replaced.compliance_sensitive").count())
+            .isZero();
+        assertThat(registry.counter("rag.guardrail.output.replaced.competitor_comparison").count())
+            .isEqualTo(2.0);
+    }
+
+    @Test
+    void outputCanaryCounterRecordsPromptLeakEvents() {
+        metrics.recordOutputCanary();
+
+        assertThat(registry.counter("rag.guardrail.output.canary").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.output.replaced").count()).isZero();
     }
 
     @Test

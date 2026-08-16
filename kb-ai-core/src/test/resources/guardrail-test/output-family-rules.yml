@@ -1,0 +1,25 @@
+# OutputGuardrailAdvisorTest 输出分类化测试词表（无害占位词，无敏感语义）
+# location 覆盖为「替换缺省文件」语义——本文件自带三分类 BLOCK + FLAG 档占位词，
+# 独立验证分类安全话术与指标子项，不依赖 bundled 基线。
+rules:
+- id: out-family-test-01
+  family: BUSINESS_CONFIDENTIAL
+  lang: zh
+  type: KEYWORD
+  value: "ZmFtaWx5dGVzdC1jb25maWRlbnRpYWw="
+  action: BLOCK
+  enabled: true
+- id: out-family-test-02
+  family: COMPETITOR_COMPARISON
+  lang: en
+  type: KEYWORD
+  value: "ZmFtaWx5dGVzdC1jb21wZXRpdG9y"
+  action: BLOCK
+  enabled: true
+- id: out-flag-test-01
+  family: COMPLIANCE_SENSITIVE
+  lang: en
+  type: KEYWORD
+  value: "ZmFtaWx5dGVzdC1mbGFndG9rZW4="
+  action: FLAG
+  enabled: true

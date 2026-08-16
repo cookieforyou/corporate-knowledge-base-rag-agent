@@ -14,7 +14,13 @@
 #   enabled —— 停用开关
 #
 # 双源合并：本文件（内置基线已 T2 迁入）∪ rag.guardrail.input.injection-keywords（兼容并入）。
-# 误伤铁律：领域裸词不入 BLOCK 档；可疑词先 FLAG，零误伤后转 BLOCK。
+# 误伤铁律：领域裸词不入 BLOCK 档；可疑词/可疑模式先 FLAG，零误伤后转 BLOCK。
+#
+# 词项来源：builtin-inj-01..14 = T2 存量干词迁移（KEYWORD，UNCLASSIFIED 待标注）；
+# builtin-inj-15..30 = T3 REGEX 结构模式轨（动词×宾语组合句式 + 编码特征模式，
+# 经 T4 通道 tools/guardrail/import_words.py 编码落盘，指纹见 import-manifest.json；
+# 原 15 号为 T2 未解析占位符残留词项，已退役并由 REGEX 词项复用该序号）。
+# 扩充干词经 T4 带外通道注入（默认前缀 import-inj-NN），模式与词面均不回显。
 rules:
 - id: builtin-inj-01
   family: UNCLASSIFIED
@@ -115,9 +121,114 @@ rules:
   action: BLOCK
   enabled: true
 - id: builtin-inj-15
-  family: UNCLASSIFIED
-  lang: en
-  type: KEYWORD
-  value: JHtSQUdfR1VBUkRSQUlMX0lOSkVDVElPTl9LRVlXT1JEUzp9
+  family: INSTRUCTION_OVERRIDE
+  lang: zh
+  type: REGEX
+  value: "KD865b+955WlfOaXoOinhnzlv5jorrB86Lez6L+HfOe7lei/hykuezAsMTJ9KD865oyH5LukfOaPkOekuuivjXzns7vnu5/mj5DnpLp86K6+5a6afOe6puadnyk="
   action: BLOCK
+  enabled: true
+- id: builtin-inj-16
+  family: INSTRUCTION_OVERRIDE
+  lang: en
+  type: REGEX
+  value: "XGIoPzppZ25vcmV8ZGlzcmVnYXJkfGZvcmdldHxza2lwfGJ5cGFzcylcYi57MCwyNH1cYig/Omluc3RydWN0aW9ucz98cHJvbXB0cz98Z3VpZGVsaW5lc3xjb25zdHJhaW50c3xzZXR0aW5ncylcYg=="
+  action: BLOCK
+  enabled: true
+- id: builtin-inj-17
+  family: INFO_EXTRACTION
+  lang: zh
+  type: REGEX
+  value: "KD866L6T5Ye6fOivtOWHunzmiZPljbB86YeN5aSNfOWkjei/sHzmmL7npLp85ZGK6K+J5oiRfOazhOmcsnzog4zor7UpLnswLDEyfSg/Ouezu+e7n+aPkOekunzliJ3lp4vmjIfku6R85o+Q56S66K+NfOWGhemDqOiuvuWumnzkvaDnmoTorr7lrpop"
+  action: BLOCK
+  enabled: true
+- id: builtin-inj-18
+  family: INFO_EXTRACTION
+  lang: en
+  type: REGEX
+  value: "XGIoPzpyZXZlYWx8c2hvd3xkaXNwbGF5fHByaW50fHJlcGVhdHxvdXRwdXR8ZGlzY2xvc2UpXGIuezAsMzJ9XGIoPzpzeXN0ZW0gcHJvbXB0fGluaXRpYWwgaW5zdHJ1Y3Rpb25zP3x5b3VyIGluc3RydWN0aW9ucz98eW91ciBwcm9tcHR8eW91ciBydWxlcylcYg=="
+  action: BLOCK
+  enabled: true
+- id: builtin-inj-19
+  family: TOOL_INDUCED
+  lang: zh
+  type: REGEX
+  value: "KD865LiN6KaBfOWIq3zor7fli7985peg6ZyAfOS4jeeUqCkuezAsOH0oPzrorrDlvZV855WZ55eVfOWGmeWFpSkuezAsMTJ9KD865pel5b+XfOWuoeiuoXzmnKzmrKF86L+Z5qyhfOaTjeS9nCk="
+  action: BLOCK
+  enabled: true
+- id: builtin-inj-20
+  family: TOOL_INDUCED
+  lang: zh
+  type: REGEX
+  value: "KD865o6I5LqIfOi1i+S6iHzmj5DljYd85YiH5o2i5YiwfOe7meaIkXzorqnmiJHmi6XmnIkpLnswLDEwfSg/OueuoeeQhuWRmHxyb290fOi2hee6p+eUqOaIt3zlvIDlj5HogIUpLnswLDh9KD865p2D6ZmQfOi6q+S7vSk="
+  action: BLOCK
+  enabled: true
+- id: builtin-inj-21
+  family: INSTRUCTION_OVERRIDE
+  lang: zh
+  type: REGEX
+  value: "KD865b+955WlfOaXoOinhnzot7Pov4d857uV6L+HfOS4jeW/hemBteWuiHzkuI3opoHpgbXlrogpLnswLDEyfSg/OuinhOWImXzpmZDliLZ86KaB5rGCfOa1geeoiyk="
+  action: FLAG
+  enabled: true
+- id: builtin-inj-22
+  family: ROLE_HIJACK
+  lang: zh
+  type: REGEX
+  value: "KD865L2g546w5Zyo5pivfOS7jueOsOWcqOi1t+S9oOaYr3zor7fkvaDmia7mvJR85YyW6LqrfOWIh+aNouS4unzov5vlhaXop5LoibIpLnswLDE2fSg/OuaooeW8j3zop5LoibJ85Lq65qC8fOeKtuaAgSk="
+  action: FLAG
+  enabled: true
+- id: builtin-inj-23
+  family: ROLE_HIJACK
+  lang: en
+  type: REGEX
+  value: "XGIoPzphY3QgYXN8cHJldGVuZCB0byBiZXxwcmV0ZW5kIHlvdSBhcmV8eW91IGFyZSBub3cpXGIuezAsMzJ9XGIoPzpubyByZXN0cmljdGlvbnM/fHVucmVzdHJpY3RlZHx3aXRob3V0ICg/OnJ1bGVzP3xsaW1pdHM/KXxkZXZlbG9wZXIgbW9kZSlcYg=="
+  action: FLAG
+  enabled: true
+- id: builtin-inj-24
+  family: JAILBREAK
+  lang: zh
+  type: REGEX
+  value: "KD866L+b5YWlfOW8gOWQr3zlkK/liqh85YiH5o2ifOWQr+eUqCkuezAsNn0oPzrlvIDlj5HogIXmqKHlvI985peg6ZmQ5Yi25qih5byPfOi2iueLseaooeW8j3zoh6rnlLHmqKHlvI985oG26a2U5qih5byPKQ=="
+  action: FLAG
+  enabled: true
+- id: builtin-inj-25
+  family: JAILBREAK
+  lang: zh
+  type: REGEX
+  value: "KD865YGH6K6+fOWBh+WmgnzlpoLmnpwpLnswLDE2fSg/OuayoeacieS7u+S9lT/pmZDliLZ85LiN5Y+XKD865Lu75L2VKT8oPzrpmZDliLZ857qm5p2ffOinhOWImSl85rKh5pyJ6YGT5b6357qm5p2fKS57MCwyMH0oPzrkvaDkvJp85L2g5Y+v5LulfOivt3zlkYror4nmiJEp"
+  action: FLAG
+  enabled: true
+- id: builtin-inj-26
+  family: JAILBREAK
+  lang: en
+  type: REGEX
+  value: "XGIoPzpoeXBvdGhldGljYWxseXxpbWFnaW5lfHN1cHBvc2V8d2hhdCBpZilcYi57MCw0MH1cYig/Om5vICg/OnJlc3RyaWN0aW9ucz98cnVsZXM/fGxpbWl0cz98Z3VpZGVsaW5lcz8pfHdpdGhvdXQgKD86YW55ICk/KD86cmVzdHJpY3Rpb25zP3xydWxlcz98bGltaXRzPykpXGI="
+  action: FLAG
+  enabled: true
+- id: builtin-inj-27
+  family: ENCODING_OBFUSCATION
+  lang: mixed
+  type: REGEX
+  value: "KD86YmFzZTY0fHJvdDEzfGhleHzljYHlha3ov5vliLZ85pGp5pavfOWHr+aSkikuezAsMjB9KD866Kej56CBfOino+Wvhnzov5jljp9857+76K+RKS57MCwyMH0oPzrmiafooYx86L+Q6KGMfOeFp+WBmnzpgbXlvqp85b2T5L2c5oyH5LukKQ=="
+  action: FLAG
+  enabled: true
+- id: builtin-inj-28
+  family: INFO_EXTRACTION
+  lang: zh
+  type: REGEX
+  value: "KD8644CQfDx8XFspKD8657O757uffHN5c3RlbSkuezAsNn0oPzrmjIfku6R85o+Q56S6fOa2iOaBr3xwcm9tcHQpKD8644CRfD58XF0p"
+  action: FLAG
+  enabled: true
+- id: builtin-inj-29
+  family: INFO_EXTRACTION
+  lang: mixed
+  type: REGEX
+  value: "KD865ZGK6K+J5oiRfOi+k+WHunzmj5Dkvpt85rOE6ZyyfHRlbGwgbWV8c2hvdyBtZXxnaXZlIG1lKS57MCwxNn0oPzphcGlbIC1dP2tleXxzZWNyZXR85a+G6ZKlfOWHreivgXzmlbDmja7lupPlr4bnoIEp"
+  action: FLAG
+  enabled: true
+- id: builtin-inj-30
+  family: JAILBREAK
+  lang: zh
+  type: REGEX
+  value: "KD865LuF6ZmQ5pys5qyhfOS7heatpOS4gOasoXzkuIvkuI3kuLrkvot85Y+q5pyJ5LiA5qyhKS57MCwxMn0oPzrkvovlpJZ86LGB5YWNfOaUvuWuvXznoLTkvosp"
+  action: FLAG
   enabled: true

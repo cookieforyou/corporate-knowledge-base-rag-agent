@@ -32,10 +32,15 @@ class GuardrailRulesLoaderTest {
     void emptyConfigLoadsBundledBaselineWordlist() {
         List<GuardrailRule> rules = GuardrailRulesLoader.loadInjectionRules(null, "");
 
-        // bundled 结构化文件随 jar 发布即基线词表（T2 字面词表迁入）
+        // bundled 结构化文件随 jar 发布即基线词表（T2 字面词表迁入；T3 增 REGEX 轨）
         assertThat(rules).isNotEmpty();
-        assertThat(rules).allMatch(r -> r.action() == RuleAction.BLOCK && r.enabled());
+        assertThat(rules).allMatch(GuardrailRule::enabled);
         assertThat(rules).anyMatch(r -> r.id().startsWith("builtin-inj-"));
+        // T3 形态：KEYWORD + REGEX 双型、BLOCK + FLAG 双档并存
+        assertThat(rules).anyMatch(r -> r.type() == RuleType.KEYWORD);
+        assertThat(rules).anyMatch(r -> r.type() == RuleType.REGEX && r.compiled() != null);
+        assertThat(rules).anyMatch(r -> r.action() == RuleAction.BLOCK);
+        assertThat(rules).anyMatch(r -> r.action() == RuleAction.FLAG);
     }
 
     @Test
@@ -63,14 +68,13 @@ class GuardrailRulesLoaderTest {
 
     @Test
     void outputBaselineLoadsFromBundledFileAndMergesCsv() {
-        // 输出侧无内置默认源，基线来自 bundled output-rules.yml（T2 存量黑名单迁入）
+        // T5 起输出侧 bundled 基线为空形态（两条占位词退役，词项内容经 T4 带外通道
+        // 注入后生效）——加载器照常装载空基线，CSV 并入语义不变
         List<GuardrailRule> baseline = GuardrailRulesLoader.loadOutputRules(null, "");
-        assertThat(baseline).isNotEmpty();
-        assertThat(baseline).anyMatch(r -> r.id().startsWith("builtin-out-"));
+        assertThat(baseline).isEmpty();
 
         List<GuardrailRule> merged = GuardrailRulesLoader.loadOutputRules(null, "输出测试词");
         assertThat(byId(merged, "legacy-csv-0").value()).isEqualTo("输出测试词");
-        assertThat(merged).anyMatch(r -> r.id().startsWith("builtin-out-"));
     }
 
     @Test

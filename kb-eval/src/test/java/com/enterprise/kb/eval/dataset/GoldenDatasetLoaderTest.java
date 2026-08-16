@@ -3,6 +3,7 @@ package com.enterprise.kb.eval.dataset;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleAction;
+import com.enterprise.kb.commons.guardrail.RuleType;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,7 @@ class GoldenDatasetLoaderTest {
         long negatives = pairs.stream().filter(GoldenQAPair::isNegative).count();
         assertEquals(22, negatives, "负向用例应为 22 条");
         long injections = pairs.stream().filter(GoldenQAPair::isInjection).count();
-        assertEquals(48, injections, "注入攻击用例应为 48 条（DIRECT 15 + 其余三类各 11）");
+        assertEquals(48, injections, "注入攻击用例应为 48 条（DIRECT 16 + ENCODING_BYPASS 11 + JAILBREAK 10 + MULTILINGUAL 11，v2.42 重归 1 条）");
         // 负向占比以问答质量用例为分母（INJECTION 是安全测试集，非问答负向集）
         long nonInjection = pairs.size() - injections;
         assertTrue(negatives * 5 >= nonInjection, "负向占比须 ≥ 20%（16.1 分布目标）");
@@ -141,10 +142,17 @@ class GoldenDatasetLoaderTest {
     /**
      * 样本与 L1 词表防域自洽（防门禁假红/假绿）：以随 jar 发布的结构化基线词表
      * （{@code guardrail/injection-rules.yml}，BLOCK 档启用词项）逐条编程式校验——
-     * DIRECT 归一后必命中干词；ENCODING_BYPASS 归一前不命中（编码必须真实存在）
-     * 且归一后命中（S1 视图必须还原）；JAILBREAK/MULTILINGUAL 归一前后均不命中
-     * （L1 不拦截属设计行为，观察集）。
-     * 注：安全簇① T2 起字面词表退役，本校验锚定结构化词表 bundled 基线；
+     * DIRECT 归一后必命中；ENCODING_BYPASS 归一前不命中 KEYWORD 档（编码必须真实
+     * 存在于干词层）且归一后命中（S1 视图必须还原）；JAILBREAK/MULTILINGUAL 归一
+     * 前后均不命中（L1 不拦截属设计行为，观察集）。
+     *
+     * <p><b>v2.42 语义演进（安全簇① T3，REGEX 结构模式轨）</b>：ENCODING_BYPASS
+     * 的「归一前不命中」契约收窄至 KEYWORD 档——编码绕过的手法和度量对象是干词字面
+     * 匹配，REGEX 轨以动词×宾语组合句式独立于编码层工作，其归一前命中属结构检测
+     * 正常行为，不否定编码有效性。观察集契约保持全档严格：样本若命中任一 BLOCK 档
+     * （含 REGEX）即不再是 L1 盲区，应重归门禁子集（attackType 改 DIRECT）。
+     *
+     * <p>注：安全簇① T2 起字面词表退役，本校验锚定结构化词表 bundled 基线；
      * 生产以外部词表覆盖时须同步更新样本集。
      */
     @Test
@@ -153,24 +161,30 @@ class GoldenDatasetLoaderTest {
             .filter(r -> r.action() == RuleAction.BLOCK && r.enabled())
             .toList();
         assertFalse(blockRules.isEmpty(), "bundled 基线词表不得为空（门禁自洽锚点失效）");
+        List<GuardrailRule> blockKeywords = blockRules.stream()
+            .filter(r -> r.type() == RuleType.KEYWORD)
+            .toList();
         for (GoldenQAPair pair : pairs) {
             if (!pair.isInjection()) {
                 continue;
             }
             String raw = pair.question();
-            boolean rawHit = blockRules.stream().anyMatch(r -> r.matches(raw));
+            boolean rawKeywordHit = blockKeywords.stream().anyMatch(r -> r.matches(raw));
             boolean normalizedHit = blockRules.stream().anyMatch(r -> r.matches(TextSanitizer.normalize(raw)));
             switch (pair.attackType()) {
                 case DIRECT -> assertTrue(normalizedHit,
-                    pair.id() + " 为 DIRECT 却未命中词表干词（归一化后）");
+                    pair.id() + " 为 DIRECT 却未命中词表（归一化后）");
                 case ENCODING_BYPASS -> {
-                    assertFalse(rawHit,
-                        pair.id() + " 为 ENCODING_BYPASS 但归一前已命中（编码无效，应归 DIRECT）");
+                    assertFalse(rawKeywordHit,
+                        pair.id() + " 为 ENCODING_BYPASS 但归一前已命中干词（编码无效，应归 DIRECT）");
                     assertTrue(normalizedHit,
                         pair.id() + " 为 ENCODING_BYPASS 却未被 S1 归一化还原命中");
                 }
-                case JAILBREAK, MULTILINGUAL -> assertFalse(rawHit || normalizedHit,
-                    pair.id() + " 为观察集却命中词表干词（应归门禁子集）");
+                case JAILBREAK, MULTILINGUAL -> {
+                    boolean rawHit = blockRules.stream().anyMatch(r -> r.matches(raw));
+                    assertFalse(rawHit || normalizedHit,
+                        pair.id() + " 为观察集却命中 BLOCK 档（含 REGEX 轨，应归门禁子集）");
+                }
             }
         }
     }

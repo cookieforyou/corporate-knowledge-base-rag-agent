@@ -34,7 +34,10 @@ import java.time.Duration;
  *   <li>{@code rag.guardrail.injection.blocked / pii.masked / output.replaced /
  *       rate.limited / token.budget}——护栏命中计数（簇⑤ B2，S3），按事件类型
  *       分列注册（与 tool.call 分桶同形态）；注入/限流/预算拒绝同时经
- *       AuditTraceAdvisor 落 kb_audit_log REJECTED 行，指标供 Prometheus 告警</li>
+ *       AuditTraceAdvisor 落 kb_audit_log REJECTED 行，指标供 Prometheus 告警。
+ *       安全簇① T5 扩充：{@code output.replaced.{business_confidential /
+ *       compliance_sensitive / competitor_comparison}} 三分类子项（switch 收口
+ *       独立 Counter，零标签纪律）+ {@code output.canary} 系统提示金丝雀回显拦截</li>
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
  *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
@@ -82,6 +85,10 @@ public class AiBusinessMetrics {
     private final Counter guardrailInjectionBlocked;
     private final Counter guardrailPiiMasked;
     private final Counter guardrailOutputReplaced;
+    private final Counter guardrailOutputReplacedBusinessConfidential;
+    private final Counter guardrailOutputReplacedComplianceSensitive;
+    private final Counter guardrailOutputReplacedCompetitorComparison;
+    private final Counter guardrailOutputCanary;
     private final Counter guardrailRateLimited;
     private final Counter guardrailTokenBudget;
     private final Counter documentReindexStarted;
@@ -135,7 +142,20 @@ public class AiBusinessMetrics {
         this.guardrailPiiMasked = Counter.builder("rag.guardrail.pii.masked")
             .description("PII 掩码触发次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
         this.guardrailOutputReplaced = Counter.builder("rag.guardrail.output.replaced")
-            .description("输出黑名单整段替换次数（OutputGuardrailAdvisor，簇⑤ B2 S3）").register(registry);
+            .description("输出敏感词表整段替换次数（OutputGuardrailAdvisor，簇⑤ B2 S3）").register(registry);
+        // 输出面分类化子项（安全簇① T5）：按 OutputFamily 三分类分列——零标签纪律下
+        // 经 recordOutputReplaced(family) switch 收口为独立 Counter（不加 family 标签）
+        this.guardrailOutputReplacedBusinessConfidential =
+            Counter.builder("rag.guardrail.output.replaced.business_confidential")
+                .description("输出替换次数——业务保密分类（安全簇① T5）").register(registry);
+        this.guardrailOutputReplacedComplianceSensitive =
+            Counter.builder("rag.guardrail.output.replaced.compliance_sensitive")
+                .description("输出替换次数——合规敏感分类（安全簇① T5）").register(registry);
+        this.guardrailOutputReplacedCompetitorComparison =
+            Counter.builder("rag.guardrail.output.replaced.competitor_comparison")
+                .description("输出替换次数——竞品对比分类（安全簇① T5）").register(registry);
+        this.guardrailOutputCanary = Counter.builder("rag.guardrail.output.canary")
+            .description("系统提示金丝雀回显拦截次数——确证提示泄露（安全簇① T5）").register(registry);
         this.guardrailRateLimited = Counter.builder("rag.guardrail.rate.limited")
             .description("租户限流拒绝次数（RateLimitAdvisor，簇⑤ B2 S3）").register(registry);
         this.guardrailTokenBudget = Counter.builder("rag.guardrail.token.budget")
@@ -271,9 +291,27 @@ public class AiBusinessMetrics {
         guardrailPiiMasked.increment();
     }
 
-    /** 护栏命中计数（簇⑤ B2 S3）：输出黑名单整段替换（OutputGuardrailAdvisor，非拒绝型干预） */
-    public void recordOutputReplaced() {
+    /**
+     * 护栏命中计数（簇⑤ B2 S3 / 安全簇① T5）：输出敏感词表整段替换
+     * （OutputGuardrailAdvisor，非拒绝型干预）——总项恒计，命中词项族系属
+     * OutputFamily 三分类时另计对应分类子项（未知族系只计总项）。
+     */
+    public void recordOutputReplaced(String family) {
         guardrailOutputReplaced.increment();
+        if (family == null) {
+            return;
+        }
+        switch (family.trim().toUpperCase()) {
+            case "BUSINESS_CONFIDENTIAL" -> guardrailOutputReplacedBusinessConfidential.increment();
+            case "COMPLIANCE_SENSITIVE" -> guardrailOutputReplacedComplianceSensitive.increment();
+            case "COMPETITOR_COMPARISON" -> guardrailOutputReplacedCompetitorComparison.increment();
+            default -> { /* 未知/UNCLASSIFIED 族系只计总项——零标签纪律下的键收口 */ }
+        }
+    }
+
+    /** 护栏命中计数（安全簇① T5）：系统提示金丝雀回显——确证提示泄露，整段替换 */
+    public void recordOutputCanary() {
+        guardrailOutputCanary.increment();
     }
 
     /** 护栏命中计数（簇⑤ B2 S3）：租户限流拒绝（RateLimitAdvisor 抛 RATE_LIMITED 前） */

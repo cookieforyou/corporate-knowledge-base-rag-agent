@@ -6,6 +6,7 @@ import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.agent.tool.EnterpriseMockTools;
+import com.enterprise.kb.ai.guardrail.PromptCanary;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -60,12 +61,15 @@ public class ToolAgentChatClientConfig {
                                           OutputGuardrailAdvisor outputGuardrailAdvisor,
                                           InputSanitizeAdvisor inputSanitizeAdvisor,
                                           ToolCallingAdvisor agentToolCallingAdvisor,
-                                          EnterpriseMockTools enterpriseMockTools) {
+                                          EnterpriseMockTools enterpriseMockTools,
+                                          PromptCanary promptCanary) {
         // 同 ragAgentChatClient：单参 builder 默认 NOOP registry，chat_client/Advisor
         // 观测静默缺失——显式传入应用 ObservationRegistry（簇① 碎片化定案）
+        // 系统提示金丝雀（安全簇① T5）：与 rag 链同一 PromptCanary Bean，
+        // 输出回显由共享 OutputGuardrailAdvisor 聚合后验拦截
         return ChatClient.builder(chatModel, observationRegistry, null, null)
-            .defaultSystem("你是企业事务 Agent 助手。根据用户需求调用企业内部工具完成查询和操作，"
-                + "写操作须经用户审批确认后才会真正执行。")
+            .defaultSystem(promptCanary.embed("你是企业事务 Agent 助手。根据用户需求调用企业内部工具完成查询和操作，"
+                + "写操作须经用户审批确认后才会真正执行。"))
             .defaultAdvisors(
                 auditTraceAdvisor,
                 tokenBudgetAdvisor,

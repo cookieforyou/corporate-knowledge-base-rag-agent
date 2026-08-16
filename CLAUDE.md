@@ -71,7 +71,7 @@ kb-rag-agent/
 - 前端对话窗：sessionId 多轮 + rag/tool 切换 + TOOL_CALL 审批卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空双路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测（仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**
-- **词表工程（簇① v2.41）**：词表结构化+字面退役——词项模型（id/family/lang/type/value/action/enabled，value 逐条 Base64 编码加载层解码）+`GuardrailRulesLoader` 双源合并（结构化文件∪CSV 兼容，外部缺失回落缺省文件）；内置基线编码态落 `guardrail/injection-rules.yml`/`output-rules.yml`（builtin-inj/out-*，字面源退役）；三消费方同源按 action 分流（BLOCK 拒/FLAG 放行）；攻击语料引用形态（base64+sha256 锚点，解码+指纹校验）；全产出物零字面载荷；见 §12.7
+- **词表工程（簇① v2.42）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV，外部缺失回落缺省）；基线编码态落 guardrail/*-rules.yml（字面源退役）；REGEX 模式轨 builtin-inj-15..30（BLOCK 6/FLAG 10，领域裸词不入 BLOCK）；带外导入 tools/guardrail/import_words.py（编码并库/退役，AI 零接触词面）；输出三分类+分类话术+系统提示金丝雀（回显→替换+独立指标）；语料引用形态（base64+指纹锚点）；产出物零字面载荷；见 §12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId+userId upsert 可改评；归属 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档 `ChatSessionService` 异步旁路；历史会话：会话端点 + 过期续聊回填；kb-eval 零 Redis 依赖
 - 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；Golden 150 条（含注入 48，门禁限 L1 子集；chunk ID 确定性锚点）

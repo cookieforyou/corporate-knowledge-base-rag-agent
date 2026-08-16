@@ -1,0 +1,182 @@
+{
+  "description": "安全簇① T4 带外导入指纹清单（仅元数据，无词值）",
+  "entries": [
+    {
+      "id": "builtin-inj-15",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "24271627e0c3ebbda0a6af5e8f15085fc0e8ae98a9a71b3d5b56159a7e953e00",
+      "char_len": 46
+    },
+    {
+      "id": "builtin-inj-16",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "f063afcaae725402e1e3a83284a655906e33caa2789851e876c644f22a825123",
+      "char_len": 112
+    },
+    {
+      "id": "builtin-inj-17",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "4240744e6c691fe0ccb518794c5e6eed46e8fdb6f813f970c10713ce8b8bb968",
+      "char_len": 65
+    },
+    {
+      "id": "builtin-inj-18",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "5152a4a10f33b42e29404006f864d90644e9983db7765fcd152326093840b109",
+      "char_len": 148
+    },
+    {
+      "id": "builtin-inj-19",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "15426a7950e6bd6babb7314dcb6bcc8e8fa91c7782105c36b85cacb6c594d1d1",
+      "char_len": 60
+    },
+    {
+      "id": "builtin-inj-20",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "cd3b7d23ad03f1cb96ea0db1c54907c0e0a7b28d6c1fea7854b9d06ec6a51343",
+      "char_len": 67
+    },
+    {
+      "id": "builtin-inj-21",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "c5993b5036554c1029324f6cd5ea305b8782fc515ef9c4954ce1674cdf6b4156",
+      "char_len": 47
+    },
+    {
+      "id": "builtin-inj-22",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "605940635f64512493685b929f9258546b4026118579504a9a3c9e77cf47ad20",
+      "char_len": 54
+    },
+    {
+      "id": "builtin-inj-23",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "dde5a32b12a66319f0f3a17a2feb288a0741e28e04233499d7c5a392579b406e",
+      "char_len": 142
+    },
+    {
+      "id": "builtin-inj-24",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "c7d5cc1dd66f7ceca353d5225c8a5927fa0c9ac00478f12094cae3fd6d9a5e2f",
+      "char_len": 54
+    },
+    {
+      "id": "builtin-inj-25",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "cdfec6580e659b305d3023c4e085cb39c7b4494cfb7773c60963be8ff151f9d7",
+      "char_len": 82
+    },
+    {
+      "id": "builtin-inj-26",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "32472705f560af06a6ef669c0e2e543b102443b106332540e541423fb867447d",
+      "char_len": 158
+    },
+    {
+      "id": "builtin-inj-27",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "mixed",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "65855f028649ad783794f79a22c247b7329238c25252c2b27a0a1408dfcb4f5f",
+      "char_len": 80
+    },
+    {
+      "id": "builtin-inj-28",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "f31198c28e616115f43debcb2d8e134b25bb4b1a1d40719f39c5e7aaabe39f69",
+      "char_len": 58
+    },
+    {
+      "id": "builtin-inj-29",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "mixed",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "63023f3175d58f21d098151c122fc9e8cbf79b1c0be1b3bd122598286bb06069",
+      "char_len": 81
+    },
+    {
+      "id": "builtin-inj-30",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "9e3305852f74a4111c37772510e6d19c4d36498e224a05589bfa0f760d8b865f",
+      "char_len": 45
+    }
+  ],
+  "removals": [
+    {
+      "id": "builtin-inj-15",
+      "side": "injection",
+      "sha256": "2dfad0540625"
+    },
+    {
+      "id": "builtin-out-01",
+      "side": "output",
+      "sha256": "d2a6b0d828b2"
+    },
+    {
+      "id": "builtin-out-02",
+      "side": "output",
+      "sha256": "4bca9ccd9ff3"
+    }
+  ]
+}

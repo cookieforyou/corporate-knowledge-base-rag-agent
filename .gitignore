@@ -9,3 +9,7 @@ node_modules
 .env.docker
 .env.local
 .env.production
+
+# Python 脚本缓存（tools/guardrail 词表工程脚本）
+__pycache__/
+*.pyc

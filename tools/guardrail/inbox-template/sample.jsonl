@@ -1,0 +1,2 @@
+{"value": "示例占位词甲", "side": "injection", "family": "UNCLASSIFIED", "lang": "zh", "type": "KEYWORD", "action": "FLAG"}
+{"value": "example-placeholder-b", "side": "output", "family": "COMPLIANCE_SENSITIVE", "lang": "en", "type": "KEYWORD", "action": "BLOCK"}
