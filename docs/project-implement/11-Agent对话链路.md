@@ -731,7 +731,12 @@ Spring AI 2.0 GA 原生 starter + Vectara/Notion 商业先例，四条件同时�
   工具不漏进 MCP。
 - 已知坑位登记：spring-ai#6465（starter 传递 Boot 依赖）经父 POM Boot BOM 导入
   钉死；MCP SDK 2.0.0（mcp-core/mcp-spring-webmvc/mcp-json-jackson3）对齐
-  2025-11-25 规范。
+  2025-11-25 规范；**坑位㉚（E2E 实证）**——Streamable 传输须显式钉
+  `spring.ai.mcp.server.protocol: STREAMABLE`：源码核验
+  EnabledStreamableServerCondition `matchIfMissing=false` 而 SSE 条件
+  `matchIfMissing=true`，缺省静默装配 SSE 端点（/sse + /mcp/message）致
+  /mcp 无路由 404（spring-configuration-metadata 标注默认 streamable 与
+  条件装配实际行为不一致）。
 
 **模块落位**：三件套工具 `McpKnowledgeTools` + 身份守卫 `McpIdentityGuard` 落
 kb-ai-agent（CLAUDE.md「MCP 落此」定位；依赖 kb-ai-core 检索器/RagChatService +

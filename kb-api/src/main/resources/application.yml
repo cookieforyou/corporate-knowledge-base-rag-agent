@@ -42,6 +42,10 @@ spring:
       server:
         name: kb-rag-agent
         version: 1.0.0
+        # 必须显式钉 STREAMABLE——源码核验：EnabledStreamableServerCondition
+        # matchIfMissing=false 而 SSE 条件 matchIfMissing=true，缺省装配 SSE
+        # 端点（/sse + /mcp/message）致 /mcp 无路由 404（坑位㉚）
+        protocol: STREAMABLE
         instructions: >-
           企业知识库 MCP Server。三件套工具：search（混合检索：向量+BM25+重排）、
           get_document（按文档 ID 读全文）、ask（带 [ref-N] 引用的 RAG 问答）。
