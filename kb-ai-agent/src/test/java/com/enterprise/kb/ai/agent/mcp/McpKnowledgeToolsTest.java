@@ -156,7 +156,8 @@ class McpKnowledgeToolsTest {
         assertThat(answer).isEqualTo("答案 [ref-1]");
         ArgumentCaptor<String> sessionId = ArgumentCaptor.forClass(String.class);
         verify(ragChatService).chatRag(eq("质保期多久"), sessionId.capture(), any(RetrievalContext.class));
-        assertThat(sessionId.getValue()).startsWith("mcp-");
+        // mcp- 来源标记 + 去横线 UUID = 36 字符钉死（kb_audit_log.session_id VARCHAR(36)）
+        assertThat(sessionId.getValue()).startsWith("mcp-").hasSize(36);
         verify(metrics).recordMcpToolCall("ask");
     }
 

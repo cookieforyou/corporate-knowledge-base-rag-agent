@@ -44,11 +44,11 @@ class GoldenDatasetLoaderTest {
 
     @Test
     void loadsFullDatasetWithNegativeShare() {
-        assertEquals(146, pairs.size(), "Golden 总量应为 146 条（80 正向 + 22 负向 + 44 注入攻击）");
+        assertEquals(150, pairs.size(), "Golden 总量应为 150 条（80 正向 + 22 负向 + 48 注入攻击）");
         long negatives = pairs.stream().filter(GoldenQAPair::isNegative).count();
         assertEquals(22, negatives, "负向用例应为 22 条");
         long injections = pairs.stream().filter(GoldenQAPair::isInjection).count();
-        assertEquals(44, injections, "注入攻击用例应为 44 条（四类各 11）");
+        assertEquals(48, injections, "注入攻击用例应为 48 条（DIRECT 15 + 其余三类各 11）");
         // 负向占比以问答质量用例为分母（INJECTION 是安全测试集，非问答负向集）
         long nonInjection = pairs.size() - injections;
         assertTrue(negatives * 5 >= nonInjection, "负向占比须 ≥ 20%（16.1 分布目标）");

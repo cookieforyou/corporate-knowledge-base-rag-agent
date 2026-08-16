@@ -752,9 +752,10 @@ SecurityContextHolder principal（同 kb-admin 纪律，不复用 JwtUtils 防�
    （**软删行不返回**——MCP 消费面只读活数据；heading_path 经 metadata JSONB
    容错解析回填）；`rag.mcp.get-document.max-chunks` 默认 50 截断防工具响应爆炸。
 3. `ask(question)`——经 ragAgentChatClient 全链：意图路由/护栏/配额/审计/
-   多模型路由**自动复用**；每次调用独立 `mcp-{uuid}` 会话（MCP 无会话语义，
-   记忆 Advisor 硬断言需非空 CONVERSATION_ID）；注入载荷 → PROMPT_INJECTION
-   经 MCP 错误帧回传（DoD 护栏验证项）。
+   多模型路由**自动复用**；每次调用独立会话 ID——`mcp-` 前缀（审计来源标记）
+   + 去横线 UUID **钉死 36 字符**（E2E 实证：带横线 UUID 前缀形态 40 字符
+   超 kb_audit_log.session_id VARCHAR(36) 致审计落库失败）；注入载荷 →
+   PROMPT_INJECTION 经 MCP 错误帧回传（DoD 护栏验证项）。
 
 **身份与 scope 治理（fail-closed）**：/mcp 端点 SecurityConfig authenticated
 （JWT bearer，OAuth2 Resource Server 同 /api/** 链）→ McpIdentityGuard 请求线程

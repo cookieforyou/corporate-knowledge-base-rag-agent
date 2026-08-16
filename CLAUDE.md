@@ -55,7 +55,7 @@ kb-rag-agent/
 
 **Bad Case 运营闭环（簇④）**：kb-admin 四端点——审计查询 GET /admin/audit-logs（时间/用户/会话/反馈/状态/根因/标注态可选 + feedbackExpectedAnswer 联查预填）；根因标注 PUT /audit-logs/{id}/root-cause（四分类 RootCause 枚举，kb_audit_log 新列 root_cause + (tenant_id,created_at DESC) 索引，**ECS 先 ALTER**）；Golden 回灌 POST /badcase/reingest——**Git Ops 文件通道**：审计行转用例写 `rag.admin.golden.dir`/badcase-qa.json（默认 kb-eval 语料目录，id=bc-{auditLogId} upsert 幂等，成功联动反馈 resolved），回灌→commit→CI 复跑闭环；反馈处理态 PUT /feedback/{id}/resolved（message→session 租户链）。守卫：跨租户/不存在一律 AUDIT_LOG_NOT_FOUND（不泄露存在性）。前端 /admin 运维中心四 Tab（仪表盘消费簇② stats / **Chunk 运维：编辑/软删/恢复 + 重建任务轮询** / 日志查询详情抽屉 / 标注+回灌对话框，检索快照候选快填）
 
-**MCP Server（簇⑤ 4.10）**：`spring-ai-starter-mcp-server-webmvc` 落 kb-api（Streamable HTTP `/mcp` RouterFunction，SecurityConfig authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent——@McpTool 注解扫描器自动收编（required 须显式钉）：search（检索链直调）/get_document（租户守卫+软删过滤+max-chunks 截断）/ask（ragAgentChatClient 全链——护栏/配额/审计自动复用，每次调用独立 mcp-{uuid} 会话）；`McpIdentityGuard` 请求线程 JWT 物化 RetrievalContext（owner 空白 IDENTITY_INCOMPLETE，`rag.mcp.scope.required` scope 治理 MCP_SCOPE_DENIED，直消费 principal 不复用 JwtUtils 防成环）；容器内无 ToolCallback/Provider Bean（defaultTools 内联）HITL 工具不漏进 MCP；rag.mcp.* 三计数
+**MCP Server（簇⑤ 4.10）**：`spring-ai-starter-mcp-server-webmvc` 落 kb-api（Streamable HTTP `/mcp` RouterFunction，SecurityConfig authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent——@McpTool 注解扫描器自动收编（required 须显式钉）：search（检索链直调）/get_document（租户守卫+软删过滤+max-chunks 截断）/ask（ragAgentChatClient 全链——护栏/配额/审计自动复用，每次调用独立 mcp- 前缀 36 字符会话——审计 session_id VARCHAR(36) 钉死）；`McpIdentityGuard` 请求线程 JWT 物化 RetrievalContext（owner 空白 IDENTITY_INCOMPLETE，`rag.mcp.scope.required` scope 治理 MCP_SCOPE_DENIED，直消费 principal 不复用 JwtUtils 防成环）；容器内无 ToolCallback/Provider Bean（defaultTools 内联）HITL 工具不漏进 MCP；rag.mcp.* 三计数
 
 **意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写单次调用预写）→ skipRetrieval；`RetrievalGateAdvisor`(500) 组合式门控包裹 RAA——skip 旁路携记忆直答，fail-open 回落；`rag.routing.intent.enabled` 可关
 
@@ -73,7 +73,7 @@ kb-rag-agent/
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测（仅检测不回写）+PII 掩码+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**
 - **用户反馈闭环**：POST /api/v1/feedback（messageId+userId upsert 可改评；归属 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档 `ChatSessionService` 异步旁路；历史会话：会话端点 + 过期续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；Golden 146 条（含注入 44，门禁限 L1 子集；chunk ID 确定性锚点）
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；Golden 150 条（含注入 48，门禁限 L1 子集；chunk ID 确定性锚点）
 
 **解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落 NATIVE，显式失败上抛）；DocMind：表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 `<table>`/`<img>` + heading_path 落三存储面；**Contextual 语境增强默认开**；chunk 确定性 ID（文档名#序号#增强前原文）；向量化 10 条/批（DashScope ≤20）
 

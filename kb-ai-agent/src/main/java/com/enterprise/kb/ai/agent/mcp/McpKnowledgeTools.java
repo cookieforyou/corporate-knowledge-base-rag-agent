@@ -157,8 +157,11 @@ public class McpKnowledgeTools {
         }
         RetrievalContext ctx = identityGuard.requireIdentity();
         metrics.recordMcpToolCall("ask");
-        // MCP 调用无会话语义：每次调用独立会话 ID（记忆 Advisor 硬断言需非空）
-        return ragChatService.chatRag(question, "mcp-" + UUID.randomUUID(), ctx);
+        // MCP 调用无会话语义：每次调用独立会话 ID（记忆 Advisor 硬断言需非空）；
+        // mcp- 前缀保留来源标记 + 去横线 UUID 钉死 36 字符——kb_audit_log.session_id
+        // VARCHAR(36)，带横线 UUID 前缀形态 40 字符致审计落库失败（E2E 实证）
+        String sessionId = "mcp-" + UUID.randomUUID().toString().replace("-", "");
+        return ragChatService.chatRag(question, sessionId, ctx);
     }
 
     // ── 内部方法 ──
