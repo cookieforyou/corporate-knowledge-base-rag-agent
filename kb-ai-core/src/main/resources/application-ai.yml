@@ -186,6 +186,13 @@ rag:
     recall-multiplier: ${RAG_RETRIEVAL_RECALL_MULTIPLIER:2}      # 召回放大系数：recallSize = top-k × N
     similarity-threshold: ${RAG_RETRIEVAL_SIMILARITY_THRESHOLD:0.5}  # 向量路相似度阈值
     path-timeout-seconds: ${RAG_RETRIEVAL_PATH_TIMEOUT_SECONDS:5}    # 单路检索超时（秒），超时降级为空
+    # 入库打标 injection_hit 消费降权（安全簇④ D2，§9 定案④）：**默认关**——
+    # 先经 kb-eval 检索门禁（Recall/MRR）开关双跑度量影响再定开关口径。
+    # 开启后命中 chunk 融合分乘 factor 衰减（rag.retrieval.injection-hit.demoted 计数）
+    injection-hit:
+      demote:
+        enabled: ${RAG_RETRIEVAL_INJECTION_HIT_DEMOTE_ENABLED:false}
+        factor: ${RAG_RETRIEVAL_INJECTION_HIT_DEMOTE_FACTOR:0.5}
   rerank:
     endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
     model: ${RERANK_MODEL:qwen3-rerank}

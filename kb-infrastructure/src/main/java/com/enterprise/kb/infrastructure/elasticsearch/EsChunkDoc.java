@@ -54,6 +54,14 @@ public class EsChunkDoc {
     @JsonProperty("is_deleted")
     private Boolean isDeleted;
 
+    /**
+     * 注入命中标记（安全簇④ D2，契约源 kb-etl SanitizingTransformer.INJECTION_HIT_KEY）：
+     * S4 ETL 入库扫描打标经 kb_chunk.metadata JSONB 传播至 ES，供 BM25 路检索侧
+     * 降权消费（默认关，度量后定案）。仅命中时写 true，未命中缺省不写键（索引瘦身）。
+     */
+    @JsonProperty("injection_hit")
+    private Boolean injectionHit;
+
     /** ISO-8601 字符串（LocalDateTime.toString()），ES date 类型兼容 strict_date_optional_time */
     @JsonProperty("created_at")
     private String createdAt;

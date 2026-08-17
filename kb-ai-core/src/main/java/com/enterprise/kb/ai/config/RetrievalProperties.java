@@ -38,6 +38,9 @@ public class RetrievalProperties {
     /** 多查询扩展（pre-retrieval） */
     private Expansion expansion = new Expansion();
 
+    /** 入库打标消费（安全簇④ D2，§9 定案④：默认关、度量后定案） */
+    private InjectionHit injectionHit = new InjectionHit();
+
     /**
      * 多查询扩展配置组。
      *
@@ -54,5 +57,29 @@ public class RetrievalProperties {
         private boolean enabled = false;
         /** 扩展出的查询变体数（含检索调用放大倍数） */
         private int numQueries = 3;
+    }
+
+    /**
+     * 入库打标 injection_hit 消费（安全簇④ D2，缺口 E3 打标消费面）。
+     *
+     * <p>S4 ETL 入库扫描对命中注入词表的 chunk 打标（kb_chunk.metadata JSONB），
+     * 经 vectorMetadata / EsChunkDoc 契约携带至检索侧（簇④ D2 补齐）。降权
+     * **默认关闭**（§9 定案④）：先经 kb-eval 检索门禁（Recall/MRR）开关双跑
+     * 度量影响，再定开关口径——本配置只落机制，不改变默认生产行为。
+     */
+    @Getter
+    @Setter
+    public static class InjectionHit {
+
+        private Demote demote = new Demote();
+
+        @Getter
+        @Setter
+        public static class Demote {
+            /** 降权开关（默认关，度量后定案） */
+            private boolean enabled = false;
+            /** 融合分衰减系数：fused_score × factor（0-1，越小压制越强） */
+            private double factor = 0.5;
+        }
     }
 }

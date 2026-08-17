@@ -122,6 +122,8 @@ public class AiBusinessMetrics {
     private final Counter guardrailIndirectFlagged;
     /** 间接注入扫描 exclude 策略剔除条数（安全簇④ D1）：命中证据被剔出 grounding */
     private final Counter guardrailIndirectExcluded;
+    /** 入库打标降权条数（安全簇④ D2）：injection_hit chunk 融合分衰减生效计数 */
+    private final Counter retrievalInjectionHitDemoted;
     /** FLAG 观察档计数（安全簇① T7）：键 side:family，side×family 全组合预注册 */
     private final Map<String, Counter> guardrailFlagged;
     private final Counter guardrailRateLimited;
@@ -215,6 +217,8 @@ public class AiBusinessMetrics {
             .description("间接注入扫描命中条数——召回证据命中注入词表检测视图，按条计（安全簇④ D1）").register(registry);
         this.guardrailIndirectExcluded = Counter.builder("rag.guardrail.indirect.excluded")
             .description("间接注入扫描 exclude 策略剔除条数——命中证据被剔出 grounding（安全簇④ D1）").register(registry);
+        this.retrievalInjectionHitDemoted = Counter.builder("rag.retrieval.injection-hit.demoted")
+            .description("入库打标降权条数——injection_hit chunk 融合分衰减生效（安全簇④ D2，默认关）").register(registry);
         // FLAG 观察档计数（安全簇① T7）：side×family 全组合预注册——side 两值、
         // family 取两套中性枚举（注入侧七分法 ∪ 输出侧三分类，各含 UNCLASSIFIED），
         // 序列数有界（低基数标签，任务分解定案形态），Prometheus 侧 sum/group by 聚合
@@ -420,6 +424,11 @@ public class AiBusinessMetrics {
     /** 间接注入扫描 exclude 策略剔除计数（安全簇④ D1）：命中证据被剔出 grounding */
     public void recordIndirectExcluded(int excludedCount) {
         guardrailIndirectExcluded.increment(excludedCount);
+    }
+
+    /** 入库打标降权计数（安全簇④ D2）：injection_hit chunk 融合分衰减生效条数 */
+    public void recordInjectionHitDemoted(int demotedCount) {
+        retrievalInjectionHitDemoted.increment(demotedCount);
     }
 
     /**

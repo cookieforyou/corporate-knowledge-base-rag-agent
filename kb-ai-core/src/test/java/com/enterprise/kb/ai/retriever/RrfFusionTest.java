@@ -1,6 +1,8 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -10,12 +12,14 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * RRF 融合纯函数单测（无外部依赖）
+ * RRF 融合纯函数单测（指标经 SimpleMeterRegistry 承接，无外部依赖）
  */
 class RrfFusionTest {
 
     private final RetrievalProperties properties = new RetrievalProperties();
-    private final RrfFusion fusion = new RrfFusion(properties);
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    private final AiBusinessMetrics metrics = new AiBusinessMetrics(registry);
+    private final RrfFusion fusion = new RrfFusion(properties, metrics);
 
     private Document doc(String id, Map<String, Object> meta) {
         return Document.builder().id(id).text("content-" + id).metadata(meta).build();
@@ -93,5 +97,51 @@ class RrfFusionTest {
         assertEquals("TEXT", fused.getMetadata().get("chunk_type"));
         assertEquals("手册.pdf", fused.getMetadata().get("file_name"));
         assertEquals(7, fused.getMetadata().get("page_num"));
+    }
+
+    // ── 入库打标降权（安全簇④ D2，§9 定案④默认关）──
+
+    @Test
+    void demoteDisabledByDefault_hitChunkScoreZeroDrift() {
+        // 缺省形态：injection_hit chunk 融合分与排序零变化，计数零
+        List<Document> vector = List.of(doc("hit", Map.of("injection_hit", true)), doc("clean", Map.of()));
+
+        List<Document> fused = fusion.fuse(vector, List.of(), 10);
+
+        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get("fusion_score"), 1e-12);
+        assertEquals("hit", fused.get(0).getId());
+        assertEquals(0.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
+    }
+
+    @Test
+    void demoteEnabled_hitChunkScoreDecayedAndReordered() {
+        properties.getInjectionHit().getDemote().setEnabled(true);
+        properties.getInjectionHit().getDemote().setFactor(0.1);
+        // hit 双路命中原本排首；衰减 0.1 后应让位于单路命中的 clean
+        List<Document> vector = List.of(doc("clean", Map.of()), doc("hit", Map.of("injection_hit", true)));
+        List<Document> bm25 = List.of(doc("hit", Map.of("injection_hit", true)));
+
+        List<Document> fused = fusion.fuse(vector, bm25, 10);
+
+        assertEquals("clean", fused.get(0).getId());
+        Document hit = fused.get(1);
+        int rrfK = properties.getRrfK();
+        double expected = (1.0 / (rrfK + 2) + 1.0 / (rrfK + 1)) * 0.1;
+        assertEquals(expected, (Double) hit.getMetadata().get("fusion_score"), 1e-12);
+        // 排名元数据保持原值可溯（降权只改融合分）
+        assertEquals(2, hit.getMetadata().get("vector_rank"));
+        assertEquals(1, hit.getMetadata().get("bm25_rank"));
+        assertEquals(1.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
+    }
+
+    @Test
+    void demoteEnabled_cleanChunksUntouched() {
+        properties.getInjectionHit().getDemote().setEnabled(true);
+        List<Document> vector = List.of(doc("a", Map.of()), doc("b", Map.of()));
+
+        List<Document> fused = fusion.fuse(vector, List.of(), 10);
+
+        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get("fusion_score"), 1e-12);
+        assertEquals(0.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
     }
 }

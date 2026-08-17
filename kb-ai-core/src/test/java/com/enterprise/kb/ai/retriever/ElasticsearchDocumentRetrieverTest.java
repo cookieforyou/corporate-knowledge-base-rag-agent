@@ -63,5 +63,25 @@ class ElasticsearchDocumentRetrieverTest {
         // Spring AI metadata 禁止 null：可空字段缺省时不写入键
         assertFalse(doc.getMetadata().containsKey("page_num"));
         assertFalse(doc.getMetadata().containsKey("file_name"));
+        assertFalse(doc.getMetadata().containsKey("injection_hit"));
+    }
+
+    /** 注入打标透传（安全簇④ D2）：命中时写元数据供 RrfFusion 降权消费，缺省不写键 */
+    @Test
+    void toDocument_propagatesInjectionHitOnlyWhenTrue() {
+        EsChunkDoc hitDoc = EsChunkDoc.builder()
+            .chunkId("chunk-003").docId("doc-9").tenantId("t-1")
+            .content("命中资料").injectionHit(Boolean.TRUE)
+            .build();
+        EsChunkDoc cleanDoc = EsChunkDoc.builder()
+            .chunkId("chunk-004").docId("doc-9").tenantId("t-1")
+            .content("干净资料").injectionHit(null)
+            .build();
+
+        Document hitMapped = retriever.toDocument(hit(hitDoc, 2.0), 1);
+        Document cleanMapped = retriever.toDocument(hit(cleanDoc, 1.5), 2);
+
+        assertEquals(Boolean.TRUE, hitMapped.getMetadata().get("injection_hit"));
+        assertFalse(cleanMapped.getMetadata().containsKey("injection_hit"));
     }
 }

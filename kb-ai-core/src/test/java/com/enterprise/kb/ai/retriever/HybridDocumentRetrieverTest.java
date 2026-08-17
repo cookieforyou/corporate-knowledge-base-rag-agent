@@ -39,9 +39,10 @@ class HybridDocumentRetrieverTest {
         vectorStore = mock(VectorStore.class);
         esRetriever = mock(ElasticsearchDocumentRetriever.class);
         RetrievalProperties properties = new RetrievalProperties();
+        AiBusinessMetrics metrics = new AiBusinessMetrics(new SimpleMeterRegistry());
         // 簇③ D2：执行器收编为构造注入（生产为共享 Bean hybridRetrievalExecutor）
-        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion(properties),
-            new AiBusinessMetrics(new SimpleMeterRegistry()), properties,
+        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion(properties, metrics),
+            metrics, properties,
             java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
     }
 

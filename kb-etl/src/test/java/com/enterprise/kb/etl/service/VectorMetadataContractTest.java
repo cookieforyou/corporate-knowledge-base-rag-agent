@@ -65,7 +65,43 @@ class VectorMetadataContractTest {
             .containsEntry("file_name", "unknown")
             .containsEntry("page_num", 0)
             .containsEntry("is_deleted", false)
-            .doesNotContainKey("heading_path");
+            .doesNotContainKey("heading_path")
+            .doesNotContainKey("injection_hit");
         assertThat(meta.values()).doesNotContainNull();
+    }
+
+    // ── 注入打标传播（安全簇④ D2：PG 事实源 JSONB → 向量元数据，检索侧降权消费）──
+
+    @Test
+    void injectionHitTruePropagatedToVectorMetadata() {
+        KbChunk hit = chunk();
+        hit.setMetadata("{\"injection_hit\":true,\"heading_path\":\"一级 > 二级\"}");
+
+        Map<String, Object> meta = DocumentEtlService.vectorMetadata(hit, doc());
+
+        assertThat(meta).containsEntry("injection_hit", true);
+        assertThat(meta).containsEntry("heading_path", "一级 > 二级");   // 既有键不受影响
+    }
+
+    @Test
+    void injectionHitAbsentOrFalseKeepsKeyAbsent() {
+        KbChunk absent = chunk();
+        absent.setMetadata("{}");
+        KbChunk explicitFalse = chunk();
+        explicitFalse.setMetadata("{\"injection_hit\":false}");
+
+        assertThat(DocumentEtlService.vectorMetadata(absent, doc())).doesNotContainKey("injection_hit");
+        assertThat(DocumentEtlService.vectorMetadata(explicitFalse, doc())).doesNotContainKey("injection_hit");
+    }
+
+    @Test
+    void injectionHitOfParsesJsonbAndFailsSafe() {
+        assertThat(DocumentEtlService.injectionHitOf("{\"injection_hit\":true}")).isTrue();
+        assertThat(DocumentEtlService.injectionHitOf("{\"injection_hit\":false}")).isFalse();
+        assertThat(DocumentEtlService.injectionHitOf("{}")).isFalse();
+        assertThat(DocumentEtlService.injectionHitOf("")).isFalse();
+        assertThat(DocumentEtlService.injectionHitOf(null)).isFalse();
+        // 非法 JSON fail-safe：降权不生效 = 默认关现状（最坏无副作用）
+        assertThat(DocumentEtlService.injectionHitOf("not-json")).isFalse();
     }
 }

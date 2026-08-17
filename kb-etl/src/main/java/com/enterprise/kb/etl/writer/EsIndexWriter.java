@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
+import com.enterprise.kb.etl.service.DocumentEtlService;
 import com.enterprise.kb.infrastructure.elasticsearch.EsChunkDoc;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -54,6 +55,8 @@ public class EsIndexWriter {
                     .fileName(doc.getOriginalName())
                     .pageNum(e.getPageNum())
                     .isDeleted(false)
+                    // 注入打标（安全簇④ D2）：命中时写 true，未命中 null（序列化缺省，索引瘦身）
+                    .injectionHit(DocumentEtlService.injectionHitOf(e.getMetadata()) ? Boolean.TRUE : null)
                     .createdAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null)
                     .build();
                 bulk.operations(op -> op

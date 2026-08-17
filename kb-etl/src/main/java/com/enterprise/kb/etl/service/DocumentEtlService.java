@@ -25,6 +25,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.ByteArrayOutputStream;
@@ -367,7 +368,34 @@ public class DocumentEtlService {
         if (chunk.getHeadingPath() != null) {
             meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, chunk.getHeadingPath());
         }
+        // 注入打标（安全簇④ D2）：PG 事实源 JSONB 标记传播至向量元数据，
+        // 供检索侧降权消费（默认关，度量后定案）；缺省（未命中）不写键
+        if (injectionHitOf(chunk.getMetadata())) {
+            meta.put(SanitizingTransformer.INJECTION_HIT_KEY, true);
+        }
         return meta;
+    }
+
+    /** metadata JSONB 解析器（静态契约共用——vectorMetadata 为静态方法，坑位⑬ Jackson 3 形态） */
+    private static final JsonMapper METADATA_JSON_MAPPER = new JsonMapper();
+    private static final TypeReference<Map<String, Object>> METADATA_MAP_TYPE =
+        new TypeReference<Map<String, Object>>() {};
+
+    /**
+     * 从 kb_chunk.metadata JSONB 解析注入命中标记（安全簇④ D2，契约源
+     * {@link SanitizingTransformer#INJECTION_HIT_KEY}）——解析失败 fail-safe
+     * 返回 false（降权不生效，最坏 = 默认关现状）。
+     */
+    public static boolean injectionHitOf(String chunkMetadataJson) {
+        if (chunkMetadataJson == null || chunkMetadataJson.isBlank()) {
+            return false;
+        }
+        try {
+            Map<String, Object> meta = METADATA_JSON_MAPPER.readValue(chunkMetadataJson, METADATA_MAP_TYPE);
+            return Boolean.TRUE.equals(meta.get(SanitizingTransformer.INJECTION_HIT_KEY));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

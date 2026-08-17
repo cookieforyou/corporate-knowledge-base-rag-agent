@@ -82,6 +82,8 @@ public class ElasticsearchDocumentRetriever {
         meta.put("chunk_type", src.getChunkType() != null ? src.getChunkType() : "TEXT");
         if (src.getFileName() != null) meta.put("file_name", src.getFileName());
         if (src.getPageNum() != null) meta.put("page_num", src.getPageNum());
+        // 注入打标透传（安全簇④ D2）：供 RrfFusion 降权消费（默认关）；缺省不写键
+        if (Boolean.TRUE.equals(src.getInjectionHit())) meta.put(RrfFusion.INJECTION_HIT_KEY, true);
         meta.put("bm25_score", hit.score());
         meta.put("bm25_rank", rank);
         meta.put("retrieval_source", "bm25");

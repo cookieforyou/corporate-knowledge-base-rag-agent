@@ -160,6 +160,14 @@ class AiBusinessMetricsTest {
         assertThat(registry.counter("rag.guardrail.indirect.excluded").count()).isEqualTo(1.0);
     }
 
+    @Test
+    void injectionHitDemotedCounterRecordsDecayEvents() {
+        // 安全簇④ D2：入库打标降权生效条数（默认关，开启后按条计）
+        metrics.recordInjectionHitDemoted(2);
+
+        assertThat(registry.counter("rag.retrieval.injection-hit.demoted").count()).isEqualTo(2.0);
+    }
+
     // ── FLAG 观察档计数（安全簇① T7：低基数标签 side/family）──
 
     @Test
