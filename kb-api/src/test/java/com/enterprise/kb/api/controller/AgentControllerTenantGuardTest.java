@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.agent.service.ToolChatService;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.security.JwtUtils;
@@ -41,7 +42,7 @@ class AgentControllerTenantGuardTest {
     @BeforeEach
     void setUp() {
         controller = new AgentController(ragChatService, toolChatService, chatSessionService, jwtUtils,
-            ObservationRegistry.create(), new AiBusinessMetrics(new SimpleMeterRegistry()));
+            ObservationRegistry.create(), new AiBusinessMetrics(new SimpleMeterRegistry()), PiiRecognizerRegistry.defaults());
         when(jwtUtils.getCurrentUsername()).thenReturn("user_test");
     }
 

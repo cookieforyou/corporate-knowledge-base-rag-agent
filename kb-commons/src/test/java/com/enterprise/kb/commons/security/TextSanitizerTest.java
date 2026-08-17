@@ -11,7 +11,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 文本安全消毒组件测试（簇② B1）——归一化防绕过（S1）+ PII 掩码（含分隔符形态）+ 词表匹配
+ * 文本安全消毒组件测试（簇② B1）——归一化防绕过（S1）+ 词表匹配
+ *
+ * <p>PII 掩码测试随安全簇③ C2 迁至 {@code pii.PiiRecognizerRegistryTest}
+ * （能力迁识别器注册表，本类不再持有 PII 正则）。
  *
  * <p>注入侧断言全部程序化构造：攻击形态（全角/零宽变体）由 bundled 基线词表的
  * 词项值在运行时变换生成，测试源码不落字面载荷（第七节敏感词交付纪律）。
@@ -101,52 +104,7 @@ class TextSanitizerTest {
         assertThat(TextSanitizer.normalize("abc def")).isEqualTo("abc def");
     }
 
-    // ── PII 掩码 ──
-
-    @Test
-    void masksPhoneIdCardAndEmail() {
-        String sanitized = TextSanitizer.maskPii(
-            "联系人 13812345678，身份证 110101199003077758，邮箱 zhang.san@corp.com");
-
-        assertThat(sanitized)
-            .contains("1***-****-****")
-            .contains("******************")
-            .contains("***@***.***")
-            .doesNotContain("13812345678")
-            .doesNotContain("110101199003077758")
-            .doesNotContain("zhang.san@corp.com");
-    }
-
-    @Test
-    void masksSpaceAndHyphenSeparatedPhone() {
-        // G2：空格/连字符拆词形态同样落网
-        assertThat(TextSanitizer.maskPii("电话 138 1234 5678 备用 139-1111-2222"))
-            .contains("1***-****-****")
-            .doesNotContain("138 1234 5678")
-            .doesNotContain("139-1111-2222");
-    }
-
-    @Test
-    void masksSeparatedIdCard() {
-        assertThat(TextSanitizer.maskPii("证件号 110101-19900307-7758"))
-            .contains("******************")
-            .doesNotContain("110101-19900307-7758");
-    }
-
-    @Test
-    void boundaryGuardsPreventFalsePositivesInsideLongerNumbers() {
-        // 19 位订单号内部不构成手机号/身份证——边界断言防误伤
-        String longNumber = "订单号 2026138123456789012 请核对";
-
-        assertThat(TextSanitizer.maskPii(longNumber)).isEqualTo(longNumber);
-    }
-
-    @Test
-    void maskingIsIdempotent() {
-        String once = TextSanitizer.maskPii("手机 13812345678");
-
-        assertThat(TextSanitizer.maskPii(once)).isEqualTo(once);
-    }
+    // ── PII 掩码能力已迁 pii 包（安全簇③ C2）：见 pii.PiiRecognizerRegistryTest ──
 
     // ── 结构化词表匹配入口 ──
 

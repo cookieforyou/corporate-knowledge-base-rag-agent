@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -82,7 +83,7 @@ class AuditTraceAdvisorTest {
         streamChain = mock(StreamAdvisorChain.class);
         meterRegistry = new SimpleMeterRegistry();
         advisor = new AuditTraceAdvisor(repository, JsonMapper.builder().build(), SYNC_EXECUTOR,
-            new AiBusinessMetrics(meterRegistry), true);
+            new AiBusinessMetrics(meterRegistry), PiiRecognizerRegistry.defaults(), true);
     }
 
     private static RetrievalContext ctxWithTrace() {
@@ -295,7 +296,7 @@ class AuditTraceAdvisorTest {
     @Test
     void disabledAdvisorPassesThroughWithoutPersist() {
         AuditTraceAdvisor disabled = new AuditTraceAdvisor(repository, JsonMapper.builder().build(),
-            SYNC_EXECUTOR, new AiBusinessMetrics(meterRegistry), false);
+            SYNC_EXECUTOR, new AiBusinessMetrics(meterRegistry), PiiRecognizerRegistry.defaults(), false);
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
         disabled.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain);

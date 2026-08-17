@@ -5,6 +5,7 @@ import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.guardrail.RuleType;
 import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -221,6 +222,30 @@ class GoldenDatasetLoaderTest {
             }
         }
         assertTrue(checked >= 102, "干净回归集规模下限 = 初始 102 条非注入用例（80 正向 + 22 负向），扩容只增不减（实际 " + checked + "）");
+    }
+
+    /**
+     * 干净集 PII 误报门禁（安全簇③ C1/C2，验证通道「干净集误报回归」）：
+     * 七类缺省全集识别器对干净问句零命中——用户输入侧掩码不得误伤正常业务
+     * 问句（误伤铁律的 PII 侧对偶）。仅检测 question（用户输入面）；
+     * 期望答案可能合法承载语料内容形态，不属误报门禁口径。
+     */
+    @Test
+    void cleanRegressionSetHasZeroPiiHits() {
+        PiiRecognizerRegistry registry = PiiRecognizerRegistry.defaults();
+        long checked = 0;
+        for (GoldenQAPair pair : pairs) {
+            if (pair.isInjection()) {
+                continue;
+            }
+            checked++;
+            var hits = registry.detect(pair.question());
+            assertTrue(hits.isEmpty(),
+                pair.id() + " 为正常用例却检出 PII 类型 "
+                    + hits.stream().map(h -> h.type().name()).toList()
+                    + "（误报，须收紧模式或关停对应类型开关 rag.guardrail.pii.{type}.enabled）");
+        }
+        assertTrue(checked >= 102, "干净回归集规模下限与 BLOCK 门禁同口径（实际 " + checked + "）");
     }
 
     // ── 编码引用形态（安全簇① T2，第七节交付纪律）──

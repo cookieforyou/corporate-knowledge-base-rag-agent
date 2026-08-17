@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.agent.mcp;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +48,7 @@ class McpAuditRecorderTest {
     @Test
     void dbAuditDisabledSkipsPersistence() {
         McpAuditRecorder recorder = new McpAuditRecorder(
-            auditLogRepository, auditExecutor, new JsonMapper(), false);
+            auditLogRepository, auditExecutor, new JsonMapper(), PiiRecognizerRegistry.defaults(), false);
 
         recorder.record("search", "检索问题", ctx());
 
@@ -58,7 +59,7 @@ class McpAuditRecorderTest {
     @Test
     void dbAuditEnabledPersistsLightRow() {
         McpAuditRecorder recorder = new McpAuditRecorder(
-            auditLogRepository, auditExecutor, new JsonMapper(), true);
+            auditLogRepository, auditExecutor, new JsonMapper(), PiiRecognizerRegistry.defaults(), true);
 
         recorder.record("get_document", "doc-123", ctx());
 
@@ -82,7 +83,7 @@ class McpAuditRecorderTest {
     void persistenceFailureSwallowed() {
         doThrow(new RuntimeException("PG 抖动")).when(auditLogRepository).save(any());
         McpAuditRecorder recorder = new McpAuditRecorder(
-            auditLogRepository, auditExecutor, new JsonMapper(), true);
+            auditLogRepository, auditExecutor, new JsonMapper(), PiiRecognizerRegistry.defaults(), true);
 
         // 旁路数据哲学：落库失败绝不击穿工具调用
         assertThatCode(() -> recorder.record("search", "检索问题", ctx()))

@@ -2,11 +2,13 @@ package com.enterprise.kb.ai.metrics;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.security.pii.PiiType;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -88,7 +90,7 @@ class AiBusinessMetricsTest {
     void guardrailCountersSplitByEventType() {
         metrics.recordInjectionBlocked();
         metrics.recordInjectionBlocked();
-        metrics.recordPiiMasked();
+        metrics.recordPiiMasked(List.of(PiiType.PHONE));
         metrics.recordOutputReplaced("COMPLIANCE_SENSITIVE");
         metrics.recordRateLimited();
 
@@ -124,6 +126,27 @@ class AiBusinessMetricsTest {
 
         assertThat(registry.counter("rag.guardrail.output.canary").count()).isEqualTo(1.0);
         assertThat(registry.counter("rag.guardrail.output.replaced").count()).isZero();
+    }
+
+    @Test
+    void piiMaskedTypeSubCountersSplitByRecognizerType() {
+        // 安全簇③ C1/C2：总项恒计一次 + 命中类型子项分列（零标签纪律）
+        metrics.recordPiiMasked(List.of(PiiType.PHONE, PiiType.BANK_CARD, PiiType.IPV4));
+        metrics.recordPiiMasked(List.of(PiiType.PHONE));
+
+        assertThat(registry.counter("rag.guardrail.pii.masked").count()).isEqualTo(2.0);
+        assertThat(registry.counter("rag.guardrail.pii.masked.phone").count()).isEqualTo(2.0);
+        assertThat(registry.counter("rag.guardrail.pii.masked.bank_card").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.pii.masked.ipv4").count()).isEqualTo(1.0);
+        assertThat(registry.counter("rag.guardrail.pii.masked.email").count()).isZero();
+        assertThat(registry.counter("rag.guardrail.pii.masked.landline").count()).isZero();
+    }
+
+    @Test
+    void outputPiiEchoCounterRecordsObservationEvents() {
+        metrics.recordOutputPiiEcho();
+
+        assertThat(registry.counter("rag.guardrail.output.pii.echo").count()).isEqualTo(1.0);
     }
 
     // ── FLAG 观察档计数（安全簇① T7：低基数标签 side/family）──

@@ -7,6 +7,8 @@ import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiMaskResult;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -58,6 +60,13 @@ import java.util.List;
  * {@link RetrievalContext.FlagMark} 写审计标记（AuditTraceAdvisor 落
  * kb_audit_log.guardrail_flags）——词表变更流程「新增 → FLAG 观察 → 零误伤确认
  * 转 BLOCK」的可查面（指标 + 审计）。BLOCK 拒绝路径不计 FLAG（请求未放行）。
+ *
+ * <p><b>v2.45 修正（安全簇③ C1/C2，PII 识别器注册表）</b>：PII 掩码由
+ * {@link TextSanitizer} 静态三类正则切换为 {@link PiiRecognizerRegistry} 注入
+ * （Spring 上下文单一 Bean，与 ETL 入库消毒同源不漂移）——类型扩容至七类
+ * （银行卡 Luhn / 座机 / 车牌 / IPv4，C1）且每类型独立开关；掩码经
+ * {@code maskWithReport} 取命中类型集，指标 {@code rag.guardrail.pii.masked}
+ * 总项语义不变 + 类型子项分列（零标签纪律，同 output.replaced 子项形态）。
  */
 @Slf4j
 @Component
@@ -69,12 +78,17 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
     /** 护栏命中计数（簇⑤ B2 S3）——注入拦截/PII 掩码事件入 Prometheus */
     private final AiBusinessMetrics metrics;
 
+    /** PII 识别器注册表（安全簇③ C2）——与 ETL 入库消毒同 Bean 同源不漂移 */
+    private final PiiRecognizerRegistry piiRegistry;
+
     public InputSanitizeAdvisor(
             @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
-            AiBusinessMetrics metrics) {
+            AiBusinessMetrics metrics,
+            PiiRecognizerRegistry piiRegistry) {
         this.injectionRules = GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv);
         this.metrics = metrics;
+        this.piiRegistry = piiRegistry;
         long blocks = injectionRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
         log.info("注入检测词表加载: {} 条（BLOCK {} / FLAG {}）",
             injectionRules.size(), blocks, injectionRules.size() - blocks);
@@ -107,15 +121,16 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
         }
 
         // 3. PII 脱敏（幂等：掩码形态不会被二次匹配）：先剥零宽防数字串被拆断，
-        //    掩码落原文（容忍空格/连字符的正则覆盖拆词形态）
-        String sanitized = TextSanitizer.maskPii(TextSanitizer.stripInvisible(userText));
-        if (sanitized.equals(userText)) {
+        //    掩码落原文（容忍空格/连字符的正则覆盖拆词形态）；注册表七类识别器
+        //    顺序应用（安全簇③ C1/C2），命中类型集供指标子项分列
+        PiiMaskResult masked = piiRegistry.maskWithReport(TextSanitizer.stripInvisible(userText));
+        if (masked.text().equals(userText)) {
             return request;
         }
         // S3 可观测：掩码属非拒绝型干预（请求照常放行），只记事实不落原文
-        metrics.recordPiiMasked();
-        log.info("PII 掩码触发，用户输入已脱敏后进入后续链路");
-        Prompt mutated = prompt.augmentUserMessage(sanitized);
+        metrics.recordPiiMasked(masked.hitTypes());
+        log.info("PII 掩码触发（命中类型 {}），用户输入已脱敏后进入后续链路", masked.hitTypes());
+        Prompt mutated = prompt.augmentUserMessage(masked.text());
         return new ChatClientRequest(mutated, request.context());
     }
 

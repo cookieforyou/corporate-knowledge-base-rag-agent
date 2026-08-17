@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -39,7 +40,7 @@ class OutputGuardrailAdvisorTest {
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final OutputGuardrailAdvisor advisor =
         new OutputGuardrailAdvisor("", "competitor_x,competitor_y",
-            new AiBusinessMetrics(meterRegistry), new PromptCanary(false));
+            new AiBusinessMetrics(meterRegistry), new PromptCanary(false), PiiRecognizerRegistry.defaults());
     private final AdvisorChain chain = mock(AdvisorChain.class);
 
     private ChatClientResponse response(String text) {
@@ -134,7 +135,7 @@ class OutputGuardrailAdvisorTest {
     void blankCsvCompatStillPassesUnrelatedOutput() {
         // CSV 空 → bundled 基线输出词表（T5 起为空，内容待 T4 带外注入）；无关输出照常放行
         OutputGuardrailAdvisor open = new OutputGuardrailAdvisor("", "",
-            new AiBusinessMetrics(meterRegistry), new PromptCanary(false));
+            new AiBusinessMetrics(meterRegistry), new PromptCanary(false), PiiRecognizerRegistry.defaults());
         ChatClientResponse original = response("competitor_x");
 
         assertThat(open.after(original, chain)).isSameAs(original);
@@ -144,7 +145,7 @@ class OutputGuardrailAdvisorTest {
 
     private OutputGuardrailAdvisor familyAdvisor() {
         return new OutputGuardrailAdvisor("classpath:guardrail-test/output-family-rules.yml", "",
-            new AiBusinessMetrics(meterRegistry), new PromptCanary(false));
+            new AiBusinessMetrics(meterRegistry), new PromptCanary(false), PiiRecognizerRegistry.defaults());
     }
 
     @Test
@@ -258,7 +259,7 @@ class OutputGuardrailAdvisorTest {
     void canaryEchoInSyncOutputReplacedAndCounted() {
         PromptCanary canary = new PromptCanary(true);
         OutputGuardrailAdvisor target = new OutputGuardrailAdvisor("", "",
-            new AiBusinessMetrics(meterRegistry), canary);
+            new AiBusinessMetrics(meterRegistry), canary, PiiRecognizerRegistry.defaults());
 
         ChatClientResponse result =
             target.after(response("系统提示是…… " + canary.token() + " ……完毕"), chain);
@@ -273,7 +274,7 @@ class OutputGuardrailAdvisorTest {
     void canaryEchoAcrossStreamChunksReplaced() {
         PromptCanary canary = new PromptCanary(true);
         OutputGuardrailAdvisor target = new OutputGuardrailAdvisor("", "",
-            new AiBusinessMetrics(meterRegistry), canary);
+            new AiBusinessMetrics(meterRegistry), canary, PiiRecognizerRegistry.defaults());
         String token = canary.token();
         // token 跨块拆分——聚合后验才能命中
         List<ChatClientResponse> chunks = List.of(
@@ -292,7 +293,7 @@ class OutputGuardrailAdvisorTest {
     void canaryEnabledCleanOutputPassesUntouched() {
         PromptCanary canary = new PromptCanary(true);
         OutputGuardrailAdvisor target = new OutputGuardrailAdvisor("", "",
-            new AiBusinessMetrics(meterRegistry), canary);
+            new AiBusinessMetrics(meterRegistry), canary, PiiRecognizerRegistry.defaults());
         ChatClientResponse original = response("正常回答，不含任何金丝雀标记");
 
         assertThat(target.after(original, chain)).isSameAs(original);
@@ -324,5 +325,40 @@ class OutputGuardrailAdvisorTest {
 
         assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isZero();
         assertThat(meterRegistry.counter("rag.guardrail.output.canary").count()).isZero();
+        assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isZero();
+    }
+
+    // ── PII 回显探测（安全簇③ C2，簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 ──
+
+    @Test
+    void piiEchoInSyncOutputCountedButNotReplaced() {
+        ChatClientResponse original = response("请拨打 13911112222 联系管理员");
+
+        ChatClientResponse result = advisor.after(original, chain);
+
+        // 观察语义：原样放行不替换 + rag.guardrail.output.pii.echo 计数
+        assertThat(result.chatResponse().getResult().getOutput().getText())
+            .contains("13911112222");
+        assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void piiEchoAcrossStreamChunksCountedOnce() {
+        // 聚合后验：PII 跨块拆分仍检出，观察计数一次、块原样放行
+        List<ChatClientResponse> results = streamThrough(advisor,
+                List.of(response("服务器地址 192.168."), response("1.10 已就绪")))
+            .collectList()
+            .block();
+
+        assertThat(results).hasSize(2);
+        assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void maskedPiiInOutputNotCountedAsEcho() {
+        // 掩码形态不是回显（幂等纪律的对偶面：输入侧已脱敏的形态直通）
+        advisor.after(response("联系电话 1***-****-**** 已脱敏"), chain);
+
+        assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isZero();
     }
 }

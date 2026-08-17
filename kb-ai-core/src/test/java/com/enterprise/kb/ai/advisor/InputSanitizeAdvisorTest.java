@@ -7,7 +7,7 @@ import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.guardrail.RuleType;
-import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -33,9 +33,12 @@ class InputSanitizeAdvisorTest {
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
+    /** PII 识别器注册表缺省全集（安全簇③ C2）——与生产装配同基线 */
+    private final PiiRecognizerRegistry piiRegistry = PiiRecognizerRegistry.defaults();
+
     /** 空配置 → bundled 基线词表（结构化文件随 jar 发布） */
     private final InputSanitizeAdvisor advisor =
-        new InputSanitizeAdvisor("", "", new AiBusinessMetrics(meterRegistry));
+        new InputSanitizeAdvisor("", "", new AiBusinessMetrics(meterRegistry), piiRegistry);
     private final AdvisorChain chain = mock(AdvisorChain.class);
 
     /** 取 bundled 基线词表一条启用 BLOCK KEYWORD 词项（运行时取值，源码零字面） */
@@ -100,10 +103,10 @@ class InputSanitizeAdvisorTest {
 
     @Test
     void boundaryGuardsPreventFalsePositivesInsideLongerNumbers() {
-        // 19 位订单号内部不构成手机号/身份证——边界断言防误伤（正则细节见 TextSanitizerTest）
+        // 19 位订单号内部不构成手机号/身份证——边界断言防误伤（正则细节见 PiiRecognizerRegistryTest）
         String longNumber = "订单号 2026138123456789012 请核对";
 
-        assertThat(TextSanitizer.maskPii(longNumber)).isEqualTo(longNumber);
+        assertThat(piiRegistry.mask(longNumber)).isEqualTo(longNumber);
     }
 
     @Test
@@ -173,7 +176,7 @@ class InputSanitizeAdvisorTest {
     @Test
     void configuredKeywordsMergeWithDefaults() {
         InputSanitizeAdvisor custom =
-            new InputSanitizeAdvisor("", "测试拦截词, TestCustomWord", new AiBusinessMetrics(meterRegistry));
+            new InputSanitizeAdvisor("", "测试拦截词, TestCustomWord", new AiBusinessMetrics(meterRegistry), piiRegistry);
 
         // 配置词命中（大小写不敏感）
         assertThatThrownBy(() -> custom.before(request("执行 testcustomword 模式"), chain))
@@ -195,7 +198,7 @@ class InputSanitizeAdvisorTest {
 
     @Test
     void blankConfigFallsBackToBundledBaseline() {
-        InputSanitizeAdvisor blanks = new InputSanitizeAdvisor("", " , ,", new AiBusinessMetrics(meterRegistry));
+        InputSanitizeAdvisor blanks = new InputSanitizeAdvisor("", " , ,", new AiBusinessMetrics(meterRegistry), piiRegistry);
 
         GuardrailRule rule = bundledKeyword("en");
         assertThatThrownBy(() -> blanks.before(request(rule.value()), chain))
@@ -211,7 +214,7 @@ class InputSanitizeAdvisorTest {
     void flagRuleMatchesButDoesNotReject() {
         // location 覆盖 = 替换缺省文件：测试词表自带 FLAG + BLOCK 双档占位词
         InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
-            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry), piiRegistry);
 
         // FLAG 档占位词命中 → 放行（不抛异常），BLOCK 拒绝计数不触发
         ChatClientRequest result = flagged.before(request("this contains flagtest-alpha token"), chain);
@@ -229,7 +232,7 @@ class InputSanitizeAdvisorTest {
     void flagHitCountsTaggedMetricAndWritesCtxMark() {
         // T7：FLAG 放行 → rag.guardrail.flagged{side=input,family} + RetrievalContext 审计标记
         InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
-            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry), piiRegistry);
         RetrievalContext ctx = new RetrievalContext();
         ctx.setTenantId("tenant-a");
 
@@ -247,7 +250,7 @@ class InputSanitizeAdvisorTest {
     void flagHitWithoutCtxStillCountsMetric() {
         // 非 Web 入口（无 RetrievalContext）：只计数不落标记，不抛错
         InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
-            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry), piiRegistry);
 
         assertThat(flagged.before(request("this contains flagtest-alpha token"), chain)).isNotNull();
         assertThat(meterRegistry.counter("rag.guardrail.flagged",
@@ -258,7 +261,7 @@ class InputSanitizeAdvisorTest {
     void blockHitDoesNotCountFlagObservation() {
         // BLOCK 拒绝路径不计 FLAG（请求未放行，观察语义只覆盖放行流量）
         InputSanitizeAdvisor flagged = new InputSanitizeAdvisor(
-            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry));
+            "classpath:guardrail-test/flag-rules.yml", "", new AiBusinessMetrics(meterRegistry), piiRegistry);
         RetrievalContext ctx = new RetrievalContext();
 
         assertThatThrownBy(() -> flagged.before(requestWithCtx("this contains blocktest-beta token", ctx), chain))
@@ -285,6 +288,20 @@ class InputSanitizeAdvisorTest {
 
         assertThat(meterRegistry.counter("rag.guardrail.pii.masked").count()).isEqualTo(1.0);
         assertThat(meterRegistry.counter("rag.guardrail.injection.blocked").count()).isZero();
+    }
+
+    @Test
+    void piiMaskedCountsPerTypeSubItems() {
+        // 安全簇③ C1/C2：总项恒计一次 + 命中类型子项分列（零标签纪律）
+        // 银行卡号为公开发布的标准测试卡号（Luhn 有效，非真实卡）
+        advisor.before(request(
+            "手机 13911112222，卡号 4111 1111 1111 1111，服务器 192.168.1.10"), chain);
+
+        assertThat(meterRegistry.counter("rag.guardrail.pii.masked").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.guardrail.pii.masked.phone").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.guardrail.pii.masked.bank_card").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.guardrail.pii.masked.ipv4").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.guardrail.pii.masked.email").count()).isZero();
     }
 
     @Test

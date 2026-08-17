@@ -129,6 +129,31 @@ rag:
   # 兼容源（并入合并语义）。词表文件外部覆盖：rag.guardrail.rules.injection-location /
   # output-location（classpath:/file: 前缀；资源缺失回落内置缺省文件）。
   guardrail:
+    # PII 识别器注册表（安全簇③ C1/C2，专项方案 §4.3）：每类型独立识别器
+    # （模式/置信度/掩码策略/enabled 开关），Java 原生对齐 Presidio 语义；
+    # 七类确定性识别器默认全开（手机/身份证/邮箱既有 + 银行卡 Luhn/座机/车牌/
+    # IPv4 C1 新增），类型开关为误报治理运维绕开面；环境变量覆盖走松散绑定
+    # （如 RAG_GUARDRAIL_PII_BANK_CARD_ENABLED=false）。name/address 为 C3 登记项
+    # （NER 依赖未实现）默认关，开关预留置 true 仅启动 warn 提示无效。
+    pii:
+      phone:
+        enabled: true
+      id-card:
+        enabled: true
+      email:
+        enabled: true
+      bank-card:
+        enabled: true
+      landline:
+        enabled: true
+      license-plate:
+        enabled: true
+      ipv4:
+        enabled: true
+      name:
+        enabled: false    # C3 登记项：NER 依赖未实现，待干净集误报度量后评估
+      address:
+        enabled: false    # C3 登记项：同上
     input:
       # 注入检测兼容词表（CSV 并入结构化基线）：留空 → 仅 bundled 基线词表
       injection-keywords:

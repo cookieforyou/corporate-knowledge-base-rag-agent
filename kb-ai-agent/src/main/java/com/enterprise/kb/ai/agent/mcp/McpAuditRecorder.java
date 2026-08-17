@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
-import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -42,15 +42,18 @@ public class McpAuditRecorder {
     private final KbAuditLogRepository auditLogRepository;
     private final AsyncTaskExecutor auditExecutor;
     private final JsonMapper jsonMapper;
+    private final PiiRecognizerRegistry piiRegistry;
     private final boolean dbAuditEnabled;
 
     public McpAuditRecorder(KbAuditLogRepository auditLogRepository,
                             @Qualifier("auditExecutor") AsyncTaskExecutor auditExecutor,
                             JsonMapper jsonMapper,
+                            PiiRecognizerRegistry piiRegistry,
                             @Value("${rag.mcp.audit.enabled:false}") boolean dbAuditEnabled) {
         this.auditLogRepository = auditLogRepository;
         this.auditExecutor = auditExecutor;
         this.jsonMapper = jsonMapper;
+        this.piiRegistry = piiRegistry;
         this.dbAuditEnabled = dbAuditEnabled;
         log.info("MCP 只读工具审计装配: dbAuditEnabled={}", dbAuditEnabled);
     }
@@ -70,7 +73,7 @@ public class McpAuditRecorder {
         if (!dbAuditEnabled) {
             return;
         }
-        String maskedArgument = TextSanitizer.maskPii(argument);
+        String maskedArgument = piiRegistry.mask(argument);
         auditExecutor.execute(() -> persistSafely(tool, maskedArgument, tenantId, userId));
     }
 

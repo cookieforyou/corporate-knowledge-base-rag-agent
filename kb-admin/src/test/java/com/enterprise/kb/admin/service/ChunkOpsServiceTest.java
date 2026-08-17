@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.model.KbChunk;
@@ -63,7 +64,7 @@ class ChunkOpsServiceTest {
         metrics = mock(AiBusinessMetrics.class);
         // 真实消毒器（同源语义）：PII 开 + 注入扫描开（词表按需构造用例注入）
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
-            vectorStore, esIndexWriter, new SanitizingTransformer("", "", true, true),
+            vectorStore, esIndexWriter, new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, true),
             metrics, new JsonMapper(), (Executor) Runnable::run);
     }
 
@@ -147,7 +148,7 @@ class ChunkOpsServiceTest {
     void editMergesInjectionHitIntoMetadata() {
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter,
-            new SanitizingTransformer("", "测试注入占位词", true, true),
+            new SanitizingTransformer("", "测试注入占位词", PiiRecognizerRegistry.defaults(), true, true),
             metrics, new JsonMapper(), (Executor) Runnable::run);
         KbChunk chunk = chunk(false, "{\"heading_path\":\"A > B\"}");
         stubOwned(chunk, doc(TENANT, DocumentStatus.SUCCESS));

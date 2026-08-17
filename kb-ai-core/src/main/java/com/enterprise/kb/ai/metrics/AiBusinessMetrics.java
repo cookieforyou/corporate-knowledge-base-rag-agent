@@ -4,12 +4,14 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import com.enterprise.kb.commons.guardrail.OutputFamily;
+import com.enterprise.kb.commons.security.pii.PiiType;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -100,11 +102,22 @@ public class AiBusinessMetrics {
     private final Counter routingKnowledge;
     private final Counter guardrailInjectionBlocked;
     private final Counter guardrailPiiMasked;
+    // PII 掩码类型子项（安全簇③ C1/C2）：零标签纪律下沿用 output.replaced 子项
+    // 形态——经类型枚举 switch 收口为独立 Counter
+    private final Counter guardrailPiiMaskedPhone;
+    private final Counter guardrailPiiMaskedIdCard;
+    private final Counter guardrailPiiMaskedEmail;
+    private final Counter guardrailPiiMaskedBankCard;
+    private final Counter guardrailPiiMaskedLandline;
+    private final Counter guardrailPiiMaskedLicensePlate;
+    private final Counter guardrailPiiMaskedIpv4;
     private final Counter guardrailOutputReplaced;
     private final Counter guardrailOutputReplacedBusinessConfidential;
     private final Counter guardrailOutputReplacedComplianceSensitive;
     private final Counter guardrailOutputReplacedCompetitorComparison;
     private final Counter guardrailOutputCanary;
+    /** 输出 PII 回显观察计数（安全簇③ / 簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 */
+    private final Counter guardrailOutputPiiEcho;
     /** FLAG 观察档计数（安全簇① T7）：键 side:family，side×family 全组合预注册 */
     private final Map<String, Counter> guardrailFlagged;
     private final Counter guardrailRateLimited;
@@ -161,6 +174,22 @@ public class AiBusinessMetrics {
             .description("Prompt 注入拦截次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
         this.guardrailPiiMasked = Counter.builder("rag.guardrail.pii.masked")
             .description("PII 掩码触发次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
+        // PII 掩码类型子项（安全簇③ C1/C2）：七类确定性识别器各一子项，命名
+        // rag.guardrail.pii.masked.{type}（对齐 output.replaced.{分类} 子项形态）
+        this.guardrailPiiMaskedPhone = Counter.builder("rag.guardrail.pii.masked.phone")
+            .description("PII 掩码类型子项——手机号（安全簇③ C1/C2）").register(registry);
+        this.guardrailPiiMaskedIdCard = Counter.builder("rag.guardrail.pii.masked.id_card")
+            .description("PII 掩码类型子项——身份证号（安全簇③ C1/C2）").register(registry);
+        this.guardrailPiiMaskedEmail = Counter.builder("rag.guardrail.pii.masked.email")
+            .description("PII 掩码类型子项——邮箱（安全簇③ C1/C2）").register(registry);
+        this.guardrailPiiMaskedBankCard = Counter.builder("rag.guardrail.pii.masked.bank_card")
+            .description("PII 掩码类型子项——银行卡号 Luhn（安全簇③ C1/C2）").register(registry);
+        this.guardrailPiiMaskedLandline = Counter.builder("rag.guardrail.pii.masked.landline")
+            .description("PII 掩码类型子项——座机号（安全簇③ C1/C2）").register(registry);
+        this.guardrailPiiMaskedLicensePlate = Counter.builder("rag.guardrail.pii.masked.license_plate")
+            .description("PII 掩码类型子项——车牌号（安全簇③ C1/C2）").register(registry);
+        this.guardrailPiiMaskedIpv4 = Counter.builder("rag.guardrail.pii.masked.ipv4")
+            .description("PII 掩码类型子项——IPv4 地址（安全簇③ C1/C2）").register(registry);
         this.guardrailOutputReplaced = Counter.builder("rag.guardrail.output.replaced")
             .description("输出敏感词表整段替换次数（OutputGuardrailAdvisor，簇⑤ B2 S3）").register(registry);
         // 输出面分类化子项（安全簇① T5）：按 OutputFamily 三分类分列——零标签纪律下
@@ -176,6 +205,8 @@ public class AiBusinessMetrics {
                 .description("输出替换次数——竞品对比分类（安全簇① T5）").register(registry);
         this.guardrailOutputCanary = Counter.builder("rag.guardrail.output.canary")
             .description("系统提示金丝雀回显拦截次数——确证提示泄露（安全簇① T5）").register(registry);
+        this.guardrailOutputPiiEcho = Counter.builder("rag.guardrail.output.pii.echo")
+            .description("输出 PII 回显观察次数——回答检出未掩码强形态 PII，FLAG 观察起步只计数不替换（安全簇③ / 簇① T5 钩子）").register(registry);
         // FLAG 观察档计数（安全簇① T7）：side×family 全组合预注册——side 两值、
         // family 取两套中性枚举（注入侧七分法 ∪ 输出侧三分类，各含 UNCLASSIFIED），
         // 序列数有界（低基数标签，任务分解定案形态），Prometheus 侧 sum/group by 聚合
@@ -338,9 +369,35 @@ public class AiBusinessMetrics {
         guardrailInjectionBlocked.increment();
     }
 
-    /** 护栏命中计数（簇⑤ B2 S3）：PII 掩码触发（InputSanitizeAdvisor，非拒绝型干预） */
-    public void recordPiiMasked() {
+    /**
+     * 护栏命中计数（簇⑤ B2 S3 / 安全簇③ C1/C2）：PII 掩码触发
+     * （InputSanitizeAdvisor，非拒绝型干预）——总项恒计（语义不变：一次掩码
+     * 干预计一次），命中类型另计对应类型子项（零标签纪律，类型枚举 switch
+     * 收口；NAME/ADDRESS 为 C3 登记项无识别器，不可达只计总项）。
+     */
+    public void recordPiiMasked(Collection<PiiType> hitTypes) {
         guardrailPiiMasked.increment();
+        for (PiiType type : hitTypes) {
+            switch (type) {
+                case PHONE -> guardrailPiiMaskedPhone.increment();
+                case ID_CARD -> guardrailPiiMaskedIdCard.increment();
+                case EMAIL -> guardrailPiiMaskedEmail.increment();
+                case BANK_CARD -> guardrailPiiMaskedBankCard.increment();
+                case LANDLINE -> guardrailPiiMaskedLandline.increment();
+                case LICENSE_PLATE -> guardrailPiiMaskedLicensePlate.increment();
+                case IPV4 -> guardrailPiiMaskedIpv4.increment();
+                default -> { /* C3 登记项无识别器——只计总项 */ }
+            }
+        }
+    }
+
+    /**
+     * 输出 PII 回显观察（安全簇③，簇① T5 钩子闭环）：回答中检出未掩码强形态
+     * PII → FLAG 观察起步——只计数 + warn 日志（类型事实），不替换不阻断
+     * （专项方案 §4.1 A3：验证误报后再定动作）。
+     */
+    public void recordOutputPiiEcho() {
+        guardrailOutputPiiEcho.increment();
     }
 
     /**

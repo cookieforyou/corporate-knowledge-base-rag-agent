@@ -4,6 +4,7 @@ import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.guardrail.RuleType;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -20,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SanitizingTransformerTest {
 
-    private final SanitizingTransformer transformer = new SanitizingTransformer("", "", true, true);
+    private final SanitizingTransformer transformer = new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, true);
 
     /** 取 bundled 基线词表一条启用 BLOCK KEYWORD 词项（运行时取值，源码零字面） */
     private static GuardrailRule bundledKeyword(String lang) {
@@ -102,7 +103,7 @@ class SanitizingTransformerTest {
 
     @Test
     void piiDisabledLeavesTextUntouched() {
-        SanitizingTransformer off = new SanitizingTransformer("", "", false, true);
+        SanitizingTransformer off = new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), false, true);
         Document chunk = Document.builder().text("电话 13812345678").build();
 
         Document result = off.apply(List.of(chunk)).get(0);
@@ -112,7 +113,7 @@ class SanitizingTransformerTest {
 
     @Test
     void injectionScanDisabledLeavesNoFlag() {
-        SanitizingTransformer off = new SanitizingTransformer("", "", true, false);
+        SanitizingTransformer off = new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, false);
         GuardrailRule rule = bundledKeyword("en");
         Document chunk = Document.builder().text("正文 " + rule.value()).build();
 
@@ -123,7 +124,7 @@ class SanitizingTransformerTest {
 
     @Test
     void configuredKeywordsMergeWithDefaultsForScan() {
-        SanitizingTransformer custom = new SanitizingTransformer("", "测试注入占位词", true, true);
+        SanitizingTransformer custom = new SanitizingTransformer("", "测试注入占位词", PiiRecognizerRegistry.defaults(), true, true);
         Document hit = Document.builder().text("正文包含测试注入占位词的段落").build();
         GuardrailRule builtin = bundledKeyword("en");
         Document builtinHit = Document.builder().text("正文 " + builtin.value()).build();

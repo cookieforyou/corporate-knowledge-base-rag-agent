@@ -3,6 +3,7 @@ package com.enterprise.kb.etl.transformer;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentTransformer;
@@ -19,8 +20,9 @@ import java.util.List;
  * 三处存储面消费的都是本转换器的产出：
  *
  * <ul>
- *   <li><b>PII 消毒</b>：chunk 文本落库前掩码（手机/身份证/邮箱，与对话链路
- *       {@code InputSanitizeAdvisor} 经 {@link TextSanitizer} 同源正则）。
+ *   <li><b>PII 消毒</b>：chunk 文本落库前掩码（识别器注册表七类——手机/身份证/
+ *       邮箱/银行卡 Luhn/座机/车牌/IPv4，与对话链路 {@code InputSanitizeAdvisor}
+ *       消费同一 {@link PiiRecognizerRegistry} Bean 同源不漂移，安全簇③ C2）。
  *       MinIO 原件与 TABLE/IMAGE 的 original_content 保留原件——存储脱敏态、
  *       原件随审计访问的合规口径；</li>
  *   <li><b>注入扫描</b>：归一化检测视图命中注入词表 → chunk 元数据打标
@@ -40,25 +42,30 @@ public class SanitizingTransformer implements DocumentTransformer {
     public static final String INJECTION_HIT_KEY = "injection_hit";
 
     private final List<GuardrailRule> injectionRules;
+    private final PiiRecognizerRegistry piiRegistry;
     private final boolean piiEnabled;
     private final boolean injectionScanEnabled;
 
     /**
      * 注入词表与对话链路同源：{@link GuardrailRulesLoader#loadInjectionRules} 双源合并
      * （结构化文件 ∪ {@code rag.guardrail.input.injection-keywords} 兼容并入，
-     * 同一 Spring 上下文单一词表口径，安全簇① A1 结构化 / T2 字面退役）；PII 掩码正则同源于
-     * {@link TextSanitizer}。入库侧打标不区分 BLOCK/FLAG——任意启用词项命中即打标。
+     * 同一 Spring 上下文单一词表口径，安全簇① A1 结构化 / T2 字面退役）；PII 掩码与
+     * 对话链路消费同一 {@link PiiRecognizerRegistry} Bean（安全簇③ C2，kb-commons
+     * 装配，类型开关 {@code rag.guardrail.pii.{type}.enabled} 单点生效）。
+     * 入库侧打标不区分 BLOCK/FLAG——任意启用词项命中即打标。
      */
     public SanitizingTransformer(
             @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
+            PiiRecognizerRegistry piiRegistry,
             @Value("${kb.etl.sanitize.pii-enabled:true}") boolean piiEnabled,
             @Value("${kb.etl.sanitize.injection-scan:true}") boolean injectionScanEnabled) {
         this.injectionRules = GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv);
+        this.piiRegistry = piiRegistry;
         this.piiEnabled = piiEnabled;
         this.injectionScanEnabled = injectionScanEnabled;
-        log.info("ETL 入库消毒装配: pii={}, injectionScan={}, 词表 {} 条",
-            piiEnabled, injectionScanEnabled, injectionRules.size());
+        log.info("ETL 入库消毒装配: pii={}, injectionScan={}, 词表 {} 条, PII 识别器 {}",
+            piiEnabled, injectionScanEnabled, injectionRules.size(), piiRegistry.enabledTypes());
     }
 
     @Override
@@ -79,7 +86,7 @@ public class SanitizingTransformer implements DocumentTransformer {
 
             // 1. PII 消毒：掩码落库（幂等正则，掩码形态不二次匹配）
             if (piiEnabled) {
-                String masked = TextSanitizer.maskPii(text);
+                String masked = piiRegistry.mask(text);
                 if (!masked.equals(text)) {
                     current = current.mutate().text(masked).build();
                     text = masked;

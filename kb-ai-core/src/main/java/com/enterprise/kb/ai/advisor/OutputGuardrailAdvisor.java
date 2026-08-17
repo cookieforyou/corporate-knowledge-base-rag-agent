@@ -8,6 +8,9 @@ import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.OutputFamily;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiHit;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
+import com.enterprise.kb.commons.security.pii.PiiType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -61,8 +64,10 @@ import java.util.stream.Collectors;
  *   <li><b>系统提示金丝雀</b>（OWASP LLM01 / Rebuff 同款）：校验先于词表判定——
  *       输出回显 {@link PromptCanary} 运行时随机 token 即确证提示泄露，整段替换
  *       + 独立指标 {@code rag.guardrail.output.canary}；</li>
- *   <li><b>PII 回显探测钩子位</b>：{@link #piiEchoHit} 簇①只留 FLAG 钩子
- *       （识别器注册表依赖安全簇③ C 组，届时接入）。</li>
+ *   <li><b>PII 回显探测</b>（簇③ C2 接入闭环）：{@link #piiEchoHit} 经
+ *       {@link PiiRecognizerRegistry} 检测视图探测回答中未掩码强形态 PII——
+ *       FLAG 观察起步（计数 {@code rag.guardrail.output.pii.echo} + warn 类型事实，
+ *       不替换不阻断），验证误报后再定动作（专项方案 §4.1 A3）。</li>
  * </ul>
  *
  * <p><b>v2.43 修正（安全簇① T7，FLAG 观察语义）</b>：FLAG 档命中（无 BLOCK 命中时）
@@ -71,6 +76,11 @@ import java.util.stream.Collectors;
  * 经 {@code response.context()}——终端 ChatModelCallAdvisor 以
  * {@code Map.copyOf(request.context())} 将 advisor 参数（含本实例）写入响应 context；
  * 流式 adviseStream 直接持有 request。BLOCK 替换路径不计 FLAG（内容未放行）。
+ *
+ * <p><b>v2.45 修正（安全簇③ C1/C2，PII 识别器注册表）</b>：簇① T5 预留的
+ * {@link #piiEchoHit} 钩子接入 {@link PiiRecognizerRegistry} 检测视图——金丝雀校验
+ * 之后、词表判定之前观察（金丝雀替换后的安全话术无观察价值）；观察语义只计数
+ * 不替换，与 BLOCK 替换控制流正交。
  */
 @Slf4j
 @Component
@@ -92,14 +102,19 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
     /** 系统提示金丝雀（T5）：回显校验先于词表判定 */
     private final PromptCanary canary;
 
+    /** PII 识别器注册表（安全簇③ C2）：回显探测消费检测视图（只识别不掩码） */
+    private final PiiRecognizerRegistry piiRegistry;
+
     public OutputGuardrailAdvisor(
             @Value("${rag.guardrail.rules.output-location:}") String rulesLocation,
             @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv,
             AiBusinessMetrics metrics,
-            PromptCanary canary) {
+            PromptCanary canary,
+            PiiRecognizerRegistry piiRegistry) {
         this.outputRules = GuardrailRulesLoader.loadOutputRules(rulesLocation, blacklistCsv);
         this.metrics = metrics;
         this.canary = canary;
+        this.piiRegistry = piiRegistry;
         long blocks = outputRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
         if (outputRules.isEmpty()) {
             log.warn("输出护栏词表为空，无拦截词项（内容经 T4 带外通道注入后生效）");
@@ -131,6 +146,8 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
             log.warn("系统提示金丝雀在输出中回显——确证提示泄露，整段替换");
             return replaceResponse(response, SAFE_RESPONSE_COMPLIANCE);
         }
+        // PII 回显观察（簇③ C2）：只计数不替换，与词表判定控制流正交
+        piiEchoHit(output);
         Optional<GuardrailRule> hit = blockHit(output, ctx);
         if (hit.isEmpty()) {
             return response;
@@ -162,6 +179,8 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
                     ChatClientResponse last = responses.isEmpty() ? null : responses.get(responses.size() - 1);
                     return Flux.just(replaceResponse(last, SAFE_RESPONSE_COMPLIANCE));
                 }
+                // PII 回显观察（簇③ C2）：聚合后验只计数不替换
+                piiEchoHit(fullText);
                 Optional<GuardrailRule> hit = blockHit(fullText, ctx);
                 if (hit.isPresent()) {
                     metrics.recordOutputReplaced(hit.get().family());
@@ -211,9 +230,17 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
             ? rc : null;
     }
 
-    /** PII 回显探测钩子位（T5 预留）：识别器注册表依赖安全簇③ C 组，届时接 FLAG 语义 */
+    /** PII 回显探测（簇① T5 钩子，安全簇③ C2 接入）：识别器注册表检测视图探测
+     * 回答中未掩码强形态 PII → FLAG 观察起步——计数 + warn 类型事实，不替换不阻断 */
     private boolean piiEchoHit(String text) {
-        return false;
+        List<PiiHit> hits = piiRegistry.detect(text);
+        if (hits.isEmpty()) {
+            return false;
+        }
+        List<PiiType> types = hits.stream().map(PiiHit::type).distinct().toList();
+        metrics.recordOutputPiiEcho();
+        log.warn("输出检出未掩码 PII 回显（类型 {}），FLAG 观察档放行不替换", types);
+        return true;
     }
 
     /** 分类安全话术：未知族系/UNCLASSIFIED 落默认合规话术 */

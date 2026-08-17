@@ -7,20 +7,21 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 文本安全消毒公共组件（簇② B1，设计文档 12.4 S1/S4 + PII 入库消毒）
+ * 文本安全消毒公共组件（簇② B1，设计文档 12.4 S1/S4）
  *
  * <p>对话链路（{@code InputSanitizeAdvisor}）与 ETL 入库链路
- * （{@code SanitizingTransformer}）的同源实现：PII 掩码正则、归一化规则、
- * 结构化词表匹配入口集中于此，两处护栏永不漂移。注入词表本体收编
- * {@code guardrail} 包（结构化文件 + 加载层解码，安全簇① T2 起本类不再
- * 持有字面词表）。
+ * （{@code SanitizingTransformer}）的同源实现：归一化规则与结构化词表匹配入口
+ * 集中于此，两处护栏永不漂移。注入词表本体收编 {@code guardrail} 包
+ * （结构化文件 + 加载层解码，安全簇① T2 起本类不再持有字面词表）。
+ *
+ * <p><b>PII 能力迁移</b>（安全簇③ C2）：PII 掩码由静态正则演进为
+ * {@code pii} 包识别器注册表形态（{@code PiiRecognizerRegistry}，对齐 Presidio
+ * 语义）——单一实现源纪律的承载体由本类迁至注册表 Bean，消费方经 Spring
+ * 注入同一 Bean；{@code stripInvisible} 保留供对话链掩码前零宽剥离。
  *
  * <p><b>S1 归一化</b>（防 G2 编码绕过）：零宽字符剥离 → NFKC 归一（全角→半角、
  * 兼容形式还原）→ 空白折叠。全角「ｉｇｎｏｒｅ ｐｒｅｖｉｏｕｓ」、零宽字符拆词、
  * 多空白拆词在归一化后均现出原形被正则捕获。
- *
- * <p><b>PII 掩码</b>：手机/身份证正则允许数字间夹空格与连字符
- * （G2：{@code 138 1234 5678} 拆词绕过），掩码幂等（掩码形态不会被二次匹配）。
  */
 public final class TextSanitizer {
 
@@ -59,36 +60,9 @@ public final class TextSanitizer {
         return WHITESPACE_RUN.matcher(result).replaceAll(" ");
     }
 
-    // ── PII 掩码 ──
-
-    /** 手机号：1[3-9] 开头 11 位，数字间允许空格/连字符（边界断言防长数字串内部误匹配） */
-    private static final Pattern PHONE_PATTERN =
-        Pattern.compile("(?<!\\d)1[3-9](?:[ \\-]?\\d){9}(?!\\d)");
-
-    /** 身份证号：18 位（末位可 X），数字间允许空格/连字符 */
-    private static final Pattern ID_CARD_PATTERN =
-        Pattern.compile("(?<!\\d)\\d(?:[ \\-]?\\d){16}[ \\-]?[\\dXx](?![\\dXx])");
-
-    private static final Pattern EMAIL_PATTERN =
-        Pattern.compile("[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}");
-
-    private static final String PHONE_MASK = "1***-****-****";
-    private static final String ID_CARD_MASK = "******************";
-    private static final String EMAIL_MASK = "***@***.***";
-
-    /**
-     * PII 掩码（幂等）：手机号/身份证/邮箱三类。对话链路保护模型上下文与记忆；
-     * ETL 链路落库前对 chunk 内容同规则消毒（kb_chunk/向量库/ES 均存脱敏态）。
-     */
-    public static String maskPii(String text) {
-        if (text == null) {
-            return null;
-        }
-        String result = PHONE_PATTERN.matcher(text).replaceAll(PHONE_MASK);
-        result = ID_CARD_PATTERN.matcher(result).replaceAll(ID_CARD_MASK);
-        result = EMAIL_PATTERN.matcher(result).replaceAll(EMAIL_MASK);
-        return result;
-    }
+    // ── PII 掩码能力已迁 pii 包识别器注册表（安全簇③ C2）──
+    // PiiRecognizerRegistry：类型扩容（C1 银行卡/座机/车牌/IPv4）+ 每类型独立
+    // 识别器（模式/置信度/掩码策略/enabled 开关）+ 检测/掩码双视图。
 
     // ── 注入词表匹配（L1 词表防域，12.1/12.7）──
     // 词表本体：classpath guardrail/injection-rules.yml（逐条 Base64 编码态，

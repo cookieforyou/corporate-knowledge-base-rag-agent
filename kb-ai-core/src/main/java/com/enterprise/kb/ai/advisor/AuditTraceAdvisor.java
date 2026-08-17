@@ -3,7 +3,7 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
-import com.enterprise.kb.commons.security.TextSanitizer;
+import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -72,17 +72,20 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     private final JsonMapper jsonMapper;
     private final AsyncTaskExecutor auditExecutor;
     private final AiBusinessMetrics metrics;
+    private final PiiRecognizerRegistry piiRegistry;
     private final boolean enabled;
 
     public AuditTraceAdvisor(KbAuditLogRepository auditLogRepository,
                              JsonMapper jsonMapper,
                              @Qualifier("auditExecutor") AsyncTaskExecutor auditExecutor,
                              AiBusinessMetrics metrics,
+                             PiiRecognizerRegistry piiRegistry,
                              @Value("${rag.audit.enabled:true}") boolean enabled) {
         this.auditLogRepository = auditLogRepository;
         this.jsonMapper = jsonMapper;
         this.auditExecutor = auditExecutor;
         this.metrics = metrics;
+        this.piiRegistry = piiRegistry;
         this.enabled = enabled;
         log.info("全链路审计 Advisor 装配: enabled={}", enabled);
     }
@@ -157,7 +160,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             Map<String, Object> context = request.context();
             RetrievalContext ctx = context.get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
                 ? rc : null;
-            String queryText = TextSanitizer.maskPii(userTextOf(request));
+            String queryText = piiRegistry.mask(userTextOf(request));
 
             // 快照先提取、再异步落库——RetrievalContext 为请求级共享实例
             AuditSnapshot snapshot = new AuditSnapshot(
