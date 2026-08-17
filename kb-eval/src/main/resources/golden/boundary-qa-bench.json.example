@@ -5,6 +5,11 @@
     "question": "离职员工的系统权限回收由哪个部门负责？"
   },
   {
+    "id": "boundary-004",
+    "category": "NEGATIVE",
+    "question": "财务系统的操作权限变更需要走什么审批？"
+  },
+  {
     "id": "boundary-003",
     "category": "NEGATIVE",
     "question": "办公系统的密码有效期策略一般是多久？"

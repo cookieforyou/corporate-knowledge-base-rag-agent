@@ -5,11 +5,6 @@
     "question": "新入职员工的办公系统账号开通流程是什么？"
   },
   {
-    "id": "boundary-004",
-    "category": "NEGATIVE",
-    "question": "财务系统的操作权限变更需要走什么审批？"
-  },
-  {
     "id": "boundary-013",
     "category": "NEGATIVE",
     "question": "智能问答助手的对话记录会保存多长时间？"
