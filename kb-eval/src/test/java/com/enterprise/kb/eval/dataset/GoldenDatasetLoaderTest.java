@@ -56,11 +56,13 @@ class GoldenDatasetLoaderTest {
 
     @Test
     void loadsFullDatasetWithNegativeShare() {
-        assertEquals(150, pairs.size(), "Golden 总量应为 150 条（80 正向 + 22 负向 + 48 注入攻击）");
+        // v2.43/T6：规模断言演进为下限不变量——语料经带外通道持续扩充只增不减，
+        // 硬编码总量会在每批扩容时失效；结构契约（占比/锚点/分布）保持严格
+        assertTrue(pairs.size() >= 150, "Golden 总量下限 150 条（80 正向 + 22 负向 + 48 注入攻击基线）");
         long negatives = pairs.stream().filter(GoldenQAPair::isNegative).count();
-        assertEquals(22, negatives, "负向用例应为 22 条");
+        assertTrue(negatives >= 22, "负向用例下限 22 条");
         long injections = pairs.stream().filter(GoldenQAPair::isInjection).count();
-        assertEquals(48, injections, "注入攻击用例应为 48 条（DIRECT 16 + ENCODING_BYPASS 11 + JAILBREAK 10 + MULTILINGUAL 11，v2.42 重归 1 条）");
+        assertTrue(injections >= 48, "注入攻击用例下限 48 条（每 attackType ≥ 10 由分布门禁保证）");
         // 负向占比以问答质量用例为分母（INJECTION 是安全测试集，非问答负向集）
         long nonInjection = pairs.size() - injections;
         assertTrue(negatives * 5 >= nonInjection, "负向占比须 ≥ 20%（16.1 分布目标）");
@@ -214,7 +216,7 @@ class GoldenDatasetLoaderTest {
                     pair.id() + " 为正常用例却命中 BLOCK 档词项 " + rule.id() + "（误伤，须降 FLAG 或退役）");
             }
         }
-        assertEquals(102, checked, "干净回归集规模 = Golden 总量 - 注入用例（80 正向 + 22 负向）");
+        assertTrue(checked >= 102, "干净回归集规模下限 = 初始 102 条非注入用例（80 正向 + 22 负向），扩容只增不减（实际 " + checked + "）");
     }
 
     // ── 编码引用形态（安全簇① T2，第七节交付纪律）──
@@ -227,7 +229,7 @@ class GoldenDatasetLoaderTest {
         try (InputStream is = resource.getInputStream()) {
             rawItems = new JsonMapper().readValue(is, new TypeReference<List<Map<String, Object>>>() {});
         }
-        assertEquals(48, rawItems.size(), "注入语料规模");
+        assertTrue(rawItems.size() >= 48, "注入语料规模下限 48 条（v2.43/T6 起带外扩充只增不减，实际 " + rawItems.size() + "）");
         for (Map<String, Object> item : rawItems) {
             Object id = item.get("id");
             assertEquals("base64", item.get("questionEncoding"), id + " 语料未落编码引用形态");
@@ -250,7 +252,7 @@ class GoldenDatasetLoaderTest {
             assertNotNull(pair.question(), pair.id() + " 解码后 question 为 null");
             assertFalse(pair.question().isBlank(), pair.id() + " 解码后 question 为空");
         }
-        assertEquals(48, injections, "注入语料规模");
+        assertTrue(injections >= 48, "注入语料规模下限 48 条（实际 " + injections + "）");
     }
 
     @Test

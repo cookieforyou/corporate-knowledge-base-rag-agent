@@ -160,6 +160,2086 @@
       "action": "FLAG",
       "sha256": "9e3305852f74a4111c37772510e6d19c4d36498e224a05589bfa0f760d8b865f",
       "char_len": 45
+    },
+    {
+      "id": "import-inj-01",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "6eed46eabe082a131bf121e4587082291b9060b4e91ea49546795bfe0454a991",
+      "char_len": 8
+    },
+    {
+      "id": "import-inj-02",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "e9765b34a13e7a9c0ac7851ad676d23218b9528d751a64ed8bcb31b9c9c2b79c",
+      "char_len": 8
+    },
+    {
+      "id": "import-inj-03",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "4bdc02cdac19c802d73486f9868326b079f67f60d37d855426ced704de874a8e",
+      "char_len": 11
+    },
+    {
+      "id": "import-inj-04",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "306936c6b83a830990f334caf54106ea25e2b6ecd164056bb3ea68c391490ac7",
+      "char_len": 13
+    },
+    {
+      "id": "import-inj-05",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "a202ee6e402bb4a0ae16157ab7e1cd7ff08fde9a966cb7ea5caa819a155810b2",
+      "char_len": 32
+    },
+    {
+      "id": "import-inj-06",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "ae56ec5681d413850a188d276fd019c5475b9d9d3a4087fdbcd9fcd53daa33f7",
+      "char_len": 28
+    },
+    {
+      "id": "import-inj-07",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "b1a3967d2a6c95512bd6adacdaa4770a1a8d79784e5c2043acb52a9ea8a556a0",
+      "char_len": 29
+    },
+    {
+      "id": "import-inj-08",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "1048accf564a03da10991d60482ef4a3946d8f745983d45296016ca6a2fc9ff5",
+      "char_len": 32
+    },
+    {
+      "id": "import-inj-09",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "16077f09ef4bac4a3bf37ddfe001f10ba00b502aacdae03715386b0d2468c0ee",
+      "char_len": 106
+    },
+    {
+      "id": "import-inj-10",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "74a687cf368c3ca6d1bef6177242d62eb0e714c8d7dce3b6469c5cf4750b41f9",
+      "char_len": 47
+    },
+    {
+      "id": "import-inj-11",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "01ce625ef5cf0c342136f2b4e5b699a515b779a116ad400898278121910d5b41",
+      "char_len": 7
+    },
+    {
+      "id": "import-inj-12",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "079a249d9e0f6cd22cc98956e00736f1283e24fec934691142173d85aab5db9f",
+      "char_len": 13
+    },
+    {
+      "id": "import-inj-13",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "cf048cf5e66b98d2d1a13b8dc52661e6595a8ced1ea30afe915ce72b4f5ea968",
+      "char_len": 5
+    },
+    {
+      "id": "import-inj-14",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "4d32442ac47898efc637a52a2b9141fe724473d7d3d2d3144002f0dc6bd1f8fe",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-15",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "f3f6dcbcb5a65b7844cc279f9ebeb4424a7ec3f607d86762cac3e11588c95e92",
+      "char_len": 34
+    },
+    {
+      "id": "import-inj-16",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "29aa75ab38456195303a95d408680a721f9466cd4e5d46dfe777c2e49c6a510e",
+      "char_len": 29
+    },
+    {
+      "id": "import-inj-17",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "07e9f4c3e671241bdad09c56658273df9814cec03dea901e476038965f6808d8",
+      "char_len": 45
+    },
+    {
+      "id": "import-inj-18",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "671b39ed5585a6e80984d78e18b3b0bc01e7787653e7afc8c2b29d34b5a8e94a",
+      "char_len": 80
+    },
+    {
+      "id": "import-inj-19",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "a5058fe1d450b2dae56f169ba91ba76d943d6210ba76709ba0079e4881e397cc",
+      "char_len": 9
+    },
+    {
+      "id": "import-inj-20",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "a2c81eb75748ce7cfbb526ec6a6547e9a0cdd7072586d0614368ed9d711e3580",
+      "char_len": 12
+    },
+    {
+      "id": "import-inj-21",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "b91b3720d2cdff0f41df149c96213796a11d6902caf1ce6c2b7e50eac070a8cf",
+      "char_len": 9
+    },
+    {
+      "id": "import-inj-22",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "2fb2b1a07e62a8a9fab2e923f0dc5e49f6595905da4b7d4c27b66b030fa5bdde",
+      "char_len": 25
+    },
+    {
+      "id": "import-inj-23",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "196db531af508a45563638b1fe252ff415f1514ae780389470e264f32578d544",
+      "char_len": 30
+    },
+    {
+      "id": "import-inj-24",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "25fa67e9a56e381cf67f4f47771bafe6bf6c4ded369d7865ff4aec2036f53321",
+      "char_len": 33
+    },
+    {
+      "id": "import-inj-25",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "c035decc8fd529e37f068153b8f8a62c20b79ade35369b63b6c75da3f1d5922d",
+      "char_len": 31
+    },
+    {
+      "id": "import-inj-26",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "15327e5a95e72096bb208df178ff76242b12f1f95d932e195a77d0813f958cbb",
+      "char_len": 131
+    },
+    {
+      "id": "import-inj-27",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "f82dbf434eed462622fdc7a723c11b2a5491d3398137b353970d17f931564d30",
+      "char_len": 57
+    },
+    {
+      "id": "import-inj-28",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "aee6c43f0eb4bfb67115c31214d2e581d6dbf556c10f9762d0f9773ab2f3b79b",
+      "char_len": 16
+    },
+    {
+      "id": "import-inj-29",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "b1c2e1250808634a0c646bdae52974c32d70369385baf2dca162771665a68404",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-30",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "b49b79a5d7273f4df816ca20f091f16b7b78f2bc6ef037ca55edce5b582fda65",
+      "char_len": 39
+    },
+    {
+      "id": "import-inj-31",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "5f88d73e06db566cb19359ca52205f242df0519a88fc0b98149013d73d032239",
+      "char_len": 5
+    },
+    {
+      "id": "import-inj-32",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "4e0112e70bd279158636c1d3a6ca82d886447623023ef44dc0857b170e08fa24",
+      "char_len": 32
+    },
+    {
+      "id": "import-inj-33",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "775a698fab13809b8fb302b820b0f6f80c65e0f484b2ea18dae1d8df8ce69106",
+      "char_len": 25
+    },
+    {
+      "id": "import-inj-34",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "204da8bf10b366eb786e16a672bc9a6861876b3f879dd62b95bf1a7315f51436",
+      "char_len": 25
+    },
+    {
+      "id": "import-inj-35",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "d1354324b2c7b5ee38bfcf30fde3f5b9d8b24dbc5dafc162aa7801280d100811",
+      "char_len": 109
+    },
+    {
+      "id": "import-inj-36",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "72a9f7f2f44afc2034370b9fa3bcddebfa5ac6658c58072fed1cc3e69083b065",
+      "char_len": 12
+    },
+    {
+      "id": "import-inj-37",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "4353c6fccf3591e98e0c27e38b5b9f286cebeeea5882363bdcd29fa12a0415bf",
+      "char_len": 10
+    },
+    {
+      "id": "import-inj-38",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "ja",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "2d37636a17364bef1c44d6fbf8352a63e62cd9c9747d79054987a6669e7d7f4e",
+      "char_len": 19
+    },
+    {
+      "id": "import-inj-39",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "es",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "c5c951efa9588877106ebe081e9bcfe7ca588dc0899e5a7c955cfd317efca4b7",
+      "char_len": 39
+    },
+    {
+      "id": "import-inj-40",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "336b8887b255d6f77b931d9fe50395c0d38884a4b54addd02636921fb5a14432",
+      "char_len": 39
+    },
+    {
+      "id": "import-inj-41",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "ad69496e5f785070f2c835ef09f138508c437cae47fbc84fa14cab247cb3ba9e",
+      "char_len": 113
+    },
+    {
+      "id": "import-inj-42",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "1009c889a3388010162333920320ce56115a2a49bbb233ee75ef4145744cd878",
+      "char_len": 92
+    },
+    {
+      "id": "import-inj-43",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "4b370aaf32a5f1d2fb7e42cd1819d4e80ee733020f086f7c79204cd3ea089922",
+      "char_len": 16
+    },
+    {
+      "id": "import-inj-44",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "2bb257bbd132252e4df8b9f65202753dfcfa4c6fa5ddf31677ec40cf18d077df",
+      "char_len": 2
+    },
+    {
+      "id": "import-inj-45",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "b563985eb3931b53b28b1f1466e8968b0c991f7619f06af4ded9bb1d5cb02e9d",
+      "char_len": 6
+    },
+    {
+      "id": "import-inj-46",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "e33cc3fcef38b1095cc9d0069fe26ddec06c7c865b8d49ca2a57ac67d0b0b52e",
+      "char_len": 11
+    },
+    {
+      "id": "import-inj-47",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "60d04694a5d02ab75836f2090b706b5fe0e553cee4a8f3f4c84ab7222ddb4b0f",
+      "char_len": 26
+    },
+    {
+      "id": "import-inj-48",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "3e3d9259e07275c4a3dc40bfffde0e18b84984b61fa0311cb3c28e4d5be19696",
+      "char_len": 56
+    },
+    {
+      "id": "import-inj-49",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "c71960bdfc9304044774334db760551dcdfebabf01ee4a10cf78a93ce6a3ebca",
+      "char_len": 50
+    },
+    {
+      "id": "import-inj-50",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "3de422f558d2af04a508df21adc9cd6d873a74d300513f2beead15ec69ec8381",
+      "char_len": 43
+    },
+    {
+      "id": "import-inj-51",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "5c9a87879dbf70a83cfc9bf6fa6a9c0b744ca3d81af80abc73787420f1708038",
+      "char_len": 27
+    },
+    {
+      "id": "import-inj-52",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "2ba1b7192b4214c9d608969df89326164a9ebfa3f3b268f67fc77658fde679e6",
+      "char_len": 14
+    },
+    {
+      "id": "import-inj-53",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "d336a117cc196989b02c2d92fbcfdb04355d2ab0e9d4a40b41e93e1e41035787",
+      "char_len": 45
+    },
+    {
+      "id": "import-inj-54",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "88508fcd812adaa8fe0c1645d4c227dfc5e3081b495c2e42883874bbb4e96f25",
+      "char_len": 63
+    },
+    {
+      "id": "import-inj-55",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "7eab0e61d5c10e904916280f0baeafedc6cbc44b27b41a237bc556a65e7c4caf",
+      "char_len": 27
+    },
+    {
+      "id": "import-inj-56",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "5ac4105618d44c0b9c81d119e12ba55a3c68fda4bdb4c9219e50b11c4bdc364e",
+      "char_len": 94
+    },
+    {
+      "id": "import-inj-57",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "307bd73b0ef6fccd11d4c86aabaeae3694badd85d87f51c3b4804e0fcbb23e5e",
+      "char_len": 31
+    },
+    {
+      "id": "import-inj-58",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "67eeed875f21b4b59ff79a6ef9643472f6b03543b2af2ee88994f83514b97df3",
+      "char_len": 10
+    },
+    {
+      "id": "import-inj-59",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "90f9de121ab4b13f74e968f826f25974ad424cb4b8ceea3fe878c87e8bef5c3f",
+      "char_len": 10
+    },
+    {
+      "id": "import-inj-60",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "5a1f48947c24308b9a365704056e038e93add83434ceaba92799c32b07dbb090",
+      "char_len": 6
+    },
+    {
+      "id": "import-inj-61",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "1ab6bcf23001fd1588e2fe89af5107696bc5572316fa4f406dfc53b539841594",
+      "char_len": 6
+    },
+    {
+      "id": "import-inj-62",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "21ca1823bd03f0dbc031ae6933c67179abf22835405d7c597ad4619852748c74",
+      "char_len": 14
+    },
+    {
+      "id": "import-inj-63",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "04d5356a8dcff82fde9680da7c178b1885929b25d8d8a4dc09b08cf6c7fabe4e",
+      "char_len": 31
+    },
+    {
+      "id": "import-inj-64",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "083c0e1574ed9c9b2b04ee50679f619324b7a28f7ad9757120c5659aa90ea20d",
+      "char_len": 43
+    },
+    {
+      "id": "import-inj-65",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "c34a1b02eb4e47071931ad447ea8c571dad9f1d18a04a06a6071908998b2ca15",
+      "char_len": 105
+    },
+    {
+      "id": "import-inj-66",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "04c87869ebc49195634ba1aedfc1a7810e18529f2c1af0f828eae123ede81c05",
+      "char_len": 48
+    },
+    {
+      "id": "import-inj-67",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "1ba6ec5429a61ad10b46a716d18e65dc5ac02254ee26b5b269a35cb108f00a3c",
+      "char_len": 17
+    },
+    {
+      "id": "import-inj-68",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "17e5f0bf27ab73ab563a860b59912ee7bd2621b8b5b30e5367f824474804ca30",
+      "char_len": 15
+    },
+    {
+      "id": "import-inj-69",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "5fb0cfbca42fb7dad480aa2b6d4da1f6d00f24c0b68bbe16710fb73d821d1b57",
+      "char_len": 42
+    },
+    {
+      "id": "import-inj-70",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "dc4f3041c2a3212167126e849212199af3b5b7a6f7e9c6bda2b4edac6b9c61ab",
+      "char_len": 45
+    },
+    {
+      "id": "import-inj-71",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "fa3341700f38adb64b35dbb238d08fb92559948e1b6234a58b3d8553a4509993",
+      "char_len": 112
+    },
+    {
+      "id": "import-inj-72",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "5ec8d50a39c5ced9c0aa3ad872496455731cd81d9e5ef8666d2796425f6c7e64",
+      "char_len": 53
+    },
+    {
+      "id": "import-inj-73",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e5b146d690be54252f763fba2810846ef7f56a459a8edbb8218d42a28434789f",
+      "char_len": 13
+    },
+    {
+      "id": "import-inj-74",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "09e0844f3402db54affaf0a13947a59b661a595d46633f64023e0b2bd0072752",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-75",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "6864652bdc1f3eb6037cab3cbb38df358b0bef8a3211c2ca72a294ca25f97eee",
+      "char_len": 32
+    },
+    {
+      "id": "import-inj-76",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "bcb6fe3020432a2a7657ba270654041325ebfa31b671d7e7803a05cc53bcc543",
+      "char_len": 33
+    },
+    {
+      "id": "import-inj-77",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "776d7a7a06ed5d9622c3045923a77765e0fe6e8dbc979bc7435d2924111c75f2",
+      "char_len": 112
+    },
+    {
+      "id": "import-inj-78",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "3a78957b6468d6ee01403ac6b18a6112c5552e02a67f060a6e29ffd8d5749a52",
+      "char_len": 45
+    },
+    {
+      "id": "import-inj-79",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "2f11d6b1c9941659eb870d82dcd09a58ff8d4791686325c39cb5f310b5fe72f2",
+      "char_len": 23
+    },
+    {
+      "id": "import-inj-80",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e4bd164aaf3e3b24d5c0c4083e2a08ba96ebe516aba73391e155da23aa3b3ba7",
+      "char_len": 43
+    },
+    {
+      "id": "import-inj-81",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "13d6b72ad99ad7322401ff49e0661756b36727b92a0c228583172499677f80d2",
+      "char_len": 78
+    },
+    {
+      "id": "import-inj-82",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "5d03e8f0dba01ef045befd5092f644968f6d266ed08f77eee24f0aebc8c4af09",
+      "char_len": 24
+    },
+    {
+      "id": "import-inj-83",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "9a3bfee2394f1884ddeffc885b9e6108e16bbc43b27c35669ddf4a86461c08d9",
+      "char_len": 11
+    },
+    {
+      "id": "import-inj-84",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "f2a8706c30a94b54d6d63f18ea3a92567fe82fe2033535f0a544b813ed46e508",
+      "char_len": 37
+    },
+    {
+      "id": "import-inj-85",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "5c39fdd3f2ff5a63a3b78e50c2f9f96acad55957b85e94401806f16ddd3b276f",
+      "char_len": 15
+    },
+    {
+      "id": "import-inj-86",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "67ee3c644f13ffb94add5eab53ea6c52cae2abddc53832d327627dce40319515",
+      "char_len": 103
+    },
+    {
+      "id": "import-inj-87",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "81359ce7bd2852af484c19e50048ca7a555d3baaf8d21442e11564cd021f2f9d",
+      "char_len": 79
+    },
+    {
+      "id": "import-inj-88",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "b43399a1dd04d0d0013c60e04dfdecbb9b1d76aa8df00d5a9a5e000b50a26f18",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-89",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "3c0a215391894efa3be9acfeae4741eb6e55f304e690eb56791df5e3c84aa8da",
+      "char_len": 22
+    },
+    {
+      "id": "import-inj-90",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "c3ebb68b9ba8748df6f727da09bf65fd31c4991d404d336c6e12e8cd84b08115",
+      "char_len": 15
+    },
+    {
+      "id": "import-inj-91",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "f85f526e7df6e3c46e708186c9ea098a85fc4f0d674d3f5ee89814ffa4b1a57c",
+      "char_len": 45
+    },
+    {
+      "id": "import-inj-92",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "5a7e1c9372eed14f69f71d297b742140a1e3926ed432ed79ce3a1a502779d886",
+      "char_len": 125
+    },
+    {
+      "id": "import-inj-93",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "52a00f09dc20457937ae71687ec12c6d7486eac7624048def759fff582717e68",
+      "char_len": 61
+    },
+    {
+      "id": "import-inj-94",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "142b2ee0a59b8b5b7c3f95f83a42d5910793bf0c15753f39692f16a709d4d54c",
+      "char_len": 47
+    },
+    {
+      "id": "import-inj-95",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "ce8f27e4f25421ceb3d523bf9c6b16d5a23686531edb80c72c405f20705a9d8e",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-96",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "73bb3e69b996cf7dc9d84460a53c0287ad66c5f5a3df4a1b568e7426eb4ca1da",
+      "char_len": 46
+    },
+    {
+      "id": "import-inj-97",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "089075815016247db04725011c1646d3b1f4d08b15264683a1f764e2de744b1e",
+      "char_len": 44
+    },
+    {
+      "id": "import-inj-98",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "3f02a0a6f52a7291357283fa99bb9fdb38f7000a4a6281ec33be29adfdee3795",
+      "char_len": 49
+    },
+    {
+      "id": "import-inj-99",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "77445b636a53413d420ee0c30a1467d8ac4145491eef3bb5dcf658c04a4ca540",
+      "char_len": 56
+    },
+    {
+      "id": "import-inj-100",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "0bf59dd78ed5ffbd0d84e1693d4e17a42d5cd9c9a93268be74322926f8be5fa5",
+      "char_len": 44
+    },
+    {
+      "id": "import-inj-101",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "8d6a65069cac0548417f9fc9fd18d2c00f5f478febc7b1ed4e7791dabdc3d468",
+      "char_len": 25
+    },
+    {
+      "id": "import-inj-102",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "c81e4de6cec09ce7579ee9bab6dce349c35d8239931129c4cd3be64c74b0cbac",
+      "char_len": 39
+    },
+    {
+      "id": "import-inj-103",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "8d5b11fc21d5b9bfe85645ed652a7860402afde4b5f9182655d57dce90fec211",
+      "char_len": 32
+    },
+    {
+      "id": "import-inj-104",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "9c90c5e9e42b711caaff38bfa20757434e491619917f026d2727f23cb9a43473",
+      "char_len": 14
+    },
+    {
+      "id": "import-inj-105",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "1154da60409b848062eb191ac5907ac029e973f6b3f6ff9401afc59331b6dea7",
+      "char_len": 40
+    },
+    {
+      "id": "import-inj-106",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "539ca4901b8a2ba28f3f8c14f119d59257f611eaf3701b589829697b0fef72c6",
+      "char_len": 24
+    },
+    {
+      "id": "import-inj-107",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "5f7cda811a0f7b58ec6ea72790c9c79db79e949c7d407edce1cccc661bc737ca",
+      "char_len": 32
+    },
+    {
+      "id": "import-inj-108",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "e37331357f8ba10bcd987f768c2b67b159f43c55bc78f93acefbeb339f045664",
+      "char_len": 15
+    },
+    {
+      "id": "import-inj-109",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "6411b6ae8a7d1e15b5f5d47aa93240771309c344dda1dd4abe07cbc673292947",
+      "char_len": 59
+    },
+    {
+      "id": "import-inj-110",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e0e66c8861b0c639da270881b03ebb370bffa71264e84411ffed4b98ee578d99",
+      "char_len": 17
+    },
+    {
+      "id": "import-inj-111",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "5662c936e99b63e406e7e044028fc67f766ad2405b8b25745194c59fdb435122",
+      "char_len": 93
+    },
+    {
+      "id": "import-inj-112",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "d8fd37f5b9def591ba36e08327d436c73e635b595cea9e8ffd557b49e917f9d5",
+      "char_len": 12
+    },
+    {
+      "id": "import-inj-113",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "82168b02427cbbda6a08360e96e3719536ae859314998956fcdb1203f8089a71",
+      "char_len": 37
+    },
+    {
+      "id": "import-inj-114",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "c57f7df4244bf4438b89850893a4c3937a352cec59a69d73e24f2763315b4350",
+      "char_len": 27
+    },
+    {
+      "id": "import-inj-115",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "40a5324760d314ef704851c021c43108953d495d102792d7282907a7af6d3e2b",
+      "char_len": 54
+    },
+    {
+      "id": "import-inj-116",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "bbf40336d617eda07a632c741dead7dbafea3e1ee329e36a906c7a132d5eb482",
+      "char_len": 98
+    },
+    {
+      "id": "import-inj-117",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "140ecbf737501fc2c7ef95faecf5bd42fa4c9f2d4854ea0f23387ce6e1323f18",
+      "char_len": 19
+    },
+    {
+      "id": "import-inj-118",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "139eb35b0a671bb2753ebb84ba2ae7dd4440d9546a80d661bdd54b4bbe905909",
+      "char_len": 36
+    },
+    {
+      "id": "import-inj-119",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "7b05907b63409e35b83689ae1939d9e3519bdb6682cab2f5d1043638c48b4622",
+      "char_len": 12
+    },
+    {
+      "id": "import-inj-120",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "956c9e3963b4454973ae665be57d7ea4001fd28891805e544fcd40497e12b5db",
+      "char_len": 48
+    },
+    {
+      "id": "import-inj-121",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "16f8fe86c8232015b68f0ecc3fd54d24668c222762e5560319c7d3a921785cb8",
+      "char_len": 36
+    },
+    {
+      "id": "import-inj-122",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "4e768f4d6fc5fef16d9b996b1c2fcee71da0580b8f77fce20ef6e41a43844942",
+      "char_len": 9
+    },
+    {
+      "id": "import-inj-123",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "5cbc2dba06dd8cc4f15c8a2c7e6b3ddc82d0bde4e9c5946eab39fa8204187a5d",
+      "char_len": 60
+    },
+    {
+      "id": "import-inj-124",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "79a285523dd431d74afa21efeac3a8c65d7d026c4cf271a1ca0988c31dfba062",
+      "char_len": 34
+    },
+    {
+      "id": "import-inj-125",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "cbfe9c3a843bbe83e6527a3e8fdf2c027046c6f477c0e239495de3c2fd33eb24",
+      "char_len": 17
+    },
+    {
+      "id": "import-inj-126",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "a28901eba186d3b81bcf3e53a9176c9caf32a695a7f02a03eb83d244ec6ce8d2",
+      "char_len": 56
+    },
+    {
+      "id": "import-inj-127",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e7c7709407ec575e74a7676061a9747deb236333a62eba003002e086544dc755",
+      "char_len": 14
+    },
+    {
+      "id": "import-inj-128",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "89cf1f40cf4308408cb45b80d6b7b2370961a4f7d77bc2474fee85d7925e0b9b",
+      "char_len": 42
+    },
+    {
+      "id": "import-inj-129",
+      "side": "injection",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "44af0255a154557aa752ab6bbf6a4feff79a3a8e6cb51cf7c44ea094c8a42eea",
+      "char_len": 43
+    },
+    {
+      "id": "import-inj-130",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "4f8d27724335b1d22ba1e18403d83c1591e3d66e3f8feef6dc84a5d1974a389c",
+      "char_len": 15
+    },
+    {
+      "id": "import-inj-131",
+      "side": "injection",
+      "family": "INSTRUCTION_OVERRIDE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "7a5052c8f5b55a112a0aee6d939ee011150ef429959c0fda180af2c78eb3470a",
+      "char_len": 31
+    },
+    {
+      "id": "import-inj-132",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "b921a278a2bb3bba0ebc95a75e1b603686a781cd220389210bc3634c81a75aec",
+      "char_len": 20
+    },
+    {
+      "id": "import-inj-133",
+      "side": "injection",
+      "family": "ROLE_HIJACK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "d9c050f94f549243cbe570c5168e2f7a85f97a8f529ee7ab519a9fc6b11972df",
+      "char_len": 61
+    },
+    {
+      "id": "import-inj-134",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "0636e10a7908af65634ff67fd0a1025685b08f913fbcfc228709ef58e2ce2791",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-135",
+      "side": "injection",
+      "family": "INFO_EXTRACTION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "35b5f92efcd96ce1917350b5825cae43952e9e759154047530784b6dc8aa84c2",
+      "char_len": 49
+    },
+    {
+      "id": "import-inj-136",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "77cc00d46d8d2aabe50475c805360b756897d5659142bf64fc8a2063657ff3f9",
+      "char_len": 18
+    },
+    {
+      "id": "import-inj-137",
+      "side": "injection",
+      "family": "ENCODING_OBFUSCATION",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "817fcaf133cf97d088bedca5e0d878ec45a9e1caef1ae12ac482983a9b76898a",
+      "char_len": 61
+    },
+    {
+      "id": "import-inj-138",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "eb2039f09e86c343490c3ccb8cb1d41a9c113611afedfbe2bbe904d254f5fc18",
+      "char_len": 12
+    },
+    {
+      "id": "import-inj-139",
+      "side": "injection",
+      "family": "MULTILINGUAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e128ffcafc792a015c28f5089ba60f83bb7f918907b8d104ba55a0663f994e89",
+      "char_len": 42
+    },
+    {
+      "id": "import-inj-140",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "75399515bb5578cc8ddf302c5aaa936b66832616be32e626bc5ac2809399ab9d",
+      "char_len": 15
+    },
+    {
+      "id": "import-inj-141",
+      "side": "injection",
+      "family": "JAILBREAK",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e964d8b06e510c41a85fe472517f07894024dff67c993ad2d8f82a8f59884230",
+      "char_len": 48
+    },
+    {
+      "id": "import-inj-142",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "8cce579967bec10e56c97c83f655f7107021bc2656f258170480b715e22f7b03",
+      "char_len": 46
+    },
+    {
+      "id": "import-inj-143",
+      "side": "injection",
+      "family": "TOOL_INDUCED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "6c1ee7686ca4df466c84cf44acc72008e878cffaf0b6aea199cf2747b6c498b9",
+      "char_len": 19
+    },
+    {
+      "id": "import-out-01",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "65290298f4fd0f1482187959220f6eee9c2b6bc1372acd64811bd679a8b38e93",
+      "char_len": 4
+    },
+    {
+      "id": "import-out-02",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "1688cd96351b57cceb42495c017c0cf49dc4599cf050dc3e5a831044f41736ab",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-03",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "34b3dfbebeb3b3ee11d97fb3393a4f5cfc9214ab81b778208e080082bd406a63",
+      "char_len": 7
+    },
+    {
+      "id": "import-out-04",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "477ab456ee98d9284d54994b0d2b87ccda2e8a4998267141ef9c7485a987393a",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-05",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "8e3f286303fc333ba8cf29a4b715f43cd2fbaa1670cb2a36dd0a878f55d3afe0",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-06",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "6e5767d48d0909a858725e220d3b138b2cfe4d7e2176f440a4b8c7577ab02883",
+      "char_len": 30
+    },
+    {
+      "id": "import-out-07",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "55594b7c3bc5022928d827895c55a6b5bc0391991cb25b8c3e52d5bc0411c3b7",
+      "char_len": 12
+    },
+    {
+      "id": "import-out-08",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "00d9e1599765c93c34adc8913cd1e175678d5789e9163bc8a1342fed2db7d751",
+      "char_len": 65
+    },
+    {
+      "id": "import-out-09",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "bdcf026c6916c3da5d0697400d976359d028f4aded338a2144a68a3a7a838029",
+      "char_len": 20
+    },
+    {
+      "id": "import-out-10",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "764b78da623b9d7bff422a0577cbe3bf3a99ee183cccc777832830edbddb41b1",
+      "char_len": 16
+    },
+    {
+      "id": "import-out-11",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "1489c6491e9eb538e22ee7da3e86454dec59059c4bfba8f8c4326191ecb55861",
+      "char_len": 52
+    },
+    {
+      "id": "import-out-12",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "31e8d13be773c48fca104cd43b3e74fb1f76c216b6b77de83281caa6942a8e9b",
+      "char_len": 61
+    },
+    {
+      "id": "import-out-13",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "1426bde09986a48cdcb7ce34955b6f44f4a2d9c9ec46a9f6bbf8cf6808d2c77c",
+      "char_len": 5
+    },
+    {
+      "id": "import-out-14",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "1f2a3f7ad1251b9028ba3413deb046acf13e8a638c2bd8a95a9ef53eb13474ad",
+      "char_len": 8
+    },
+    {
+      "id": "import-out-15",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "6e78324720f0f98fa9d568dabc97964e97a016ea33f8d2e6996007faa57d04a6",
+      "char_len": 8
+    },
+    {
+      "id": "import-out-16",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "361a2c653a64023b4a77d6ec114f3ca05746ced47c76066848dcfe1f2207559c",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-17",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "8186deb2e9458b2d1c0504086358628e0f4d183fec391bf4cbdddd40bc513fbb",
+      "char_len": 12
+    },
+    {
+      "id": "import-out-18",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "aa53b3ac9d793a16066bb667318293437cf3c828176d8224939491bab61c2132",
+      "char_len": 22
+    },
+    {
+      "id": "import-out-19",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "82a270a76a98000aa4de72b36a5c4a7e82137b5fe681d4e762deb8b79c512f47",
+      "char_len": 69
+    },
+    {
+      "id": "import-out-20",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "45dd4fcd7991077e9ab59b00352b9a3a552999bc952a2d2c9f25fde8fb1099fa",
+      "char_len": 24
+    },
+    {
+      "id": "import-out-21",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "74790618d6eeb4c177294c3d3c3fac578902d0b080792d09945870cc0c31cb8d",
+      "char_len": 21
+    },
+    {
+      "id": "import-out-22",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "3f95c35b402e80cdb2793d7db5863677d15eb1fce7bf44e1a906246584a12f15",
+      "char_len": 22
+    },
+    {
+      "id": "import-out-23",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "b10f8c82ac1fdf824efdaf0a60f8c8aaec395bb04a76d5c55f30aa4682d689c4",
+      "char_len": 46
+    },
+    {
+      "id": "import-out-24",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "182c2be19758666082a09df45c93730e0d4aa06cfa19967adc39544ef6a52d39",
+      "char_len": 62
+    },
+    {
+      "id": "import-out-25",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "ae8d0dc9d06687db4224f717c9376873461448e770f9f6c505e4870ce65b54de",
+      "char_len": 4
+    },
+    {
+      "id": "import-out-26",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "730a0f5940549b9f3ad0dc400d6e47b8a988d786e600c21233e635d28a72ae47",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-27",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "80dbd45455cf8640941e873fbb25118faca6687469ddb5b6e980c301203b4bad",
+      "char_len": 4
+    },
+    {
+      "id": "import-out-28",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "84daeb8815a8e20793309cc9d9b869f54fb951a121e40e9429c89a79cefbd535",
+      "char_len": 12
+    },
+    {
+      "id": "import-out-29",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "bbb9e203e399b0a0063c780bcf09353c551d8eaba45d6ca9f684f483b32c98a2",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-30",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "b297f7a3d2198d2a4d26eabeb0723eac33c99cbf6ad69582c237354dd4b840c4",
+      "char_len": 21
+    },
+    {
+      "id": "import-out-31",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "58a305e07ac7972063ff26384c27ea912a77145b6f06ce56955d77649ab1f6fe",
+      "char_len": 47
+    },
+    {
+      "id": "import-out-32",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "f9d4fdc4c110008dc4daada1d86341204ee9899b6cd2d8d2e960b43edc98eae2",
+      "char_len": 28
+    },
+    {
+      "id": "import-out-33",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "483d84b89b0b92832b6ca7a0b00f3be722c75c048d1ae5f757aac017fa82f3bf",
+      "char_len": 123
+    },
+    {
+      "id": "import-out-34",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "45e549624ecd56c39b66981d5b304d7b61684789c81892412d2a8fe3dd9f989a",
+      "char_len": 35
+    },
+    {
+      "id": "import-out-35",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "849509a030467ff4ff1e6418d127c72b4302e75a8f74b86cc1201b80d4c43acd",
+      "char_len": 7
+    },
+    {
+      "id": "import-out-36",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "83b835878d74c6a9e665f09985d6c0012937a53235043b24873d6f08a02b99d8",
+      "char_len": 50
+    },
+    {
+      "id": "import-out-37",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "a7cf1fd7a4d32e07788d54e09cfae83af29b1aeed3938ded3161b41bb97ad7f8",
+      "char_len": 4
+    },
+    {
+      "id": "import-out-38",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "d6b60b51acc9448b15da9cb03f644d0ec8c410e37735817f39e15764aa75a37f",
+      "char_len": 10
+    },
+    {
+      "id": "import-out-39",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e7d3ffb521368da8a51ed1bf71a73b2f791ddc29926f6a9be32e735eec051c27",
+      "char_len": 8
+    },
+    {
+      "id": "import-out-40",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "c91b3ef343cd8c3f953b18102aeef88c7062f480d7105cfd27c5e48ec900ef83",
+      "char_len": 25
+    },
+    {
+      "id": "import-out-41",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "7f493f81bb86df6e5f15ada18917024d8cac91df3e73dcf95cbbe7b8e904e1cb",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-42",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "440ae8b9c33b7107d802c4170abdca1e65e34a003aa910988945b7048660d5be",
+      "char_len": 9
+    },
+    {
+      "id": "import-out-43",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "e387c986149e8ed24cbb7a273f112c2594f356f67038530ef989b66361e2e113",
+      "char_len": 30
+    },
+    {
+      "id": "import-out-44",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "5ae2ba4639cc9fcf411123cad2dc9e73f34d85f07d4448e1be7dfa784e34575b",
+      "char_len": 91
+    },
+    {
+      "id": "import-out-45",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "2a0d7100d861d307bcf565a98734a1bfdc18341d829e248f9cf7993cae558fe1",
+      "char_len": 31
+    },
+    {
+      "id": "import-out-46",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "5d7601dc6bc8ef7c93ce311051e5d20c6a583113ba1880389df9ae3ef85e19fc",
+      "char_len": 20
+    },
+    {
+      "id": "import-out-47",
+      "side": "output",
+      "family": "BUSINESS_CONFIDENTIAL",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "bafa94d8d407c344da374126afa89e637f79a3983e3a6ca7e982890e2ad1c22b",
+      "char_len": 18
+    },
+    {
+      "id": "import-out-48",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "749faab14d0db849f315fa9404871001e8a0fb2568d7671fa4e9953a481e4967",
+      "char_len": 4
+    },
+    {
+      "id": "import-out-49",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "adafd1661c7b187f22a87614e718671e2e5cc3f45794dc6a742205c95904a952",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-50",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "b4dce69bec3bc20baf5e749ebfe30344340607239a4551ccc8a496d1cb746149",
+      "char_len": 25
+    },
+    {
+      "id": "import-out-51",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "d00e6816131f8a910384388020ab5f75c6f177388665d84569812aa88ca48a8b",
+      "char_len": 56
+    },
+    {
+      "id": "import-out-52",
+      "side": "output",
+      "family": "COMPLIANCE_SENSITIVE",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "af3cfe8430320b8b23d4c60d37d35d782ab3b5f4d729393b543302d67dc258be",
+      "char_len": 27
+    },
+    {
+      "id": "import-out-53",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "ad7d4ac0ee110d8cc11fc79da760afdd76530b2488c961e53c43f38a0d236b23",
+      "char_len": 6
+    },
+    {
+      "id": "import-out-54",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "BLOCK",
+      "sha256": "ee4c314b278190251a81a0abaad807957c492a7325ea4d5c1b147e13f20a6c42",
+      "char_len": 28
+    },
+    {
+      "id": "import-out-55",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "05dbe9dd0512491b707e1eeac032c514809cdd1823f251ef4aefe18dda4b1d4e",
+      "char_len": 16
+    },
+    {
+      "id": "import-out-56",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "8e0d7117d733f0cc29f54825a63ef7fd00320872db38e4305505aee2c6ea2052",
+      "char_len": 63
+    },
+    {
+      "id": "import-out-57",
+      "side": "output",
+      "family": "COMPETITOR_COMPARISON",
+      "lang": "zh",
+      "type": "REGEX",
+      "action": "BLOCK",
+      "sha256": "d4bad9f402d3a76593fafc92eb71607bddba69bc4f22891450fdf6c3101e27e4",
+      "char_len": 29
+    },
+    {
+      "id": "import-out-58",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "2b1b140949f7b37576cf15c6e33ad69b8db20c6b8d8d00fe11a1a960e5bf9e70",
+      "char_len": 13
+    },
+    {
+      "id": "import-out-59",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "4d403cc61909b7580023881b48e08280b5209f43a719abcca041b791017d06a8",
+      "char_len": 17
+    },
+    {
+      "id": "import-out-60",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "REGEX",
+      "action": "FLAG",
+      "sha256": "43f5f62177fc116092fb4ef1117b3ab4f0706fde96991b8269574d9eae4f05c3",
+      "char_len": 91
+    },
+    {
+      "id": "import-out-61",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "zh",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "2194cff7a2998dc810d91b3e50c2181a62baf62d332579aebfb0b950ebdd299f",
+      "char_len": 11
+    },
+    {
+      "id": "import-out-62",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "19ab94556513d085d002041e0c41d524a73d66f43d14351200f5f96a7ecfde43",
+      "char_len": 27
+    },
+    {
+      "id": "import-out-63",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "f15dd7b45143047d58d460710b5ee542ab3ae41f6231e9f48be525bb09342ab2",
+      "char_len": 13
+    },
+    {
+      "id": "import-out-64",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "da6a231902ccac14dde15b3dc81a2e299887a9e24a1c75967adbfaf2acbf7bd7",
+      "char_len": 12
+    },
+    {
+      "id": "import-out-65",
+      "side": "output",
+      "family": "UNCLASSIFIED",
+      "lang": "en",
+      "type": "KEYWORD",
+      "action": "FLAG",
+      "sha256": "1878cae63e344ae90d60092b437c27be6e8d0c7fdab1e3446568d26063519739",
+      "char_len": 23
     }
   ],
   "removals": [
@@ -177,6 +2257,22 @@
       "id": "builtin-out-02",
       "side": "output",
       "sha256": "4bca9ccd9ff3"
+    }
+  ],
+  "actionChanges": [
+    {
+      "id": "import-inj-27",
+      "side": "injection",
+      "from": "BLOCK",
+      "to": "FLAG",
+      "sha256": "f82dbf434eed"
+    },
+    {
+      "id": "import-inj-50",
+      "side": "injection",
+      "from": "BLOCK",
+      "to": "FLAG",
+      "sha256": "3de422f558d2"
     }
   ]
 }

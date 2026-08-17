@@ -3,7 +3,10 @@ package com.enterprise.kb.commons.guardrail;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -68,10 +71,20 @@ class GuardrailRulesLoaderTest {
 
     @Test
     void outputBaselineLoadsFromBundledFileAndMergesCsv() {
-        // T5 起输出侧 bundled 基线为空形态（两条占位词退役，词项内容经 T4 带外通道
-        // 注入后生效）——加载器照常装载空基线，CSV 并入语义不变
+        // v2.43/T6：T4 通道带外内容已注入（T5 空形态锚点退役）——规模随词表运营增长
+        // 不硬编码条数，钉结构不变量：族系 ∈ 输出三分类 ∪ UNCLASSIFIED、REGEX 预编译
         List<GuardrailRule> baseline = GuardrailRulesLoader.loadOutputRules(null, "");
-        assertThat(baseline).isEmpty();
+        assertThat(baseline).isNotEmpty();
+        Set<String> outputFamilies = Arrays.stream(OutputFamily.values())
+            .map(Enum::name).collect(Collectors.toSet());
+        outputFamilies.add("UNCLASSIFIED");
+        assertThat(baseline).allSatisfy(r -> {
+            assertThat(outputFamilies).as("输出词项 %s 族系须为三分类或 UNCLASSIFIED", r.id())
+                .contains(r.family());
+            if (r.type() == RuleType.REGEX) {
+                assertThat(r.compiled()).as("REGEX 词项 %s 应预编译", r.id()).isNotNull();
+            }
+        });
 
         List<GuardrailRule> merged = GuardrailRulesLoader.loadOutputRules(null, "输出测试词");
         assertThat(byId(merged, "legacy-csv-0").value()).isEqualTo("输出测试词");

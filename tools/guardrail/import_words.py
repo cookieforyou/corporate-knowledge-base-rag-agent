@@ -29,6 +29,8 @@ inbox 文件格式（每文件逐条，文件间合并；.jsonl 与 .csv 均支�
   python3 tools/guardrail/import_words.py --inbox <目录> [--dry-run]
          [--id-prefix-injection import-inj] [--id-prefix-output import-out]
          [--remove-id <词项ID>]...（退役指定词项，可多次；可与导入同批或单独执行）
+         [--set-action <词项ID:BLOCK|FLAG>]...（动作档升降级，可多次——A4 观察档
+         晋升/降级的词表运营通道；stdout 仅回显 ID/新旧动作/指纹）
 
 幂等：按「解码值 + side + type」的 SHA-256 与既有词表及本批已收词项去重，
 重复运行不产生重复词项。REGEX 词项落盘前经 Python re 预编译校验
@@ -234,11 +236,36 @@ def remove_entry(path: Path, rule_id: str) -> str:
     return b64 or ""
 
 
+def set_action(path: Path, rule_id: str, new_action: str):
+    """按 id 改写词项 action 字段；返回 (原动作, 值 base64)。词值不落 stdout。"""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next((i for i, l in enumerate(lines)
+                  if ENTRY_HEAD.match(l) and ENTRY_HEAD.match(l).group(1) == rule_id), None)
+    if start is None:
+        raise ImportFailure(f"升降级目标不存在: {rule_id}（{path.name}）")
+    end = next((i for i in range(start + 1, len(lines)) if ENTRY_HEAD.match(lines[i])), len(lines))
+    old_action, b64, action_idx = None, None, None
+    for i in range(start, end):
+        stripped = lines[i].strip()
+        if stripped.startswith("action:"):
+            old_action = stripped.split(":", 1)[1].strip()
+            action_idx = i
+        elif stripped.startswith("value:"):
+            b64 = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+    if action_idx is None:
+        raise ImportFailure(f"词项 {rule_id} 缺 action 字段（{path.name}）")
+    lines[action_idx] = f"  action: {new_action}"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return old_action, b64 or ""
+
+
 def load_manifest() -> dict:
     if MANIFEST.exists():
-        return json.loads(MANIFEST.read_text(encoding="utf-8"))
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        manifest.setdefault("actionChanges", [])
+        return manifest
     return {"description": "安全簇① T4 带外导入指纹清单（仅元数据，无词值）",
-            "entries": [], "removals": []}
+            "entries": [], "removals": [], "actionChanges": []}
 
 
 def main() -> int:
@@ -249,14 +276,42 @@ def main() -> int:
     ap.add_argument("--id-prefix-output", default="import-out")
     ap.add_argument("--remove-id", action="append", default=[], metavar="ID",
                     help="退役指定词项（可多次）")
+    ap.add_argument("--set-action", action="append", default=[], metavar="ID:ACTION",
+                    help="升降级指定词项动作档（可多次，形如 import-inj-01:FLAG）")
     args = ap.parse_args()
 
-    if not args.inbox and not args.remove_id:
-        ap.error("须提供 --inbox 或 --remove-id 至少其一")
+    if not args.inbox and not args.remove_id and not args.set_action:
+        ap.error("须提供 --inbox / --remove-id / --set-action 至少其一")
 
     manifest = load_manifest()
     prefixes = {"injection": args.id_prefix_injection, "output": args.id_prefix_output}
     removed_any = False
+
+    # ── 升降级（A4 动作档运营通道；先于退役/导入）──
+    changed_any = False
+    if args.set_action:
+        for spec in args.set_action:
+            rid, sep, new_action = spec.partition(":")
+            new_action = new_action.strip().upper()
+            if not sep or new_action not in ACTIONS:
+                raise ImportFailure(f"--set-action 形如 ID:BLOCK|FLAG，收到: {spec}")
+            side = next((s for s in SIDES
+                         if any(eid == rid for eid, _ in parse_existing(RULES_FILES[s])[0])), None)
+            if side is None:
+                raise ImportFailure(f"升降级目标不存在于任一词表: {rid}")
+            if args.dry_run:
+                print(f"[dry-run] 将升降级 {rid}（{side}-rules.yml）→ {new_action}")
+                continue
+            old_action, b64 = set_action(RULES_FILES[side], rid, new_action)
+            if old_action == new_action:
+                print(f"词项 {rid} 已为 {new_action}，跳过")
+                continue
+            digest = sha256_hex(base64.b64decode(b64).decode("utf-8")) if b64 else ""
+            manifest["actionChanges"].append(
+                {"id": rid, "side": side, "from": old_action, "to": new_action,
+                 "sha256": digest[:12]})
+            changed_any = True
+            print(f"已升降级词项 {rid}（{side}-rules.yml）: {old_action} → {new_action}，指纹 {digest[:12]}")
 
     # ── 退役（先于导入，刷新后再做指纹去重基线）──
     if args.remove_id:
@@ -325,19 +380,21 @@ def main() -> int:
         if args.dry_run:
             print("[dry-run] 未写盘")
             return 0
-        if added or removed_any:
+        if added or removed_any or changed_any:
             MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                 encoding="utf-8")
             print(f"指纹清单已更新: {MANIFEST.relative_to(REPO_ROOT)}"
-                  f"（累计导入 {len(manifest['entries'])} / 退役 {len(manifest['removals'])}）")
-    elif removed_any:
-        # 纯退役运行同样落清单（修复：早期版本仅导入分支写清单）
+                  f"（累计导入 {len(manifest['entries'])} / 退役 {len(manifest['removals'])}"
+                  f" / 升降级 {len(manifest['actionChanges'])}）")
+    elif removed_any or changed_any:
+        # 纯退役/升降级运行同样落清单（修复：早期版本仅导入分支写清单）
         MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                             encoding="utf-8")
         print(f"指纹清单已更新: {MANIFEST.relative_to(REPO_ROOT)}"
-              f"（累计导入 {len(manifest['entries'])} / 退役 {len(manifest['removals'])}）")
+              f"（累计导入 {len(manifest['entries'])} / 退役 {len(manifest['removals'])}"
+              f" / 升降级 {len(manifest['actionChanges'])}）")
 
-    if not args.dry_run and (args.remove_id or args.inbox):
+    if not args.dry_run and (args.remove_id or args.inbox or args.set_action):
         # 落盘后结构自检：重解析两份词表，输出计数（不回显内容）
         for side in SIDES:
             parsed, _, _ = parse_existing(RULES_FILES[side])

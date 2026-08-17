@@ -47,7 +47,8 @@ class GuardrailRegexRulesTest {
 
     @Test
     void regexBaselineShape() {
-        assertThat(regexRules).as("REGEX 模式轨规模应在 10-20 条").hasSizeBetween(10, 20);
+        // 规模随 T4 通道带外导入增长（v2.43 首批 208 条扩充实证），上限不钉死；下限为不变量
+        assertThat(regexRules).as("REGEX 模式轨规模下限").hasSizeGreaterThanOrEqualTo(10);
         long blocks = regexRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
         long flags = regexRules.stream().filter(r -> r.action() == RuleAction.FLAG).count();
         assertThat(blocks).as("BLOCK 档组合模式数").isGreaterThanOrEqualTo(5);
