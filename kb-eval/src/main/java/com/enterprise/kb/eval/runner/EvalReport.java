@@ -6,6 +6,7 @@ import com.enterprise.kb.eval.dataset.QACategory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
@@ -136,6 +137,25 @@ public record EvalReport(
             fmt(avgRecall), fmt(avgMrr), fmt(avgContextPrecision),
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
+
+        // 负向用例判定分解（v2.43 四批）：Negative Rejection 是门禁指标却原来零逐例
+        // 可观测——逐条列出未规范拒答（PARTIAL/NOT_REJECTED）用例的 ID + 判定，
+        // 支撑边界集/负向集的定位维护（内容盲形态：仅 ID + 判定，不回显问题内容）
+        if (negativeEvaluated > 0) {
+            List<EvalResult> notFullyRejected = results.stream()
+                .filter(r -> r.pair().isNegative() && r.rejectionVerdict() != null
+                    && !"REJECTED".equalsIgnoreCase(r.rejectionVerdict()))
+                .sorted(Comparator.comparing(r -> r.pair().id()))
+                .toList();
+            if (!notFullyRejected.isEmpty()) {
+                sb.append(System.lineSeparator())
+                    .append(String.format("── 负向未规范拒答（%d 条，PARTIAL/NOT_REJECTED）──",
+                        notFullyRejected.size()));
+                for (EvalResult r : notFullyRejected) {
+                    sb.append(String.format("%n  %-16s %s", r.pair().id(), r.rejectionVerdict()));
+                }
+            }
+        }
 
         // 安全性（簇⑤ B2 S6）：注入拦截率——总体 + 门禁子集（DIRECT+ENCODING_BYPASS）
         // + 按攻击类型分解；JAILBREAK / MULTILINGUAL / ENCODING_OPAQUE 为观察集（L1 不拦截属设计行为）

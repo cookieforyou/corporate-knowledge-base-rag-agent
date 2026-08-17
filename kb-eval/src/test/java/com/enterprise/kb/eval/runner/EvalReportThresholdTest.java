@@ -271,4 +271,48 @@ class EvalReportThresholdTest {
         assertThat(noInjection.summary())
             .contains("Negative Rejection:  1.00" + System.lineSeparator() + "── 检索侧（文档级兜底");
     }
+
+    private static EvalResult negative(String id, String verdict) {
+        GoldenQAPair pair = new GoldenQAPair(id, QACategory.NEGATIVE, "负向-" + id,
+            null, null, null, null, null, null, null);
+        return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, null, null, verdict,
+            "REJECTED".equals(verdict) ? 5.0 : "PARTIAL".equals(verdict) ? 3.0 : 1.0, null, null);
+    }
+
+    private static EvalReport reportOfNegatives(List<EvalResult> results) {
+        long rejected = results.stream()
+            .filter(r -> "REJECTED".equalsIgnoreCase(r.rejectionVerdict())).count();
+        return new EvalReport("chain", results.size(), 0, 0, results.size(),
+            Double.NaN, Double.NaN, Double.NaN,
+            0, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, rejected / (double) results.size(),
+            0, Double.NaN, 0, Double.NaN, Map.of(), results);
+    }
+
+    /**
+     * 负向判定分解（v2.43 四批，边界集 NR 定位维护配套）：未规范拒答用例逐条列
+     * ID + 判定（内容盲，不回显问题内容）；全 REJECTED 时小节不渲染（summary 形态不变）。
+     */
+    @Test
+    void summaryListsNotFullyRejectedNegatives() {
+        List<EvalResult> results = new ArrayList<>();
+        results.add(negative("neg-01", "REJECTED"));
+        results.add(negative("boundary-005", "PARTIAL"));
+        results.add(negative("boundary-009", "NOT_REJECTED"));
+        String summary = reportOfNegatives(results).summary();
+        assertThat(summary)
+            .contains("负向未规范拒答（2 条，PARTIAL/NOT_REJECTED）")
+            .contains("boundary-005")
+            .contains("PARTIAL")
+            .contains("boundary-009")
+            .contains("NOT_REJECTED")
+            .doesNotContain("neg-01");
+    }
+
+    @Test
+    void summaryOmitsNegativeBreakdownWhenAllRejected() {
+        String summary = reportOfNegatives(List.of(negative("neg-01", "REJECTED"))).summary();
+        assertThat(summary).doesNotContain("负向未规范拒答");
+    }
 }

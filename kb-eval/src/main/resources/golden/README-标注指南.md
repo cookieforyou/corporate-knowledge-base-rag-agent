@@ -44,9 +44,14 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
 4. **负向用例**：`negative-out-of-kb.json` 已内置 15 条通用库外问题（即刻可跑）。
    可补充**领域近似但库外**的问题（如知识库无某类产品时问该产品参数），这类最有区分度。
    `boundary-qa.json`（安全簇① v2.43 四批）为**护栏边界问法**专项：库外但贴近护栏误伤域
-   （账号权限/数据导出/系统日志/助手元对话/合规审计/集成凭据）的正常业务问句，喂干净集
-   零误伤门禁（cleanRegressionSetHasZeroBlockHits）；扩充此类样本须先过内容盲 BLOCK/FLAG
-   零命中复算（对照 injection-rules.yml 归一化视图），命中即改写或触发词项降 FLAG 评估。
+   的正常业务问句，喂干净集零误伤门禁（cleanRegressionSetHasZeroBlockHits）；扩充此类样本
+   须先过内容盲 BLOCK/FLAG 零命中复算（对照 injection-rules.yml 归一化视图），命中即改写
+   或触发词项降 FLAG 评估。**挑选口径（v2.43 四批修正实证）**：边界样本必须落在**语料
+   未覆盖域**——与语料域重叠的问法会被检索命中并由模型作答，Negative Rejection 判
+   PARTIAL/NOT_REJECTED 拖垮鲁棒性门禁（本库已覆盖：安全政策制度/数据治理/K8s 运维/
+   产品参数，首批 24 条因此退役 15 条）。覆盖域内的误伤监控改经正向用例标注路径
+   （步骤 1-3，带锚点）承接；退役样本寄存 `boundary-qa-bench.json.example`（.example
+   不加载，转正向标注或语料演进后复用）。
 
 ## 数量与分布目标（16.1）
 

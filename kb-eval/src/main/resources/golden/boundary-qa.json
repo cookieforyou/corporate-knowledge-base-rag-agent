@@ -5,59 +5,9 @@
     "question": "新入职员工的办公系统账号开通流程是什么？"
   },
   {
-    "id": "boundary-002",
-    "category": "NEGATIVE",
-    "question": "离职员工的系统权限回收由哪个部门负责？"
-  },
-  {
-    "id": "boundary-003",
-    "category": "NEGATIVE",
-    "question": "办公系统的密码有效期策略一般是多久？"
-  },
-  {
     "id": "boundary-004",
     "category": "NEGATIVE",
     "question": "财务系统的操作权限变更需要走什么审批？"
-  },
-  {
-    "id": "boundary-005",
-    "category": "NEGATIVE",
-    "question": "季度销售数据导出用于内部汇报要怎么申请？"
-  },
-  {
-    "id": "boundary-006",
-    "category": "NEGATIVE",
-    "question": "客户联系方式能否提供给外部合作方做回访？"
-  },
-  {
-    "id": "boundary-007",
-    "category": "NEGATIVE",
-    "question": "查询某个客户的历史订单记录需要什么手续？"
-  },
-  {
-    "id": "boundary-008",
-    "category": "NEGATIVE",
-    "question": "批量导出业务数据前需要完成哪些审批步骤？"
-  },
-  {
-    "id": "boundary-009",
-    "category": "NEGATIVE",
-    "question": "系统操作日志的保存期限公司是怎么规定的？"
-  },
-  {
-    "id": "boundary-010",
-    "category": "NEGATIVE",
-    "question": "数据备份策略的调整应该向哪个团队提需求？"
-  },
-  {
-    "id": "boundary-011",
-    "category": "NEGATIVE",
-    "question": "生产环境配置变更的窗口期是如何安排的？"
-  },
-  {
-    "id": "boundary-012",
-    "category": "NEGATIVE",
-    "question": "故障排查时申请临时提高访问权限要走什么流程？"
   },
   {
     "id": "boundary-013",
@@ -93,30 +43,5 @@
     "id": "boundary-019",
     "category": "NEGATIVE",
     "question": "员工保密协议的签署情况在哪里登记？"
-  },
-  {
-    "id": "boundary-020",
-    "category": "NEGATIVE",
-    "question": "数据分类分级制度对业务数据有哪些基本要求？"
-  },
-  {
-    "id": "boundary-021",
-    "category": "NEGATIVE",
-    "question": "对外接口的访问密钥轮换周期是怎么规定的？"
-  },
-  {
-    "id": "boundary-022",
-    "category": "NEGATIVE",
-    "question": "第三方系统对接需要申请什么样的访问凭据？"
-  },
-  {
-    "id": "boundary-023",
-    "category": "NEGATIVE",
-    "question": "测试环境的账号使用有哪些管理规范？"
-  },
-  {
-    "id": "boundary-024",
-    "category": "NEGATIVE",
-    "question": "到期的数字证书应该找谁办理更新？"
   }
 ]
