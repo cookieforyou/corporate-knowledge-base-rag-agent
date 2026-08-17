@@ -98,6 +98,27 @@ class RetrievalConfigContextFormatTest {
             .build()).doesNotThrowAnyException();
     }
 
+    /**
+     * 安全簇④ D1：命中间接注入扫描的证据（元数据标记）在编号行后渲染逐条警示注记；
+     * 未命中文档渲染零漂移（既有断言钉死）。
+     */
+    @Test
+    void indirectHitMetadataRendersPerDocumentWarningNote() {
+        Document hit = Document.builder().text("含植入指令的资料")
+            .metadata(Map.of(
+                com.enterprise.kb.ai.retriever.IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY,
+                Boolean.TRUE))
+            .build();
+        Document clean = Document.builder().text("正常资料").build();
+
+        String context = RetrievalConfig.formatNumberedContext(List.of(hit, clean));
+
+        assertThat(context).isEqualTo(
+            "[ref-1]\n" + RetrievalConfig.INDIRECT_WARNING_NOTE + "\n含植入指令的资料\n\n"
+                + "[ref-2]\n正常资料\n\n");
+        assertThat(context).containsOnlyOnce(RetrievalConfig.INDIRECT_WARNING_NOTE);
+    }
+
     @Test
     void groundingPromptWrapsContextInUntrustedMarker() {
         // S2（v2.18）：检索内容置于不可信数据区，指令性文字声明为不得执行——

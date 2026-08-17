@@ -164,6 +164,14 @@ rag:
       # 输出回显即确证提示泄露 → 整段替换 + 指标 rag.guardrail.output.canary
       canary:
         enabled: ${RAG_GUARDRAIL_OUTPUT_CANARY_ENABLED:true}
+    # 间接注入运行时扫描（安全簇④ D1，设计 §12.8）：召回证据入 grounding 前经
+    # 注入词表同源检测视图逐条扫描——warn（默认）命中逐条警示注记 / exclude 剔除
+    # 命中证据（全剔回落空证据拒答）。指标 rag.guardrail.indirect.flagged /
+    # excluded；扫描位序在 rerank 之前，TRACE/[ref-N] 三面对齐不破。
+    indirect:
+      scan:
+        enabled: ${RAG_GUARDRAIL_INDIRECT_SCAN_ENABLED:true}
+      strategy: ${RAG_GUARDRAIL_INDIRECT_STRATEGY:warn}   # warn | exclude
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）
   retrieval:
     rewrite:

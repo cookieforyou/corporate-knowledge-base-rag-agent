@@ -118,6 +118,10 @@ public class AiBusinessMetrics {
     private final Counter guardrailOutputCanary;
     /** 输出 PII 回显观察计数（安全簇③ / 簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 */
     private final Counter guardrailOutputPiiEcho;
+    /** 间接注入扫描命中条数（安全簇④ D1）：召回证据命中注入词表检测视图，按条计 */
+    private final Counter guardrailIndirectFlagged;
+    /** 间接注入扫描 exclude 策略剔除条数（安全簇④ D1）：命中证据被剔出 grounding */
+    private final Counter guardrailIndirectExcluded;
     /** FLAG 观察档计数（安全簇① T7）：键 side:family，side×family 全组合预注册 */
     private final Map<String, Counter> guardrailFlagged;
     private final Counter guardrailRateLimited;
@@ -207,6 +211,10 @@ public class AiBusinessMetrics {
             .description("系统提示金丝雀回显拦截次数——确证提示泄露（安全簇① T5）").register(registry);
         this.guardrailOutputPiiEcho = Counter.builder("rag.guardrail.output.pii.echo")
             .description("输出 PII 回显观察次数——回答检出未掩码强形态 PII，FLAG 观察起步只计数不替换（安全簇③ / 簇① T5 钩子）").register(registry);
+        this.guardrailIndirectFlagged = Counter.builder("rag.guardrail.indirect.flagged")
+            .description("间接注入扫描命中条数——召回证据命中注入词表检测视图，按条计（安全簇④ D1）").register(registry);
+        this.guardrailIndirectExcluded = Counter.builder("rag.guardrail.indirect.excluded")
+            .description("间接注入扫描 exclude 策略剔除条数——命中证据被剔出 grounding（安全簇④ D1）").register(registry);
         // FLAG 观察档计数（安全簇① T7）：side×family 全组合预注册——side 两值、
         // family 取两套中性枚举（注入侧七分法 ∪ 输出侧三分类，各含 UNCLASSIFIED），
         // 序列数有界（低基数标签，任务分解定案形态），Prometheus 侧 sum/group by 聚合
@@ -398,6 +406,20 @@ public class AiBusinessMetrics {
      */
     public void recordOutputPiiEcho() {
         guardrailOutputPiiEcho.increment();
+    }
+
+    /**
+     * 间接注入扫描命中计数（安全簇④ D1）：召回证据经注入词表归一化检测视图
+     * 命中——按命中条数 increment（warn/exclude 两策略共用；exclude 档另计
+     * {@link #recordIndirectExcluded}）。零标签纪律：不带租户/族系标签。
+     */
+    public void recordIndirectFlagged(int hitCount) {
+        guardrailIndirectFlagged.increment(hitCount);
+    }
+
+    /** 间接注入扫描 exclude 策略剔除计数（安全簇④ D1）：命中证据被剔出 grounding */
+    public void recordIndirectExcluded(int excludedCount) {
+        guardrailIndirectExcluded.increment(excludedCount);
     }
 
     /**

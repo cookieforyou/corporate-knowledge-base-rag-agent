@@ -149,6 +149,17 @@ class AiBusinessMetricsTest {
         assertThat(registry.counter("rag.guardrail.output.pii.echo").count()).isEqualTo(1.0);
     }
 
+    @Test
+    void indirectInjectionScanCountersRecordHitsAndExclusions() {
+        // 安全簇④ D1：命中按条计（warn/exclude 共用 flagged）；exclude 档另计剔除
+        metrics.recordIndirectFlagged(2);
+        metrics.recordIndirectFlagged(1);
+        metrics.recordIndirectExcluded(1);
+
+        assertThat(registry.counter("rag.guardrail.indirect.flagged").count()).isEqualTo(3.0);
+        assertThat(registry.counter("rag.guardrail.indirect.excluded").count()).isEqualTo(1.0);
+    }
+
     // ── FLAG 观察档计数（安全簇① T7：低基数标签 side/family）──
 
     @Test
