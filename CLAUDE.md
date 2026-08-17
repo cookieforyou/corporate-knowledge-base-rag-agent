@@ -78,7 +78,7 @@ kb-rag-agent/
 - **词表工程（簇① v2.43）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV，外部缺失回落缺省）；REGEX 模式轨（领域裸词不入 BLOCK）；带外导入 import_words.py/import_corpus.py（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记——`rag.guardrail.flagged`（side/family 标签）+审计 `guardrail_flags` 列（ECS 先 ALTER）；新增词默认 FLAG，零误伤确认方转 BLOCK；输出三分类话术+系统提示金丝雀；语料 base64+指纹锚点；零字面载荷；见 §12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId+userId upsert 可改评；归属 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档 `ChatSessionService` 异步旁路；历史会话：会话端点 + 过期续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；Golden 基线 150（注入 ≥48，门禁限 L1 子集；chunk 确定性锚点）
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain——hybrid 直调检索器、chain 走全链（须配 `eval.chain-probe.tenant-id`）；Golden 基线 150（注入 ≥48，门禁限 L1 子集；chunk 确定性锚点）；**间接注入评估（簇④ D3）**：`indirect/` 独立语料目录（正文编码/问句判据明文），IndirectInjectionRunner 打标自洽双标记校验 + Judge 抑制率，`eval.indirect.enabled` 默认关
 
 **解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落 NATIVE，显式失败上抛）；DocMind 表格 HTML 在 `llmResult`、正文 `markdownContent`、按页 page_num；HtmlProtectingSplitter 保护 table/img + heading_path 落三存储面；**Contextual 语境增强默认开**；chunk 确定性 ID（文档名#序号#增强前原文）；向量化 10 条/批（DashScope ≤20）
 

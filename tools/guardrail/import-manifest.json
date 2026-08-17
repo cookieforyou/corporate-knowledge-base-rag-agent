@@ -2281,5 +2281,21 @@
       "attackType": "DIRECT",
       "sha256": "63484200659c"
     }
-  ]
+  ],
+  "poisonCorpus": {
+    "entries": [
+      {
+        "id": "poison-01",
+        "fileName": "自测文档.txt",
+        "sha256": "18c7f56b20f0"
+      }
+    ],
+    "removals": [
+      {
+        "id": "poison-01",
+        "fileName": "自测文档.txt",
+        "sha256": "18c7f56b20f0"
+      }
+    ]
+  }
 }

@@ -57,6 +57,19 @@ public class EvalProperties {
     private final Ci ci = new Ci();
     private final Judge judge = new Judge();
     private final Thresholds thresholds = new Thresholds();
+    private final Indirect indirect = new Indirect();
+
+    /**
+     * 间接注入评估（安全簇④ D3，设计 §12.8 / 12.6 提案）——毒化语料抑制率度量。
+     * 默认关：需毒化语料经带外通道注入（tools/guardrail/import_poison_corpus.py）
+     * 且目标库已上传对应毒化文档后显式开启；首跑基线入档，门禁阈值后定。
+     */
+    @Getter
+    @Setter
+    public static class Indirect {
+        /** 总开关（默认关——语料/毒化文档就位前置） */
+        private boolean enabled = false;
+    }
 
     @Getter
     @Setter

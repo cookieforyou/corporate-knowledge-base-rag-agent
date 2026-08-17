@@ -41,6 +41,7 @@ public class EvalRunner {
     private final ChatClient chatClient;        // 被测链路
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
     private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（簇⑤ B2 S6）
+    private final IndirectInjectionRunner indirectInjectionRunner; // 间接注入评估（簇④ D3）
     private final EvalProperties props;
     private final ApplicationArguments args;
 
@@ -49,6 +50,7 @@ public class EvalRunner {
                       @Qualifier("chatClient") ChatClient chatClient,
                       @Qualifier("judgeChatClient") ChatClient judgeChatClient,
                       @Qualifier("evalGuardrailChatClient") ChatClient guardrailChatClient,
+                      IndirectInjectionRunner indirectInjectionRunner,
                       EvalProperties props,
                       ApplicationArguments args) {
         this.datasetLoader = datasetLoader;
@@ -58,6 +60,7 @@ public class EvalRunner {
         this.chatClient = chatClient;
         this.judgeChatClient = judgeChatClient;
         this.guardrailChatClient = guardrailChatClient;
+        this.indirectInjectionRunner = indirectInjectionRunner;
         this.props = props;
         this.args = args;
     }
@@ -92,6 +95,9 @@ public class EvalRunner {
         EvalReport report = runFullEval();
         publishReport(report);
         writeJudgeAgreementSheetIfNeeded(report);
+        // 间接注入评估（安全簇④ D3）：独立报告面（target/indirect-eval{-label}），
+        // 首跑基线入档无门禁阈值；总开关关/语料空静默跳过，评估失败不静默
+        indirectInjectionRunner.runIfNeeded();
         if (ci) {
             report.assertThresholds(props);
             log.info("✅ 评估门禁通过");
