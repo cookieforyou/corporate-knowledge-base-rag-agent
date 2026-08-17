@@ -87,6 +87,39 @@ class GuardrailRulesLoaderTest {
         assertThat(rules).anyMatch(r -> r.id().startsWith("builtin-inj-"));
     }
 
+    // ── bundled 基线 ID 段 × 型/档分布钉死（T7 E2E 回归防护）──
+
+    /**
+     * builtin-inj ID 段的型/档分布是 FLAG 观察语义（T7）的运行时前提——
+     * 任一段被误改动作档（如 FLAG 观察词项被误钉 BLOCK，或 BLOCK 结构模式
+     * 被误降 FLAG）都会改变拦截/观察行为，须在词表变更时显式过测试。
+     * 段分布：01..14 KEYWORD/BLOCK（干词轨）· 15..20 REGEX/BLOCK ·
+     * 21..30 REGEX/FLAG（T3 结构模式轨，FLAG 观察档）。
+     */
+    @Test
+    void bundledBaselineIdSegmentsPinTypeAndActionTiers() {
+        List<GuardrailRule> rules = GuardrailRulesLoader.loadInjectionRules("", "").stream()
+            .filter(r -> r.id().startsWith("builtin-inj-"))
+            .toList();
+        assertThat(rules).hasSize(30);
+        for (GuardrailRule rule : rules) {
+            int seq = Integer.parseInt(rule.id().substring("builtin-inj-".length()));
+            if (seq <= 14) {
+                assertThat(rule.type()).as(rule.id() + " 干词轨须为 KEYWORD").isEqualTo(RuleType.KEYWORD);
+                assertThat(rule.action()).as(rule.id() + " 干词轨须为 BLOCK").isEqualTo(RuleAction.BLOCK);
+            } else if (seq <= 20) {
+                assertThat(rule.type()).as(rule.id() + " 结构模式轨须为 REGEX").isEqualTo(RuleType.REGEX);
+                assertThat(rule.action()).as(rule.id() + " 结构模式轨 BLOCK 段不得降 FLAG").isEqualTo(RuleAction.BLOCK);
+            } else {
+                assertThat(rule.type()).as(rule.id() + " 结构模式轨须为 REGEX").isEqualTo(RuleType.REGEX);
+                assertThat(rule.action()).as(rule.id() + " FLAG 观察段不得误钉 BLOCK（误伤铁律）").isEqualTo(RuleAction.FLAG);
+            }
+        }
+        // FLAG 观察段族系须为可归类的注入七分法成员（指标 family 标签低基数前提）
+        assertThat(rules).filteredOn(r -> r.action() == RuleAction.FLAG)
+            .allSatisfy(r -> assertThat(GuardrailFamily.valueOf(r.family())).isNotNull());
+    }
+
     // ── 词项五态解析 ──
 
     @Test
