@@ -31,6 +31,15 @@ spring:
         jwt:
           issuer-uri: ${JWT_ISSUER_URI:}
 
+  # 上传大小上限（安全簇② B2，2026-08-17 定案）：显式钉死替代 Boot 默认
+  # （file 1MB / request 10MB 偏小且隐式）。单文件 50MB + 单请求 60MB
+  # （预留表单字段余量）；DocumentService.validateFile 同值复核兜底，
+  # 超限经 GlobalExceptionHandler 统一映射 HTTP 413
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 60MB
+
   # MCP Server（Phase 4 簇⑤ 4.10）：Streamable HTTP 传输，端点 /mcp（RouterFunction
   # 形态，SecurityConfig requestMatchers 拦截）。@McpTool 注解扫描器默认开——
   # kb-ai-agent McpKnowledgeTools 三件套自动收编；type=sync 同步执行（工具在
@@ -99,6 +108,14 @@ server:
 app:
   ws:
     allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:5173}
+  # HTTP 层 CORS 白名单（安全簇② B1）：与 WS 侧 allowed-origins 独立两键
+  # （HTTP CORS 与 WS 握手 Origin 策略解耦）；生产多域经 env 逗号分隔注入
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  # chat/SSE 请求体上限（安全簇② B2）：ChatBodyLimitFilter 按 Content-Length
+  # 先行拦截，超限 413（multipart 上限只约束上传通道，JSON body 需独立护栏）
+  chat:
+    max-body-size: ${CHAT_MAX_BODY_SIZE:1MB}
 
 # ETL 管道（kb-etl）
 kb:

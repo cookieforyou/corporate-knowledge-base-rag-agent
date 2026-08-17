@@ -126,6 +126,8 @@ public class AiBusinessMetrics {
     private final Counter mcpSearch;
     private final Counter mcpGetDocument;
     private final Counter mcpAsk;
+    /** MCP 只读工具限流拒绝计数（安全簇② B3）——独立桶，与对话链限流分账 */
+    private final Counter guardrailMcpRateLimited;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -238,6 +240,9 @@ public class AiBusinessMetrics {
             .description("MCP get_document 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
         this.mcpAsk = Counter.builder("rag.mcp.ask")
             .description("MCP ask 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
+        this.guardrailMcpRateLimited = Counter.builder("rag.guardrail.mcp.ratelimited")
+            .description("MCP 只读工具限流拒绝次数（安全簇② B3：search/get_document 独立配额桶）")
+            .register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -267,6 +272,11 @@ public class AiBusinessMetrics {
             case "ask" -> mcpAsk.increment();
             default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
         }
+    }
+
+    /** MCP 只读工具限流拒绝计数（安全簇② B3）：超限拒绝事件入 Prometheus */
+    public void recordMcpRateLimited() {
+        guardrailMcpRateLimited.increment();
     }
 
     /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */

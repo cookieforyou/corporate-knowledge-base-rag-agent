@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Set;
 
@@ -46,9 +47,16 @@ public class GlobalExceptionHandler {
         Set.of("APPROVAL_STORE_UNAVAILABLE", "REBUILD_STORE_UNAVAILABLE");
 
     /**
+     * 载荷超限类错误码（安全簇② B2）— Service 层复核兜底拦截的大文件，
+     * 语义为「请求载荷过大」，映射 HTTP 413（Servlet 层 multipart 超限
+     * 另经 {@link #handleMaxUploadSizeExceeded} 同语义承接）。
+     */
+    private static final Set<String> PAYLOAD_TOO_LARGE_ERROR_CODES = Set.of("FILE_TOO_LARGE");
+
+    /**
      * 业务异常 — 提取 errorCode 和 message；配额类（RATE_LIMITED /
      * TOKEN_BUDGET_EXCEEDED）返回 HTTP 429，状态冲突类返回 HTTP 409，
-     * 存储不可用类返回 HTTP 503，其余 HTTP 400
+     * 存储不可用类返回 HTTP 503，载荷超限类返回 HTTP 413，其余 HTTP 400
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
@@ -58,10 +66,25 @@ public class GlobalExceptionHandler {
                 ? HttpStatus.CONFLICT
                 : STORE_UNAVAILABLE_ERROR_CODES.contains(e.getErrorCode())
                     ? HttpStatus.SERVICE_UNAVAILABLE
-                    : HttpStatus.BAD_REQUEST;
+                    : PAYLOAD_TOO_LARGE_ERROR_CODES.contains(e.getErrorCode())
+                        ? HttpStatus.PAYLOAD_TOO_LARGE
+                        : HttpStatus.BAD_REQUEST;
         log.warn("业务异常 [{}] {} {}: {}", e.getErrorCode(), request.getMethod(),
             request.getRequestURI(), e.getMessage());
         return ResponseEntity.status(status).body(ApiResponse.error(status.value(), e.getMessage()));
+    }
+
+    /**
+     * multipart 上传超限（安全簇② B2）— 超过 spring.servlet.multipart.max-file-size /
+     * max-request-size 时由 multipart resolver 在进 Controller 前抛出，
+     * 统一映射 HTTP 413（与 Service 层 FILE_TOO_LARGE 复核同语义）。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException e, HttpServletRequest request) {
+        log.warn("上传超限 {} {}: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+            .body(ApiResponse.error(HttpStatus.PAYLOAD_TOO_LARGE.value(), "上传文件超过大小上限"));
     }
 
     /**

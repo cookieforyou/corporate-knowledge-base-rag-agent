@@ -141,6 +141,36 @@
                     <argLine>--enable-preview</argLine>
                 </configuration>
             </plugin>
+            <!-- 依赖供应链基线（安全簇② B5，2026-08-17）：OWASP dependency-check
+                 + CycloneDX SBOM。**不绑定生命周期**——显式调用形态，CI 门禁暂不
+                 强制（定案：首跑全量报告入档观察误报率，转强制时机另议）。
+                 扫描：mvn org.owasp:dependency-check-maven:aggregate
+                 SBOM： mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom
+                 注：NVD 数据源建议配 API key（nvdApiKey 属性），无 key 限速显著 -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>13.0.0</version>
+                <configuration>
+                    <formats>
+                        <format>HTML</format>
+                        <format>JSON</format>
+                    </formats>
+                    <!-- 首跑不设失败阈值：failBuildOnCVSS 缺省 11（永不失败），
+                         观察误报率后转强制时再下调（CI 门禁定案口径） -->
+                    <skipProvidedScope>true</skipProvidedScope>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>2.9.3</version>
+                <configuration>
+                    <projectType>application</projectType>
+                    <outputFormat>json</outputFormat>
+                    <includeBomSerialNumber>true</includeBomSerialNumber>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

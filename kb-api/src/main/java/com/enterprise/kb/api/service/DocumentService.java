@@ -53,6 +53,13 @@ public class DocumentService {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 
     /**
+     * 单文件上传上限（安全簇② B2，2026-08-17 定案 50MB）：与
+     * spring.servlet.multipart.max-file-size 同值——Servlet 层先行拦截（413），
+     * Service 层复核兜底（防配置漂移），双层同语义。
+     */
+    static final long MAX_FILE_SIZE_BYTES = 50L * 1024 * 1024;
+
+    /**
      * 上传文档：写入 MinIO → 落 kb_document 表 → 返回文档 ID
      *
      * @param parseRoute 强制指定解析路由（NATIVE/DEEP/OCR，null = 自动决策，9.1）
@@ -307,6 +314,9 @@ public class DocumentService {
     private void validateFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new BusinessException("FILE_EMPTY", "上传文件为空");
+        }
+        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
+            throw new BusinessException("FILE_TOO_LARGE", "上传文件超过单文件 50MB 上限");
         }
         if (file.getContentType() != null && !ALLOWED_TYPES.contains(file.getContentType())) {
             throw new BusinessException("FILE_TYPE_UNSUPPORTED",

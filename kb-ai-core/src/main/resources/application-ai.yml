@@ -108,6 +108,20 @@ rag:
   token-budget:
     enabled: ${RAG_TOKEN_BUDGET_ENABLED:true}
     daily-limit: ${RAG_TOKEN_BUDGET_DAILY_LIMIT:1000000}
+  # MCP 治理（簇⑤ 4.10 基础键经 @Value 默认值收口；安全簇② B3 补配额与审计）
+  mcp:
+    # 只读工具（search/get_document）租户级限流——独立桶 rag:ratelimit:mcp:{tenant}
+    # 与对话链桶分账；Redis 故障 fail-open（只读路径限流是可用性管控非安全边界）；
+    # 超限 rag.guardrail.mcp.ratelimited 计数 + RATE_LIMITED 经 MCP 错误帧回传
+    ratelimit:
+      enabled: ${RAG_MCP_RATELIMIT_ENABLED:true}
+      tenant:
+        rate: ${RAG_MCP_RATELIMIT_RATE:120}                  # 只读调用密度高于对话链
+        interval-seconds: ${RAG_MCP_RATELIMIT_INTERVAL_SECONDS:60}
+    # 只读工具轻量审计：结构化日志恒开；DB 轻行（kb_audit_log mode=mcp）默认关，
+    # 先经日志面观察体量与价值再定口径（专项方案 §4.2 B3）
+    audit:
+      enabled: ${RAG_MCP_AUDIT_ENABLED:false}
   # 安全护栏（3.5/3.6，设计文档 12.1/12.2/12.7）—— 词表本体收编结构化文件
   # guardrail/injection-rules.yml / output-rules.yml（逐条 Base64 编码态，
   # 安全簇① T2 起字面词表退役；T3 增 REGEX 结构模式轨，词面经 T4 带外通道

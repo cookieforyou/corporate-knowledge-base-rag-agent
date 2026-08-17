@@ -42,7 +42,9 @@ import java.util.UUID;
  * 请求线程捕获 JWT → 参数链（无 ThreadLocal 传递）。
  *
  * <p><b>审计形态</b>：ask 落 kb_audit_log 全链路快照（AuditTraceAdvisor 链上既有）；
- * search/get_document 非对话调用，审计经 rag.mcp.* 指标面（零标签纪律）。
+ * search/get_document 经 {@link McpAuditRecorder} 轻量审计（结构化日志恒开 +
+ * DB 轻行可开）+ {@link McpRateLimiter} 独立配额桶（安全簇② B3 补位，
+ * 此前仅 rag.mcp.* 指标面）。
  *
  * <p><b>scope 治理</b>：调用级强制（McpIdentityGuard）；tools/list 注册面为静态
  * 全集（注解扫描器形态），部署级可见性经网关/客户端配置治理，留档不内建。
@@ -58,6 +60,8 @@ public class McpKnowledgeTools {
     private final KbDocumentRepository documentRepository;
     private final KbChunkRepository chunkRepository;
     private final McpIdentityGuard identityGuard;
+    private final McpRateLimiter mcpRateLimiter;
+    private final McpAuditRecorder mcpAuditRecorder;
     private final AiBusinessMetrics metrics;
     private final JsonMapper jsonMapper;
     private final int documentMaxChunks;
@@ -69,6 +73,8 @@ public class McpKnowledgeTools {
                              KbDocumentRepository documentRepository,
                              KbChunkRepository chunkRepository,
                              McpIdentityGuard identityGuard,
+                             McpRateLimiter mcpRateLimiter,
+                             McpAuditRecorder mcpAuditRecorder,
                              AiBusinessMetrics metrics,
                              JsonMapper jsonMapper,
                              @Value("${rag.mcp.get-document.max-chunks:50}") int documentMaxChunks) {
@@ -79,6 +85,8 @@ public class McpKnowledgeTools {
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;
         this.identityGuard = identityGuard;
+        this.mcpRateLimiter = mcpRateLimiter;
+        this.mcpAuditRecorder = mcpAuditRecorder;
         this.metrics = metrics;
         this.jsonMapper = jsonMapper;
         this.documentMaxChunks = Math.max(1, documentMaxChunks);
@@ -95,6 +103,10 @@ public class McpKnowledgeTools {
         }
         RetrievalContext ctx = identityGuard.requireIdentity();
         metrics.recordMcpToolCall("search");
+        // 安全簇② B3：只读工具不经 advisor 链，限流/审计由此独立补位
+        // （桶 rag:ratelimit:mcp:* 与对话链分账；超限 RATE_LIMITED 经 MCP 错误帧回传）
+        mcpRateLimiter.acquire(ctx.getTenantId());
+        mcpAuditRecorder.record("search", query, ctx);
 
         Query rewritten = rewriteQueryTransformer.apply(new Query(query));
         Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, ctx);
@@ -128,6 +140,8 @@ public class McpKnowledgeTools {
         @McpArg(name = "documentId", description = "文档 ID（kb_document 主键）", required = true) String documentId) {
         RetrievalContext ctx = identityGuard.requireIdentity();
         metrics.recordMcpToolCall("get_document");
+        mcpRateLimiter.acquire(ctx.getTenantId());
+        mcpAuditRecorder.record("get_document", documentId, ctx);
 
         // 租户 fail-closed：不存在与跨租户一律 MCP_DOC_NOT_FOUND（不泄露存在性）
         KbDocument doc = documentRepository.findById(documentId).orElse(null);

@@ -22,7 +22,11 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
@@ -318,5 +322,43 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> service.replace(DOC_ID, TENANT, empty, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("FILE_EMPTY");
+    }
+
+    // ── 上传大小守卫（安全簇② B2）：Service 层复核兜底，413 语义经 GlobalExceptionHandler ──
+
+    @Test
+    void uploadOversizedFileRejectedBeforeMinio() {
+        MultipartFile oversized = sizedFile(DocumentService.MAX_FILE_SIZE_BYTES + 1, "application/pdf");
+
+        assertThatThrownBy(() -> service.upload(oversized, TENANT, "u-1", null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("FILE_TOO_LARGE");
+        verifyNoInteractions(minioClient);
+        verifyNoInteractions(documentRepository);
+    }
+
+    @Test
+    void uploadAtLimitBoundaryPassesSizeGuard() throws Exception {
+        // 边界语义：等于上限放行（> 拒绝）
+        MultipartFile atLimit = sizedFile(DocumentService.MAX_FILE_SIZE_BYTES, "application/pdf");
+
+        service.upload(atLimit, TENANT, "u-1", null);
+
+        verify(minioClient).putObject(any(PutObjectArgs.class));
+        verify(documentRepository).save(any(KbDocument.class));
+    }
+
+    /** 轻量 MultipartFile 桩：仅伪造 size，不占 50MB 实体内存 */
+    private static MultipartFile sizedFile(long size, String contentType) {
+        return new MultipartFile() {
+            @Override public String getName() { return "file"; }
+            @Override public String getOriginalFilename() { return "big.pdf"; }
+            @Override public String getContentType() { return contentType; }
+            @Override public boolean isEmpty() { return false; }
+            @Override public long getSize() { return size; }
+            @Override public byte[] getBytes() { return new byte[0]; }
+            @Override public InputStream getInputStream() { return ByteArrayInputStream.nullInputStream(); }
+            @Override public void transferTo(File dest) { throw new UnsupportedOperationException(); }
+        };
     }
 }

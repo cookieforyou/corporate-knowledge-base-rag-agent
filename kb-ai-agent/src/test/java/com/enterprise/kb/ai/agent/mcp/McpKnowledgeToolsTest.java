@@ -32,8 +32,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -51,6 +53,8 @@ class McpKnowledgeToolsTest {
     private KbDocumentRepository documentRepository;
     private KbChunkRepository chunkRepository;
     private McpIdentityGuard identityGuard;
+    private McpRateLimiter mcpRateLimiter;
+    private McpAuditRecorder mcpAuditRecorder;
     private AiBusinessMetrics metrics;
     private McpKnowledgeTools tools;
 
@@ -63,6 +67,8 @@ class McpKnowledgeToolsTest {
         documentRepository = mock(KbDocumentRepository.class);
         chunkRepository = mock(KbChunkRepository.class);
         identityGuard = mock(McpIdentityGuard.class);
+        mcpRateLimiter = mock(McpRateLimiter.class);
+        mcpAuditRecorder = mock(McpAuditRecorder.class);
         metrics = mock(AiBusinessMetrics.class);
 
         RetrievalContext ctx = new RetrievalContext();
@@ -72,7 +78,8 @@ class McpKnowledgeToolsTest {
 
         tools = new McpKnowledgeTools(hybridRetriever, rerankPostProcessor,
             rewriteQueryTransformer, ragChatService, documentRepository,
-            chunkRepository, identityGuard, metrics, new JsonMapper(), 2);
+            chunkRepository, identityGuard, mcpRateLimiter, mcpAuditRecorder,
+            metrics, new JsonMapper(), 2);
     }
 
     // ── search ──
@@ -98,6 +105,22 @@ class McpKnowledgeToolsTest {
         assertThat(hit.rerankScore()).isEqualTo(0.93);
         assertThat(hit.finalRank()).isEqualTo(1);
         verify(metrics).recordMcpToolCall("search");
+        // 安全簇② B3：限流与轻量审计接线（身份守卫后、工具执行前）
+        verify(mcpRateLimiter).acquire(TENANT);
+        verify(mcpAuditRecorder).record(eq("search"), eq("质保期多久"), any(RetrievalContext.class));
+    }
+
+    @Test
+    void searchRateLimitedRejectsBeforeRetrieval() {
+        doThrow(new BusinessException("RATE_LIMITED", "请求过于频繁，请稍后再试"))
+            .when(mcpRateLimiter).acquire(TENANT);
+
+        assertThatThrownBy(() -> tools.search("质保期多久"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("RATE_LIMITED");
+        // 超限不触达检索链、不落审计
+        verifyNoInteractions(hybridRetriever);
+        verifyNoInteractions(mcpAuditRecorder);
     }
 
     @Test
@@ -142,6 +165,8 @@ class McpKnowledgeToolsTest {
         assertThat(view.chunks()).extracting(ChunkTextView::chunkIndex).containsExactly(0, 2);
         assertThat(view.chunks().get(0).headingPath()).isEqualTo("第一章");
         verify(metrics).recordMcpToolCall("get_document");
+        verify(mcpRateLimiter).acquire(TENANT);
+        verify(mcpAuditRecorder).record(eq("get_document"), eq("d-1"), any(RetrievalContext.class));
     }
 
     // ── ask ──
