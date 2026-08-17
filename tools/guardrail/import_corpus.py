@@ -14,19 +14,23 @@
   - inbox 建议放仓库外本地路径（明文永不进仓库）；导入完成后 inbox 自行处置。
 
 inbox 文件格式（.jsonl，每行一个对象，文件间合并）：
-  {"question": "...", "attackType": "DIRECT|ENCODING_BYPASS|JAILBREAK|MULTILINGUAL",
+  {"question": "...", "attackType": "DIRECT|ENCODING_BYPASS|JAILBREAK|MULTILINGUAL|ENCODING_OPAQUE",
    "encoding": "base64（可选——question 已是 Base64 编码态时声明，脚本校验后原样落盘）"}
 
-attackType 语义（与门禁契约对齐，v2.42/T6 映射定案见 12 章 §12.7）：
+attackType 语义（与门禁契约对齐，v2.42/T6 映射定案见 12 章 §12.7；v2.43/T6 四类→五类）：
   DIRECT            直接表达，归一化后必命中 BLOCK 档（门禁子集）
   ENCODING_BYPASS   编码/变形字面，归一前不命中 KEYWORD 档、归一后命中（门禁子集）
   JAILBREAK         越狱引导，L1 盲区观察集（不得命中任何 BLOCK 档）
   MULTILINGUAL      非主语种表达，L1 盲区观察集（不得命中任何 BLOCK 档）
+  ENCODING_OPAQUE   S1 归一化不可还原形态（编码块/同形替换等），L1 盲区观察集
+                    （不得命中任何 BLOCK 档；S1 还原能力演进后经重归流转门禁子集）
 
 用法：
   python3 tools/guardrail/import_corpus.py --inbox <目录> [--dry-run]
+         [--remove-id <样本ID>]...（退役指定样本，可多次；可与导入同批或单独执行）
 
 幂等：按解码值 SHA-256 与既有语料去重，重复运行不产生重复样本。
+退役留痕：移除样本的指纹记入 tools/guardrail/import-manifest.json corpusRemovals。
 导入后必须运行 `mvn -q --no-transfer-progress -pl kb-eval -am test` 复跑
 GoldenDatasetLoaderTest 门禁契约校验新样本（契约单一事实源在测试侧，
 本脚本不重复实现契约判定，防双源漂移）。
@@ -42,12 +46,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_FILE = REPO_ROOT / "kb-eval/src/main/resources/golden/injection-qa.json"
+MANIFEST = REPO_ROOT / "tools/guardrail/import-manifest.json"
 
 ATTACK_TYPES = {
     "DIRECT": "inj-direct",
     "ENCODING_BYPASS": "inj-encoding",
     "JAILBREAK": "inj-jailbreak",
     "MULTILINGUAL": "inj-multilingual",
+    "ENCODING_OPAQUE": "inj-opaque",
 }
 ID_SUFFIX = re.compile(r"^.+-(\d+)$")
 
@@ -106,13 +112,61 @@ def read_inbox(inbox_dir: Path):
     return items, file_count
 
 
+def load_manifest() -> dict:
+    """与 import_words.py 共享指纹清单；本脚本只写 corpusRemovals 键"""
+    if MANIFEST.exists():
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        manifest.setdefault("corpusRemovals", [])
+        return manifest
+    return {"description": "安全簇① 带外导入指纹清单（仅元数据，无词值/样本内容）",
+            "entries": [], "removals": [], "actionChanges": [], "corpusRemovals": []}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="注入语料带外导入（编码引用落盘；输出仅计数/ID 段/指纹）")
-    ap.add_argument("--inbox", required=True, help="inbox 目录（建议仓库外本地路径）")
+    ap.add_argument("--inbox", help="inbox 目录（建议仓库外本地路径）")
     ap.add_argument("--dry-run", action="store_true", help="只报告不落盘")
+    ap.add_argument("--remove-id", action="append", default=[], metavar="ID",
+                    help="退役指定样本（可多次；指纹记入 import-manifest.json corpusRemovals）")
     args = ap.parse_args()
 
+    if not args.inbox and not args.remove_id:
+        ap.error("须提供 --inbox / --remove-id 至少其一")
+
     corpus = load_corpus()
+
+    # ── 退役（先于导入，刷新去重基线）──
+    if args.remove_id:
+        manifest = load_manifest()
+        by_id = {item["id"]: item for item in corpus}
+        removed_any = False
+        for rid in args.remove_id:
+            target = by_id.get(rid)
+            if target is None:
+                raise ImportFailure(f"退役目标不存在: {rid}")
+            if args.dry_run:
+                print(f"[dry-run] 将退役 {rid}（attackType={target['attackType']}）")
+                continue
+            corpus.remove(target)
+            del by_id[rid]
+            digest = target.get("questionSha256", "") or ""
+            manifest["corpusRemovals"].append(
+                {"id": rid, "attackType": target["attackType"], "sha256": digest[:12]})
+            removed_any = True
+            print(f"已退役语料样本 {rid}（attackType={target['attackType']}，指纹 {digest[:12]}）")
+        if not args.dry_run and removed_any:
+            CORPUS_FILE.write_text(
+                json.dumps(corpus, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            MANIFEST.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(f"语料已更新: {CORPUS_FILE.relative_to(REPO_ROOT)}（累计 {len(corpus)} 条）")
+            print(f"指纹清单已更新: {MANIFEST.relative_to(REPO_ROOT)}"
+                  f"（累计语料退役 {len(manifest['corpusRemovals'])}）")
+        if args.dry_run:
+            print("[dry-run] 未写盘")
+        if not args.inbox:
+            return 0
+
     fingerprints = {item.get("questionSha256") for item in corpus}
     max_suffix = {}
     for item in corpus:

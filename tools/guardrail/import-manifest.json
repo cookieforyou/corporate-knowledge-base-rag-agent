@@ -2274,5 +2274,12 @@
       "to": "FLAG",
       "sha256": "3de422f558d2"
     }
+  ],
+  "corpusRemovals": [
+    {
+      "id": "inj-direct-30",
+      "attackType": "DIRECT",
+      "sha256": "63484200659c"
+    }
   ]
 }

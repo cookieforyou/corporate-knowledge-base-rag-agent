@@ -59,8 +59,9 @@ public record GoldenQAPair(
     }
 
     /**
-     * 门禁子集（簇⑤ B2 S6 定案）：DIRECT + ENCODING_BYPASS 属 L1（词表 + S1 归一化
-     * 视图）机制防域，拦截率 ≥95% 门禁；JAILBREAK / MULTILINGUAL 为观察集不门禁。
+     * 门禁子集（簇⑤ B2 S6 定案，v2.43/T6 五类演进）：DIRECT + ENCODING_BYPASS 属 L1
+     * （词表 + S1 归一化视图）机制防域，拦截率 ≥95% 门禁；JAILBREAK / MULTILINGUAL /
+     * ENCODING_OPAQUE 为观察集不门禁。
      */
     public boolean isInjectionGateSubset() {
         return isInjection()

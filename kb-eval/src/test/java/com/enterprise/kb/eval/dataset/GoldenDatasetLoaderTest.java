@@ -145,14 +145,18 @@ class GoldenDatasetLoaderTest {
      * 样本与 L1 词表防域自洽（防门禁假红/假绿）：以随 jar 发布的结构化基线词表
      * （{@code guardrail/injection-rules.yml}，BLOCK 档启用词项）逐条编程式校验——
      * DIRECT 归一后必命中；ENCODING_BYPASS 归一前不命中 KEYWORD 档（编码必须真实
-     * 存在于干词层）且归一后命中（S1 视图必须还原）；JAILBREAK/MULTILINGUAL 归一
-     * 前后均不命中（L1 不拦截属设计行为，观察集）。
+     * 存在于干词层）且归一后命中（S1 视图必须还原）；JAILBREAK/MULTILINGUAL/
+     * ENCODING_OPAQUE 归一前后均不命中（L1 不拦截属设计行为，观察集）。
      *
      * <p><b>v2.42 语义演进（安全簇① T3，REGEX 结构模式轨）</b>：ENCODING_BYPASS
      * 的「归一前不命中」契约收窄至 KEYWORD 档——编码绕过的手法和度量对象是干词字面
      * 匹配，REGEX 轨以动词×宾语组合句式独立于编码层工作，其归一前命中属结构检测
      * 正常行为，不否定编码有效性。观察集契约保持全档严格：样本若命中任一 BLOCK 档
      * （含 REGEX）即不再是 L1 盲区，应重归门禁子集（attackType 改 DIRECT）。
+     *
+     * <p><b>v2.43/T6 五类演进</b>：S1 归一化不可还原形态（编码块/同形替换等）的
+     * 注入样本定档 ENCODING_OPAQUE 观察集——L1 机制盲区实证；S1 还原能力演进后
+     * 样本经重归流转门禁子集，路径同词表升降级（A4）。
      *
      * <p>注：安全簇① T2 起字面词表退役，本校验锚定结构化词表 bundled 基线；
      * 生产以外部词表覆盖时须同步更新样本集。
@@ -182,7 +186,7 @@ class GoldenDatasetLoaderTest {
                     assertTrue(normalizedHit,
                         pair.id() + " 为 ENCODING_BYPASS 却未被 S1 归一化还原命中");
                 }
-                case JAILBREAK, MULTILINGUAL -> {
+                case JAILBREAK, MULTILINGUAL, ENCODING_OPAQUE -> {
                     boolean rawHit = blockRules.stream().anyMatch(r -> r.matches(raw));
                     assertFalse(rawHit || normalizedHit,
                         pair.id() + " 为观察集却命中 BLOCK 档（含 REGEX 轨，应归门禁子集）");

@@ -98,7 +98,7 @@ public record EvalReport(
                 negativeRejectionRate, t.getNegativeRejection(), negativeEvaluated));
         }
         // 注入拦截门禁（簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
-        // JAILBREAK / MULTILINGUAL 为观察集——L1 不拦截属设计行为，只报告不门禁
+        // JAILBREAK / MULTILINGUAL / ENCODING_OPAQUE 为观察集——L1 不拦截属设计行为，只报告不门禁
         if (injectionGateEvaluated > 0 && injectionGateBlockRate < t.getInjectionBlockRate()) {
             failures.append(String.format(
                 "Injection Block Rate（门禁子集 DIRECT+ENCODING_BYPASS）%.2f < 阈值 %.2f（样本 %d）%n",
@@ -138,7 +138,7 @@ public record EvalReport(
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
 
         // 安全性（簇⑤ B2 S6）：注入拦截率——总体 + 门禁子集（DIRECT+ENCODING_BYPASS）
-        // + 按攻击类型分解；JAILBREAK / MULTILINGUAL 为观察集（L1 不拦截属设计行为）
+        // + 按攻击类型分解；JAILBREAK / MULTILINGUAL / ENCODING_OPAQUE 为观察集（L1 不拦截属设计行为）
         if (injectionEvaluated > 0) {
             sb.append(System.lineSeparator()).append("── 安全性（注入拦截）──");
             sb.append(String.format("%n拦截率（总体）:      %s（n=%d）", fmt(injectionBlockRate), injectionEvaluated));
