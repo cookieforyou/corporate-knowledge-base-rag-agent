@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleType;
@@ -273,7 +274,9 @@ public class SemanticInjectionAdvisor implements BaseAdvisor {
             }
         }
         sb.append("\n【当前用户消息】\n").append(userText)
-            .append("\n\n输出 JSON：verdict 取 PASS/SUSPECT/BLOCK，family 取命中族系枚举名（PASS 时为 null）。");
+            .append("\n\n输出 JSON：verdict 取 PASS/SUSPECT/BLOCK；family 取命中族系枚举名——限 ")
+            .append("INSTRUCTION_OVERRIDE / ROLE_HIJACK / INFO_EXTRACTION / ENCODING_OBFUSCATION / ")
+            .append("MULTILINGUAL / JAILBREAK / TOOL_INDUCED 之一（PASS 时为 null，勿返回中文族名）。");
         return sb.toString();
     }
 
@@ -307,9 +310,22 @@ public class SemanticInjectionAdvisor implements BaseAdvisor {
         log.info("L2 语义判定 SUSPECT 观察档（族系 {}），放行", canonical);
     }
 
-    /** 族系归一（FlagMark 同款语义）：空白/null/未知 → UNCLASSIFIED 兜底 */
+    /**
+     * 族系归一（FlagMark 同款语义）：仅认 {@link GuardrailFamily} 枚举名（大小写
+     * 容错）；未知/空白——含模型返回中文族名形态（簇⑤ E2E 实证）——一律
+     * UNCLASSIFIED 兜底，与 AiBusinessMetrics 预注册标签域对齐不漂移。
+     */
     private static String canonicalFamily(String family) {
-        return (family == null || family.isBlank()) ? "UNCLASSIFIED" : family.trim().toUpperCase();
+        if (family == null || family.isBlank()) {
+            return GuardrailFamily.UNCLASSIFIED.name();
+        }
+        String normalized = family.trim().toUpperCase();
+        for (GuardrailFamily candidate : GuardrailFamily.values()) {
+            if (candidate.name().equals(normalized)) {
+                return candidate.name();
+            }
+        }
+        return GuardrailFamily.UNCLASSIFIED.name();
     }
 
     private static String truncate(String text) {

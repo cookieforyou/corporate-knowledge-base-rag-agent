@@ -208,6 +208,38 @@ class SemanticInjectionAdvisorTest {
     }
 
     @Test
+    void suspectVerdictWithNonEnumFamilyFallsBackToUnclassified() {
+        // 簇⑤ E2E 实证：模型可能返回中文族名而非枚举名 → 归一 UNCLASSIFIED 兜底
+        // （与 AiBusinessMetrics 预注册标签域对齐，观察族系不漂移；指标侧无基数风险）
+        stubVerdict(new L2Verdict("SUSPECT", "越狱引导族"));
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
+
+        ChatClientRequest result = advisor(true).before(
+            request(REGEX_HIT_TEXT, Map.of(RetrievalContext.CONTEXT_KEY, ctx)), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(registry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "UNCLASSIFIED").count()).isEqualTo(1.0);
+        assertThat(ctx.getGuardrailFlags())
+            .containsExactly(new RetrievalContext.FlagMark("input", "UNCLASSIFIED"));
+    }
+
+    @Test
+    void suspectVerdictFamilyIsCaseTolerant() {
+        stubVerdict(new L2Verdict("SUSPECT", "jailbreak"));
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
+
+        ChatClientRequest result = advisor(true).before(
+            request(REGEX_HIT_TEXT, Map.of(RetrievalContext.CONTEXT_KEY, ctx)), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(ctx.getGuardrailFlags())
+            .containsExactly(new RetrievalContext.FlagMark("input", "JAILBREAK"));
+    }
+
+    @Test
     void passVerdictLeavesCountersUntouched() {
         stubVerdict(new L2Verdict("PASS", null));
 
