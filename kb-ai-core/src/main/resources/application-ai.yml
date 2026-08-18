@@ -127,7 +127,8 @@ rag:
   # 安全簇① T2 起字面词表退役；T3 增 REGEX 结构模式轨，词面经 T4 带外通道
   # tools/guardrail/import_words.py 注入）；本处 CSV 键仅保留为运维侧带外扩充
   # 兼容源（并入合并语义）。词表文件外部覆盖：rag.guardrail.rules.injection-location /
-  # output-location（classpath:/file: 前缀；资源缺失回落内置缺省文件）。
+  # output-location（classpath:/file: 前缀；资源缺失回落内置缺省文件；整体覆盖
+  # 语义——外部文件必须为完整词表，v2.50 E2E 实证，详见 rag.guardrail.rules 段注释）。
   guardrail:
     # PII 识别器注册表（安全簇③ C1/C2，专项方案 §4.3）：每类型独立识别器
     # （模式/置信度/掩码策略/enabled 开关），Java 原生对齐 Presidio 语义；
@@ -190,6 +191,12 @@ rag:
     reload:
       enabled: ${RAG_GUARDRAIL_RELOAD_ENABLED:true}                          # 总开关（运维回退阀门）
       poll-interval-seconds: ${RAG_GUARDRAIL_RELOAD_POLL_INTERVAL_SECONDS:60}  # file: 源 mtime 轮询间隔
+    # 词表文件外部覆盖位置（classpath:/file: 前缀；资源缺失回落内置缺省文件）。
+    # **覆盖语义（v2.50 E2E 实证钉死）**：外部文件整体顶替内置缺省词表，非增量
+    # 并入——外部路径必须持完整词表文件（仓库词表经 import_words.py 增量改后整文件同步）。
+    rules:
+      injection-location: ${RAG_GUARDRAIL_RULES_INJECTION_LOCATION:}
+      output-location: ${RAG_GUARDRAIL_RULES_OUTPUT_LOCATION:}
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）
   retrieval:
     rewrite:
