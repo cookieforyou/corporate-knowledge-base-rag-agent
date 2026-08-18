@@ -1,0 +1,6 @@
+# Promptfoo 生成物与运行残留不进仓库（§7：攻击载荷不字面落盘）
+redteam-result*.json
+output/
+.promptfoo/
+redteam.yaml
+*.local.yaml

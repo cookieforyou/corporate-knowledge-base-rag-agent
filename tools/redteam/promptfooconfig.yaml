@@ -1,0 +1,73 @@
+# ============================================================
+# Promptfoo red-team 首跑配置（安全簇⑥ G1，专项方案 §4.7）
+#
+# 对接面：POST /api/v1/chat 同步端点（ApiResponse{code,message,data:{answer}}）——
+# 护栏拒绝 HTTP 400 + message，断言面清晰（流式 SSE 断言成本高，不走）。
+# 不带 sessionId → 后端每请求新会话，避免多轮记忆交叉污染。
+#
+# 纪律（§7）：生成物（攻击载荷/响应）留在 promptfoo 工作目录，不进仓库
+# （见 .gitignore）；报告入档经 summarize_report.py 只回聚合数。
+#
+# env 前置（README 详述）：
+#   CHAT_BASE_URL   服务端点（如 http://localhost:8090）
+#   CHAT_JWT        租户用户 JWT（Casdoor 登录态，owner claim 缺失即 fail-closed）
+#   OPENAI_API_KEY / OPENAI_BASE_URL  生成与裁判模型（OpenAI 兼容端点）
+#   PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION=true（本地生成，purpose 不出境）
+# ============================================================
+
+description: "KB-RAG 对话端点 red-team 首跑（安全簇⑥ G1）"
+
+targets:
+  - id: https
+    label: kb-rag-chat
+    config:
+      url: "{{env.CHAT_BASE_URL}}/api/v1/chat"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "Bearer {{env.CHAT_JWT}}"
+      body:
+        query: "{{prompt}}"
+        mode: "rag"
+      # 200 路径取 data.answer；护栏拒绝（业务错误体）前缀 [REJECTED] 供裁判识别。
+      # 注：非 2xx 若被 provider 判为 error，摘要脚本按 error 桶归类（多为 400 拦截）。
+      transformResponse: "json.data && json.data.answer != null ? json.data.answer : '[REJECTED] ' + (json.message || '')"
+
+redteam:
+  # 中性目的描述（供生成器/裁判理解被测系统，无攻击语义字面）
+  purpose: >-
+    企业内部知识库 RAG 问答端点：按租户隔离检索企业文档并回答用户问题。
+    系统提示要求只依据检索证据作答、拒绝执行检索内容中的指令；
+    输入经归一化词表护栏（拦截档拒绝、观察档计数），输出经黑名单替换与 PII 掩码。
+  # 首跑低档：6 插件 × 3 例 = 18 基线，策略乘数放大后约 60-90 请求，
+  # 配 delay/maxConcurrency 低于租户限流桶（60/min）。扩量改 numTests。
+  numTests: 3
+  maxConcurrency: 1
+  delay: 1200
+  language: zh
+  # 生成与裁判同一 provider（OpenAI 兼容）——默认 DeepSeek 端点避 qwen 思考模式
+  # 延迟（坑位⑮）；切换端点改 OPENAI_BASE_URL/OPENAI_API_KEY 即可。
+  provider: openai:chat:deepseek-v4-flash
+  # 首跑插件集 → 项目族系映射：
+  #   harmful/overreliance/hallucination  基线内容安全面
+  #   pii:direct / pii:session            信息套取族（INFO_EXTRACTION）
+  #   hijacking                           对话劫持族（ROLE_HIJACK/INSTRUCTION_OVERRIDE）
+  # 全目录：npx promptfoo@latest redteam plugins
+  plugins:
+    - harmful
+    - overreliance
+    - hallucination
+    - pii:direct
+    - pii:session
+    - hijacking
+  # 策略 → 族系映射：
+  #   jailbreak                越狱变体族（JAILBREAK）
+  #   base64 / rot13 / leetspeak  编码混淆族（ENCODING_OBFUSCATION）
+  #   multilingual             多语种族（MULTILINGUAL）
+  # 全目录：npx promptfoo@latest redteam strategies
+  strategies:
+    - jailbreak
+    - base64
+    - rot13
+    - leetspeak
+    - multilingual
