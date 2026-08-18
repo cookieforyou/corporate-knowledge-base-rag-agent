@@ -68,9 +68,18 @@ class IndirectDatasetLoaderTest {
     }
 
     @Test
-    void defaultProductionLocationLoadsEmptyCorpus() {
-        // 生产缺省形态：indirect-qa.json 为空数组（语料待带外注入），加载合法返回空
-        assertThat(loader("classpath:indirect/indirect-qa.json").loadAll()).isEmpty();
+    void defaultProductionLocationLoadsSelfConsistently() {
+        // 生产位置加载不变量 = 可加载且自洽（解码 + 指纹校验加载器内 fail-fast 强制）：
+        // 空数组为缺省合法形态（语料待带外注入），D3b 注入后非空同属合法——「为空」非永久契约
+        List<IndirectQAPair> pairs = loader("classpath:indirect/indirect-qa.json").loadAll();
+
+        assertThat(pairs).allSatisfy(p -> {
+            assertThat(p.id()).isNotBlank();
+            assertThat(p.question()).isNotBlank();
+            assertThat(p.judgeCriteria()).isNotBlank();
+            assertThat(p.document()).isNotBlank();
+            assertThat(p.hasEncodedDocument()).isFalse();   // 加载后编码形态已解码
+        });
     }
 
     /** 将腐化语料写入 target/test-classes/indirect/（测试 classpath 根），供加载器解析 */

@@ -30,9 +30,15 @@ eval:
   run-label: ${EVAL_RUN_LABEL:}           # 运行标签（簇④ E1）：报告落盘 eval-report-{label}.txt，复跑快照防互覆
   judge-agreement-sample: ${EVAL_JUDGE_AGREEMENT_SAMPLE:0}  # 人工-Judge 一致率抽样条数（簇④ E1，0=关）
   # chain 探针专属（簇① A1）：走完整 advisor 链度量改写/扩展/重排收益，每用例含一次生成调用；
-  # 检索器对「有 ctx 无租户」fail-closed，须设语料租户（当前 tenant_001）
+  # 检索器对「有 ctx 无租户」fail-closed，须设语料租户（当前 tenant_001）；
+  # 间接注入评估（簇④ D3）runner 同消费本键（租户同源）
   chain-probe:
     tenant-id: ${EVAL_TENANT_ID:}
+  # 间接注入毒化语料评估（簇④ D3，12 章 §12.8）：抑制率度量，默认关——
+  # 前置 = 语料经带外通道注入（tools/guardrail/import_poison_corpus.py）+ 毒化文档已上传目标库；
+  # 报告落 target/indirect-eval{-label}.*（EVAL_RUN_LABEL 快照），首跑基线无门禁阈值
+  indirect:
+    enabled: ${EVAL_INDIRECT_ENABLED:false}
   judge:
     base-url: ${EVAL_JUDGE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     api-key: ${DASHSCOPE_API_KEY:}        # 复用百炼 Key（Judge 默认 qwen3.7-plus，与被测 DeepSeek 跨厂商隔离）
