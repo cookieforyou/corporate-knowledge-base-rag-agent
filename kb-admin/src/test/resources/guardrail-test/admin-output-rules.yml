@@ -1,0 +1,9 @@
+# GuardrailAdminServiceTest 专用输出侧测试词表（占位词，无攻击语义）
+rules:
+  - id: admin-probe-out-kw
+    family: BUSINESS_CONFIDENTIAL
+    lang: zh
+    type: KEYWORD
+    value: "ZHJpbGwtcHJvYmUtb3V0"
+    action: BLOCK
+    enabled: true

@@ -1,0 +1,23 @@
+# GuardrailAdminServiceTest 专用注入侧测试词表（占位词，无攻击语义）
+rules:
+  - id: admin-probe-inj-kw
+    family: UNCLASSIFIED
+    lang: zh
+    type: KEYWORD
+    value: "ZHJpbGwtcHJvYmUtaW5q"
+    action: BLOCK
+    enabled: true
+  - id: admin-probe-inj-regex
+    family: JAILBREAK
+    lang: zh
+    type: REGEX
+    value: "ZHJpbGwtcHJvYmUtcmVnZXgtLio="
+    action: FLAG
+    enabled: true
+  - id: admin-probe-inj-disabled
+    family: UNCLASSIFIED
+    lang: zh
+    type: KEYWORD
+    value: "ZHJpbGwtcHJvYmUtaW5q"
+    action: FLAG
+    enabled: false

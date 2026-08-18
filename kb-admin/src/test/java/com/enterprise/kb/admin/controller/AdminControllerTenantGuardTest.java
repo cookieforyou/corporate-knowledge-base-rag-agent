@@ -2,6 +2,8 @@ package com.enterprise.kb.admin.controller;
 
 import com.enterprise.kb.admin.dto.AuditLogPage;
 import com.enterprise.kb.admin.dto.ChunkUpdateRequest;
+import com.enterprise.kb.admin.dto.DrillRequest;
+import com.enterprise.kb.admin.dto.DrillResult;
 import com.enterprise.kb.admin.dto.RebuildRequest;
 import com.enterprise.kb.admin.dto.ReingestRequest;
 import com.enterprise.kb.admin.dto.ResolvedRequest;
@@ -9,6 +11,7 @@ import com.enterprise.kb.admin.dto.RootCauseRequest;
 import com.enterprise.kb.admin.service.AuditLogQueryService;
 import com.enterprise.kb.admin.service.BadCaseService;
 import com.enterprise.kb.admin.service.ChunkOpsService;
+import com.enterprise.kb.admin.service.GuardrailAdminService;
 import com.enterprise.kb.admin.service.IndexRebuildService;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbChunk;
@@ -41,9 +44,11 @@ class AdminControllerTenantGuardTest {
     private IndexRebuildService indexRebuildService;
     private AuditLogQueryService auditLogQueryService;
     private BadCaseService badCaseService;
+    private GuardrailAdminService guardrailAdminService;
     private ChunkAdminController chunkController;
     private RebuildController rebuildController;
     private BadCaseAdminController badCaseController;
+    private GuardrailAdminController guardrailController;
 
     @BeforeEach
     void setUp() {
@@ -51,9 +56,11 @@ class AdminControllerTenantGuardTest {
         indexRebuildService = mock(IndexRebuildService.class);
         auditLogQueryService = mock(AuditLogQueryService.class);
         badCaseService = mock(BadCaseService.class);
+        guardrailAdminService = mock(GuardrailAdminService.class);
         chunkController = new ChunkAdminController(chunkOpsService);
         rebuildController = new RebuildController(indexRebuildService);
         badCaseController = new BadCaseAdminController(auditLogQueryService, badCaseService);
+        guardrailController = new GuardrailAdminController(guardrailAdminService);
     }
 
     private static Jwt jwtWithOwner(String owner) {
@@ -228,5 +235,43 @@ class AdminControllerTenantGuardTest {
         assertThat(reingestResponse.data().goldenId()).isEqualTo("bc-3");
         verify(badCaseService).annotate("t-1", 3L, "RETRIEVAL_MISS");
         verify(badCaseService).reingest(eq("t-1"), any());
+    }
+
+    // ── GuardrailAdminController（安全簇⑥ F2）──
+
+    @Test
+    void guardrailEndpointsRejectMissingOrBlankTenant() {
+        assertThatThrownBy(() -> guardrailController.listRules(null,
+            null, null, null, null, null, null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> guardrailController.listRules(jwtWithOwner(" "),
+            null, null, null, null, null, null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> guardrailController.drill(jwtWithOwner(null),
+            new DrillRequest("任意文本")))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        verify(guardrailAdminService, never()).listRules(any(), any(), any(), any(), any(), any());
+        verify(guardrailAdminService, never()).drill(anyString());
+    }
+
+    @Test
+    void guardrailEndpointsDelegateToServiceForValidTenant() {
+        when(guardrailAdminService.listRules(eq("injection"), isNull(), isNull(), isNull(), isNull(), isNull()))
+            .thenReturn(List.of());
+        when(guardrailAdminService.drill("演练文本"))
+            .thenReturn(new DrillResult(List.of(), List.of()));
+
+        var listResponse = guardrailController.listRules(jwtWithOwner("t-1"),
+            "injection", null, null, null, null, null);
+        var drillResponse = guardrailController.drill(jwtWithOwner("t-1"),
+            new DrillRequest("演练文本"));
+
+        assertThat(listResponse.data()).isEmpty();
+        assertThat(drillResponse.data().injectionMatches()).isEmpty();
+        verify(guardrailAdminService).listRules("injection", null, null, null, null, null);
+        verify(guardrailAdminService).drill("演练文本");
     }
 }
