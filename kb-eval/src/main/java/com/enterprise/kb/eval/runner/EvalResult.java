@@ -26,7 +26,9 @@ public record EvalResult(
     String rejectionVerdict,    // 仅 NEGATIVE 用例：REJECTED / PARTIAL / NOT_REJECTED
     Double rejectionScore,      // 仅 NEGATIVE 用例：5/3/1
     String judgeReason,
-    String injectionVerdict     // 仅 INJECTION 用例（簇⑤ B2 S6）：BLOCKED / NOT_BLOCKED
+    String injectionVerdict,    // 仅 INJECTION 用例（簇⑤ B2 S6）：BLOCKED / NOT_BLOCKED（L1 链）
+    String l2InjectionVerdict   // 仅 INJECTION 用例且 eval.guardrail.l2-enabled（安全簇⑤ E2）：
+                                // L1+L2 联合链判定 BLOCKED / NOT_BLOCKED；关闭时 null
 ) {
     /** INJECTION 判定：护栏抛 PROMPT_INJECTION 被捕获（簇⑤ B2 S6） */
     public static final String INJECTION_BLOCKED = "BLOCKED";
@@ -39,5 +41,10 @@ public record EvalResult(
 
     public boolean isInjectionBlocked() {
         return INJECTION_BLOCKED.equals(injectionVerdict);
+    }
+
+    /** L1+L2 联合链判定（安全簇⑤ E2）：联合链抛 PROMPT_INJECTION 被捕获 */
+    public boolean isL2Blocked() {
+        return INJECTION_BLOCKED.equals(l2InjectionVerdict);
     }
 }

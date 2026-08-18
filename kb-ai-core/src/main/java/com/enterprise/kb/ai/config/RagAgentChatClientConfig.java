@@ -7,6 +7,7 @@ import com.enterprise.kb.ai.advisor.QueryRoutingAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
@@ -75,10 +76,11 @@ public class RagAgentChatClientConfig {
      * CONVERSATION_ID 与 RetrievalContext 由 Controller 经 advisor 参数传入。
      *
      * <p>链序（11.2 v2.13 表去掉工具位）：Audit(10) → TokenBudget(30) → RateLimit(100) →
-     * OutputGuardrail(110) → InputSanitize(300) → Memory(400) → QueryRouting(440) →
-     * Trace(450) → RetrievalGate(500，内包 RetrievalAugmentationAdvisor)。
-     * order 由各 Advisor getOrder() 决定，列表顺序不敏感。
+     * OutputGuardrail(110) → InputSanitize(300) → SemanticInjection(320，安全簇⑤ E1) →
+     * Memory(400) → QueryRouting(440) → Trace(450) → RetrievalGate(500，内包
+     * RetrievalAugmentationAdvisor)。order 由各 Advisor getOrder() 决定，列表顺序不敏感。
      * 审计居最外层：被拒/被限流请求同样落 kb_audit_log（11.6）。
+     * L2 居记忆之前：二判拒绝内容不入多轮记忆仓储。
      *
      * <p>5.4 收窄版：QueryRoutingAdvisor 判定闲聊/对话元问题置 skipRetrieval，
      * RetrievalGateAdvisor 旁路整套检索管线携记忆直答；defaultSystem 双形态措辞
@@ -93,6 +95,7 @@ public class RagAgentChatClientConfig {
                                          RateLimitAdvisor rateLimitAdvisor,
                                          OutputGuardrailAdvisor outputGuardrailAdvisor,
                                          InputSanitizeAdvisor inputSanitizeAdvisor,
+                                         SemanticInjectionAdvisor semanticInjectionAdvisor,
                                          QueryRoutingAdvisor queryRoutingAdvisor,
                                          RetrievalTraceAdvisor retrievalTraceAdvisor,
                                          RetrievalGateAdvisor retrievalGateAdvisor,
@@ -112,6 +115,7 @@ public class RagAgentChatClientConfig {
                 rateLimitAdvisor,
                 outputGuardrailAdvisor,
                 inputSanitizeAdvisor,
+                semanticInjectionAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
                 queryRoutingAdvisor,
                 retrievalTraceAdvisor,

@@ -47,7 +47,10 @@ import java.util.Map;
  *       安全簇① T7 扩充：{@code rag.guardrail.flagged} FLAG 观察档命中计数——
  *       低基数标签 side=input/output + family 中性枚举（注入侧七分法 ∪ 输出侧
  *       三分类，各含 UNCLASSIFIED 兜底），side×family 全组合构造期预注册
- *       （有界枚举，无租户/用户维度，Prometheus 侧 sum/group by 聚合）</li>
+ *       （有界枚举，无租户/用户维度，Prometheus 侧 sum/group by 聚合）。
+ *       安全簇⑤ E1 扩充：{@code rag.guardrail.l2.triggered / blocked / suspect /
+ *       error} L2 语义判定四态分列（SemanticInjectionAdvisor 触发/拦截/观察/故障，
+ *       触发率 = triggered/request.total）</li>
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
  *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
@@ -147,6 +150,14 @@ public class AiBusinessMetrics {
     private final Counter mcpAsk;
     /** MCP 只读工具限流拒绝计数（安全簇② B3）——独立桶，与对话链限流分账 */
     private final Counter guardrailMcpRateLimited;
+    /** L2 语义判定触发计数（安全簇⑤ E1）：可疑触发进入二判的请求数（触发率分子，分母 rag.request.total） */
+    private final Counter guardrailL2Triggered;
+    /** L2 语义判定拦截计数（安全簇⑤ E1）：BLOCK 裁决 → PROMPT_INJECTION 同语义拒答 */
+    private final Counter guardrailL2Blocked;
+    /** L2 语义判定观察计数（安全簇⑤ E1）：SUSPECT 裁决 FLAG 放行（另计 rag.guardrail.flagged 族系子项） */
+    private final Counter guardrailL2Suspect;
+    /** L2 语义判定故障计数（安全簇⑤ E1）：超时/失败/解析错误 fail-open 回落 L1 结论 */
+    private final Counter guardrailL2Error;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -286,6 +297,16 @@ public class AiBusinessMetrics {
         this.guardrailMcpRateLimited = Counter.builder("rag.guardrail.mcp.ratelimited")
             .description("MCP 只读工具限流拒绝次数（安全簇② B3：search/get_document 独立配额桶）")
             .register(registry);
+        // L2 语义判定计数族（安全簇⑤ E1，12.4 S5）：触发/拦截/观察/故障四态分列，
+        // 零标签纪律；触发率 = triggered/request.total 经 Prometheus 表达式求
+        this.guardrailL2Triggered = Counter.builder("rag.guardrail.l2.triggered")
+            .description("L2 语义判定触发次数——REGEX 可疑且干词未命中进入二判（安全簇⑤ E1）").register(registry);
+        this.guardrailL2Blocked = Counter.builder("rag.guardrail.l2.blocked")
+            .description("L2 语义判定拦截次数——BLOCK 裁决 PROMPT_INJECTION 同语义拒答（安全簇⑤ E1）").register(registry);
+        this.guardrailL2Suspect = Counter.builder("rag.guardrail.l2.suspect")
+            .description("L2 语义判定观察次数——SUSPECT 裁决 FLAG 计数放行（安全簇⑤ E1）").register(registry);
+        this.guardrailL2Error = Counter.builder("rag.guardrail.l2.error")
+            .description("L2 语义判定故障次数——超时/失败/解析错误 fail-open 回落 L1 结论（安全簇⑤ E1）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -320,6 +341,26 @@ public class AiBusinessMetrics {
     /** MCP 只读工具限流拒绝计数（安全簇② B3）：超限拒绝事件入 Prometheus */
     public void recordMcpRateLimited() {
         guardrailMcpRateLimited.increment();
+    }
+
+    /** L2 语义判定触发计数（安全簇⑤ E1）：可疑请求进入二判（触发率分子） */
+    public void recordL2Triggered() {
+        guardrailL2Triggered.increment();
+    }
+
+    /** L2 语义判定拦截计数（安全簇⑤ E1）：BLOCK 裁决拒答（审计 REJECTED 另经 AuditTraceAdvisor 落库） */
+    public void recordL2Blocked() {
+        guardrailL2Blocked.increment();
+    }
+
+    /** L2 语义判定观察计数（安全簇⑤ E1）：SUSPECT 裁决 FLAG 放行 */
+    public void recordL2Suspect() {
+        guardrailL2Suspect.increment();
+    }
+
+    /** L2 语义判定故障计数（安全簇⑤ E1）：超时/失败/解析错误 fail-open 回落 L1 结论 */
+    public void recordL2Error() {
+        guardrailL2Error.increment();
     }
 
     /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */

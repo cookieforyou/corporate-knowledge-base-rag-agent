@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3 与优化冲刺完成；**安全加固专项：簇①②③④收官**（B5 基线入档治理另跟踪；簇④ 抑制率首跑基线 1.000 入档，探针口径缺口登记转下冲刺；载荷纪律沿簇①零字面词形态）。遗留口径 3.11/5.4 缓做、3.16 取消、12.4 不排期。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1-3 与优化冲刺完成；**安全加固专项：簇①②③④收官、簇⑤ L2 语义判定层机器侧完成待 E2E**（B5 基线入档治理另跟踪；簇④ 抑制率首跑基线 1.000 入档，探针口径缺口登记转下冲刺；载荷纪律沿簇①零字面词形态）。遗留口径 3.11/5.4 缓做、3.16 取消、12.4 S1-S8 各簇消化完毕（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -74,7 +74,7 @@ kb-rag-agent/
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE 为 JSON {messageId,traceId}）+ 命名 TRACE（三路溯源与 [ref-N] 对齐）/ TOOL_CALL（仅 tool 链）
 - 前端对话窗：sessionId 多轮 + rag/tool 切换 + TOOL_CALL 审批卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空双路零触达
-- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测（仅检测不回写）+PII 掩码（注册表七类，簇③）+注入拦截（`PROMPT_INJECTION`）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**、PII 回显观察（计数不替换）；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；**间接注入扫描（簇④ D1）**：扫描后处理器位于 rerank 前（剔除不进重排/TRACE），warn（默认，打标+逐条警示）/exclude 双策略，同源词表全档检测视图只干预不拒绝，`rag.guardrail.indirect.flagged/excluded`；**打标降权（D2）默认关**——injection_hit 经向量/ES 契约携带（存量随重入库消化），RRF 融合分衰减度量后定案；§12.8
+- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测（仅检测不回写）+PII 掩码（注册表七类，簇③）+注入拦截（`PROMPT_INJECTION`）；`SemanticInjectionAdvisor`(320，安全簇⑤) **L2 语义判定**——REGEX 命中∧干词未命中/跨轮拼接信号触发备用模型二判（PASS/SUSPECT/BLOCK，SUSPECT 走 FLAG 观察），全路径 fail-open 回落 L1，`rag.guardrail.l2.*` 四态；eval 门禁治 L2 判别力（力判键仅 eval 链，§12.11）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**、PII 回显观察（计数不替换）；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；**间接注入扫描（簇④ D1）**：扫描后处理器位于 rerank 前（剔除不进重排/TRACE），warn（默认，打标+逐条警示）/exclude 双策略，同源词表全档检测视图只干预不拒绝，`rag.guardrail.indirect.flagged/excluded`；**打标降权（D2）默认关**——injection_hit 经向量/ES 契约携带（存量随重入库消化），RRF 融合分衰减度量后定案；§12.8
 - **词表工程（簇① v2.43）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV，外部缺失回落缺省）；REGEX 模式轨（领域裸词不入 BLOCK）；带外导入 import_words.py/import_corpus.py（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记——`rag.guardrail.flagged`（side/family 标签）+审计 `guardrail_flags` 列（ECS 先 ALTER）；新增词默认 FLAG，零误伤确认方转 BLOCK；输出三分类话术+系统提示金丝雀；语料 base64+指纹锚点；零字面载荷；见 §12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId+userId upsert 可改评；归属 fail-closed，跨域伪装 MESSAGE_NOT_FOUND）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档 `ChatSessionService` 异步旁路；历史会话：会话端点 + 过期续聊回填；kb-eval 零 Redis 依赖

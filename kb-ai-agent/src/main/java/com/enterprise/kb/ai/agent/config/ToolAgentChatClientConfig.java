@@ -4,6 +4,7 @@ import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.agent.tool.EnterpriseMockTools;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
@@ -31,7 +32,8 @@ import org.springframework.context.annotation.Configuration;
  * 管控不分流）。
  *
  * <p><b>链序</b>：Audit(10) → TokenBudget(30) → RateLimit(100) → OutputGuardrail(110) →
- * InputSanitize(300) → Memory(400) → ToolCallingAdvisor(1000)。工具循环只包裹
+ * InputSanitize(300) → SemanticInjection(320，安全簇⑤ E1) → Memory(400) →
+ * ToolCallingAdvisor(1000)。工具循环只包裹
  * 模型调用（order 1000 最内层，护栏/记忆每请求仅执行一次）；审计居最外层，
  * 被拒请求同样落 kb_audit_log（11.6）。
  */
@@ -60,6 +62,7 @@ public class ToolAgentChatClientConfig {
                                           RateLimitAdvisor rateLimitAdvisor,
                                           OutputGuardrailAdvisor outputGuardrailAdvisor,
                                           InputSanitizeAdvisor inputSanitizeAdvisor,
+                                          SemanticInjectionAdvisor semanticInjectionAdvisor,
                                           ToolCallingAdvisor agentToolCallingAdvisor,
                                           EnterpriseMockTools enterpriseMockTools,
                                           PromptCanary promptCanary) {
@@ -76,6 +79,7 @@ public class ToolAgentChatClientConfig {
                 rateLimitAdvisor,
                 outputGuardrailAdvisor,
                 inputSanitizeAdvisor,
+                semanticInjectionAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
                 agentToolCallingAdvisor)
             .defaultTools(enterpriseMockTools)

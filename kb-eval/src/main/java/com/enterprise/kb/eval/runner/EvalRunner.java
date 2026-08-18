@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
@@ -41,6 +42,7 @@ public class EvalRunner {
     private final ChatClient chatClient;        // 被测链路
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
     private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（簇⑤ B2 S6）
+    private final ChatClient guardrailL2ChatClient; // INJECTION L1+L2 联合护栏链（安全簇⑤ E2）
     private final IndirectInjectionRunner indirectInjectionRunner; // 间接注入评估（簇④ D3）
     private final EvalProperties props;
     private final ApplicationArguments args;
@@ -50,6 +52,7 @@ public class EvalRunner {
                       @Qualifier("chatClient") ChatClient chatClient,
                       @Qualifier("judgeChatClient") ChatClient judgeChatClient,
                       @Qualifier("evalGuardrailChatClient") ChatClient guardrailChatClient,
+                      @Qualifier("evalGuardrailL2ChatClient") ChatClient guardrailL2ChatClient,
                       IndirectInjectionRunner indirectInjectionRunner,
                       EvalProperties props,
                       ApplicationArguments args) {
@@ -60,6 +63,7 @@ public class EvalRunner {
         this.chatClient = chatClient;
         this.judgeChatClient = judgeChatClient;
         this.guardrailChatClient = guardrailChatClient;
+        this.guardrailL2ChatClient = guardrailL2ChatClient;
         this.indirectInjectionRunner = indirectInjectionRunner;
         this.props = props;
         this.args = args;
@@ -326,7 +330,7 @@ public class EvalRunner {
         // 负向用例无生成即无拒答判定，同样跳过）。语料标注核验/检索回归的秒级通道。
         if (props.isRetrievalOnly()) {
             return new EvalResult(pair, hits, null, recall, mrr, precision,
-                docRecall, docMrr, docPrecision, null, null, null, null, null, null);
+                docRecall, docMrr, docPrecision, null, null, null, null, null, null, null);
         }
 
         // 3. 被测链路生成
@@ -337,7 +341,7 @@ public class EvalRunner {
             JudgePrompts.JudgeScore js = judge(String.format(
                 JudgePrompts.NEGATIVE_REJECTION, pair.question(), answer));
             return new EvalResult(pair, hits, answer, recall, mrr, precision,
-                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null);
+                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null, null);
         }
         String context = hits.stream()
             .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
@@ -348,7 +352,7 @@ public class EvalRunner {
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
             docRecall, docMrr, docPrecision,
-            scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null);
+            scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null, null);
     }
 
     /**
@@ -357,23 +361,49 @@ public class EvalRunner {
      * 捕获 PROMPT_INJECTION → BLOCKED；正常返回 → NOT_BLOCKED（L1 未拦截，
      * 答案丢弃不消费后续指标）。其他 BusinessException / 意外异常按用例失败
      * 上抛（不入拦截率分母，runFullEval 记录后跳过）。
+     *
+     * <p><b>L1+L2 联合读数（安全簇⑤ E2，用户定案 2026-08-18）</b>：
+     * {@code eval.guardrail.l2-enabled=true} 时每例另过联合链
+     * （{@code evalGuardrailL2ChatClient}，InputSanitize + SemanticInjection 双
+     * advisor，力判键直通——L1 未拦样本逐条进 L2 判定），产出双读数；门禁治
+     * L2 判别力（L2 防域子集 JAILBREAK+MULTILINGUAL 联合拦截率）。L1 已拦样本
+     * 联合判定恒 BLOCKED（L1 ⊂ 联合链），免重复 L2 LLM 调用。
      */
     private EvalResult evaluateInjection(GoldenQAPair pair) {
+        String l1Verdict = callGuardrailChain(guardrailChatClient, pair.question(), false);
+        String l2Verdict = null;
+        if (props.getGuardrail().isL2Enabled()) {
+            l2Verdict = EvalResult.INJECTION_BLOCKED.equals(l1Verdict)
+                ? EvalResult.INJECTION_BLOCKED
+                : callGuardrailChain(guardrailL2ChatClient, pair.question(), true);
+        }
+        return injectionResult(pair, l1Verdict, l2Verdict);
+    }
+
+    /** 护栏链判定：捕获 PROMPT_INJECTION → BLOCKED；正常返回 → NOT_BLOCKED；其他异常按用例失败上抛 */
+    private String callGuardrailChain(ChatClient chain, String question, boolean forceJudge) {
         try {
-            guardrailChatClient.prompt().user(pair.question()).call().content();
-            return injectionResult(pair, EvalResult.INJECTION_NOT_BLOCKED);
+            ChatClient.ChatClientRequestSpec spec = chain.prompt().user(question);
+            if (forceJudge) {
+                // 力判直通键（SemanticInjectionAdvisor.FORCE_JUDGE_KEY）：仅 eval 联合链
+                // 携带——无视触发启发式逐条进 L2 判定；生产链与 L1 读数链不携带。
+                // param 落 advisors spec（实证：与 RagChatService CONVERSATION_ID 同形态）
+                spec = spec.advisors(a -> a.param(SemanticInjectionAdvisor.FORCE_JUDGE_KEY, true));
+            }
+            spec.call().content();
+            return EvalResult.INJECTION_NOT_BLOCKED;
         } catch (Exception e) {
             BusinessException be = findBusinessException(e);
             if (be != null && "PROMPT_INJECTION".equals(be.getErrorCode())) {
-                return injectionResult(pair, EvalResult.INJECTION_BLOCKED);
+                return EvalResult.INJECTION_BLOCKED;
             }
             throw e;
         }
     }
 
-    private static EvalResult injectionResult(GoldenQAPair pair, String verdict) {
+    private static EvalResult injectionResult(GoldenQAPair pair, String l1Verdict, String l2Verdict) {
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
-            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, verdict);
+            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, l1Verdict, l2Verdict);
     }
 
     /** 异常链中提取 BusinessException（ChatClient 调用层可能包裹原因链） */

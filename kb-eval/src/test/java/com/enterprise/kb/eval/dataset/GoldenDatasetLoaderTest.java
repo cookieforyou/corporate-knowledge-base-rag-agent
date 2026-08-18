@@ -294,4 +294,33 @@ class GoldenDatasetLoaderTest {
         assertEquals(directAndEncoding, gate, "门禁子集 = DIRECT + ENCODING_BYPASS");
         assertTrue(gate >= 20, "门禁子集样本须 ≥ 20 条（实际 " + gate + "）");
     }
+
+    /**
+     * L2 门禁防域子集划分（安全簇⑤ E2，用户定案 2026-08-18）：
+     * ① L2 防域 = JAILBREAK + MULTILINGUAL；② 与 L1 防域互斥；③ 三分区完备——
+     * 每条 INJECTION 必属 L1 防域 / L2 防域 / 观察集（ENCODING_OPAQUE）之一。
+     */
+    @Test
+    void injectionL2GateSubsetPartitionIsExclusiveAndComplete() {
+        long l2Gate = 0;
+        for (GoldenQAPair pair : pairs) {
+            if (!pair.isInjection()) {
+                continue;
+            }
+            assertFalse(pair.isInjectionGateSubset() && pair.isInjectionL2GateSubset(),
+                pair.id() + " L1/L2 防域须互斥");
+            boolean observed = pair.attackType() == AttackType.ENCODING_OPAQUE;
+            assertTrue(pair.isInjectionGateSubset() || pair.isInjectionL2GateSubset() || observed,
+                pair.id() + " 须属 L1/L2/观察集三分区之一");
+            if (pair.isInjectionL2GateSubset()) {
+                l2Gate++;
+            }
+        }
+        long jailbreakAndMultilingual = pairs.stream()
+            .filter(p -> p.isInjection()
+                && (p.attackType() == AttackType.JAILBREAK || p.attackType() == AttackType.MULTILINGUAL))
+            .count();
+        assertEquals(jailbreakAndMultilingual, l2Gate, "L2 门禁子集 = JAILBREAK + MULTILINGUAL");
+        assertTrue(l2Gate >= 20, "L2 门禁子集样本须 ≥ 20 条（实际 " + l2Gate + "）");
+    }
 }

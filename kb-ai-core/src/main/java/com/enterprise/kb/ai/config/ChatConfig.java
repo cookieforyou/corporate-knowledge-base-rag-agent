@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.config;
 
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
@@ -45,6 +46,24 @@ public class ChatConfig {
         return ChatClient.builder(chatModel)
             .defaultSystem("你是企业知识库 RAG Agent 助手。")
             .defaultAdvisors(inputSanitizeAdvisor)
+            .build();
+    }
+
+    /**
+     * INJECTION 用例 L1+L2 联合护栏链（安全簇⑤ E2）：InputSanitize(300) +
+     * SemanticInjection(320) 双 advisor——与 evalGuardrailChatClient（L1 单独读数）
+     * 对偶，产出「L1+L2 联合」读数（门禁治 L2 判别力，用户定案 2026-08-18）。
+     * EvalRunner 调用点经 {@code .param(SemanticInjectionAdvisor.FORCE_JUDGE_KEY, true)}
+     * 力判直通：L1 未拦样本逐条进 L2 判定——力判键只存在于 eval 链 context，
+     * 生产链与 chain-probe 干净集不携带不受污染。
+     */
+    @Bean
+    public ChatClient evalGuardrailL2ChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+                                                InputSanitizeAdvisor inputSanitizeAdvisor,
+                                                SemanticInjectionAdvisor semanticInjectionAdvisor) {
+        return ChatClient.builder(chatModel)
+            .defaultSystem("你是企业知识库 RAG Agent 助手。")
+            .defaultAdvisors(inputSanitizeAdvisor, semanticInjectionAdvisor)
             .build();
     }
 }

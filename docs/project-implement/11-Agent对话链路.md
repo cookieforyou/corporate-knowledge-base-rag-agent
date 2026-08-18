@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-16 · v2.37（Phase 4 簇⑤ 4.10 MCP Server 产品化，§11.8 新增）
+> [📑 返回目录](./README.md) · 最后更新：2026-08-18 · v2.47（安全簇⑤：§11.5.1 链序表双链增 SemanticInjection(320) L2 语义判定；前版 v2.37 Phase 4 簇⑤ 4.10 MCP Server 产品化，§11.8 新增）
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
@@ -555,10 +555,11 @@ kb-eval 只依赖 kb-ai-core 不受影响。
 
 | Bean | 模块 | Advisor 链（order） | tools | system 导向 |
 |---|---|---|---|---|
-| `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→**QueryRouting(440)**→Trace(450)→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
-| `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
+| `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→**QueryRouting(440)**→Trace(450)→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
+| `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
 
 > v2.13 链序变更：440 插入 QueryRoutingAdvisor（意图分类），500 位由 RetrievalGateAdvisor 承接（组合式包裹原 RetrievalAugmentationAdvisor，skipRetrieval 时旁路整套 RAG 管线，见 §11.4 v2.13 注）。
+> v2.47 链序变更（安全簇⑤）：320 插入 SemanticInjectionAdvisor（L2 语义判定，12 章 §12.11）——L1 词表快筛之后、记忆之前，REGEX 可疑且干词未命中请求经备用模型二判，拒绝内容不入多轮记忆仓储。
 
 **共享基座（均留 kb-ai-core）**：smartRoutingChatModel（主备容灾两链同享）、
 agentChatMemory（同 sessionId 跨链历史互通——历史进 prompt 不进检索 query）、

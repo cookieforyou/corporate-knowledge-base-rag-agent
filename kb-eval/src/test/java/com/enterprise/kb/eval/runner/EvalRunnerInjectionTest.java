@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -34,6 +35,7 @@ class EvalRunnerInjectionTest {
     private ChatClient chatClient;
     private ChatClient judgeChatClient;
     private ChatClient guardrailChatClient;
+    private ChatClient guardrailL2ChatClient;
     private RetrievalProbe probe;
     private EvalProperties props;
 
@@ -43,6 +45,7 @@ class EvalRunnerInjectionTest {
         chatClient = mock(ChatClient.class);
         judgeChatClient = mock(ChatClient.class);
         guardrailChatClient = mock(ChatClient.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
+        guardrailL2ChatClient = mock(ChatClient.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
         probe = mock(RetrievalProbe.class);
         when(probe.name()).thenReturn("hybrid");
         when(probe.getOrder()).thenReturn(0);
@@ -54,7 +57,7 @@ class EvalRunnerInjectionTest {
     private EvalRunner runner(List<GoldenQAPair> dataset) {
         when(loader.loadAll()).thenReturn(dataset);
         return new EvalRunner(loader, List.of(probe), chatClient, judgeChatClient,
-            guardrailChatClient, mock(IndirectInjectionRunner.class), props,
+            guardrailChatClient, guardrailL2ChatClient, mock(IndirectInjectionRunner.class), props,
             new DefaultApplicationArguments());
     }
 
@@ -134,5 +137,56 @@ class EvalRunnerInjectionTest {
         assertThat(report.injectionBlockRateByAttackType())
             .containsKeys(AttackType.DIRECT, AttackType.ENCODING_BYPASS,
                 AttackType.JAILBREAK, AttackType.MULTILINGUAL);
+    }
+
+    // ── L1+L2 联合双读数（安全簇⑤ E2）──
+
+    @Test
+    void l2EnabledDirectBlockedAtL1CarriesBlockedL2VerdictWithoutExtraCall() {
+        // L1 ⊂ 联合链：L1 已拦 → 联合判定恒 BLOCKED，免重复 L2 LLM 调用
+        props.getGuardrail().setL2Enabled(true);
+        when(guardrailChatClient.prompt().user(anyString()).call().content())
+            .thenThrow(new BusinessException("PROMPT_INJECTION", "拦截"));
+
+        EvalReport report = runner(List.of(
+            injectionCase("inj-direct-01", AttackType.DIRECT))).runFullEval();
+
+        assertThat(report.results().get(0).injectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_BLOCKED);
+        assertThat(report.results().get(0).l2InjectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_BLOCKED);
+        verifyNoInteractions(guardrailL2ChatClient);
+    }
+
+    @Test
+    void l2EnabledJailbreakPassesL1ThenJudgedByL2Chain() {
+        props.getGuardrail().setL2Enabled(true);
+        when(guardrailChatClient.prompt().user(anyString()).call().content())
+            .thenReturn("（L1 未拦截）");
+        when(guardrailL2ChatClient.prompt().user(anyString())
+            .advisors(any(java.util.function.Consumer.class)).call().content())
+            .thenThrow(new BusinessException("PROMPT_INJECTION", "L2 拦截"));
+
+        EvalReport report = runner(List.of(
+            injectionCase("inj-jailbreak-01", AttackType.JAILBREAK))).runFullEval();
+
+        assertThat(report.results().get(0).injectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_NOT_BLOCKED);
+        assertThat(report.results().get(0).l2InjectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_BLOCKED);
+        assertThat(report.injectionL2GateResults()).hasSize(1);
+    }
+
+    @Test
+    void l2DisabledLeavesL2VerdictNullAndL2ChainUntouched() {
+        when(guardrailChatClient.prompt().user(anyString()).call().content())
+            .thenReturn("（观察集样本穿透 L1 后的任意回答，丢弃）");
+
+        EvalReport report = runner(List.of(
+            injectionCase("inj-jailbreak-01", AttackType.JAILBREAK))).runFullEval();
+
+        assertThat(report.results().get(0).l2InjectionVerdict()).isNull();
+        assertThat(report.injectionL2GateResults()).isEmpty();
+        verifyNoInteractions(guardrailL2ChatClient);
     }
 }

@@ -1,0 +1,18 @@
+# SemanticInjectionAdvisorTest L2 触发判定测试词表（占位词，无攻击语义）
+# location 覆盖为「替换缺省文件」语义——本文件自带 REGEX 轨 + KEYWORD 双型占位词，
+# 独立验证 L2 触发真值表（REGEX 命中 × 干词命中组合），不依赖 bundled 基线。
+rules:
+  - id: l2-regex-test-01
+    family: INSTRUCTION_OVERRIDE
+    lang: en
+    type: REGEX
+    value: "bDJyZWdleHRlc3QtXHcr"
+    action: FLAG
+    enabled: true
+  - id: l2-keyword-test-01
+    family: UNCLASSIFIED
+    lang: en
+    type: KEYWORD
+    value: "bDJrZXl3b3JkdGVzdA=="
+    action: FLAG
+    enabled: true

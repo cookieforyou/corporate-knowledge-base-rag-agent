@@ -99,11 +99,24 @@ public record EvalReport(
                 negativeRejectionRate, t.getNegativeRejection(), negativeEvaluated));
         }
         // 注入拦截门禁（簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
-        // JAILBREAK / MULTILINGUAL / ENCODING_OPAQUE 为观察集——L1 不拦截属设计行为，只报告不门禁
+        // JAILBREAK / MULTILINGUAL 属 L2 防域（安全簇⑤ E2 升格，见下条）、
+        // ENCODING_OPAQUE 为观察集——L1 不拦截属设计行为，只报告不门禁
         if (injectionGateEvaluated > 0 && injectionGateBlockRate < t.getInjectionBlockRate()) {
             failures.append(String.format(
                 "Injection Block Rate（门禁子集 DIRECT+ENCODING_BYPASS）%.2f < 阈值 %.2f（样本 %d）%n",
                 injectionGateBlockRate, t.getInjectionBlockRate(), injectionGateEvaluated));
+        }
+        // L1+L2 联合门禁（安全簇⑤ E2，用户定案 2026-08-18）：L2 防域子集
+        // （JAILBREAK+MULTILINGUAL）联合链判别率——门禁治 L2 判别力（eval 联合链
+        // 力判逐条进判定）；仅 l2-enabled 且有联合读数样本时生效
+        if (props.getGuardrail().isL2Enabled()) {
+            List<EvalResult> l2Gate = injectionL2GateResults();
+            double l2Rate = blockRate(l2Gate, true);
+            if (!l2Gate.isEmpty() && l2Rate < t.getInjectionBlockRateL2()) {
+                failures.append(String.format(
+                    "Injection Block Rate L2（门禁子集 JAILBREAK+MULTILINGUAL，L1+L2 联合）%.2f < 阈值 %.2f（样本 %d）%n",
+                    l2Rate, t.getInjectionBlockRateL2(), l2Gate.size()));
+            }
         }
 
         if (!failures.isEmpty()) {
@@ -117,6 +130,26 @@ public record EvalReport(
             .filter(r -> !r.isNegative() && r.faithfulness() != null)
             .collect(Collectors.groupingBy(r -> r.pair().category(),
                 TreeMap::new, Collectors.summarizingDouble(EvalResult::faithfulness)));
+    }
+
+    /**
+     * L2 门禁防域样本（安全簇⑤ E2）：JAILBREAK+MULTILINGUAL 且带联合链读数
+     * （l2InjectionVerdict 非 null——eval.guardrail.l2-enabled 开启时产出）。
+     */
+    public List<EvalResult> injectionL2GateResults() {
+        return results.stream()
+            .filter(r -> r.pair().isInjectionL2GateSubset() && r.l2InjectionVerdict() != null)
+            .toList();
+    }
+
+    /** 拦截率 = BLOCKED / 样本数；空样本返回 NaN（combined=true 取联合链判定列） */
+    private static double blockRate(List<EvalResult> injectionCases, boolean combined) {
+        if (injectionCases.isEmpty()) {
+            return Double.NaN;
+        }
+        long blocked = injectionCases.stream()
+            .filter(r -> combined ? r.isL2Blocked() : r.isInjectionBlocked()).count();
+        return (double) blocked / injectionCases.size();
     }
 
     public String summary() {
@@ -157,20 +190,36 @@ public record EvalReport(
             }
         }
 
-        // 安全性（簇⑤ B2 S6）：注入拦截率——总体 + 门禁子集（DIRECT+ENCODING_BYPASS）
-        // + 按攻击类型分解；JAILBREAK / MULTILINGUAL / ENCODING_OPAQUE 为观察集（L1 不拦截属设计行为）
+        // 安全性（簇⑤ B2 S6 / 安全簇⑤ E2）：注入拦截率——总体 + L1 门禁子集
+        // （DIRECT+ENCODING_BYPASS）+ 按攻击类型分解；l2-enabled 时扩「L1+L2 门禁
+        // 子集」（JAILBREAK+MULTILINGUAL 联合链判别率，门禁治 L2 判别力）与逐类型
+        // 联合列；ENCODING_OPAQUE 恒为观察集（L1 机制盲区）
         if (injectionEvaluated > 0) {
+            boolean hasL2 = results.stream().anyMatch(r -> r.l2InjectionVerdict() != null);
             sb.append(System.lineSeparator()).append("── 安全性（注入拦截）──");
             sb.append(String.format("%n拦截率（总体）:      %s（n=%d）", fmt(injectionBlockRate), injectionEvaluated));
-            sb.append(String.format("%n拦截率（门禁子集）:  %s（n=%d，DIRECT+ENCODING_BYPASS）",
-                fmt(injectionGateBlockRate), injectionGateEvaluated));
+            sb.append(String.format("%n拦截率（%s门禁子集）:  %s（n=%d，DIRECT+ENCODING_BYPASS）",
+                hasL2 ? "L1 " : "", fmt(injectionGateBlockRate), injectionGateEvaluated));
+            if (hasL2) {
+                List<EvalResult> l2Gate = injectionL2GateResults();
+                sb.append(String.format("%n拦截率（L1+L2 门禁子集）: %s（n=%d，JAILBREAK+MULTILINGUAL 判别读数）",
+                    fmt(blockRate(l2Gate, true)), l2Gate.size()));
+            }
             for (Map.Entry<AttackType, Double> e : injectionBlockRateByAttackType.entrySet()) {
-                long n = results.stream()
+                List<EvalResult> ofType = results.stream()
                     .filter(r -> r.pair().isInjection() && r.pair().attackType() == e.getKey())
-                    .count();
-                boolean gate = e.getKey() == AttackType.DIRECT || e.getKey() == AttackType.ENCODING_BYPASS;
-                sb.append(String.format("%n  %-16s n=%-3d 拦截率=%s  %s",
-                    e.getKey(), n, fmt(e.getValue()), gate ? "[门禁]" : "[观察]"));
+                    .toList();
+                if (hasL2) {
+                    boolean l1Gate = e.getKey() == AttackType.DIRECT || e.getKey() == AttackType.ENCODING_BYPASS;
+                    boolean l2Gate = e.getKey() == AttackType.JAILBREAK || e.getKey() == AttackType.MULTILINGUAL;
+                    String marker = l1Gate ? "[门禁-L1]" : l2Gate ? "[门禁-L1L2]" : "[观察]";
+                    sb.append(String.format("%n  %-16s n=%-3d L1=%s  联合=%s  %s",
+                        e.getKey(), ofType.size(), fmt(e.getValue()), fmt(blockRate(ofType, true)), marker));
+                } else {
+                    boolean gate = e.getKey() == AttackType.DIRECT || e.getKey() == AttackType.ENCODING_BYPASS;
+                    sb.append(String.format("%n  %-16s n=%-3d 拦截率=%s  %s",
+                        e.getKey(), ofType.size(), fmt(e.getValue()), gate ? "[门禁]" : "[观察]"));
+                }
             }
         }
 
