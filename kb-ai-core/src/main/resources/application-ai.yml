@@ -181,6 +181,15 @@ rag:
       enabled: ${RAG_GUARDRAIL_L2_ENABLED:true}                    # 总开关（运维回退阀门）
       timeout-seconds: ${RAG_GUARDRAIL_L2_TIMEOUT_SECONDS:3}       # 二判超时（秒），超时 fail-open
       history-size: ${RAG_GUARDRAIL_L2_HISTORY_SIZE:6}             # 跨轮信号与判定上下文的历史条数
+    # 词表热重载（安全簇⑥ F1，设计 12.4 S8 Git Ops 词表运营）：词表文件以 Git 为
+    # 单一事实源，经 file: 外部覆盖 + 重载信号免重启生效。双触发通道——pub/sub 即时
+    # 信号（频道 rag:guardrail:reload，tools/guardrail/publish_reload_signal.py 发布）
+    # + file: 源 mtime 轮询回落（信号丢失/Redis 不可达窗口兜底；jar 内 classpath 源
+    # 不轮询）。装载失败 fail-keep 保旧快照。kb-eval 经 web-none 结构隔离天然不装配
+    # （测量一致性）。指标 rag.guardrail.reload.succeeded/failed。
+    reload:
+      enabled: ${RAG_GUARDRAIL_RELOAD_ENABLED:true}                          # 总开关（运维回退阀门）
+      poll-interval-seconds: ${RAG_GUARDRAIL_RELOAD_POLL_INTERVAL_SECONDS:60}  # file: 源 mtime 轮询间隔
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）
   retrieval:
     rewrite:

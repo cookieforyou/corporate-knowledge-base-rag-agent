@@ -5,16 +5,23 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.guardrail.RuleType;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -310,5 +317,47 @@ class InputSanitizeAdvisorTest {
 
         assertThat(meterRegistry.counter("rag.guardrail.pii.masked").count()).isZero();
         assertThat(meterRegistry.counter("rag.guardrail.injection.blocked").count()).isZero();
+    }
+
+    // ── 热重载（安全簇⑥ F1）──
+
+    /** 占位词表文件生成（无语义占位词，测试专用词面；value 编码态与生产纪律同款） */
+    private static String probeRulesYml(String action) {
+        String value = Base64.getEncoder()
+            .encodeToString("reload-probe-word".getBytes(StandardCharsets.UTF_8));
+        return "rules:\n"
+            + "  - id: reload-probe-01\n"
+            + "    family: UNCLASSIFIED\n"
+            + "    lang: zh\n"
+            + "    type: KEYWORD\n"
+            + "    value: \"" + value + "\"\n"
+            + "    action: " + action + "\n"
+            + "    enabled: true\n";
+    }
+
+    @Test
+    void hotReloadViaRegistrySwapsRulesWithoutRestart(@TempDir Path tempDir) throws IOException {
+        // 初始词表 FLAG 档：命中放行只计数
+        Path rulesFile = tempDir.resolve("injection-rules.yml");
+        Files.writeString(rulesFile, probeRulesYml("FLAG"));
+        GuardrailRulesRegistry registry = new GuardrailRulesRegistry(
+            "file:" + rulesFile.toAbsolutePath(), "", "", "");
+        AiBusinessMetrics metrics = new AiBusinessMetrics(meterRegistry);
+        InputSanitizeAdvisor hotAdvisor = new InputSanitizeAdvisor(registry, metrics, piiRegistry);
+
+        hotAdvisor.before(request("reload-probe-word"), chain);
+        assertThat(meterRegistry.counter("rag.guardrail.flagged",
+            "side", "input", "family", "UNCLASSIFIED").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("rag.guardrail.injection.blocked").count()).isZero();
+
+        // 词表文件动作档转 BLOCK + reload → 免重启热切换为拦截
+        Files.writeString(rulesFile, probeRulesYml("BLOCK"));
+        assertThat(registry.reload()).isTrue();
+
+        assertThatThrownBy(() -> hotAdvisor.before(request("reload-probe-word"), chain))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode")
+            .isEqualTo("PROMPT_INJECTION");
+        assertThat(meterRegistry.counter("rag.guardrail.injection.blocked").count()).isEqualTo(1.0);
     }
 }

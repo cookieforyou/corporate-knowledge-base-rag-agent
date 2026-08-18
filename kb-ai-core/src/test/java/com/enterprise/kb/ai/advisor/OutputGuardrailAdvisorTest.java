@@ -3,6 +3,9 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.RuleAction;
+import com.enterprise.kb.commons.guardrail.RuleType;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -360,5 +363,24 @@ class OutputGuardrailAdvisorTest {
         advisor.after(response("联系电话 1***-****-**** 已脱敏"), chain);
 
         assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isZero();
+    }
+
+    // ── 热重载（安全簇⑥ F1）──
+
+    @Test
+    void hotReloadCallbackSwapsOutputRules() {
+        OutputGuardrailAdvisor target = new OutputGuardrailAdvisor("", "",
+            new AiBusinessMetrics(meterRegistry), new PromptCanary(false), PiiRecognizerRegistry.defaults());
+        // 干净业务文本对 bundled 基线词表零命中（既有 clean 断言同词面）
+        ChatClientResponse original = response("增值税发票是……");
+        assertThat(target.after(original, chain)).isSameAs(original);
+
+        // 热重载回调换入合成 BLOCK 词项（占位词干，无语义）→ 同输出即整段替换
+        target.onOutputRulesUpdated(List.of(new GuardrailRule("reload-probe-01", "UNCLASSIFIED",
+            "", RuleType.KEYWORD, "增值税发票", RuleAction.BLOCK, true, null)));
+
+        ChatClientResponse replaced = target.after(original, chain);
+        assertThat(replaced.chatResponse().getResult().getOutput().getText())
+            .isEqualTo("抱歉，由于合规要求，无法提供该信息。");
     }
 }

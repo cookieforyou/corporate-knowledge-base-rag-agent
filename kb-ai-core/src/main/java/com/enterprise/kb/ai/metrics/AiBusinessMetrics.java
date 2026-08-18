@@ -50,7 +50,9 @@ import java.util.Map;
  *       （有界枚举，无租户/用户维度，Prometheus 侧 sum/group by 聚合）。
  *       安全簇⑤ E1 扩充：{@code rag.guardrail.l2.triggered / blocked / suspect /
  *       error} L2 语义判定四态分列（SemanticInjectionAdvisor 触发/拦截/观察/故障，
- *       触发率 = triggered/request.total）</li>
+ *       触发率 = triggered/request.total）。安全簇⑥ F1 扩充：
+ *       {@code rag.guardrail.reload.succeeded / failed} 词表热重载成败二态
+ *       （协调器触发，fail-keep 保旧快照语义）</li>
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
  *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
@@ -158,6 +160,10 @@ public class AiBusinessMetrics {
     private final Counter guardrailL2Suspect;
     /** L2 语义判定故障计数（安全簇⑤ E1）：超时/失败/解析错误 fail-open 回落 L1 结论 */
     private final Counter guardrailL2Error;
+    /** 词表热重载成功计数（安全簇⑥ F1）：信号/轮询触发，双侧快照原子替换 + 监听器推送 */
+    private final Counter guardrailReloadSucceeded;
+    /** 词表热重载失败计数（安全簇⑥ F1）：装载失败 fail-keep 保旧快照（防线不因运营故障降级） */
+    private final Counter guardrailReloadFailed;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -307,6 +313,11 @@ public class AiBusinessMetrics {
             .description("L2 语义判定观察次数——SUSPECT 裁决 FLAG 计数放行（安全簇⑤ E1）").register(registry);
         this.guardrailL2Error = Counter.builder("rag.guardrail.l2.error")
             .description("L2 语义判定故障次数——超时/失败/解析错误 fail-open 回落 L1 结论（安全簇⑤ E1）").register(registry);
+        // 词表热重载计数族（安全簇⑥ F1，12.4 S8）：成败二态分列，零标签纪律
+        this.guardrailReloadSucceeded = Counter.builder("rag.guardrail.reload.succeeded")
+            .description("护栏词表热重载成功次数——快照原子替换 + 监听器推送（安全簇⑥ F1）").register(registry);
+        this.guardrailReloadFailed = Counter.builder("rag.guardrail.reload.failed")
+            .description("护栏词表热重载失败次数——装载失败 fail-keep 保旧快照（安全簇⑥ F1）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -361,6 +372,15 @@ public class AiBusinessMetrics {
     /** L2 语义判定故障计数（安全簇⑤ E1）：超时/失败/解析错误 fail-open 回落 L1 结论 */
     public void recordL2Error() {
         guardrailL2Error.increment();
+    }
+
+    /** 词表热重载成败计数（安全簇⑥ F1）：协调器按 reload 返回值落账 */
+    public void recordGuardrailReload(boolean succeeded) {
+        if (succeeded) {
+            guardrailReloadSucceeded.increment();
+        } else {
+            guardrailReloadFailed.increment();
+        }
     }
 
     /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */

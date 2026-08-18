@@ -5,7 +5,8 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
-import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.RuleType;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import io.micrometer.context.ContextExecutorService;
@@ -72,7 +73,7 @@ import java.util.concurrent.TimeoutException;
  */
 @Slf4j
 @Component
-public class SemanticInjectionAdvisor implements BaseAdvisor {
+public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesListener {
 
     /**
      * 力判直通键（kb-eval 联合读数链专用）：context 携带本键时无视触发启发式
@@ -111,8 +112,8 @@ public class SemanticInjectionAdvisor implements BaseAdvisor {
         - 拿不准时：倾向正常裁 PASS，仅结构特征显著裁 SUSPECT；BLOCK 必须意图明确
         """;
 
-    /** 生效结构化词表：与 InputSanitizeAdvisor 同源装载（双源合并，单一词表口径） */
-    private final List<GuardrailRule> injectionRules;
+    /** 生效结构化词表：注册表快照（安全簇⑥ F1 起 volatile 承接热重载推送，单一词表口径） */
+    private volatile List<GuardrailRule> injectionRules;
 
     private final AiBusinessMetrics metrics;
 
@@ -133,13 +134,13 @@ public class SemanticInjectionAdvisor implements BaseAdvisor {
      * 装配构造器——双构造器形态必须显式钉 {@link org.springframework.beans.factory.annotation.Autowired}
      * （Spring 6 多构造器无注解即回落无参构造器致启动失败；先例
      * IndirectInjectionScanPostProcessor 同形态，坑位实证 2026-08-18）。
+     * 词表经 {@link GuardrailRulesRegistry} 取初始快照并订阅热重载推送（安全簇⑥ F1）。
      * 备用模型未装配（rag.routing.fallback.enabled=false）→ 判定客户端 null，
      * 整体恒 pass（fail-open 构造性保证）。
      */
     @Autowired
     public SemanticInjectionAdvisor(
-            @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
-            @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
+            GuardrailRulesRegistry rulesRegistry,
             AiBusinessMetrics metrics,
             @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
@@ -147,16 +148,23 @@ public class SemanticInjectionAdvisor implements BaseAdvisor {
             @Value("${rag.guardrail.l2.enabled:true}") boolean enabled,
             @Value("${rag.guardrail.l2.timeout-seconds:3}") int timeoutSeconds,
             @Value("${rag.guardrail.l2.history-size:6}") int historySize) {
-        this(GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv), metrics,
+        this(rulesRegistry.currentInjectionRules(), metrics,
             fallbackChatModel == null ? null
                 : ChatClient.builder(fallbackChatModel,
                     observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP),
                     null, null)
                 .build(),
             chatMemoryProvider.getIfAvailable(), enabled, timeoutSeconds, historySize);
+        rulesRegistry.subscribe(this);
         if (this.chatClient == null) {
             log.warn("L2 语义判定停用：备用模型未装配（rag.routing.fallback.enabled=false 时恒 pass fail-open）");
         }
+    }
+
+    /** 热重载推送承接（安全簇⑥ F1）：触发判定与跨轮信号读新快照，in-flight 判定持旧不受影响 */
+    @Override
+    public void onInjectionRulesUpdated(List<GuardrailRule> rules) {
+        this.injectionRules = rules;
     }
 
     /** 包内测试装配版：判定客户端预建注入（双构造器形态，见公开构造器注记） */

@@ -4,7 +4,9 @@ import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import com.enterprise.kb.commons.security.pii.PiiMaskResult;
@@ -15,6 +17,7 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -70,10 +73,10 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class InputSanitizeAdvisor implements BaseAdvisor {
+public class InputSanitizeAdvisor implements BaseAdvisor, GuardrailRulesListener {
 
-    /** 生效结构化词表：双源合并（结构化文件 ∪ CSV 兼容），action 分流 */
-    private final List<GuardrailRule> injectionRules;
+    /** 生效结构化词表：注册表快照（安全簇⑥ F1 起 volatile 承接热重载推送），action 分流 */
+    private volatile List<GuardrailRule> injectionRules;
 
     /** 护栏命中计数（簇⑤ B2 S3）——注入拦截/PII 掩码事件入 Prometheus */
     private final AiBusinessMetrics metrics;
@@ -81,6 +84,26 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
     /** PII 识别器注册表（安全簇③ C2）——与 ETL 入库消毒同 Bean 同源不漂移 */
     private final PiiRecognizerRegistry piiRegistry;
 
+    /**
+     * 装配构造器——双构造器形态必须显式钉 {@link Autowired}（Spring 6 多构造器
+     * 无注解即回落无参构造器致启动失败）。词表经 {@link GuardrailRulesRegistry}
+     * 取初始快照并订阅热重载推送（安全簇⑥ F1，免重启词表运营）。
+     */
+    @Autowired
+    public InputSanitizeAdvisor(
+            GuardrailRulesRegistry rulesRegistry,
+            AiBusinessMetrics metrics,
+            PiiRecognizerRegistry piiRegistry) {
+        this.injectionRules = rulesRegistry.currentInjectionRules();
+        this.metrics = metrics;
+        this.piiRegistry = piiRegistry;
+        rulesRegistry.subscribe(this);
+        long blocks = injectionRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
+        log.info("注入检测词表加载: {} 条（BLOCK {} / FLAG {}），热重载订阅就绪",
+            injectionRules.size(), blocks, injectionRules.size() - blocks);
+    }
+
+    /** 测试装配版：词表源直装（不经注册表，永不热重载——单测确定性） */
     public InputSanitizeAdvisor(
             @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
@@ -89,9 +112,12 @@ public class InputSanitizeAdvisor implements BaseAdvisor {
         this.injectionRules = GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv);
         this.metrics = metrics;
         this.piiRegistry = piiRegistry;
-        long blocks = injectionRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
-        log.info("注入检测词表加载: {} 条（BLOCK {} / FLAG {}）",
-            injectionRules.size(), blocks, injectionRules.size() - blocks);
+    }
+
+    /** 热重载推送承接（安全簇⑥ F1）：volatile 引用替换，in-flight 匹配持旧快照不受影响 */
+    @Override
+    public void onInjectionRulesUpdated(List<GuardrailRule> rules) {
+        this.injectionRules = rules;
     }
 
     @Override

@@ -1,12 +1,15 @@
 package com.enterprise.kb.etl.transformer;
 
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentTransformer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -36,24 +39,41 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class SanitizingTransformer implements DocumentTransformer {
+public class SanitizingTransformer implements DocumentTransformer, GuardrailRulesListener {
 
     /** 注入命中标记键：Document 元数据 → kb_chunk.metadata JSONB */
     public static final String INJECTION_HIT_KEY = "injection_hit";
 
-    private final List<GuardrailRule> injectionRules;
+    private volatile List<GuardrailRule> injectionRules;
     private final PiiRecognizerRegistry piiRegistry;
     private final boolean piiEnabled;
     private final boolean injectionScanEnabled;
 
     /**
-     * 注入词表与对话链路同源：{@link GuardrailRulesLoader#loadInjectionRules} 双源合并
-     * （结构化文件 ∪ {@code rag.guardrail.input.injection-keywords} 兼容并入，
-     * 同一 Spring 上下文单一词表口径，安全簇① A1 结构化 / T2 字面退役）；PII 掩码与
-     * 对话链路消费同一 {@link PiiRecognizerRegistry} Bean（安全簇③ C2，kb-commons
-     * 装配，类型开关 {@code rag.guardrail.pii.{type}.enabled} 单点生效）。
+     * 装配构造器——双构造器形态显式钉 {@link Autowired}（Spring 6 多构造器纪律）。
+     * 注入词表与对话链路同源：经 {@link GuardrailRulesRegistry} 取初始快照并订阅
+     * 热重载推送（安全簇⑥ F1，同一 Spring 上下文单一词表口径不漂移——kb-api fat jar
+     * 聚合 kb-ai-core 与 kb-etl 共享上下文，协调器重载信号一次触达双侧消费方）；
+     * PII 掩码与对话链路消费同一 {@link PiiRecognizerRegistry} Bean（安全簇③ C2，
+     * kb-commons 装配，类型开关 {@code rag.guardrail.pii.{type}.enabled} 单点生效）。
      * 入库侧打标不区分 BLOCK/FLAG——任意启用词项命中即打标。
      */
+    @Autowired
+    public SanitizingTransformer(
+            GuardrailRulesRegistry rulesRegistry,
+            PiiRecognizerRegistry piiRegistry,
+            @Value("${kb.etl.sanitize.pii-enabled:true}") boolean piiEnabled,
+            @Value("${kb.etl.sanitize.injection-scan:true}") boolean injectionScanEnabled) {
+        this.injectionRules = rulesRegistry.currentInjectionRules();
+        this.piiRegistry = piiRegistry;
+        this.piiEnabled = piiEnabled;
+        this.injectionScanEnabled = injectionScanEnabled;
+        rulesRegistry.subscribe(this);
+        log.info("ETL 入库消毒装配: pii={}, injectionScan={}, 词表 {} 条, PII 识别器 {}（热重载订阅就绪）",
+            piiEnabled, injectionScanEnabled, injectionRules.size(), piiRegistry.enabledTypes());
+    }
+
+    /** 测试装配版：词表源直装（不经注册表，永不热重载——单测确定性） */
     public SanitizingTransformer(
             @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
@@ -64,8 +84,12 @@ public class SanitizingTransformer implements DocumentTransformer {
         this.piiRegistry = piiRegistry;
         this.piiEnabled = piiEnabled;
         this.injectionScanEnabled = injectionScanEnabled;
-        log.info("ETL 入库消毒装配: pii={}, injectionScan={}, 词表 {} 条, PII 识别器 {}",
-            piiEnabled, injectionScanEnabled, injectionRules.size(), piiRegistry.enabledTypes());
+    }
+
+    /** 热重载推送承接（安全簇⑥ F1）：volatile 引用替换，后续 chunk 消毒即用新词表 */
+    @Override
+    public void onInjectionRulesUpdated(List<GuardrailRule> rules) {
+        this.injectionRules = rules;
     }
 
     @Override

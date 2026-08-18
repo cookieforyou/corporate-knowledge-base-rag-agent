@@ -2,7 +2,8 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
-import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -56,7 +57,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor {
+public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor, GuardrailRulesListener {
 
     /**
      * 命中文档元数据标记键（warn 档）：编号格式器据此渲染逐条警示注记。
@@ -68,7 +69,7 @@ public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor
     private static final String STRATEGY_EXCLUDE = "exclude";
     private static final String STRATEGY_WARN = "warn";
 
-    private final List<GuardrailRule> injectionRules;
+    private volatile List<GuardrailRule> injectionRules;
     private final AiBusinessMetrics metrics;
     private final boolean enabled;
     private final boolean excludeStrategy;
@@ -76,16 +77,22 @@ public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor
     /**
      * 装配构造器——双构造器形态必须显式钉 {@link Autowired}（Spring 6 多构造器
      * 无注解即回落无参构造器致启动失败；先例 ContextualEnrichmentTransformer 同形态）。
+     * 词表经 {@link GuardrailRulesRegistry} 取初始快照并订阅热重载推送（安全簇⑥ F1）。
      */
     @Autowired
     public IndirectInjectionScanPostProcessor(
-            @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
-            @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
+            GuardrailRulesRegistry rulesRegistry,
             AiBusinessMetrics metrics,
             @Value("${rag.guardrail.indirect.scan.enabled:true}") boolean enabled,
             @Value("${rag.guardrail.indirect.strategy:warn}") String strategy) {
-        this(GuardrailRulesLoader.loadInjectionRules(rulesLocation, keywordsCsv),
-            metrics, enabled, strategy);
+        this(rulesRegistry.currentInjectionRules(), metrics, enabled, strategy);
+        rulesRegistry.subscribe(this);
+    }
+
+    /** 热重载推送承接（安全簇⑥ F1）：volatile 引用替换，in-flight 扫描持旧快照不受影响 */
+    @Override
+    public void onInjectionRulesUpdated(List<GuardrailRule> rules) {
+        this.injectionRules = rules;
     }
 
     /** 构造逻辑提取（单测以合成词表直驱，防装配漂移；敏感词纪律：测试不入真词面） */

@@ -143,4 +143,24 @@ class SanitizingTransformerTest {
 
         assertThat(transformer.apply(List.of(chunk)).get(0)).isSameAs(chunk);
     }
+
+    // ── 热重载（安全簇⑥ F1）──
+
+    @Test
+    void hotReloadCallbackSwapsInjectionRules() {
+        // 占位词干对 bundled 基线词表零命中（换入前不打标）
+        Document chunk = Document.builder()
+            .text("文本含 reload-probe-sanitize 占位词")
+            .metadata("chunk_type", "TEXT").build();
+        assertThat(transformer.apply(List.of(chunk)).get(0).getMetadata())
+            .doesNotContainKey(SanitizingTransformer.INJECTION_HIT_KEY);
+
+        // 热重载回调换入占位词项 → 同文本即打标（不阻断语义不变）
+        transformer.onInjectionRulesUpdated(List.of(new GuardrailRule("reload-probe-01",
+            "UNCLASSIFIED", "", RuleType.KEYWORD, "reload-probe-sanitize", RuleAction.BLOCK, true, null)));
+
+        Document sanitized = transformer.apply(List.of(chunk)).get(0);
+        assertThat(sanitized.getMetadata()).containsKey(SanitizingTransformer.INJECTION_HIT_KEY);
+        assertThat(sanitized.getText()).contains("reload-probe-sanitize");   // 打标不阻断不改文本
+    }
 }

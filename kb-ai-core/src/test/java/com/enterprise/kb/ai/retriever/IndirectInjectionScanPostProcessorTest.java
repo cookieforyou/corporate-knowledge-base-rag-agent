@@ -169,4 +169,24 @@ class IndirectInjectionScanPostProcessorTest {
 
         assertThat(registry.counter("rag.guardrail.indirect.flagged").count()).isEqualTo(2.0);
     }
+
+    // ── 热重载（安全簇⑥ F1）──
+
+    @Test
+    void hotReloadCallbackSwapsInjectionRules() {
+        // 空词表装配：占位词干文档零命中直通
+        IndirectInjectionScanPostProcessor processor =
+            new IndirectInjectionScanPostProcessor(List.of(), metrics, true, "warn");
+        Document doc = document("d1", "文本含 " + PLACEHOLDER_KEYWORD + " 占位词");
+        assertThat(processor.process(new Query("问题"), List.of(doc))).containsExactly(doc);
+
+        // 热重载回调换入占位词项 → 同文档即打标（warn 档保留）
+        processor.onInjectionRulesUpdated(List.of(keywordRule("reload-probe-01", RuleAction.BLOCK)));
+
+        List<Document> result = processor.process(new Query("问题"), List.of(doc));
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getMetadata())
+            .containsKey(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY);
+        assertThat(registry.counter("rag.guardrail.indirect.flagged").count()).isEqualTo(1.0);
+    }
 }

@@ -298,4 +298,19 @@ class SemanticInjectionAdvisorTest {
         assertThat(result).isNotNull();
         assertThat(counter("rag.guardrail.l2.blocked")).isZero();
     }
+
+    // ── 热重载（安全簇⑥ F1）──
+
+    @Test
+    void hotReloadCallbackSwapsTriggerRules() {
+        SemanticInjectionAdvisor target = advisor(true);
+        // 热重载回调换入空词表 → 原 REGEX 命中文本不再触发二判
+        target.onInjectionRulesUpdated(List.of());
+
+        ChatClientRequest original = request(REGEX_HIT_TEXT);
+
+        assertThat(target.before(original, chain)).isSameAs(original);
+        assertThat(counter("rag.guardrail.l2.triggered")).isZero();
+        verifyNoInteractions(chatClient);
+    }
 }

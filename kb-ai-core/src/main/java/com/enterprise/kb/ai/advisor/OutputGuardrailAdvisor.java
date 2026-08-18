@@ -4,7 +4,9 @@ import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.OutputFamily;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.security.TextSanitizer;
@@ -20,6 +22,7 @@ import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -84,7 +87,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-public class OutputGuardrailAdvisor implements BaseAdvisor {
+public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListener {
 
     /** 默认/合规敏感分类安全话术 */
     private static final String SAFE_RESPONSE_COMPLIANCE = "抱歉，由于合规要求，无法提供该信息。";
@@ -93,8 +96,8 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
     private static final String SAFE_RESPONSE_COMPETITOR_COMPARISON =
         "抱歉，我们无法提供竞品对比相关的倾向性信息。";
 
-    /** 生效结构化词表：双源合并（结构化文件 ∪ CSV 兼容），action 分流 */
-    private final List<GuardrailRule> outputRules;
+    /** 生效结构化词表：注册表快照（安全簇⑥ F1 起 volatile 承接热重载推送），action 分流 */
+    private volatile List<GuardrailRule> outputRules;
 
     /** 护栏命中计数（簇⑤ B2 S3）——替换/金丝雀事件入 Prometheus */
     private final AiBusinessMetrics metrics;
@@ -105,6 +108,26 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
     /** PII 识别器注册表（安全簇③ C2）：回显探测消费检测视图（只识别不掩码） */
     private final PiiRecognizerRegistry piiRegistry;
 
+    /**
+     * 装配构造器——双构造器形态必须显式钉 {@link Autowired}（Spring 6 多构造器
+     * 无注解即回落无参构造器致启动失败）。词表经 {@link GuardrailRulesRegistry}
+     * 取初始快照并订阅热重载推送（安全簇⑥ F1，免重启词表运营）。
+     */
+    @Autowired
+    public OutputGuardrailAdvisor(
+            GuardrailRulesRegistry rulesRegistry,
+            AiBusinessMetrics metrics,
+            PromptCanary canary,
+            PiiRecognizerRegistry piiRegistry) {
+        this.outputRules = rulesRegistry.currentOutputRules();
+        this.metrics = metrics;
+        this.canary = canary;
+        this.piiRegistry = piiRegistry;
+        rulesRegistry.subscribe(this);
+        logRulesLoaded();
+    }
+
+    /** 测试装配版：词表源直装（不经注册表，永不热重载——单测确定性） */
     public OutputGuardrailAdvisor(
             @Value("${rag.guardrail.rules.output-location:}") String rulesLocation,
             @Value("${rag.guardrail.output.blacklist:}") String blacklistCsv,
@@ -115,6 +138,16 @@ public class OutputGuardrailAdvisor implements BaseAdvisor {
         this.metrics = metrics;
         this.canary = canary;
         this.piiRegistry = piiRegistry;
+        logRulesLoaded();
+    }
+
+    /** 热重载推送承接（安全簇⑥ F1）：volatile 引用替换，in-flight 判定持旧快照不受影响 */
+    @Override
+    public void onOutputRulesUpdated(List<GuardrailRule> rules) {
+        this.outputRules = rules;
+    }
+
+    private void logRulesLoaded() {
         long blocks = outputRules.stream().filter(r -> r.action() == RuleAction.BLOCK).count();
         if (outputRules.isEmpty()) {
             log.warn("输出护栏词表为空，无拦截词项（内容经 T4 带外通道注入后生效）");
