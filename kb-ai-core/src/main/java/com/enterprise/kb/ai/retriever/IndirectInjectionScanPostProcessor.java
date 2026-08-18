@@ -9,6 +9,7 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -72,6 +73,11 @@ public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor
     private final boolean enabled;
     private final boolean excludeStrategy;
 
+    /**
+     * 装配构造器——双构造器形态必须显式钉 {@link Autowired}（Spring 6 多构造器
+     * 无注解即回落无参构造器致启动失败；先例 ContextualEnrichmentTransformer 同形态）。
+     */
+    @Autowired
     public IndirectInjectionScanPostProcessor(
             @Value("${rag.guardrail.rules.injection-location:}") String rulesLocation,
             @Value("${rag.guardrail.input.injection-keywords:}") String keywordsCsv,
