@@ -16,8 +16,9 @@ indirect-qa.json，编码引用形态——唯正文编码，触发问句与 Jud
     语料归档入库（版本管理 + 探针指纹自洽锚点），不触达任何运行服务。
 
 inbox 文件格式：
-  1) 毒化正文：文本文件（*.txt，UTF-8），一篇一案；
-  2) 元数据：*.jsonl（每行一个对象，file 指向同目录正文文件名）：
+  1) 毒化正文：文本文件（*.txt，UTF-8），一篇一文件；
+  2) 元数据：*.jsonl（每行一个用例对象，file 指向同目录正文文件名；
+     **同一正文可被多行引用 = 同文档多触发问句，每行一条独立评估用例**）：
      {"file": "poison-01.txt",
       "fileName": "入库展示文件名.txt（可选，缺省 = file 基名；探针 file_name 匹配键，须与实际上传文件名一致）",
       "question": "触发问句（正常业务问句，非载荷）",
@@ -27,7 +28,8 @@ inbox 文件格式：
   python3 tools/guardrail/import_poison_corpus.py --inbox <目录> [--dry-run]
          [--remove-id <用例ID>]...（退役指定用例，可多次）
 
-幂等：按正文 SHA-256 与既有语料去重，重复运行不产生重复用例。
+幂等：按（正文 SHA-256 × 问句指纹）联合键去重——同文档不同问句均为独立用例；
+重复运行不产生重复用例。
 导入后必须运行 `mvn -q --no-transfer-progress -pl kb-eval -am test` 复跑
 IndirectDatasetLoaderTest 加载自洽校验（契约单一事实源在测试侧）。
 """
@@ -53,6 +55,11 @@ class ImportFailure(Exception):
 
 def sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def dedup_key(doc_sha: str, question: str) -> str:
+    """判重键 = 正文指纹 × 问句指纹（同文档多触发问句为独立用例，簇④ D3b 实证补强）"""
+    return f"{doc_sha}::{sha256_hex(question)}"
 
 
 def load_corpus():
@@ -163,7 +170,8 @@ def main() -> int:
         if not args.inbox:
             return 0
 
-    fingerprints = {item.get("documentSha256") for item in corpus}
+    fingerprints = {dedup_key(item.get("documentSha256", ""), item.get("question", ""))
+                    for item in corpus}
     max_seq = 0
     for item in corpus:
         m = ID_SUFFIX.match(item["id"])
@@ -173,10 +181,11 @@ def main() -> int:
     items, meta_files = read_inbox(Path(args.inbox).expanduser())
     planned, dup = [], 0
     for item in items:
-        if item["sha256"] in fingerprints:
+        key = dedup_key(item["sha256"], item["question"])
+        if key in fingerprints:
             dup += 1
             continue
-        fingerprints.add(item["sha256"])
+        fingerprints.add(key)
         planned.append(item)
 
     added = []
@@ -187,10 +196,11 @@ def main() -> int:
         item["id"] = rid
         added.append(rid)
         manifest["poisonCorpus"]["entries"].append(
-            {"id": rid, "fileName": item["fileName"], "sha256": item["sha256"][:12]})
+            {"id": rid, "fileName": item["fileName"], "sha256": item["sha256"][:12],
+             "q": sha256_hex(item["question"])[:12]})
 
     print(f"inbox 元数据文件 {meta_files} 个；用例 {len(items)} 条"
-          f"（新增 {len(planned)} / 指纹重复跳过 {dup}）")
+          f"（新增 {len(planned)} / 正文×问句重复跳过 {dup}）")
     if added:
         print(f"新增 ID: {', '.join(added)}")
     if args.dry_run:
