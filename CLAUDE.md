@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3 与优化冲刺完成；**安全加固专项：簇①②③收官，簇④ 间接注入运行时机器侧完成**（D1/D2/D3a ✅，E2E 待用户自测回传 D3b 语料注入与首跑；载荷纪律沿簇①零字面词形态）；簇② B5 漏洞扫描待 NVD key 外部留待。遗留口径 3.11/5.4 缓做、3.16 取消、12.4 不排期。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1-3 与优化冲刺完成；**安全加固专项：簇①②③收官（含 B5 漏洞扫描基线 2026-08-18 入档，治理另立跟踪），簇④ 间接注入运行时机器侧完成**（D1/D2/D3a ✅，E2E 待用户自测回传 D3b 语料注入与首跑；载荷纪律沿簇①零字面词形态）。遗留口径 3.11/5.4 缓做、3.16 取消、12.4 不排期。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -57,7 +57,7 @@ kb-rag-agent/
 
 **MCP Server（簇⑤ 4.10）**：`spring-ai-starter-mcp-server-webmvc` 落 kb-api（Streamable HTTP `/mcp`，SecurityConfig authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent——@McpTool 扫描收编（required 显式钉）：search/get_document 直调（租户守卫+软删过滤）/ask 全链复用护栏配额审计（独立 mcp- 前缀 36 字符会话）；`McpIdentityGuard` 请求线程物化 RetrievalContext（owner 空白 IDENTITY_INCOMPLETE；scope 治理 MCP_SCOPE_DENIED）；容器无 ToolCallback Bean（HITL 不漏进 MCP）；**簇② B3 补位**：独立限流桶 `rag:ratelimit:mcp:{tenant}` 120/60s fail-open + 轻量审计（日志恒开/DB 默认关），超限 RATE_LIMITED 错误帧 + `rag.guardrail.mcp.ratelimited`
 
-**平台层加固（安全簇②）**：CORS 白名单 `app.cors.allowed-origins`（env，allowCredentials 显式 false——实证缺省 null 非 false），与 WS 键独立；上传 multipart 50/60MB + Service 复核 + chat body 1MB（Content-Length 先行；chunked 不拦），超限统一 413（PAYLOAD_TOO_LARGE 码族双通道）；CSP default-src 'none' + frameOptions DENY + HSTS 显式钉；actuator include 白名单即钉死暴露面；dependency-check+CycloneDX 不绑生命周期（显式调用 CI 不强制；**NVD API key 强制**实证，SBOM 入档）；台账 12 章 §12.9 / 17 章 §17.3
+**平台层加固（安全簇②）**：CORS 白名单 `app.cors.allowed-origins`（env，allowCredentials 显式 false——实证缺省 null 非 false），与 WS 键独立；上传 multipart 50/60MB + Service 复核 + chat body 1MB（Content-Length 先行；chunked 不拦），超限统一 413（PAYLOAD_TOO_LARGE 码族双通道）；CSP default-src 'none' + frameOptions DENY + HSTS 显式钉；actuator include 白名单即钉死暴露面；dependency-check+CycloneDX 不绑生命周期（显式调用 CI 不强制；**NVD API key 强制**实证，SBOM+漏洞扫描基线入档）；台账 12 章 §12.9 / 17 章 §17.3
 
 **PII 识别器注册表（安全簇③ v2.45）**：kb-commons `security/pii` 包——每类型独立识别器（模式/置信度/掩码策略/enabled 开关，detect/mask 双视图幂等）；七类：既有三类零漂移 + 银行卡 Luhn/座机/车牌（含新能源）/IPv4（段值校验）；注册序即优先级；**TextSanitizer.maskPii 退役**——单一实现源迁 Spring 单 Bean（kb-commons 首个 Spring 装配），对话链/ETL/审计/MCP/入口日志同实例；配置族 `rag.guardrail.pii.{type}.enabled` 缺省全开；C3 NAME/ADDRESS 预留默认关；**输出 PII 回显探测**（T5 钩子闭环）FLAG 计数 `rag.guardrail.output.pii.echo` 不替换；`rag.guardrail.pii.masked` 总项不变+七类型子项；kb-eval 干净集零命中门禁；见 12 章 §12.10
 
