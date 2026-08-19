@@ -425,44 +425,44 @@
         </div>
 
         <el-table v-loading="grLoading" :data="grRules" class="log-table gr-table" stripe>
-          <el-table-column prop="id" label="词项 ID" min-width="150">
+          <el-table-column prop="id" label="词项 ID">
             <template #default="{ row }"><span class="t-data">{{ row.id }}</span></template>
           </el-table-column>
-          <el-table-column label="侧别" width="90">
+          <el-table-column label="侧别">
             <template #default="{ row }">
               <el-tag size="small" :type="row.side === 'injection' ? 'danger' : 'warning'" effect="plain">
                 {{ row.side === 'injection' ? '注入' : '输出' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="family" label="族系" min-width="180">
+          <el-table-column prop="family" label="族系">
             <template #default="{ row }"><span class="t-data">{{ row.family }}</span></template>
           </el-table-column>
-          <el-table-column label="类型" width="95">
+          <el-table-column label="类型">
             <template #default="{ row }">
               <el-tag size="small" :type="row.type === 'REGEX' ? 'success' : 'info'" effect="plain">
                 {{ row.type }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="动作" width="90">
+          <el-table-column label="动作">
             <template #default="{ row }">
               <el-tag size="small" :type="row.action === 'BLOCK' ? 'danger' : 'warning'" effect="plain">
                 {{ row.action }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="启用" width="75">
+          <el-table-column label="启用">
             <template #default="{ row }">
               <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
                 {{ row.enabled ? '启用' : '停用' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="lang" label="语种" width="70">
+          <el-table-column prop="lang" label="语种">
             <template #default="{ row }"><span class="t-data">{{ row.lang || '—' }}</span></template>
           </el-table-column>
-          <el-table-column label="指纹 / 长度" width="140">
+          <el-table-column label="指纹 / 长度">
             <template #default="{ row }">
               <el-tooltip :content="row.sha256" placement="top">
                 <span class="t-data">{{ row.sha256 }}</span>
