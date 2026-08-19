@@ -343,6 +343,45 @@ export const listRebuildTasks = () =>
 export const getRebuildTask = (taskId: string) =>
   api.get(`/admin/rebuild/tasks/${taskId}`).then(r => r.data.data as RebuildTask)
 
+// ── 护栏词表运维（安全簇⑥ F2 前端面：只读视图 + 命中演练）──
+
+/** 词项运维视图（GuardrailRuleView 同形）——元数据形态，value 明文不回显（第七节纪律） */
+export interface GuardrailRuleView {
+  id: string
+  side: 'injection' | 'output' | string
+  family: string
+  lang?: string
+  type: 'KEYWORD' | 'REGEX' | string
+  action: 'BLOCK' | 'FLAG' | string
+  enabled: boolean
+  /** value SHA-256 指纹前 12 位（跨通道比对锚点，不反推原文） */
+  sha256: string
+  charLen: number
+}
+
+export interface GuardrailRuleQuery {
+  side?: string
+  family?: string
+  lang?: string
+  action?: string
+  enabled?: boolean
+  type?: string
+}
+
+/** 词表列表查询（读注册表活快照，F1 热重载后即时一致）；六条件全可选 */
+export const listGuardrailRules = (params: GuardrailRuleQuery = {}) =>
+  api.get('/admin/guardrail/rules', { params })
+    .then(r => r.data.data as GuardrailRuleView[])
+
+/** 命中演练结果：输入文本归一化后注入/输出双侧命中清单（不计指标不落审计） */
+export interface DrillResult {
+  injectionMatches: GuardrailRuleView[]
+  outputMatches: GuardrailRuleView[]
+}
+
+export const drillGuardrail = (text: string) =>
+  api.post('/admin/guardrail/drill', { text }).then(r => r.data.data as DrillResult)
+
 // ── ETL 进度 WebSocket（2.13）──
 
 /**

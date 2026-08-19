@@ -3,7 +3,7 @@
     <header class="page-head reveal">
       <div>
         <h1 class="t-display page-title">运维中心</h1>
-        <p class="page-desc">统计仪表盘 · Chunk 运维与索引重建 · 审计日志查询 · Bad Case 标注与 Golden 回灌闭环</p>
+        <p class="page-desc">统计仪表盘 · Chunk 运维与索引重建 · 审计日志查询 · Bad Case 标注与 Golden 回灌闭环 · 护栏词表视图与命中演练</p>
       </div>
     </header>
 
@@ -395,6 +395,123 @@
           </template>
         </el-dialog>
       </el-tab-pane>
+
+      <!-- ════ 护栏词表（安全簇⑥ F2 只读运营面） ════ -->
+      <el-tab-pane label="护栏词表" name="guardrail">
+        <div class="filter-bar panel">
+          <el-select v-model="grFilter.side" placeholder="侧别" clearable style="width: 120px">
+            <el-option label="注入侧" value="injection" />
+            <el-option label="输出侧" value="output" />
+          </el-select>
+          <el-select v-model="grFilter.family" placeholder="族系" clearable filterable style="width: 220px">
+            <el-option v-for="f in grFamilyOptions" :key="f" :label="f" :value="f" />
+          </el-select>
+          <el-select v-model="grFilter.action" placeholder="动作档" clearable style="width: 110px">
+            <el-option label="BLOCK 拦截" value="BLOCK" />
+            <el-option label="FLAG 观察" value="FLAG" />
+          </el-select>
+          <el-select v-model="grFilter.type" placeholder="匹配类型" clearable style="width: 120px">
+            <el-option label="KEYWORD" value="KEYWORD" />
+            <el-option label="REGEX" value="REGEX" />
+          </el-select>
+          <el-select v-model="grFilter.enabled" placeholder="启用态" clearable style="width: 110px">
+            <el-option label="启用" :value="true" />
+            <el-option label="停用" :value="false" />
+          </el-select>
+          <el-button type="primary" @click="loadGuardrailRules">查询</el-button>
+          <span class="t-label bc-hint">
+            共 {{ grRules.length }} 条 · BLOCK {{ grBlockCount }} / FLAG {{ grFlagCount }}
+          </span>
+        </div>
+
+        <el-table v-loading="grLoading" :data="grRules" class="log-table gr-table" stripe>
+          <el-table-column prop="id" label="词项 ID" min-width="150">
+            <template #default="{ row }"><span class="t-data">{{ row.id }}</span></template>
+          </el-table-column>
+          <el-table-column label="侧别" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.side === 'injection' ? 'danger' : 'warning'" effect="plain">
+                {{ row.side === 'injection' ? '注入' : '输出' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="family" label="族系" min-width="180">
+            <template #default="{ row }"><span class="t-data">{{ row.family }}</span></template>
+          </el-table-column>
+          <el-table-column label="类型" width="95">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.type === 'REGEX' ? 'success' : 'info'" effect="plain">
+                {{ row.type }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="动作" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.action === 'BLOCK' ? 'danger' : 'warning'" effect="plain">
+                {{ row.action }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="启用" width="75">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.enabled ? 'success' : 'info'" effect="plain">
+                {{ row.enabled ? '启用' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="lang" label="语种" width="70">
+            <template #default="{ row }"><span class="t-data">{{ row.lang || '—' }}</span></template>
+          </el-table-column>
+          <el-table-column label="指纹 / 长度" width="140">
+            <template #default="{ row }">
+              <el-tooltip :content="row.sha256" placement="top">
+                <span class="t-data">{{ row.sha256 }}</span>
+              </el-tooltip>
+              <span class="t-label"> · {{ row.charLen }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 命中演练台 -->
+        <div class="drill-panel panel">
+          <div class="t-label rebuild-title">命中演练（与运行时同口径：归一化检测视图 → 双侧词表匹配）</div>
+          <div class="t-label rebuild-sub">
+            纯运营视图——不计指标不落审计；value 明文不回显（元数据形态）。词表变更经 Git Ops：
+            inbox 带外创作 → import_words.py → git 同步完整文件至运行环境 → 发信号免重启生效
+          </div>
+          <div class="drill-input-row">
+            <el-input v-model="drillText" type="textarea" :rows="3"
+              placeholder="输入待演练文本（消息或候选词面）" />
+            <el-button type="primary" :loading="drillBusy" :disabled="!drillText.trim()"
+              @click="runDrill">演练</el-button>
+          </div>
+          <template v-if="drillResult">
+            <div class="drill-sec">
+              <div class="t-label">注入侧命中 {{ drillResult.injectionMatches.length }} 条</div>
+              <div v-if="!drillResult.injectionMatches.length" class="dash-empty">无命中</div>
+              <div v-for="m in drillResult.injectionMatches" :key="'i' + m.id" class="drill-row">
+                <span class="t-data">{{ m.id }}</span>
+                <el-tag size="small" :type="m.action === 'BLOCK' ? 'danger' : 'warning'" effect="plain">{{ m.action }}</el-tag>
+                <el-tag size="small" type="info" effect="plain">{{ m.type }}</el-tag>
+                <span class="t-label">{{ m.family }}</span>
+              </div>
+            </div>
+            <div class="drill-sec">
+              <div class="t-label">输出侧命中 {{ drillResult.outputMatches.length }} 条</div>
+              <div v-if="!drillResult.outputMatches.length" class="dash-empty">无命中</div>
+              <div v-for="m in drillResult.outputMatches" :key="'o' + m.id" class="drill-row">
+                <span class="t-data">{{ m.id }}</span>
+                <el-tag size="small" :type="m.action === 'BLOCK' ? 'danger' : 'warning'" effect="plain">{{ m.action }}</el-tag>
+                <el-tag size="small" type="info" effect="plain">{{ m.type }}</el-tag>
+                <span class="t-label">{{ m.family }}</span>
+              </div>
+            </div>
+            <div v-if="drillVerdict" class="drill-verdict">
+              <el-tag :type="drillVerdict.type" effect="plain">{{ drillVerdict.text }}</el-tag>
+            </div>
+          </template>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -405,11 +522,11 @@ import { ElMessage } from 'element-plus'
 import {
   getStatsOverview, getProcessingStats, searchAuditLogs, annotateRootCause, reingestGolden,
   listDocuments, getChunks, editChunk, softDeleteChunk, restoreChunk,
-  startRebuild, listRebuildTasks
+  startRebuild, listRebuildTasks, listGuardrailRules, drillGuardrail
 } from '@/api'
 import type {
   StatsOverview, ProcessingView, AuditLogItem, RootCause, AuditQuery,
-  KbDoc, KbChunk, RebuildTask
+  KbDoc, KbChunk, RebuildTask, GuardrailRuleView, GuardrailRuleQuery, DrillResult
 } from '@/api'
 
 const tab = ref('dashboard')
@@ -737,6 +854,70 @@ async function submitReingest() {
   }
 }
 
+// ── 护栏词表（安全簇⑥ F2 只读运营面）──
+
+/** 注入侧七分法 ∪ 输出侧三分类（各含 UNCLASSIFIED 兜底桶），中性枚举名（§7 纪律） */
+const INJECTION_FAMILIES = ['INSTRUCTION_OVERRIDE', 'ROLE_HIJACK', 'INFO_EXTRACTION',
+  'ENCODING_OBFUSCATION', 'MULTILINGUAL', 'JAILBREAK', 'TOOL_INDUCED', 'UNCLASSIFIED']
+const OUTPUT_FAMILIES = ['BUSINESS_CONFIDENTIAL', 'COMPLIANCE_SENSITIVE',
+  'COMPETITOR_COMPARISON', 'UNCLASSIFIED']
+
+const grFilter = reactive<{ side: string; family: string; action: string; type: string;
+  enabled: boolean | '' }>({ side: '', family: '', action: '', type: '', enabled: '' })
+const grRules = ref<GuardrailRuleView[]>([])
+const grLoading = ref(false)
+
+const grFamilyOptions = computed(() => {
+  if (grFilter.side === 'injection') return INJECTION_FAMILIES
+  if (grFilter.side === 'output') return OUTPUT_FAMILIES
+  return [...new Set([...INJECTION_FAMILIES, ...OUTPUT_FAMILIES])]
+})
+const grBlockCount = computed(() => grRules.value.filter(r => r.action === 'BLOCK').length)
+const grFlagCount = computed(() => grRules.value.filter(r => r.action === 'FLAG').length)
+
+async function loadGuardrailRules() {
+  grLoading.value = true
+  try {
+    const params: GuardrailRuleQuery = {}
+    if (grFilter.side) params.side = grFilter.side
+    if (grFilter.family) params.family = grFilter.family
+    if (grFilter.action) params.action = grFilter.action
+    if (grFilter.type) params.type = grFilter.type
+    if (grFilter.enabled !== '') params.enabled = grFilter.enabled
+    grRules.value = await listGuardrailRules(params)
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '词表查询失败')
+  } finally {
+    grLoading.value = false
+  }
+}
+
+// 命中演练台
+const drillText = ref('')
+const drillBusy = ref(false)
+const drillResult = ref<DrillResult | null>(null)
+
+const drillVerdict = computed(() => {
+  const r = drillResult.value
+  if (!r) return null
+  const hits = [...r.injectionMatches, ...r.outputMatches]
+  if (!hits.length) return { type: 'success' as const, text: '全档零命中——运行时放行且无 FLAG 计数' }
+  if (hits.some(m => m.action === 'BLOCK')) return { type: 'danger' as const, text: '含 BLOCK 命中——运行时拒绝（PROMPT_INJECTION / 输出替换）' }
+  return { type: 'warning' as const, text: '仅 FLAG 命中——运行时放行 + 计数，REGEX 命中且无干词命中时触发 L2 二判' }
+})
+
+async function runDrill() {
+  if (!drillText.value.trim()) return
+  drillBusy.value = true
+  try {
+    drillResult.value = await drillGuardrail(drillText.value)
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '演练失败')
+  } finally {
+    drillBusy.value = false
+  }
+}
+
 // ── 展示辅助 ──
 
 const rootCauseLabel = (rc: string) => ROOT_CAUSES[rc as RootCause] ?? rc
@@ -773,6 +954,7 @@ onMounted(() => {
   loadRebuildTasks()
   loadLogs()
   loadBadCases()
+  loadGuardrailRules()
 })
 
 onUnmounted(() => {
@@ -874,4 +1056,14 @@ onUnmounted(() => {
 .reingest-form { margin-top: 4px; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .cand-chip { cursor: pointer; }
+
+/* ── 护栏词表（簇⑥ F2）── */
+.gr-table :deep(tr) { cursor: default; }
+.drill-panel { margin-top: 14px; padding: 14px 17px; }
+.drill-input-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; }
+.drill-input-row .el-textarea { flex: 1; }
+.drill-sec { margin-top: 14px; }
+.drill-sec .t-label:first-child { margin-bottom: 6px; font-weight: 700; color: var(--pine-900); }
+.drill-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12.5px; }
+.drill-verdict { margin-top: 14px; }
 </style>
