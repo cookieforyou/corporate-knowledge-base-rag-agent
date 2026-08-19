@@ -195,6 +195,14 @@ rag:
     # **覆盖语义（v2.50 E2E 实证钉死）**：外部文件整体顶替内置缺省词表，非增量
     # 并入——外部路径必须持完整词表文件（仓库词表经 import_words.py 增量改后整文件同步）。
     rules:
+      # 源选择（v2.53 词表 DB 单轨，12.7 词表工程 / Plan C 修订形态）：
+      # file = Git Ops 形态（缺省，回滚阀门；kb-eval 恒走此源测量锁版）；
+      # db = kb_guardrail_rule 表唯一事实源（CRUD 运营 API 直写，须先在 ECS 执行
+      # 建表 DDL；首启 GuardrailRulesSeeder 自动迁移文件源有效全集，幂等）。
+      source: ${RAG_GUARDRAIL_RULES_SOURCE:file}
+      # DB 单轨存档导出目录（写操作后自动导出双侧编码 YAML 供 git 归档 / eval
+      # 引用 / 回滚指回；空 = 跳过导出）。仅 source=db 运营面消费。
+      export-dir: ${RAG_GUARDRAIL_RULES_EXPORT_DIR:}
       injection-location: ${RAG_GUARDRAIL_RULES_INJECTION_LOCATION:}
       output-location: ${RAG_GUARDRAIL_RULES_OUTPUT_LOCATION:}
   # 模块化 RAG 检索开关（2.10，设计文档 10.6）

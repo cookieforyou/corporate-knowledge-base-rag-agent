@@ -164,6 +164,12 @@ public class AiBusinessMetrics {
     private final Counter guardrailReloadSucceeded;
     /** 词表热重载失败计数（安全簇⑥ F1）：装载失败 fail-keep 保旧快照（防线不因运营故障降级） */
     private final Counter guardrailReloadFailed;
+    /** 词表运营 CRUD 新建计数（v2.53 词表 DB 单轨）：CRUD API 写路径落账 */
+    private final Counter guardrailRuleCreated;
+    /** 词表运营 CRUD 更新计数（v2.53 词表 DB 单轨） */
+    private final Counter guardrailRuleUpdated;
+    /** 词表运营 CRUD 删除计数（v2.53 词表 DB 单轨） */
+    private final Counter guardrailRuleDeleted;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -318,6 +324,13 @@ public class AiBusinessMetrics {
             .description("护栏词表热重载成功次数——快照原子替换 + 监听器推送（安全簇⑥ F1）").register(registry);
         this.guardrailReloadFailed = Counter.builder("rag.guardrail.reload.failed")
             .description("护栏词表热重载失败次数——装载失败 fail-keep 保旧快照（安全簇⑥ F1）").register(registry);
+        // 词表运营 CRUD 计数族（v2.53 词表 DB 单轨）：create/update/delete 三态分列，零标签纪律
+        this.guardrailRuleCreated = Counter.builder("rag.guardrail.rule.created")
+            .description("护栏词表运营新建词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
+        this.guardrailRuleUpdated = Counter.builder("rag.guardrail.rule.updated")
+            .description("护栏词表运营更新词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
+        this.guardrailRuleDeleted = Counter.builder("rag.guardrail.rule.deleted")
+            .description("护栏词表运营删除词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -380,6 +393,16 @@ public class AiBusinessMetrics {
             guardrailReloadSucceeded.increment();
         } else {
             guardrailReloadFailed.increment();
+        }
+    }
+
+    /** 词表运营 CRUD 计数（v2.53 DB 单轨：create 新建 / update 更新 / delete 删除） */
+    public void recordGuardrailOps(String operation) {
+        switch (operation) {
+            case "create" -> guardrailRuleCreated.increment();
+            case "update" -> guardrailRuleUpdated.increment();
+            case "delete" -> guardrailRuleDeleted.increment();
+            default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
         }
     }
 

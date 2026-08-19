@@ -419,6 +419,12 @@
             <el-option label="停用" :value="false" />
           </el-select>
           <el-button type="primary" @click="loadGuardrailRules">查询</el-button>
+          <el-button type="success" @click="openGrCreate">新增词项</el-button>
+          <el-popconfirm title="手动触发词表热重载（本地生效 + 集群广播）？" @confirm="doGrReload">
+            <template #reference>
+              <el-button :loading="grReloadBusy">手动重载</el-button>
+            </template>
+          </el-popconfirm>
           <span class="t-label bc-hint">
             共 {{ grRules.length }} 条 · BLOCK {{ grBlockCount }} / FLAG {{ grFlagCount }}
           </span>
@@ -470,14 +476,27 @@
               <span class="t-label"> · {{ row.charLen }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="openGrEdit(row)">编辑</el-button>
+              <el-button size="small" @click="doGrToggleEnabled(row)">
+                {{ row.enabled ? '停用' : '启用' }}
+              </el-button>
+              <el-popconfirm title="删除该词项？存档（git）留有历史" @confirm="doGrDelete(row)">
+                <template #reference>
+                  <el-button size="small" type="danger">删除</el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
         </el-table>
 
         <!-- 命中演练台 -->
         <div class="drill-panel panel">
           <div class="t-label rebuild-title">命中演练（与运行时同口径：归一化检测视图 → 双侧词表匹配）</div>
           <div class="t-label rebuild-sub">
-            纯运营视图——不计指标不落审计；value 明文不回显（元数据形态）。词表变更经 Git Ops：
-            inbox 带外创作 → import_words.py → git 同步完整文件至运行环境 → 发信号免重启生效
+            纯运营视图——不计指标不落审计；列表 value 明文不回显（元数据形态）。词表运营（v2.53 DB 单轨）：
+            本面 CRUD 直写 + 手动重载免重启生效 + 写后自动导出编码存档；Git Ops 带外通道（import_words.py）保留并存
           </div>
           <div class="drill-input-row">
             <el-input v-model="drillText" type="textarea" :rows="3"
@@ -511,6 +530,64 @@
             </div>
           </template>
         </div>
+
+        <!-- 词项新增/编辑对话框（v2.53 DB 单轨 CRUD；value 提交时前端 Base64 编码后上送） -->
+        <el-dialog v-model="grEditVisible" :title="grEditMode === 'create' ? '新增词项' : '编辑词项'"
+          width="640px" :append-to-body="true" :modal-append-to-body="true" top="8vh" destroy-on-close>
+          <div v-if="grEditMode === 'edit'" class="t-label chunk-edit-meta">
+            {{ grEditForm.id }} · 来源 {{ grEditMeta?.origin ?? '—' }} · 修改于 {{ fmtTime(grEditMeta?.updatedAt) }}
+          </div>
+          <el-form label-position="top" class="gr-form">
+            <el-form-item label="侧别">
+              <el-select v-model="grEditForm.side" :disabled="grEditMode === 'edit'"
+                style="width: 200px" @change="onGrSideChange">
+                <el-option label="注入侧" value="injection" />
+                <el-option label="输出侧" value="output" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="族系">
+              <el-select v-model="grEditForm.family" filterable style="width: 300px">
+                <el-option v-for="f in grFormFamilyOptions" :key="f" :label="f" :value="f" />
+              </el-select>
+            </el-form-item>
+            <div class="gr-form-row">
+              <el-form-item label="匹配类型">
+                <el-select v-model="grEditForm.type" style="width: 150px">
+                  <el-option label="KEYWORD" value="KEYWORD" />
+                  <el-option label="REGEX" value="REGEX" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="语种">
+                <el-input v-model="grEditForm.lang" placeholder="zh / en / …" style="width: 120px" />
+              </el-form-item>
+              <el-form-item label="动作档">
+                <el-select v-model="grEditForm.action" style="width: 150px">
+                  <el-option label="FLAG 观察" value="FLAG" />
+                  <el-option label="BLOCK 拦截" value="BLOCK" />
+                </el-select>
+              </el-form-item>
+            </div>
+            <el-alert v-if="grEditForm.action === 'BLOCK'" type="warning" :closable="false" show-icon
+              title="BLOCK 晋升纪律（A4 生命周期）"
+              description="新词建议先 FLAG 观察；晋升 BLOCK 前须经命中演练与干净集零误伤确认，误伤词项降 FLAG 或退役"
+              style="margin-bottom: 12px" />
+            <el-form-item label="词值（明文）">
+              <el-input v-model="grEditForm.value" type="textarea" :rows="4"
+                placeholder="KEYWORD 为大小写不敏感子串（服务端小写规范化）；REGEX 为结构模式源文（CASE_INSENSITIVE 编译）" />
+              <div class="t-label gr-value-hint">
+                提交时前端 Base64 编码后上送（传输链路恒编码态）；列表视图不回显明文，仅指纹 + 长度
+              </div>
+            </el-form-item>
+            <el-form-item label="启用态">
+              <el-switch v-model="grEditForm.enabled" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="grEditVisible = false">取消</el-button>
+            <el-button type="primary" :loading="grEditBusy" :disabled="!grEditForm.value.trim()"
+              @click="submitGrEdit">保存</el-button>
+          </template>
+        </el-dialog>
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -522,11 +599,14 @@ import { ElMessage } from 'element-plus'
 import {
   getStatsOverview, getProcessingStats, searchAuditLogs, annotateRootCause, reingestGolden,
   listDocuments, getChunks, editChunk, softDeleteChunk, restoreChunk,
-  startRebuild, listRebuildTasks, listGuardrailRules, drillGuardrail
+  startRebuild, listRebuildTasks, listGuardrailRules, drillGuardrail,
+  createGuardrailRule, getGuardrailRule, updateGuardrailRule, deleteGuardrailRule,
+  reloadGuardrailRules, encodeToB64, decodeFromB64
 } from '@/api'
 import type {
   StatsOverview, ProcessingView, AuditLogItem, RootCause, AuditQuery,
-  KbDoc, KbChunk, RebuildTask, GuardrailRuleView, GuardrailRuleQuery, DrillResult
+  KbDoc, KbChunk, RebuildTask, GuardrailRuleView, GuardrailRuleQuery, DrillResult,
+  GuardrailRuleEditView
 } from '@/api'
 
 const tab = ref('dashboard')
@@ -918,6 +998,145 @@ async function runDrill() {
   }
 }
 
+// 词表 CRUD 运营（v2.53 DB 单轨：写后本地生效 + 集群广播 + 存档导出）
+const grEditVisible = ref(false)
+const grEditBusy = ref(false)
+const grReloadBusy = ref(false)
+const grEditMode = ref<'create' | 'edit'>('create')
+const grEditMeta = ref<GuardrailRuleEditView | null>(null)
+const grEditForm = reactive({
+  id: '',
+  side: 'injection',
+  family: 'UNCLASSIFIED',
+  lang: '',
+  type: 'KEYWORD',
+  value: '',
+  action: 'FLAG',
+  enabled: true
+})
+
+const grFormFamilyOptions = computed(() =>
+  grEditForm.side === 'output' ? OUTPUT_FAMILIES : INJECTION_FAMILIES)
+
+function onGrSideChange() {
+  grEditForm.family = 'UNCLASSIFIED'
+}
+
+function openGrCreate() {
+  grEditMode.value = 'create'
+  grEditMeta.value = null
+  grEditForm.id = ''
+  grEditForm.side = 'injection'
+  grEditForm.family = 'UNCLASSIFIED'
+  grEditForm.lang = ''
+  grEditForm.type = 'KEYWORD'
+  grEditForm.value = ''
+  grEditForm.action = 'FLAG'
+  grEditForm.enabled = true
+  grEditVisible.value = true
+}
+
+async function openGrEdit(row: GuardrailRuleView) {
+  grEditMode.value = 'edit'
+  grEditBusy.value = true
+  grEditVisible.value = true
+  try {
+    const view = await getGuardrailRule(row.id)
+    grEditMeta.value = view
+    grEditForm.id = view.id
+    grEditForm.side = view.side
+    grEditForm.family = view.family
+    grEditForm.lang = view.lang ?? ''
+    grEditForm.type = view.type
+    grEditForm.value = decodeFromB64(view.valueB64)
+    grEditForm.action = view.action
+    grEditForm.enabled = view.enabled
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '词项详情加载失败')
+    grEditVisible.value = false
+  } finally {
+    grEditBusy.value = false
+  }
+}
+
+async function submitGrEdit() {
+  if (!grEditForm.value.trim()) return
+  grEditBusy.value = true
+  try {
+    const valueB64 = encodeToB64(grEditForm.value.trim())
+    const result = grEditMode.value === 'create'
+      ? await createGuardrailRule({
+          side: grEditForm.side,
+          family: grEditForm.family,
+          valueB64,
+          lang: grEditForm.lang.trim() || undefined,
+          type: grEditForm.type,
+          action: grEditForm.action,
+          enabled: grEditForm.enabled
+        })
+      : await updateGuardrailRule(grEditForm.id, {
+          family: grEditForm.family,
+          valueB64,
+          lang: grEditForm.lang.trim(),
+          type: grEditForm.type,
+          action: grEditForm.action,
+          enabled: grEditForm.enabled
+        })
+    grEditVisible.value = false
+    grMutationFeedback(result.reloaded, grEditMode.value === 'create' ? '词项已新建' : '词项已更新')
+    loadGuardrailRules()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '词项保存失败')
+  } finally {
+    grEditBusy.value = false
+  }
+}
+
+async function doGrToggleEnabled(row: GuardrailRuleView) {
+  try {
+    const result = await updateGuardrailRule(row.id, { enabled: !row.enabled })
+    grMutationFeedback(result.reloaded, row.enabled ? '词项已停用' : '词项已启用')
+    loadGuardrailRules()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '启用态切换失败')
+  }
+}
+
+async function doGrDelete(row: GuardrailRuleView) {
+  try {
+    const result = await deleteGuardrailRule(row.id)
+    grMutationFeedback(result.reloaded, `词项 ${row.id} 已删除`)
+    loadGuardrailRules()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '删除失败')
+  }
+}
+
+async function doGrReload() {
+  grReloadBusy.value = true
+  try {
+    const r = await reloadGuardrailRules()
+    if (r.reloaded) {
+      ElMessage.success(`热重载成功（源 ${r.source}）：注入侧 ${r.injectionCount} 条 / 输出侧 ${r.outputCount} 条`)
+    } else {
+      ElMessage.warning(`热重载 fail-keep 保旧快照（源 ${r.source}）——词表装载异常，修复后重试`)
+    }
+    loadGuardrailRules()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '热重载触发失败')
+  } finally {
+    grReloadBusy.value = false
+  }
+}
+
+function grMutationFeedback(reloaded: boolean, okText: string) {
+  if (reloaded) {
+    ElMessage.success(`${okText}，已热生效`)
+  } else {
+    ElMessage.warning(`${okText}，但热重载 fail-keep——经「手动重载」重试生效`)
+  }
+}
+
 // ── 展示辅助 ──
 
 const rootCauseLabel = (rc: string) => ROOT_CAUSES[rc as RootCause] ?? rc
@@ -1057,8 +1276,11 @@ onUnmounted(() => {
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .cand-chip { cursor: pointer; }
 
-/* ── 护栏词表（簇⑥ F2）── */
+/* ── 护栏词表（簇⑥ F2 + v2.53 CRUD）── */
 .gr-table :deep(tr) { cursor: default; }
+.gr-form { margin-top: 4px; }
+.gr-form-row { display: flex; gap: 18px; flex-wrap: wrap; }
+.gr-value-hint { margin-top: 6px; line-height: 1.6; }
 .drill-panel { margin-top: 14px; padding: 14px 17px; }
 .drill-input-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; }
 .drill-input-row .el-textarea { flex: 1; }

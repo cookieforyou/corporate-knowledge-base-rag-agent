@@ -382,6 +382,85 @@ export interface DrillResult {
 export const drillGuardrail = (text: string) =>
   api.post('/admin/guardrail/drill', { text }).then(r => r.data.data as DrillResult)
 
+// ── 护栏词表 CRUD 运营（v2.53 词表 DB 单轨，12.7 词表工程）──
+
+/**
+ * UTF-8 安全 Base64 编解码（词值传输形态，v2.53 用户定案）：
+ * API 契约只收 valueB64 编码态——明文经前端编码后上送，网络/日志/审计
+ * 全程编码态（第七节交付形态约束）；编辑弹窗浏览器内解码回显。
+ */
+export const encodeToB64 = (str: string): string => {
+  const bytes = new TextEncoder().encode(str)
+  let bin = ''
+  bytes.forEach(b => { bin += String.fromCharCode(b) })
+  return btoa(bin)
+}
+
+export const decodeFromB64 = (b64: string): string => {
+  const bin = atob(b64)
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
+export interface GuardrailRuleCreateRequest {
+  side: string
+  family: string
+  valueB64: string
+  lang?: string
+  type?: string
+  action?: string
+  enabled?: boolean
+}
+
+/** 全字段可选，null/undefined = 保持原值 */
+export interface GuardrailRuleUpdateRequest {
+  family?: string
+  valueB64?: string
+  lang?: string
+  type?: string
+  action?: string
+  enabled?: boolean
+}
+
+/** 编辑视图：列表视图元数据 + valueB64（编码态，编辑预填解码用）+ 运营审计字段 */
+export interface GuardrailRuleEditView extends GuardrailRuleView {
+  valueB64: string
+  origin?: string
+  createdBy?: string
+  updatedBy?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** 写操作回执：DB 写入受理 + 本地热重载状态（false = fail-keep，可手动重载重试） */
+export interface GuardrailRuleMutationResult {
+  rule: GuardrailRuleEditView
+  reloaded: boolean
+}
+
+export interface GuardrailReloadResult {
+  source: string
+  reloaded: boolean
+  injectionCount: number
+  outputCount: number
+}
+
+export const createGuardrailRule = (req: GuardrailRuleCreateRequest) =>
+  api.post('/admin/guardrail/rules', req).then(r => r.data.data as GuardrailRuleMutationResult)
+
+export const getGuardrailRule = (id: string) =>
+  api.get(`/admin/guardrail/rules/${id}`).then(r => r.data.data as GuardrailRuleEditView)
+
+export const updateGuardrailRule = (id: string, req: GuardrailRuleUpdateRequest) =>
+  api.put(`/admin/guardrail/rules/${id}`, req).then(r => r.data.data as GuardrailRuleMutationResult)
+
+export const deleteGuardrailRule = (id: string) =>
+  api.delete(`/admin/guardrail/rules/${id}`).then(r => r.data.data as GuardrailRuleMutationResult)
+
+/** 热更新触发：本地重载 + pub/sub 集群广播 */
+export const reloadGuardrailRules = () =>
+  api.post('/admin/guardrail/reload').then(r => r.data.data as GuardrailReloadResult)
+
 // ── ETL 进度 WebSocket（2.13）──
 
 /**

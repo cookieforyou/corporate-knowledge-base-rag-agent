@@ -4,14 +4,18 @@ import com.enterprise.kb.admin.dto.AuditLogPage;
 import com.enterprise.kb.admin.dto.ChunkUpdateRequest;
 import com.enterprise.kb.admin.dto.DrillRequest;
 import com.enterprise.kb.admin.dto.DrillResult;
+import com.enterprise.kb.admin.dto.GuardrailRuleCreateRequest;
+import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
 import com.enterprise.kb.admin.dto.RebuildRequest;
 import com.enterprise.kb.admin.dto.ReingestRequest;
+import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.admin.dto.ResolvedRequest;
 import com.enterprise.kb.admin.dto.RootCauseRequest;
 import com.enterprise.kb.admin.service.AuditLogQueryService;
 import com.enterprise.kb.admin.service.BadCaseService;
 import com.enterprise.kb.admin.service.ChunkOpsService;
 import com.enterprise.kb.admin.service.GuardrailAdminService;
+import com.enterprise.kb.admin.service.GuardrailRuleOpsService;
 import com.enterprise.kb.admin.service.IndexRebuildService;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbChunk;
@@ -45,6 +49,7 @@ class AdminControllerTenantGuardTest {
     private AuditLogQueryService auditLogQueryService;
     private BadCaseService badCaseService;
     private GuardrailAdminService guardrailAdminService;
+    private GuardrailRuleOpsService guardrailRuleOpsService;
     private ChunkAdminController chunkController;
     private RebuildController rebuildController;
     private BadCaseAdminController badCaseController;
@@ -57,10 +62,11 @@ class AdminControllerTenantGuardTest {
         auditLogQueryService = mock(AuditLogQueryService.class);
         badCaseService = mock(BadCaseService.class);
         guardrailAdminService = mock(GuardrailAdminService.class);
+        guardrailRuleOpsService = mock(GuardrailRuleOpsService.class);
         chunkController = new ChunkAdminController(chunkOpsService);
         rebuildController = new RebuildController(indexRebuildService);
         badCaseController = new BadCaseAdminController(auditLogQueryService, badCaseService);
-        guardrailController = new GuardrailAdminController(guardrailAdminService);
+        guardrailController = new GuardrailAdminController(guardrailAdminService, guardrailRuleOpsService);
     }
 
     private static Jwt jwtWithOwner(String owner) {
@@ -255,6 +261,45 @@ class AdminControllerTenantGuardTest {
             .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
         verify(guardrailAdminService, never()).listRules(any(), any(), any(), any(), any(), any());
         verify(guardrailAdminService, never()).drill(anyString());
+    }
+
+    /** v2.53 写路径端点同款守卫：CRUD + 热更新触发 fail-closed */
+    @Test
+    void guardrailWriteEndpointsRejectMissingOrBlankTenant() {
+        assertThatThrownBy(() -> guardrailController.createRule(null,
+            new GuardrailRuleCreateRequest("injection", "UNCLASSIFIED", "eA==", null, null, null, null)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> guardrailController.getRule(jwtWithOwner(" "), "r-1"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> guardrailController.updateRule(jwtWithOwner(null), "r-1",
+            new GuardrailRuleUpdateRequest(null, null, null, null, null, false)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> guardrailController.deleteRule(null, "r-1"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> guardrailController.reload(jwtWithOwner(" ")))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        verify(guardrailRuleOpsService, never()).create(any(), anyString());
+        verify(guardrailRuleOpsService, never()).get(anyString());
+        verify(guardrailRuleOpsService, never()).update(anyString(), any(), anyString());
+        verify(guardrailRuleOpsService, never()).delete(anyString());
+        verify(guardrailRuleOpsService, never()).reload();
+    }
+
+    @Test
+    void guardrailReloadDelegatesToOpsServiceForValidTenant() {
+        when(guardrailRuleOpsService.reload())
+            .thenReturn(new ReloadResult("db", true, 10, 5));
+
+        var response = guardrailController.reload(jwtWithOwner("t-1"));
+
+        assertThat(response.data().reloaded()).isTrue();
+        assertThat(response.data().source()).isEqualTo("db");
+        verify(guardrailRuleOpsService).reload();
     }
 
     @Test

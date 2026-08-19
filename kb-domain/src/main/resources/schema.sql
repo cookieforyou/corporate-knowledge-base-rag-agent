@@ -183,3 +183,28 @@ CREATE INDEX IF NOT EXISTS idx_embedding_hnsw
     ON kb_embeddings USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_emb_metadata
     ON kb_embeddings USING GIN (metadata);
+
+-- ============================================
+-- 10. 护栏词项表（v2.53 词表 DB 单轨，设计 12.7 词表工程）
+--     Plan C 修订形态唯一事实源（v2.52 钉死复审推荐：DB 单轨 + git 导出存档）；
+--     value_b64 恒为逐条 Base64 编码态（第七节敏感词交付纪律条 2）；
+--     去重键 (side, type, fingerprint) 对齐 import_words.py 幂等口径。
+-- ============================================
+CREATE TABLE IF NOT EXISTS kb_guardrail_rule (
+    id          VARCHAR(50) PRIMARY KEY,
+    side        VARCHAR(10) NOT NULL,
+    family      VARCHAR(40) NOT NULL,
+    lang        VARCHAR(10) NOT NULL DEFAULT '',
+    type        VARCHAR(10) NOT NULL,
+    value_b64   TEXT NOT NULL,
+    fingerprint VARCHAR(64) NOT NULL,
+    action      VARCHAR(10) NOT NULL DEFAULT 'FLAG',
+    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+    origin      VARCHAR(20) NOT NULL DEFAULT 'API',
+    created_by  VARCHAR(64),
+    updated_by  VARCHAR(64),
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_gr_dedup UNIQUE (side, type, fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_gr_side_family ON kb_guardrail_rule (side, family);
