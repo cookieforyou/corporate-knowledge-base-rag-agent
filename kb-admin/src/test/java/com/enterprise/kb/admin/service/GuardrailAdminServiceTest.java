@@ -1,6 +1,7 @@
 package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.DrillResult;
+import com.enterprise.kb.admin.dto.GuardrailRulePage;
 import com.enterprise.kb.admin.dto.GuardrailRuleView;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,8 @@ class GuardrailAdminServiceTest {
 
     @Test
     void listRulesReturnsBothSidesAsMetadataViews() {
-        List<GuardrailRuleView> views = service.listRules(null, null, null, null, null, null);
+        List<GuardrailRuleView> views =
+            service.listRules(null, null, null, null, null, null, null, null).items();
 
         // 注入侧 3 条（含停用条——列表为枚举视图）+ 输出侧 1 条
         assertThat(views).hasSize(4);
@@ -44,14 +46,42 @@ class GuardrailAdminServiceTest {
 
     @Test
     void listRulesFiltersBySideFamilyActionEnabledAndType() {
-        assertThat(service.listRules("injection", null, null, null, null, null)).hasSize(3);
-        assertThat(service.listRules("output", null, null, null, null, null)).hasSize(1);
-        assertThat(service.listRules(null, "jailbreak", null, null, null, null))
+        assertThat(service.listRules("injection", null, null, null, null, null, null, null).items())
+            .hasSize(3);
+        assertThat(service.listRules("output", null, null, null, null, null, null, null).items())
+            .hasSize(1);
+        assertThat(service.listRules(null, "jailbreak", null, null, null, null, null, null).items())
             .extracting(GuardrailRuleView::id)
             .containsExactly("admin-probe-inj-regex");
-        assertThat(service.listRules(null, null, null, "flag", null, null)).hasSize(2);
-        assertThat(service.listRules(null, null, null, null, true, null)).hasSize(3);
-        assertThat(service.listRules(null, null, null, null, null, "REGEX")).hasSize(1);
+        assertThat(service.listRules(null, null, null, "flag", null, null, null, null).items())
+            .hasSize(2);
+        assertThat(service.listRules(null, null, null, null, true, null, null, null).items())
+            .hasSize(3);
+        assertThat(service.listRules(null, null, null, null, null, "REGEX", null, null).items())
+            .hasSize(1);
+    }
+
+    @Test
+    void listRulesPaginatesFilteredSnapshotInMemory() {
+        GuardrailRulePage first = service.listRules(null, null, null, null, null, null, 0, 2);
+        assertThat(first.total()).isEqualTo(4);
+        assertThat(first.items()).hasSize(2);
+        assertThat(first.page()).isZero();
+        assertThat(first.size()).isEqualTo(2);
+
+        GuardrailRulePage second = service.listRules(null, null, null, null, null, null, 1, 2);
+        assertThat(second.items()).hasSize(2);
+        assertThat(second.items()).extracting(GuardrailRuleView::id)
+            .contains("admin-probe-out-kw");
+
+        // 越界页空 items（total 不变）；size 口径同审计日志（非正归缺省 20、上限 100）
+        GuardrailRulePage beyond = service.listRules(null, null, null, null, null, null, 9, 2);
+        assertThat(beyond.items()).isEmpty();
+        assertThat(beyond.total()).isEqualTo(4);
+        assertThat(service.listRules(null, null, null, null, null, null, null, 500).size())
+            .isEqualTo(100);
+        assertThat(service.listRules(null, null, null, null, null, null, null, 0).size())
+            .isEqualTo(20);
     }
 
     @Test
@@ -87,7 +117,8 @@ class GuardrailAdminServiceTest {
 
     @Test
     void fingerprintIsStableAndSameValueSharesIdentityOutline() {
-        List<GuardrailRuleView> views = service.listRules("injection", null, null, null, null, null);
+        List<GuardrailRuleView> views =
+            service.listRules("injection", null, null, null, null, null, null, null).items();
 
         // 同值词项（首条与停用条 value 相同）→ 指纹与长度一致（跨通道比对锚点）
         assertThat(views.get(2).sha256()).isEqualTo(views.get(0).sha256());

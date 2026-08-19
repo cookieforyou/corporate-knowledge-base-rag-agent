@@ -366,12 +366,22 @@ export interface GuardrailRuleQuery {
   action?: string
   enabled?: boolean
   type?: string
+  page?: number
+  size?: number
 }
 
-/** 词表列表查询（读注册表活快照，F1 热重载后即时一致）；六条件全可选 */
+/** 词表分页载荷（范式同 AuditLogPage：轻量结构，page 0 基） */
+export interface GuardrailRulePage {
+  items: GuardrailRuleView[]
+  total: number
+  page: number
+  size: number
+}
+
+/** 词表列表分页查询（读注册表活快照，F1 热重载后即时一致）；六条件全可选 + page/size */
 export const listGuardrailRules = (params: GuardrailRuleQuery = {}) =>
   api.get('/admin/guardrail/rules', { params })
-    .then(r => r.data.data as GuardrailRuleView[])
+    .then(r => r.data.data as GuardrailRulePage)
 
 /** 命中演练结果：输入文本归一化后注入/输出双侧命中清单（不计指标不落审计） */
 export interface DrillResult {

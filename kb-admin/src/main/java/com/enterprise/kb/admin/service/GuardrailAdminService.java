@@ -1,6 +1,7 @@
 package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.DrillResult;
+import com.enterprise.kb.admin.dto.GuardrailRulePage;
 import com.enterprise.kb.admin.dto.GuardrailRuleView;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
@@ -32,15 +33,23 @@ public class GuardrailAdminService {
     private static final String SIDE_INJECTION = "injection";
     private static final String SIDE_OUTPUT = "output";
     private static final int FINGERPRINT_LENGTH = 12;
+    /** 分页口径与审计日志（AuditLogQueryService）同款：0 基页码、缺省 20、上限 100 */
+    static final int DEFAULT_SIZE = 20;
+    static final int MAX_SIZE = 100;
 
     private final GuardrailRulesRegistry rulesRegistry;
 
     /**
-     * 词表列表查询（全部条件可选）：side 缺省双侧；family/lang/action/type
+     * 词表列表分页查询（全部条件可选）：side 缺省双侧；family/lang/action/type
      * 大小写不敏感精确匹配；enabled 布尔过滤。返回元数据视图（value 不回显）。
+     *
+     * <p>分页施加于活快照过滤结果（内存切片，读路径不触 DB）：page 0 基，
+     * null/负数归零；size null/非正归缺省 20，上限 100（同审计日志口径）。
+     * 越界页返回空 items（total 不变）——词表规模小，不做页码钳制回弹。
      */
-    public List<GuardrailRuleView> listRules(String side, String family, String lang,
-                                             String action, Boolean enabled, String type) {
+    public GuardrailRulePage listRules(String side, String family, String lang,
+                                       String action, Boolean enabled, String type,
+                                       Integer page, Integer size) {
         List<GuardrailRuleView> views = new ArrayList<>();
         if (!SIDE_OUTPUT.equalsIgnoreCase(side)) {
             rulesRegistry.currentInjectionRules()
@@ -50,13 +59,19 @@ public class GuardrailAdminService {
             rulesRegistry.currentOutputRules()
                 .forEach(rule -> views.add(toView(rule, SIDE_OUTPUT)));
         }
-        return views.stream()
+        List<GuardrailRuleView> filtered = views.stream()
             .filter(view -> isBlankOrEquals(family, view.family()))
             .filter(view -> isBlankOrEquals(lang, view.lang()))
             .filter(view -> isBlankOrEquals(action, view.action()))
             .filter(view -> enabled == null || view.enabled() == enabled)
             .filter(view -> isBlankOrEquals(type, view.type()))
             .toList();
+        int cappedSize = size == null || size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
+        int pageIndex = page == null || page < 0 ? 0 : page;
+        int fromIndex = (int) Math.min((long) pageIndex * cappedSize, filtered.size());
+        int toIndex = (int) Math.min(fromIndex + (long) cappedSize, filtered.size());
+        return new GuardrailRulePage(filtered.subList(fromIndex, toIndex), filtered.size(),
+            pageIndex, cappedSize);
     }
 
     /**

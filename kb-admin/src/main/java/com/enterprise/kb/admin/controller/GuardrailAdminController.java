@@ -5,8 +5,8 @@ import com.enterprise.kb.admin.dto.DrillResult;
 import com.enterprise.kb.admin.dto.GuardrailRuleCreateRequest;
 import com.enterprise.kb.admin.dto.GuardrailRuleEditView;
 import com.enterprise.kb.admin.dto.GuardrailRuleMutationResult;
+import com.enterprise.kb.admin.dto.GuardrailRulePage;
 import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
-import com.enterprise.kb.admin.dto.GuardrailRuleView;
 import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.admin.service.GuardrailAdminService;
 import com.enterprise.kb.admin.service.GuardrailRuleOpsService;
@@ -26,8 +26,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * 护栏词表运维 API（安全簇⑥ F2，专项方案 §4.6）——词表列表查询 + 命中演练。
  *
@@ -38,7 +36,7 @@ import java.util.List;
  *
  * <p><b>端点清单</b>：
  * <pre>
- * GET    /api/v1/admin/guardrail/rules        词表列表查询（side/family/lang/action/enabled/type 全可选）
+ * GET    /api/v1/admin/guardrail/rules        词表列表分页查询（side/family/lang/action/enabled/type 全可选 + page/size）
  * POST   /api/v1/admin/guardrail/drill        命中演练（输入文本 → 命中词项元数据，不计指标不落审计）
  * POST   /api/v1/admin/guardrail/rules        新建词项（v2.53 DB 单轨；valueB64 编码态契约）
  * GET    /api/v1/admin/guardrail/rules/{id}   单词项详情（编辑预填，含 valueB64）
@@ -61,19 +59,21 @@ public class GuardrailAdminController {
     private final GuardrailAdminService guardrailAdminService;
     private final GuardrailRuleOpsService guardrailRuleOpsService;
 
-    /** 词表列表查询：侧别/族系/语种/动作/启用态/匹配类型全部可选过滤 */
+    /** 词表列表分页查询：侧别/族系/语种/动作/启用态/匹配类型全部可选过滤 + page/size 分页（0 基，缺省 20 上限 100，同审计日志口径） */
     @GetMapping("/rules")
-    public ApiResponse<List<GuardrailRuleView>> listRules(
+    public ApiResponse<GuardrailRulePage> listRules(
         @AuthenticationPrincipal Jwt jwt,
         @RequestParam(required = false) String side,
         @RequestParam(required = false) String family,
         @RequestParam(required = false) String lang,
         @RequestParam(required = false) String action,
         @RequestParam(required = false) Boolean enabled,
-        @RequestParam(required = false) String type) {
+        @RequestParam(required = false) String type,
+        @RequestParam(required = false) Integer page,
+        @RequestParam(required = false) Integer size) {
         requireTenantId(jwt);
         return ApiResponse.success(
-            guardrailAdminService.listRules(side, family, lang, action, enabled, type));
+            guardrailAdminService.listRules(side, family, lang, action, enabled, type, page, size));
     }
 
     /** 命中演练：纯运营视图——与运行时同口径匹配，不计指标不落审计 */

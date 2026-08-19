@@ -5,6 +5,7 @@ import com.enterprise.kb.admin.dto.ChunkUpdateRequest;
 import com.enterprise.kb.admin.dto.DrillRequest;
 import com.enterprise.kb.admin.dto.DrillResult;
 import com.enterprise.kb.admin.dto.GuardrailRuleCreateRequest;
+import com.enterprise.kb.admin.dto.GuardrailRulePage;
 import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
 import com.enterprise.kb.admin.dto.RebuildRequest;
 import com.enterprise.kb.admin.dto.ReingestRequest;
@@ -248,18 +249,19 @@ class AdminControllerTenantGuardTest {
     @Test
     void guardrailEndpointsRejectMissingOrBlankTenant() {
         assertThatThrownBy(() -> guardrailController.listRules(null,
-            null, null, null, null, null, null))
+            null, null, null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
         assertThatThrownBy(() -> guardrailController.listRules(jwtWithOwner(" "),
-            null, null, null, null, null, null))
+            null, null, null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
         assertThatThrownBy(() -> guardrailController.drill(jwtWithOwner(null),
             new DrillRequest("任意文本")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
-        verify(guardrailAdminService, never()).listRules(any(), any(), any(), any(), any(), any());
+        verify(guardrailAdminService, never())
+            .listRules(any(), any(), any(), any(), any(), any(), any(), any());
         verify(guardrailAdminService, never()).drill(anyString());
     }
 
@@ -304,19 +306,20 @@ class AdminControllerTenantGuardTest {
 
     @Test
     void guardrailEndpointsDelegateToServiceForValidTenant() {
-        when(guardrailAdminService.listRules(eq("injection"), isNull(), isNull(), isNull(), isNull(), isNull()))
-            .thenReturn(List.of());
+        when(guardrailAdminService.listRules(eq("injection"), isNull(), isNull(), isNull(),
+            isNull(), isNull(), eq(0), eq(20)))
+            .thenReturn(new GuardrailRulePage(List.of(), 0, 0, 20));
         when(guardrailAdminService.drill("演练文本"))
             .thenReturn(new DrillResult(List.of(), List.of()));
 
         var listResponse = guardrailController.listRules(jwtWithOwner("t-1"),
-            "injection", null, null, null, null, null);
+            "injection", null, null, null, null, null, 0, 20);
         var drillResponse = guardrailController.drill(jwtWithOwner("t-1"),
             new DrillRequest("演练文本"));
 
-        assertThat(listResponse.data()).isEmpty();
+        assertThat(listResponse.data().items()).isEmpty();
         assertThat(drillResponse.data().injectionMatches()).isEmpty();
-        verify(guardrailAdminService).listRules("injection", null, null, null, null, null);
+        verify(guardrailAdminService).listRules("injection", null, null, null, null, null, 0, 20);
         verify(guardrailAdminService).drill("演练文本");
     }
 }

@@ -418,7 +418,7 @@
             <el-option label="启用" :value="true" />
             <el-option label="停用" :value="false" />
           </el-select>
-          <el-button type="primary" @click="loadGuardrailRules">查询</el-button>
+          <el-button type="primary" @click="queryGuardrailRules">查询</el-button>
           <el-button type="success" @click="openGrCreate">新增词项</el-button>
           <el-popconfirm title="手动触发词表热重载（本地生效 + 集群广播）？" @confirm="doGrReload">
             <template #reference>
@@ -426,7 +426,7 @@
             </template>
           </el-popconfirm>
           <span class="t-label bc-hint">
-            共 {{ grRules.length }} 条 · BLOCK {{ grBlockCount }} / FLAG {{ grFlagCount }}
+            共 {{ grTotal }} 条 · 本页 BLOCK {{ grBlockCount }} / FLAG {{ grFlagCount }}
           </span>
         </div>
 
@@ -490,6 +490,9 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination v-model:current-page="grPage" :page-size="grSize" :total="grTotal"
+          layout="prev, pager, next, total" style="margin-top: 14px"
+          @current-change="loadGuardrailRules()" />
 
         <!-- 命中演练台 -->
         <div class="drill-panel panel">
@@ -946,6 +949,9 @@ const grFilter = reactive<{ side: string; family: string; action: string; type: 
   enabled: boolean | '' }>({ side: '', family: '', action: '', type: '', enabled: '' })
 const grRules = ref<GuardrailRuleView[]>([])
 const grLoading = ref(false)
+const grPage = ref(1)
+const grSize = 20
+const grTotal = ref(0)
 
 const grFamilyOptions = computed(() => {
   if (grFilter.side === 'injection') return INJECTION_FAMILIES
@@ -958,18 +964,26 @@ const grFlagCount = computed(() => grRules.value.filter(r => r.action === 'FLAG'
 async function loadGuardrailRules() {
   grLoading.value = true
   try {
-    const params: GuardrailRuleQuery = {}
+    const params: GuardrailRuleQuery = { page: grPage.value - 1, size: grSize }
     if (grFilter.side) params.side = grFilter.side
     if (grFilter.family) params.family = grFilter.family
     if (grFilter.action) params.action = grFilter.action
     if (grFilter.type) params.type = grFilter.type
     if (grFilter.enabled !== '') params.enabled = grFilter.enabled
-    grRules.value = await listGuardrailRules(params)
+    const result = await listGuardrailRules(params)
+    grRules.value = result.items
+    grTotal.value = result.total
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '词表查询失败')
   } finally {
     grLoading.value = false
   }
+}
+
+/** 查询按钮：条件变化回首页再查（翻页经分页器 current-change 直走 loadGuardrailRules） */
+function queryGuardrailRules() {
+  grPage.value = 1
+  loadGuardrailRules()
 }
 
 // 命中演练台
