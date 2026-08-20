@@ -1,14 +1,16 @@
-# kb-rag-agent Prometheus 主配置（Phase 4 簇② 任务 4.3）
+# kb-rag-agent Prometheus 主配置（簇② 4.3 落档 → Phase 4 簇⑥ 批2 生产化，v2.56）
 #
 # 挂载方式：infra/docker-compose.monitoring.yml 将本文件挂至 /etc/prometheus/prometheus.yml；
 # 告警规则经 rule_files 接线簇① 落档的 alert-rules-kb-rag.yml（同目录挂载 rules/ 子目录）。
 #
-# scrape 目标口径：
-# - 本地自核验（簇②）：kb-api 宿主机 mvn spring-boot:run 起于 8090，容器内经
-#   host.docker.internal 回指宿主（compose 已配 extra_hosts host-gateway，Linux 亦可用）
-# - ECS 生产化（簇⑥ Compose 生产加固）：targets 改为 compose 网络内服务名:8090
+# scrape 目标口径（v2.56 生产化定案）：
+# - kb-rag-agent：分层 compose 形态下经 host.docker.internal:8090 抓宿主映射端口
+#   （app compose 暴露 8090 于宿主）；本地核验形态（宿主 spring-boot:run）同址同样成立。
+#   将来若应用面与监控面共外部网络，targets 可改服务名（届时同步删 extra_hosts）。
+# - node-exporter：监控 compose 内服务名直连（同网络，9100）。
 #
-# actuator 端点 SecurityConfig 已 permitAll（13.3 v2.11 ③）；生产加固可选 IP 白名单。
+# actuator 端点 SecurityConfig 已 permitAll（13.3 v2.11 ③）；
+# 生产源址限制（ECS 安全组收敛 8090/9090/3000）随簇⑥ 批4 落地（12.9 B4）。
 
 global:
   scrape_interval: 15s
@@ -21,7 +23,13 @@ scrape_configs:
   - job_name: kb-rag-agent
     metrics_path: /actuator/prometheus
     static_configs:
-      # 本地核验形态（宿主 8090）；簇⑥ ECS 部署时改为服务名
       - targets: ['host.docker.internal:8090']
+        labels:
+          application: kb-rag-agent
+
+  # Host 层（批2 新增）：磁盘/内存/负载——喂 kb-rag-host 告警组与面板
+  - job_name: node-exporter
+    static_configs:
+      - targets: ['node-exporter:9100']
         labels:
           application: kb-rag-agent

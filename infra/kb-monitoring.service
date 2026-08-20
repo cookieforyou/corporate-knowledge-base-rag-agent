@@ -1,0 +1,29 @@
+# ============================================================
+# 监控栈 systemd 开机自启单元（Phase 4 簇⑥ 批2，v2.56）
+#
+# 职责分层（与 kb-api.service 同定案）：进程级自愈归 compose
+# restart: unless-stopped + healthcheck；systemd 只管开机自启与
+# 一键起停。WorkingDirectory 钉 infra/ 目录——compose 变量替换
+# （GRAFANA_ADMIN_PASSWORD 等）消费同目录 .env。部署：
+#   cp infra/kb-monitoring.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now kb-monitoring
+# WorkingDirectory 按 ECS 实际代码目录调整。
+# ============================================================
+[Unit]
+Description=KB RAG Agent monitoring stack (prometheus/grafana/jaeger/node-exporter)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/kb-rag-agent/infra
+ExecStart=/usr/bin/docker compose -f docker-compose.monitoring.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker-compose.monitoring.yml down
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

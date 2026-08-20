@@ -1,0 +1,164 @@
+# ============================================================
+# 告警规则 promtool 合成单测（Phase 4 簇⑥ 批2，v2.56）
+#
+# 覆盖口径（告警全集 13 条 = 真触发 6 + 合成单测 7，自检矩阵见
+# 用户侧待执行项清单.md M1）：
+#   本文件单测 7 条——生产态难安全触发/构造成本高的规则，以合成
+#   序列验证「表达式可 FIRING + 标签/注解模板展开正确」：
+#     KbJvmHeapNearFull / KbJvmGcPressureHigh / KbThreadsDeadlocked /
+#     KbFeedbackLikeRatioLow / KbTokenSpike / HostDiskNearFull /
+#     HostMemoryNearFull
+#   其余 6 条（KbProcessRecentlyRestarted / KbEmptyRetrievalRateHigh /
+#   KbRejectionRateHigh / KbRequestErrorRateHigh / KbRerankFallbackRateHigh /
+#   KbQuotaHitRateHigh）走 M1 真触发演练，不在本文件。
+#
+# 数值构造纪律（防 increase() 外推歧义）：
+#   counter 序列取 2m 采样 + 奇数分钟求值点——使窗口左右边界恰落
+#   采样点之间且 durationToStart/End = halfAvgInterval，外推量两侧
+#   对称各 halfAvg，increase 精确收敛整数（本机无 promtool，推导
+#   基准 = Prometheus extrapolatedRate 算法；M1 首跑如有出入以
+#   promtool 实测值修订本文件并回写）。
+#
+# 执行（监控栈容器内，promtool 随 prometheus 镜像自带）：
+#   cd /opt/kb-rag-agent/infra
+#   docker compose -f docker-compose.monitoring.yml exec prometheus \
+#     promtool test rules /etc/prometheus/rules-selfcheck/alert-rules-selfcheck-test.yml
+# 语法自检（规则文件本身）：
+#   docker compose -f docker-compose.monitoring.yml exec prometheus \
+#     promtool check rules /etc/prometheus/rules/alert-rules-kb-rag.yml
+# ============================================================
+
+rule_files:
+  - /etc/prometheus/rules/alert-rules-kb-rag.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ── 1. KbJvmHeapNearFull：堆占比 95/100=0.95 恒 >0.9，for 10m ──
+  - interval: 1m
+    input_series:
+      - series: 'jvm_memory_used_bytes{application="kb-rag-agent",area="heap"}'
+        values: '95x30'
+      - series: 'jvm_memory_max_bytes{application="kb-rag-agent",area="heap"}'
+        values: '100x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: KbJvmHeapNearFull
+        exp_alerts:
+          - exp_labels:
+              alertname: KbJvmHeapNearFull
+              severity: warning
+            exp_annotations:
+              summary: "JVM 堆使用率 >90% 持续 10 分钟"
+              description: "堆占比=0.95；排查大对象缓存/未收敛的流式缓冲，必要时扩堆。"
+
+  # ── 2. KbJvmGcPressureHigh：jvm_gc_overhead 0.5 恒 >0.2，for 10m ──
+  - interval: 1m
+    input_series:
+      - series: 'jvm_gc_overhead{application="kb-rag-agent"}'
+        values: '0.5x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: KbJvmGcPressureHigh
+        exp_alerts:
+          - exp_labels:
+              alertname: KbJvmGcPressureHigh
+              severity: warning
+            exp_annotations:
+              summary: "GC 开销 >20%（jvm_gc_overhead 平滑 gauge）"
+              description: "GC 开销=0.5；影响 TTFT 分位，检查堆配置与对象分配热点。备选表达式：rate(jvm_gc_pause_seconds_sum[5m]) > 0.2。"
+
+  # ── 3. KbThreadsDeadlocked：死锁 gauge=2（生产为条件注册，合成序列直供），for 1m ──
+  - interval: 1m
+    input_series:
+      - series: 'jvm_threads_deadlocked{application="kb-rag-agent"}'
+        values: '2x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: KbThreadsDeadlocked
+        exp_alerts:
+          - exp_labels:
+              alertname: KbThreadsDeadlocked
+              severity: critical
+              application: kb-rag-agent
+            exp_annotations:
+              summary: "检测到 JVM 死锁线程"
+              description: "死锁线程数=2；立即 jstack 取证。注：该 gauge 仅在死锁数 >0 时由 Micrometer 条件注册——序列缺席即无死锁，规则静默为正确态。"
+
+  # ── 4. KbFeedbackLikeRatioLow：like 恒 0 / dislike 稳定累积 → 好评比 0 ──
+  # like 序列以 0 值在场 = 生产忠实形态（AiBusinessMetrics 构造器 eager
+  # 注册 Counter，/metrics 自启动即暴露 0 值序列）。
+  - interval: 2m
+    input_series:
+      - series: 'rag_feedback_like_total{application="kb-rag-agent"}'
+        values: '0x30'
+      - series: 'rag_feedback_dislike_total{application="kb-rag-agent"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: KbFeedbackLikeRatioLow
+        exp_alerts:
+          - exp_labels:
+              alertname: KbFeedbackLikeRatioLow
+              severity: warning
+            exp_annotations:
+              summary: "用户反馈好评比 <70%（近 1 小时）"
+              description: "好评比=0；走簇④ Bad Case 闭环：查 kb_audit_log 点踩样本 → 根因标注 → Golden 回灌。"
+
+  # ── 5. KbTokenSpike：1000 token/min 匀速 → [1h]=60000 ≫ 3×([24h]/24)=11500 ──
+  # eval 91m（奇数）：[1h] 窗口 (31m,91m] 边界落 2m 采样点之间，
+  # increase = 58000×60/58 = 60000 精确；[24h] = 90000×92/90 = 92000。
+  - interval: 2m
+    input_series:
+      - series: 'rag_token_total{application="kb-rag-agent"}'
+        values: '0+2000x46'
+    alert_rule_test:
+      - eval_time: 91m
+        alertname: KbTokenSpike
+        exp_alerts:
+          - exp_labels:
+              alertname: KbTokenSpike
+              severity: warning
+            exp_annotations:
+              summary: "Token 消耗突增（近 1 小时 >3× 日均小时速率）"
+              description: |
+                小时消耗=60000；调研参考值为 >2σ，PromQL 无法直接计算标准差，
+                以 3× 日均速率近似（校准锚点：积累 1 周基线后按实际方差收紧/放宽）。
+                排查长上下文会话洪峰与异常租户。
+
+  # ── 6. HostDiskNearFull：size 100 / avail 10 → 使用率 0.9 恒 >0.85，for 10m ──
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{mountpoint="/"}'
+        values: '100x30'
+      - series: 'node_filesystem_avail_bytes{mountpoint="/"}'
+        values: '10x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostDiskNearFull
+        exp_alerts:
+          - exp_labels:
+              alertname: HostDiskNearFull
+              severity: warning
+              mountpoint: /
+            exp_annotations:
+              summary: "宿主根分区使用率 >85% 持续 10 分钟"
+              description: "使用率=0.9；核查容器日志/卷（docker system df）与 PG WAL、备份落地目录，防写满导致 kb-api/存量容器连锁故障。"
+
+  # ── 7. HostMemoryNearFull：avail 5 / total 100 → 占用率 0.95 恒 >0.90，for 10m ──
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{}'
+        values: '5x30'
+      - series: 'node_memory_MemTotal_bytes{}'
+        values: '100x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostMemoryNearFull
+        exp_alerts:
+          - exp_labels:
+              alertname: HostMemoryNearFull
+              severity: warning
+            exp_annotations:
+              summary: "宿主可用内存 <10% 持续 10 分钟"
+              description: "内存占用率=0.95（2 核 ECS 上 PG 原生 + 存量容器 + 应用共挤）；核查各 compose 限额生效情况（docker stats），必要时下调 KB_API_MEM_LIMIT。"
