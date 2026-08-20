@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测开工（08-20）**：批1a Flyway 迁移版本化已落地（v2.54，7 章 §7.6），后续批 1b 容器化/2 监控生产化/3 灾备/4 残余+SLA/5 Gatling 压测；机器侧就绪用户侧待跑项收归 `docs/project-progress/用户侧待执行项清单.md`（G1 红队首跑/G2 扩词/eval L2 复跑等亦在此择机执行）。登记缓做：B5 漏洞治理另跟踪、簇④探针校准转下冲刺、3.11/5.4 缓做、3.16 取消、12.4 S1-S8 消化（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测推进中（08-20 开工）**：批1a Flyway（v2.54，7 章 §7.6）/批1b 容器化（v2.55，17 章 §17.4）/批2 监控栈生产化（v2.56，13 章 §13.6/13.8——node_exporter 入栈 + Host 层告警激活 11→13 条 + 自检矩阵 6 真触发 + 7 promtool 单测）机器侧已落地，后续批 3 灾备/4 残余+SLA/5 Gatling 压测；机器侧就绪用户侧待跑项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（F1-F3/M1/G1/G2/E1/B5/D1 含详步骤，他文档缺口已收编）。登记缓做：B5 漏洞治理另跟踪、簇④探针校准转下冲刺、3.11/5.4 缓做、3.16 取消、12.4 S1-S8 消化（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -49,7 +49,7 @@ kb-rag-agent/
 
 **观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse；总开关 `management.tracing.export.otlp.enabled` 默认关；内容捕获 `RAG_OBSERVABILITY_LOG_CONTENT` 单源，内容自桥接 gen_ai.prompt/completion（坑位㉔㉕）；trace 合树：双链显式装配 registry + Controller contextWrite 桥接（坑位㉗）+ 检索双执行器传播包裹；残余：流式主生成 POST 独立 trace 留 **Phase 4 簇⑥**（13 章 v2.32）
 
-**面板与统计（簇②）**：Grafana 四面板 + 监控 compose 落 infra/（ECS 形态归 Phase 4 簇⑥）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）；无指标支撑面板不设
+**面板与统计（簇②，批2 生产化 v2.56）**：Grafana 四面板 + 监控 compose 落 infra/ 生产形态——四服务 restart/healthcheck/限额/日志轮转 + Grafana 口令 env 化（`GRAFANA_ADMIN_PASSWORD` :? 守卫）+ node_exporter v1.9.1（Host 层告警组 kb-rag-host 激活）+ Jaeger scratch 基座无 healthcheck 实证 + kb-monitoring.service 开机自启；告警 13 条自检矩阵（6 真触发 + 7 promtool 合成单测 alert-selfcheck/）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）；无指标支撑面板不设
 
 **Chunk 运维与重建（簇③）**：kb-admin 首建，kb-api fat jar 聚合（禁反向依赖）；租户守卫 @AuthenticationPrincipal Jwt 直消费（owner claim，不复用 JwtUtils 防成环）。Chunk CRUD：编辑 = 同源消毒 → PG 同步 → 异步重嵌入（**统一 delete→add 两步**——Milvus add 非 upsert 实证）+ ES 覆写；软删委派 C1；恢复经重嵌入；守卫 fail-closed（跨租户 → CHUNK_NOT_FOUND，处理中 → DOC_NOT_READY）。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域 FIFO 任务表 TTL 24h fail-closed）
 
