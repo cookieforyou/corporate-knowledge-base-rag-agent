@@ -13,6 +13,18 @@ spring:
       maximum-pool-size: ${DB_POOL_MAX:20}
       minimum-idle: ${DB_POOL_MIN:5}
 
+  # Flyway 迁移版本化（Phase 4 簇⑥ 4.11）：迁移脚本归 kb-domain
+  # db/migration/（默认 locations，零配置命中）。baseline-on-migrate=true：
+  # ECS 现网库存量表（无 flyway_schema_history）首跑插 baseline 行
+  # （version=0）后应用 V1——全 DDL IF NOT EXISTS 幂等 no-op，仅登记
+  # history；空库则直接建全套 schema。ddl-auto=validate 保留（Hibernate
+  # 校验 Entity↔DDL 一致，Flyway 管演进双保险）。同源双写纪律：schema
+  # 变更先 V(N+1) 再同步 schema.sql 快照（kb-eval IT init script 专用）。
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: '0'
+
   # Elasticsearch
   elasticsearch:
     uris: ${ES_URIS:http://localhost:9200}

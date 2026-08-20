@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3 与优化冲刺完成；**安全加固专项：簇①-⑥机器侧全部收口**（E2E 均通过；G1 首跑/G2 扩词转用户侧自执行，eval L2 复跑用户择机 `EVAL_GUARDRAIL_L2_ENABLED=true`；**v2.53 词表 DB 单轨 CRUD 落地，E2E 通过 08-20**；见 12 章 v2.39-v2.53）。登记缓做：B5 漏洞治理另跟踪、簇④探针校准转下冲刺、3.11/5.4 缓做、3.16 取消、12.4 S1-S8 消化（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
+**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测开工（08-20）**：批1a Flyway 迁移版本化已落地（v2.54，7 章 §7.6），后续批 1b 容器化/2 监控生产化/3 灾备/4 残余+SLA/5 Gatling 压测；机器侧就绪用户侧待跑项收归 `docs/project-progress/用户侧待执行项清单.md`（G1 红队首跑/G2 扩词/eval L2 复跑等亦在此择机执行）。登记缓做：B5 漏洞治理另跟踪、簇④探针校准转下冲刺、3.11/5.4 缓做、3.16 取消、12.4 S1-S8 消化（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/项目阶段推进任务清单完成记录.md`（按任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -20,7 +20,7 @@
 ```
 kb-rag-agent/
 ├── kb-commons/        # ApiResponse/BusinessException/Constants/TextSanitizer
-├── kb-domain/         # 8 Entity + 8 Repository + 6 枚举 + schema.sql
+├── kb-domain/         # 8 Entity + 8 Repository + 6 枚举 + schema.sql + db/migration/（Flyway V1 基线）
 ├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
 ├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写
 ├── kb-ai-core/        # 纯 RAG（无工具链）：retriever/（双路+RRF+重排）、advisor/、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient
@@ -94,7 +94,7 @@ kb-rag-agent/
 ## 注意事项
 
 - Maven 4 **单模块构建需 `-am`**（兄弟模块不在本地仓库）
-- JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`；**ddl-auto=validate**：实体新增字段须先在 ECS 执行 ALTER，缺列启动即失败
+- JSONB 字段须加 `@JdbcTypeCode(SqlTypes.JSON)`；**ddl-auto=validate**：实体新增字段缺列启动即失败。**Flyway 迁移版本化（v2.54 簇⑥ 4.11）**：schema 变更须先写 kb-domain `db/migration/V(N+1)__*.sql` 再同步 schema.sql 全量快照（IT init script 专用，同源双写纪律 + SchemaDualSourceConsistencyTest 表集守卫）；ECS 现网库经 baseline-on-migrate 首跑登记 flyway_schema_history（V1 幂等零变更）；kb-eval 主上下文 flyway 关（度量工具不改目标库）、IT 显式重开作 baseline 回归；手工 ALTER 形态终结
 - 父 POM dependencyManagement 预埋后续依赖；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递 4.38.0 覆盖 → `.entity()` NoClassDefFoundError）
 - pgvector 需先以 superuser `CREATE EXTENSION IF NOT EXISTS vector;`
 - Milvus 原生混合检索否决（10 §10.0）；检索为 Spring AI 2.0 模块化 RAG

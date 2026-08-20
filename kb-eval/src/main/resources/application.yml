@@ -12,6 +12,11 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  # Flyway（Phase 4 簇⑥ 4.11）：eval 为度量工具，不参与 schema 迁移——显式关闭，
+  # 防评估进程启动即向目标库写 baseline 登记（迁移权归 kb-api 运行时）；
+  # IT 形态经 AbstractAdvisorChainIT 显式重开，作 baseline 路径回归保险
+  flyway:
+    enabled: false
   ai:
     chat:
       memory:

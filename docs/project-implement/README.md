@@ -92,7 +92,7 @@
 |---|---|---|
 | 第五章 | [总体架构设计](./05-总体架构设计.md) | v2 修订（Advisor 链、能力层组件更新） |
 | 第六章 | [Maven 多模块工程结构](./06-Maven多模块工程结构.md) | v1 原文 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块） |
-| 第七章 | [数据架构设计](./07-数据架构设计.md) | v1 原文 + v2.10（kb_audit_log 四列扩展：mode/status/error_code/tool_calls）+ v2.25（簇⑥ C1：kb_document version 列 + status 枚举增 REINDEXING）+ v2.26（簇⑥ C1 E2E 修复：kb_chunk created_at ORM updatable=false）+ v2.28（簇⑥ D3：pgvector idType(TEXT) 接线修复 + schema.sql CREATE EXTENSION 自包含，§7.2） |
+| 第七章 | [数据架构设计](./07-数据架构设计.md) | v1 原文 + v2.10（kb_audit_log 四列扩展：mode/status/error_code/tool_calls）+ v2.25（簇⑥ C1：kb_document version 列 + status 枚举增 REINDEXING）+ v2.26（簇⑥ C1 E2E 修复：kb_chunk created_at ORM updatable=false）+ v2.28（簇⑥ D3：pgvector idType(TEXT) 接线修复 + schema.sql CREATE EXTENSION 自包含，§7.2）+ v2.54（**Phase 4 簇⑥ 4.11 Flyway 迁移版本化**：spring-boot-starter-flyway + flyway-database-postgresql 12.4.0（Boot 4.1 BOM；PG 数据库模块显式声明实证）+ V1__baseline_schema.sql = schema.sql 十表幂等全量快照 + baseline-on-migrate 现网库零变更登记 + 同源双写纪律（V(N+1) 先行 / schema.sql 快照同步）+ SchemaDualSourceConsistencyTest 表集守卫 + kb-eval 主配置关/IT 重开 baseline 回归，§7.6） |
 
 ### 第四卷：分阶段落地路线图（执行层）
 

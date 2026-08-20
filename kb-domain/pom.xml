@@ -21,5 +21,19 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
         </dependency>
+        <!-- Flyway 迁移版本化（Phase 4 簇⑥ 4.11）：schema 事实源归本模块
+             （db/migration/），kb-api 运行时宿主经 Boot 自动配置触发迁移。
+             starter 传递 flyway-core 12.4.0（Boot 4.1 BOM 管理）；
+             flyway-database-postgresql 须显式声明——Flyway 10+ 数据库模块
+             拆分，缺失即 "Unsupported Database: PostgreSQL 18" 启动失败
+             （Boot #49012 实证登记） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
     </dependencies>
 </project>

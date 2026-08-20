@@ -86,6 +86,13 @@ public abstract class AbstractAdvisorChainIT {
         r.add("spring.datasource.username", PG::getUsername);
         r.add("spring.datasource.password", PG::getPassword);
 
+        // ── Flyway：kb-eval 主配置关闭（度量工具不改目标库），IT 显式重开 ──
+        // init script 建库 = 非空库无 history 形态，与 ECS 现网首跑同构：
+        // baseline-on-migrate 插 baseline 行 + V1 幂等 no-op，每轮 IT 持续
+        // 回归 4.11 baseline 路径（kb-eval 主配置 spring.flyway.enabled=false
+        // 的覆盖项，DynamicPropertySource 优先级更高）
+        r.add("spring.flyway.enabled", () -> "true");
+
         // ── Redis（Redisson + Jedis 会话记忆共享同一连接参数，REDIS_DB 必须 0）──
         r.add("spring.data.redis.host", REDIS::getHost);
         r.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
