@@ -1,0 +1,27 @@
+# ============================================================
+# kb-api systemd 开机自启单元（Phase 4 簇⑥ 4.11，v2.55）
+#
+# 职责分层（定案）：进程级自愈归 compose restart: unless-stopped +
+# HEALTHCHECK；systemd 只管开机自启与一键起停。部署：
+#   cp infra/kb-api.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now kb-api
+# WorkingDirectory 按 ECS 实际代码目录调整。
+# ============================================================
+[Unit]
+Description=KB RAG Agent compose stack (kb-api)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/kb-rag-agent/infra
+ExecStart=/usr/bin/docker compose -f docker-compose.app.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker-compose.app.yml down
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

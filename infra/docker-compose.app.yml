@@ -1,0 +1,72 @@
+# ============================================================
+# kb-api 应用编排（Phase 4 簇⑥ 4.11，v2.55）——分层 compose 形态
+#
+# 定案（用户 2026-08-20）：ECS 基础设施 = PG 宿主机原生安装 +
+# ES/Redis/MinIO/Milvus 既有 Docker Compose 部署——本文件**不纳管
+# 存量服务**，仅编排 kb-api 应用面。存量服务经宿主地址连接：
+# 容器内 host.docker.internal（extra_hosts host-gateway 映射）→
+# .env 各连接串统一用该主机名（兼容 PG 原生与既有 compose 端口
+# 映射两形态）；存量 compose 共享网络直连为可选优化，探测后另行。
+#
+# 监控栈见 docker-compose.monitoring.yml（批2 生产化后与本文件
+# 共起：docker compose -f docker-compose.app.yml
+# -f docker-compose.monitoring.yml up -d）。
+#
+# 镜像版本化纪律：禁 latest——KB_IMAGE_TAG 未设即拒绝启动（:?）。
+# ============================================================
+
+services:
+  kb-api:
+    image: kb-rag-agent:${KB_IMAGE_TAG:?KB_IMAGE_TAG 未设——禁 latest，经 build-image.sh 生成}
+    container_name: kb-api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8090:8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - kb-cds:/opt/cds
+      - kb-guardrail-rules:/rules   # 词表导出存档目录（RAG_GUARDRAIL_RULES_EXPORT_DIR=/rules）
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    deploy:
+      resources:
+        # 限额按 ECS 实际规格校准（2 核单机须为 PG 原生 + 存量容器留余量）；
+        # compose 非 swarm 形态 limits 为上限约束，非预留
+        limits:
+          memory: ${KB_API_MEM_LIMIT:-3G}
+
+  # AppCDS 训练服务（profiles=tools，常规 up 不启动）：
+  # docker compose -f docker-compose.app.yml --profile tools run --rm kb-api-cds-train
+  # 训练跑 = 完整启动（infra 须可达）+ 超时 SIGTERM 退出即写档
+  # ArchiveClassesAtExit；CDS_TRAIN_TIMEOUT 按 ECS 冷启动时余上调。
+  kb-api-cds-train:
+    image: kb-rag-agent:${KB_IMAGE_TAG:?KB_IMAGE_TAG 未设——禁 latest}
+    profiles: ["tools"]
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - kb-cds:/opt/cds
+    entrypoint: >
+      bash -c 'echo "[cds-train] training start (timeout $${CDS_TRAIN_TIMEOUT:-150}s)";
+      timeout $${CDS_TRAIN_TIMEOUT:-150} java --enable-preview
+      -XX:ArchiveClassesAtExit=/opt/cds/app.jsa $$JAVA_OPTS -jar /app/app.jar;
+      ec=$$?; ls -la /opt/cds/;
+      if [ -f /opt/cds/app.jsa ]; then echo "[cds-train] archive written OK";
+      else echo "[cds-train] WARN: archive absent (training failed or timed out pre-dump)"; fi;
+      exit 0'
+
+volumes:
+  kb-cds:
+  kb-guardrail-rules:
