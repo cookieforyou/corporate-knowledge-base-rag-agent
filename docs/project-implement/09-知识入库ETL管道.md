@@ -57,7 +57,7 @@ public class EtlExecutorConfig {
 > 4. **成本近乎免费**：DocMind 大模型版 **3000 页/月免费**、超出 ¥0.25/页；qwen3.5-ocr 备选约 ¥0.01-0.02/页；Phase 2 开发验证量在免费额度内；
 > 5. **零运维**：vs Python sidecar（容器 + ~358MB 模型下载 + OOM 看护 + 版本管理），Phase 2 仅需一个 Java HTTP 客户端。
 >
-> **权衡记录**：代价为按页 API 费用（免费额度内）与外网依赖（ETL 异步链路延迟不敏感，且与 embedding/LLM 既有外网依赖一致，可接受）。**实施前置**：DocMind 使用**阿里云 AccessKey（RAM 鉴权）**而非 DashScope API Key，需用户侧提供；异步 API（提交 → 轮询）的轮询与超时降级逻辑在 `DocMindParsingClient` 内实现。
+> **权衡记录**：代价为按页 API 费用（免费额度内）与外网依赖（ETL 异步链路延迟不敏感，且与 embedding/LLM 既有外网依赖一致，可接受）。**实施前置**：DocMind 使用**阿里云 AccessKey（RAM 鉴权）**而非 DashScope API Key（Phase 2 已提供并 E2E 通过；ECS 生产 .env 接线启用见用户侧待执行项清单 D1）；异步 API（提交 → 轮询）的轮询与超时降级逻辑在 `DocMindParsingClient` 内实现。
 >
 > **Docling 重估触发条件**（备查）：① ECS 扩容至 16GB+ 或置独立解析节点；② 出现数据闭境合规要求；③ 月解析量超十万页且 API 成本显著。`ParsingServiceClient` 设计为**可插拔后端**（`DocMindParsingClient` / `QwenVlOcrParsingClient` / 可选 `DoclingClient` / `OcrApiClient` 兜底），条件满足时可平滑接入，架构不受影响。
 
