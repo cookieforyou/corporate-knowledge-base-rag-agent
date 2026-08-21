@@ -4,6 +4,7 @@
 target
 logs
 dist
+guardrailrules
 node_modules
 .env
 .env.docker
