@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测推进中（08-20 开工）**：批1a Flyway（v2.54，7 章 §7.6）/批1b 容器化（v2.55，17 章 §17.4）/批2 监控栈生产化（v2.56，13 章 §13.6/13.8——node_exporter 入栈 + Host 层告警激活 11→13 条 + 自检矩阵 6 真触发 + 7 promtool 单测）/批3 灾备最小集（v2.57，17 章 §17.5——pg-backup.sh 双副本备份 + pg-restore-drill.sh 恢复演练 + 99.5% 兜底自检清单 10 项；最小集边界 = PG 唯一事实源，ES/Milvus 经重建通道再生）机器侧已落地，后续批 4 残余+SLA/5 Gatling 压测；机器侧就绪用户侧待跑项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（F1-F3/M1/DR1/G1/G2/E1/B5/D1 含详步骤，他文档缺口已收编）。登记缓做：B5 漏洞治理另跟踪、簇④探针校准转下冲刺、3.11/5.4 缓做、3.16 取消、12.4 S1-S8 消化（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md` → 00 每日进度 / 01-03 Phase1-3 / 04 优化冲刺 / 05 Phase4 含簇⑥ / 06 安全专项 / 07 Phase5；按子卷任务行定位，勿整读）。
+**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测推进中（08-20 开工）**：批1a Flyway（v2.54，7 章 §7.6）/批1b 容器化（v2.55，17 章 §17.4）/批2 监控栈生产化（v2.56，13 章 §13.6/13.8——node_exporter 入栈 + Host 层告警激活 11→13 条 + 自检矩阵 6 真触发 + 7 promtool 单测）/批3 灾备最小集（v2.57，17 章 §17.5——pg-backup.sh 双副本备份 + pg-restore-drill.sh 恢复演练 + 99.5% 兜底自检清单 10 项；最小集边界 = PG 唯一事实源，ES/Milvus 经重建通道再生）/批4 trace 残余清偿+SLA（v2.58，13 章——流式 POST 独立 trace 源码级修复 + rag.routing.circuit.*/fallback.invoked 三计数 + supplier-sla 面板 + KbPrimaryModelDegraded 告警 13→14 + 安全组说明 SG1）机器侧已落地，后续批 5 Gatling 压测；机器侧就绪用户侧待跑项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（F1-F3/M1/DR1/SG1/G1/G2/E1/B5/D1 含详步骤，他文档缺口已收编）。登记缓做：B5 漏洞治理另跟踪、簇④探针校准转下冲刺、3.11/5.4 缓做、3.16 取消、12.4 S1-S8 消化（S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md` → 00 每日进度 / 01-03 Phase1-3 / 04 优化冲刺 / 05 Phase4 含簇⑥ / 06 安全专项 / 07 Phase5；按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -45,9 +45,9 @@ kb-rag-agent/
 
 **全链路审计**：`AuditTraceAdvisor`(order 10 最外层)挂双链，异步落 kb_audit_log（旁路容错）；捕获被拒请求，三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏落库、改写查询经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
-**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）；不带租户标签（防基数）
+**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）+ 双供应商 SLA 族 rag.routing.circuit.opened/half-opened + fallback.invoked（簇⑥ 批4，SmartRoutingChatModel 接线，supplier-sla 面板与 KbPrimaryModelDegraded 告警消费）；不带租户标签（防基数）
 
-**观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse；总开关 `management.tracing.export.otlp.enabled` 默认关；内容捕获 `RAG_OBSERVABILITY_LOG_CONTENT` 单源，内容自桥接 gen_ai.prompt/completion（坑位㉔㉕）；trace 合树：双链显式装配 registry + Controller contextWrite 桥接（坑位㉗）+ 检索双执行器传播包裹；残余：流式主生成 POST 独立 trace 留 **Phase 4 簇⑥**（13 章 v2.32）
+**观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse；总开关 `management.tracing.export.otlp.enabled` 默认关；内容捕获 `RAG_OBSERVABILITY_LOG_CONTENT` 单源，内容自桥接 gen_ai.prompt/completion（坑位㉔㉕）；trace 合树：双链显式装配 registry + Controller contextWrite 桥接（坑位㉗）+ 检索双执行器传播包裹；**流式主生成 POST 独立 trace 已清偿（簇⑥ 批4 v2.58）**——根因：Spring AI 2.0 GA chat_model 流式观测仅经 Reactor Context 传播 ∩ OkHttp 观测拦截器按线程 TL 寻父 ∩ Flux.create 消费者（enqueue 处）不恢复上下文；修复：SmartRoutingChatModel.stream 订阅期父观测作用域注入（POST span 挂 chat_client 下合树，E2E 合树裁决留用户侧）
 
 **面板与统计（簇②，批2 生产化 v2.56）**：Grafana 四面板 + 监控 compose 落 infra/ 生产形态——四服务 restart/healthcheck/限额/日志轮转 + Grafana 口令 env 化（`GRAFANA_ADMIN_PASSWORD` :? 守卫）+ node_exporter v1.9.1（Host 层告警组 kb-rag-host 激活）+ Jaeger scratch 基座无 healthcheck 实证 + kb-monitoring.service 开机自启；告警 13 条自检矩阵（6 真触发 + 7 promtool 合成单测 alert-selfcheck/）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）；无指标支撑面板不设
 
@@ -65,7 +65,7 @@ kb-rag-agent/
 
 **工具链与 HITL（kb-ai-agent）**：`EnterpriseMockTools` 契约对齐真实 OA/ERP；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve 端点 → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + 一次性消费 + tenant/user 绑定，Redis 故障 fail-closed；确认态经 `.toolContext()`；**ToolCallingAdvisor 自建 order 1000**（自动注册落最外层穿越内层）
 
-**多模型路由**：`SmartRoutingChatModel`（@Primary）包装主模型 DeepSeek V4（starter 经 `spring.ai.model.chat=none` 门控让位勿回写；include_usage 流式计账）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼端点，凭据回落 DASHSCOPE_API_KEY）；熔断三态无锁原子（rag.routing.circuit）；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传
+**多模型路由**：`SmartRoutingChatModel`（@Primary）包装主模型 DeepSeek V4（starter 经 `spring.ai.model.chat=none` 门控让位勿回写；include_usage 流式计账）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼端点，凭据回落 DASHSCOPE_API_KEY）；熔断三态无锁原子（rag.routing.circuit）+ SLA 三事件计数经 AiBusinessMetrics（批4）；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传
 
 **检索与对话链路**
 

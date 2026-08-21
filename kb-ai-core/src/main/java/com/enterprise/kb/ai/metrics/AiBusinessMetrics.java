@@ -74,6 +74,11 @@ import java.util.Map;
  *   <li>{@code rag.badcase.annotate / rag.badcase.reingest}——Bad Case 运营闭环
  *       计数（Phase 4 簇④ 4.7）：根因标注 / Golden Set 回灌成功路径计，
  *       recordBadCaseOps(String) 收口（同款零标签纪律）</li>
+ *   <li>{@code rag.routing.circuit.opened / circuit.half-opened / fallback.invoked}
+ *       ——双供应商 SLA 计数族（Phase 4 簇⑥ 批4）：熔断 OPEN 转入（含 HALF_OPEN
+ *       试探失败重开）/ 熔断窗口结束后主模型试探 / 备用模型接管请求，接线点
+ *       SmartRoutingChatModel 熔断态变更与路由分支；主模型可用率与切换时序的
+ *       指标底座（kb-rag-supplier-sla 面板 + KbPrimaryModelDegraded 告警消费）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -170,6 +175,12 @@ public class AiBusinessMetrics {
     private final Counter guardrailRuleUpdated;
     /** 词表运营 CRUD 删除计数（v2.53 词表 DB 单轨） */
     private final Counter guardrailRuleDeleted;
+    /** 熔断 OPEN 转入计数（Phase 4 簇⑥ 批4）：首次达阈 OPEN + HALF_OPEN 试探失败重开均计 */
+    private final Counter routingCircuitOpened;
+    /** HALF_OPEN 试探计数（Phase 4 簇⑥ 批4）：熔断窗口结束后首个请求试探主模型 */
+    private final Counter routingCircuitHalfOpened;
+    /** 备用模型接管计数（Phase 4 簇⑥ 批4）：OPEN 直发 + 失败即切，双路径合计 */
+    private final Counter routingFallbackInvoked;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -331,6 +342,14 @@ public class AiBusinessMetrics {
             .description("护栏词表运营更新词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
         this.guardrailRuleDeleted = Counter.builder("rag.guardrail.rule.deleted")
             .description("护栏词表运营删除词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
+        // 双供应商 SLA 计数族（Phase 4 簇⑥ 批4）：熔断三态迁移与备用接管事件，
+        // 零标签纪律；主模型可用率/切换时序经面板与告警表达式消费
+        this.routingCircuitOpened = Counter.builder("rag.routing.circuit.opened")
+            .description("主模型熔断 OPEN 转入次数——达阈首开 + HALF_OPEN 试探失败重开（簇⑥ 批4 SLA）").register(registry);
+        this.routingCircuitHalfOpened = Counter.builder("rag.routing.circuit.half-opened")
+            .description("主模型 HALF_OPEN 试探次数——熔断窗口结束后首个请求试探（簇⑥ 批4 SLA）").register(registry);
+        this.routingFallbackInvoked = Counter.builder("rag.routing.fallback.invoked")
+            .description("备用模型接管请求次数——OPEN 直发 + 失败即切双路径（簇⑥ 批4 SLA）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -409,6 +428,21 @@ public class AiBusinessMetrics {
     /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */
     public void recordTtft(Duration elapsed) {
         ttft.record(elapsed);
+    }
+
+    /** 熔断 OPEN 转入计数（簇⑥ 批4 SLA）：SmartRoutingChatModel 达阈首开/试探失败重开 */
+    public void recordCircuitOpened() {
+        routingCircuitOpened.increment();
+    }
+
+    /** HALF_OPEN 试探计数（簇⑥ 批4 SLA）：熔断窗口结束后首个请求试探主模型 */
+    public void recordCircuitHalfOpened() {
+        routingCircuitHalfOpened.increment();
+    }
+
+    /** 备用模型接管计数（簇⑥ 批4 SLA）：OPEN 直发与失败即切双路径各计一次 */
+    public void recordFallbackInvoked() {
+        routingFallbackInvoked.increment();
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */

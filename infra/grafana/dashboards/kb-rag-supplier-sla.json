@@ -1,0 +1,283 @@
+{
+  "uid": "kb-rag-supplier-sla",
+  "title": "KB-RAG 双供应商 SLA 大盘",
+  "description": "Phase 4 簇⑥ 批4（v2.58）：主模型熔断/试探/备用接管事件流——主备切换时序与主模型可用率视角。指标族 rag.routing.circuit.* / rag.routing.fallback.invoked（AiBusinessMetrics，SmartRoutingChatModel 接线）。",
+  "tags": [
+    "kb-rag"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "title": "熔断状态事件（切换时序：OPEN 转入 / HALF_OPEN 试探）",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(rag_routing_circuit_opened_total[5m]))",
+          "legendFormat": "OPEN 转入（达阈首开+试探失败重开）",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(rag_routing_circuit_half_opened_total[5m]))",
+          "legendFormat": "HALF_OPEN 试探（窗口结束后探测主模型）",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "title": "备用模型接管速率 vs 请求总速率",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(rag_routing_fallback_invoked_total[5m]))",
+          "legendFormat": "备用接管速率",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(rag_request_total[5m]))",
+          "legendFormat": "请求总速率（对照分母）",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit",
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "title": "主模型降级占比（近 1 小时备用接管 / 请求总量）",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(rag_routing_fallback_invoked_total[1h])) / clamp_min(sum(increase(rag_request_total[1h])), 1)",
+          "legendFormat": "降级占比（0=主模型全程服务）",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "mode": "markdown",
+        "content": "**双供应商 SLA 观测口径（簇⑥ 批4，v2.58）**\n\n- **三事件计数**（SmartRoutingChatModel 熔断态变更接线）：`rag.routing.circuit.opened`（OPEN 转入，含试探失败重开）/ `circuit.half-opened`（窗口结束后试探）/ `rag.routing.fallback.invoked`（备用接管，OPEN 直发 + 失败即切）\n- **熔断参数**：`rag.routing.circuit.failure-threshold`（缺省 5）/ `open-seconds`（缺省 30）；HALF_OPEN 试探成功即闭合清零\n- **告警**：KbPrimaryModelDegraded——OPEN 事件出现即告警（increase[5m]>0），窗口内备用服务，试探成功后自动恢复\n- **E2E 锚点**：断主模型凭据 → 连续失败 5 次内观察 OPEN 计数 + 接管速率抬升 + 告警 FIRING；恢复凭据 → 30s 窗口后 HALF_OPEN 试探回主\n- 模型调用明细（主/备 token、延迟）走 Langfuse trace 链（13.5 双层分工）"
+      },
+      "title": "SLA 观测口径说明",
+      "type": "text"
+    }
+  ]
+}

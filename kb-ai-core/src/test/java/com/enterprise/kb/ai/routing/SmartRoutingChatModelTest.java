@@ -1,5 +1,10 @@
 package com.enterprise.kb.ai.routing;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -16,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,13 +35,15 @@ import static org.mockito.Mockito.when;
 
 /**
  * 多模型智能路由测试（3.2）—— 主备切换、熔断三态（CLOSED/OPEN/HALF_OPEN）、
- * 流式错误接管、options 委托
+ * 流式错误接管、options 委托；簇⑥ 批4 扩充：双供应商 SLA 计数 +
+ * 流式 trace 父观测订阅期传播（POST span 合树修复机制）
  */
 class SmartRoutingChatModelTest {
 
     private ChatModel primary;
     private ChatModel fallback;
     private MutableClock clock;
+    private SimpleMeterRegistry meterRegistry;
     private SmartRoutingChatModel router;
 
     private final Prompt prompt = new Prompt("什么是增值税发票？");
@@ -45,7 +53,13 @@ class SmartRoutingChatModelTest {
         primary = mock(ChatModel.class);
         fallback = mock(ChatModel.class);
         clock = new MutableClock();
-        router = new SmartRoutingChatModel(primary, fallback, 3, 30, clock);
+        meterRegistry = new SimpleMeterRegistry();
+        router = new SmartRoutingChatModel(primary, fallback, 3, 30, clock,
+            new AiBusinessMetrics(meterRegistry));
+    }
+
+    private double counterValue(String name) {
+        return meterRegistry.get(name).counter().count();
     }
 
     private static ChatResponse response(String text) {
@@ -184,6 +198,121 @@ class SmartRoutingChatModelTest {
         when(primary.getOptions()).thenReturn(options);
 
         assertThat(router.getOptions()).isSameAs(options);
+    }
+
+    // ── 双供应商 SLA 计数（簇⑥ 批4） ──
+
+    @Test
+    void slaCountersTrackFailoverAndCircuitTransitions() {
+        when(primary.call(prompt)).thenThrow(new RuntimeException("boom"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
+
+        router.call(prompt);                       // 失败 1/3，失败即切备用
+        router.call(prompt);                       // 失败 2/3
+        router.call(prompt);                       // 失败 3/3 → OPEN
+        router.call(prompt);                       // OPEN 直发备用
+
+        assertThat(counterValue("rag.routing.fallback.invoked")).isEqualTo(4);
+        assertThat(counterValue("rag.routing.circuit.opened")).isEqualTo(1);
+        assertThat(counterValue("rag.routing.circuit.half-opened")).isZero();
+
+        clock.advanceSeconds(31);                  // 窗口结束 → HALF_OPEN 试探
+        router.call(prompt);                       // 试探失败 → 熔断重开
+
+        assertThat(counterValue("rag.routing.circuit.half-opened")).isEqualTo(1);
+        assertThat(counterValue("rag.routing.circuit.opened")).isEqualTo(2);
+        assertThat(counterValue("rag.routing.fallback.invoked")).isEqualTo(5);
+
+        clock.advanceSeconds(31);
+        doReturn(response("主模型恢复")).when(primary).call(prompt);
+        router.call(prompt);                       // 试探成功 → 闭合，计数清零
+
+        assertThat(counterValue("rag.routing.circuit.half-opened")).isEqualTo(2);
+        assertThat(counterValue("rag.routing.circuit.opened")).isEqualTo(2);
+        assertThat(counterValue("rag.routing.fallback.invoked")).isEqualTo(5);
+    }
+
+    @Test
+    void streamCircuitOpenCountsFallbackInvoked() {
+        when(primary.call(prompt)).thenThrow(new RuntimeException("boom"));
+        when(fallback.call(any(Prompt.class))).thenReturn(response("备用"));
+        router.call(prompt);
+        router.call(prompt);
+        router.call(prompt);                       // OPEN（三次失败即切各计一次）
+        when(fallback.stream(any(Prompt.class))).thenReturn(Flux.just(response("备用流")));
+
+        router.stream(prompt).collectList().block();
+
+        assertThat(counterValue("rag.routing.fallback.invoked")).isEqualTo(4);
+        verify(primary, never()).stream(any(Prompt.class));
+    }
+
+    @Test
+    void streamPrimaryErrorCountsFallbackInvokedOnce() {
+        when(primary.stream(prompt)).thenReturn(Flux.error(new RuntimeException("boom")));
+        when(fallback.stream(any(Prompt.class))).thenReturn(Flux.just(response("备用")));
+
+        router.stream(prompt).collectList().block();
+
+        assertThat(counterValue("rag.routing.fallback.invoked")).isEqualTo(1);
+        assertThat(counterValue("rag.routing.circuit.opened")).isZero();
+    }
+
+    // ── 流式 trace 父观测订阅期传播（簇⑥ 批4 残余修复机制验证） ──
+
+    @Test
+    void streamOpensParentObservationScopeOnSubscribeThread() {
+        ObservationRegistry observationRegistry = ObservationRegistry.create();
+        Observation parent = Observation.createNotStarted("chat_client", observationRegistry).start();
+        // 复现生产形态：父观测只在 Reactor Context，订阅线程 ThreadLocal 为空
+        assertThat(observationRegistry.getCurrentObservation()).isNull();
+
+        // 模拟 OpenAiChatModel.internalStream 形态：Flux.create 消费者在订阅瞬间执行
+        // （真实链路在该点 enqueue HTTP 请求，OkHttp dispatcher 捕获此刻线程上下文）
+        AtomicReference<Observation> capturedAtEnqueuePoint = new AtomicReference<>();
+        when(primary.stream(prompt)).thenReturn(Flux.create(sink -> {
+            capturedAtEnqueuePoint.set(observationRegistry.getCurrentObservation());
+            sink.next(response("token"));
+            sink.complete();
+        }));
+
+        router.stream(prompt)
+            .contextWrite(ctx -> ctx.put(ObservationThreadLocalAccessor.KEY, parent))
+            .collectList().block();
+
+        assertThat(capturedAtEnqueuePoint.get()).isSameAs(parent);
+        // 作用域随订阅结束关闭，不泄漏到订阅线程后续执行
+        assertThat(observationRegistry.getCurrentObservation()).isNull();
+    }
+
+    @Test
+    void streamFallbackResubscribeAlsoRestoresParentScope() {
+        ObservationRegistry observationRegistry = ObservationRegistry.create();
+        Observation parent = Observation.createNotStarted("chat_client", observationRegistry).start();
+        when(primary.stream(prompt)).thenReturn(Flux.error(new RuntimeException("boom")));
+        AtomicReference<Observation> captured = new AtomicReference<>();
+        when(fallback.stream(any(Prompt.class))).thenReturn(Flux.create(sink -> {
+            captured.set(observationRegistry.getCurrentObservation());
+            sink.next(response("备用"));
+            sink.complete();
+        }));
+
+        router.stream(prompt)
+            .contextWrite(ctx -> ctx.put(ObservationThreadLocalAccessor.KEY, parent))
+            .collectList().block();
+
+        assertThat(captured.get()).isSameAs(parent);
+        assertThat(counterValue("rag.routing.fallback.invoked")).isEqualTo(1);
+    }
+
+    @Test
+    void streamWithoutParentObservationPassesThrough() {
+        when(primary.stream(prompt)).thenReturn(Flux.just(response("无观测环境")));
+
+        List<String> texts = router.stream(prompt).map(SmartRoutingChatModelTest::textOf)
+            .collectList().block();
+
+        assertThat(texts).containsExactly("无观测环境");
     }
 
     @Test

@@ -11,7 +11,7 @@
 # 挂载方式（v2.56 批2 已接线）：prometheus.yml 的 rule_files 指向本文件；
 # scrape 目标 actuator prometheus 端点（8090，SecurityConfig 已放行）。
 # 语法自检：promtool check rules alert-rules-kb-rag.yml
-# 真实触发自检：六条真触发 + 七条 promtool 合成单测（alert-selfcheck/，
+# 真实触发自检：六条真触发 + 八条 promtool 合成单测（alert-selfcheck/，
 # 执行形态见 用户侧待执行项清单.md M1）。
 
 groups:
@@ -127,6 +127,15 @@ groups:
         annotations:
           summary: "供应商/系统错误率 >5%（近 10 分钟）"
           description: "错误率={{ $value }}（审计 ERROR 态）；核查主模型端点健康与熔断态（rag.routing.*），确认备用链路是否接管。"
+
+      - alert: KbPrimaryModelDegraded
+        expr: increase(rag_routing_circuit_opened_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "主模型熔断 OPEN——已降级备用模型服务"
+          description: "近 5 分钟熔断 OPEN 事件数={{ $value }}（主模型连续失败达阈值 rag.routing.circuit.failure-threshold）；OPEN 窗口内请求直发备用模型，经 rag_routing_fallback_invoked_total 确认接管。核查主模型端点可用性/凭据/配额；HALF_OPEN 试探成功后自动闭合（计数清零）。"
 
       - alert: KbTokenSpike
         expr: |

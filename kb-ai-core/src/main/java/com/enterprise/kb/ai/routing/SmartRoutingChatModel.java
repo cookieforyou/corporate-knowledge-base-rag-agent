@@ -1,10 +1,14 @@
 package com.enterprise.kb.ai.routing;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 
 import java.time.Clock;
@@ -36,6 +40,21 @@ import java.util.concurrent.atomic.AtomicLong;
  * 首 token 前（连接/鉴权/配额类故障的常态形态）用户无感；极少数已流出部分 token
  * 后中断的场景会出现内容重复，优于流中断报错，已知取舍。
  *
+ * <p><b>流式 trace 传播（簇⑥ 批4 残余修复，13 章 v2.58）</b>：Spring AI 2.0 GA 流式
+ * 链的 chat_model 观测只经 Reactor Context 传播（internalStream contextWrite），不在
+ * 订阅线程开 ThreadLocal 作用域；而模型 HTTP 层（SpringAiOpenAiHttpClient 的 OkHttp
+ * Observation 拦截器）按**线程当前观测**寻父，且其 dispatcher 执行器经
+ * ContextExecutorService 捕获的是 enqueue 时刻（Flux.create 消费者内）的线程上下文——
+ * 该处 ThreadLocal 为空，POST span 遂成独立 trace root（v2.32 登记残余）。修复：
+ * stream() 在订阅期经 {@link #openParentScopeOnSubscribe} 将 Context 中的父观测开为
+ * 作用域——同步订阅传播直达 enqueue，OkHttp dispatcher 捕获到父观测，POST span
+ * 挂回父链（chat_client 观测之下，与 gen_ai 生成 span 同层合树）。
+ *
+ * <p><b>双供应商 SLA 计数（簇⑥ 批4）</b>：熔断 OPEN 转入（含试探失败重开）/
+ * HALF_OPEN 试探 / 备用接管三事件经 {@link AiBusinessMetrics} 落 Prometheus
+ * （rag.routing.circuit.* / rag.routing.fallback.invoked），供供应商 SLA 面板与
+ * KbPrimaryModelDegraded 告警消费。
+ *
  * <p>模型层路由对上层零感知：chatClient（评估）与 ragAgentChatClient/toolAgentChatClient（生产双链）注入
  * 本 Bean 即同时获得容灾；kb-eval 度量链路在模型故障时同样受保护。
  */
@@ -47,6 +66,7 @@ public class SmartRoutingChatModel implements ChatModel {
     private final int failureThreshold;
     private final long openSeconds;
     private final Clock clock;
+    private final AiBusinessMetrics metrics;
 
     /** 主模型连续失败计数（成功清零） */
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
@@ -54,46 +74,91 @@ public class SmartRoutingChatModel implements ChatModel {
     private final AtomicLong openUntilEpochMs = new AtomicLong(0);
 
     public SmartRoutingChatModel(ChatModel primary, ChatModel fallback,
-                                 int failureThreshold, long openSeconds) {
-        this(primary, fallback, failureThreshold, openSeconds, Clock.systemUTC());
+                                 int failureThreshold, long openSeconds, AiBusinessMetrics metrics) {
+        this(primary, fallback, failureThreshold, openSeconds, Clock.systemUTC(), metrics);
     }
 
     /** Clock 注入供测试推进时间 */
     SmartRoutingChatModel(ChatModel primary, ChatModel fallback,
-                          int failureThreshold, long openSeconds, Clock clock) {
+                          int failureThreshold, long openSeconds, Clock clock, AiBusinessMetrics metrics) {
         this.primary = primary;
         this.fallback = fallback;
         this.failureThreshold = failureThreshold;
         this.openSeconds = openSeconds;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Override
     public ChatResponse call(Prompt prompt) {
         if (primaryBypassed()) {
+            metrics.recordFallbackInvoked();
             return fallback.call(retargetToFallback(prompt));
         }
+        recordHalfOpenProbeIfDue();
         try {
             ChatResponse response = primary.call(prompt);
             recordSuccess();
             return response;
         } catch (RuntimeException e) {
             recordFailure(e);
+            metrics.recordFallbackInvoked();
             return fallback.call(retargetToFallback(prompt));
         }
     }
 
     @Override
     public Flux<ChatResponse> stream(Prompt prompt) {
-        if (primaryBypassed()) {
-            return fallback.stream(retargetToFallback(prompt));
+        return Flux.deferContextual(contextView -> {
+            // 订阅期父观测（簇⑥ 批4 trace 修复）：DefaultChatClient 已把 chat_client
+            // 观测写入 Context（KEY=micrometer.observation），取出供订阅线程开作用域
+            Observation parentObservation =
+                contextView.getOrDefault(ObservationThreadLocalAccessor.KEY, null);
+            if (primaryBypassed()) {
+                metrics.recordFallbackInvoked();
+                return openParentScopeOnSubscribe(parentObservation,
+                    fallback.stream(retargetToFallback(prompt)));
+            }
+            recordHalfOpenProbeIfDue();
+            Flux<ChatResponse> routed = primary.stream(prompt)
+                .doOnNext(ignored -> recordSuccess())
+                .onErrorResume(e -> {
+                    recordFailure(e);
+                    metrics.recordFallbackInvoked();
+                    // 备用重订阅发生在错误信号线程（非首次订阅线程），独立再包作用域
+                    return openParentScopeOnSubscribe(parentObservation,
+                        fallback.stream(retargetToFallback(prompt)));
+                });
+            return openParentScopeOnSubscribe(parentObservation, routed);
+        });
+    }
+
+    /**
+     * 订阅线程开父观测作用域（簇⑥ 批4 trace 残余修复）：返回的 Flux 在 subscribe
+     * 信号传播瞬间打开 parentObservation 作用域——同步订阅链直达模型 HTTP 层
+     * enqueue（Flux.create 消费者），OkHttp dispatcher 的 ContextExecutorService
+     * 捕获该 ThreadLocal 并在回调线程恢复，POST span 遂寻得父观测不再成独立 trace。
+     * 父观测缺省（评估宿主等无观测环境）原样透传。
+     */
+    private static <T> Flux<T> openParentScopeOnSubscribe(Observation parentObservation, Flux<T> source) {
+        if (parentObservation == null) {
+            return source;
         }
-        return primary.stream(prompt)
-            .doOnNext(ignored -> recordSuccess())
-            .onErrorResume(e -> {
-                recordFailure(e);
-                return fallback.stream(retargetToFallback(prompt));
-            });
+        return new Flux<>() {
+            @Override
+            public void subscribe(CoreSubscriber<? super T> actual) {
+                try (Observation.Scope ignored = parentObservation.openScope()) {
+                    source.subscribe(actual);
+                }
+            }
+        };
+    }
+
+    /** HALF_OPEN 试探判定（簇⑥ 批4 SLA）：已过 bypass 判定而失败数仍达阈 = 窗口结束后的试探请求 */
+    private void recordHalfOpenProbeIfDue() {
+        if (consecutiveFailures.get() >= failureThreshold) {
+            metrics.recordCircuitHalfOpened();
+        }
     }
 
     /**
@@ -130,10 +195,12 @@ public class SmartRoutingChatModel implements ChatModel {
         if (failures > failureThreshold) {
             // 超过阈值只可能来自 HALF_OPEN 试探失败（OPEN 态主模型零触达）
             openUntilEpochMs.set(clock.millis() + openSeconds * 1000);
+            metrics.recordCircuitOpened();
             log.warn("HALF_OPEN 试探失败（主模型累计失败 {} 次），熔断重开 OPEN {}s。最近原因: {}",
                 failures, openSeconds, cause.getMessage());
         } else if (failures == failureThreshold) {
             openUntilEpochMs.set(clock.millis() + openSeconds * 1000);
+            metrics.recordCircuitOpened();
             log.warn("主模型连续失败 {} 次（阈值 {}），熔断 OPEN {}s，期间请求直发备用模型。最近原因: {}",
                 failures, failureThreshold, openSeconds, cause.getMessage());
         } else {

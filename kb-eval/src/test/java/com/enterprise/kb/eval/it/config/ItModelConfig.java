@@ -1,8 +1,10 @@
 package com.enterprise.kb.eval.it.config;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.routing.SmartRoutingChatModel;
 import com.enterprise.kb.eval.it.stub.StubChatModel;
 import com.enterprise.kb.eval.it.stub.StubEmbeddingModel;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Bean;
@@ -32,7 +34,9 @@ public class ItModelConfig {
     @Bean
     @Primary
     public ChatModel smartRoutingChatModel(StubChatModel stubChatModel) {
-        return new SmartRoutingChatModel(stubChatModel, null, 5, 30);
+        // IT 域独立 SimpleMeterRegistry：路由 SLA 计数不落 IT 断言面，隔离即可
+        return new SmartRoutingChatModel(stubChatModel, null, 5, 30,
+            new AiBusinessMetrics(new SimpleMeterRegistry()));
     }
 
     @Bean

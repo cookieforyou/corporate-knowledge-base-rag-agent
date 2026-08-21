@@ -1,5 +1,7 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
@@ -28,6 +30,8 @@ class DeepSeekModelOverrideWiringTest {
         return new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(DeepSeekChatAutoConfiguration.class))
             .withUserConfiguration(SmartRoutingConfig.class)
+            // 路由 SLA 计数依赖（簇⑥ 批4）：最小上下文以独立 registry 供装配
+            .withBean(AiBusinessMetrics.class, () -> new AiBusinessMetrics(new SimpleMeterRegistry()))
             .withPropertyValues(
                 "spring.ai.model.chat=" + chatProvider,
                 "spring.ai.deepseek.api-key=sk-test",

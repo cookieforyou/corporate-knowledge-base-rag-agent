@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.routing.SmartRoutingChatModel;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.model.ChatModel;
@@ -145,11 +146,12 @@ public class SmartRoutingConfig {
             @Qualifier("deepSeekChatModel") ChatModel primary,
             @Nullable @Qualifier("fallbackChatModel") ChatModel fallback,
             @Value("${rag.routing.circuit.failure-threshold:5}") int failureThreshold,
-            @Value("${rag.routing.circuit.open-seconds:30}") long openSeconds) {
+            @Value("${rag.routing.circuit.open-seconds:30}") long openSeconds,
+            AiBusinessMetrics aiBusinessMetrics) {
         if (fallback == null) {
             return primary;
         }
-        return new SmartRoutingChatModel(primary, fallback, failureThreshold, openSeconds);
+        return new SmartRoutingChatModel(primary, fallback, failureThreshold, openSeconds, aiBusinessMetrics);
     }
 
     /**

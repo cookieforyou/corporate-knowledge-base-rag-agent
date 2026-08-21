@@ -1,13 +1,13 @@
 # ============================================================
 # 告警规则 promtool 合成单测（Phase 4 簇⑥ 批2，v2.56）
 #
-# 覆盖口径（告警全集 13 条 = 真触发 6 + 合成单测 7，自检矩阵见
+# 覆盖口径（告警全集 14 条 = 真触发 6 + 合成单测 8，自检矩阵见
 # 用户侧待执行项清单.md M1）：
-#   本文件单测 7 条——生产态难安全触发/构造成本高的规则，以合成
+#   本文件单测 8 条——生产态难安全触发/构造成本高的规则，以合成
 #   序列验证「表达式可 FIRING + 标签/注解模板展开正确」：
 #     KbJvmHeapNearFull / KbJvmGcPressureHigh / KbThreadsDeadlocked /
 #     KbFeedbackLikeRatioLow / KbTokenSpike / HostDiskNearFull /
-#     HostMemoryNearFull
+#     HostMemoryNearFull / KbPrimaryModelDegraded（簇⑥ 批4 新增）
 #   其余 6 条（KbProcessRecentlyRestarted / KbEmptyRetrievalRateHigh /
 #   KbRejectionRateHigh / KbRequestErrorRateHigh / KbRerankFallbackRateHigh /
 #   KbQuotaHitRateHigh）走 M1 真触发演练，不在本文件。
@@ -162,3 +162,23 @@ tests:
             exp_annotations:
               summary: "宿主可用内存 <10% 持续 10 分钟"
               description: "内存占用率=0.95（2 核 ECS 上 PG 原生 + 存量容器 + 应用共挤）；核查各 compose 限额生效情况（docker stats），必要时下调 KB_API_MEM_LIMIT。"
+
+  # ── 8. KbPrimaryModelDegraded：熔断 OPEN counter 8m→10m 跳变 0→1（簇⑥ 批4） ──
+  # eval 11m（奇数）：[5m] 窗口 (6m,11m] 内样本 8m(0)/10m(1)，
+  # durationToStart=2m=avg/2 外推 +1m、durationToEnd=1m≥avg/2 外推 +1m，
+  # increase = 1×(2+1+1)/2 = 2 精确整数。for=0m 首评估即 FIRING。
+  - interval: 2m
+    input_series:
+      - series: 'rag_routing_circuit_opened_total{application="kb-rag-agent"}'
+        values: '0x5 1x10'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: KbPrimaryModelDegraded
+        exp_alerts:
+          - exp_labels:
+              alertname: KbPrimaryModelDegraded
+              severity: warning
+              application: kb-rag-agent
+            exp_annotations:
+              summary: "主模型熔断 OPEN——已降级备用模型服务"
+              description: "近 5 分钟熔断 OPEN 事件数=2（主模型连续失败达阈值 rag.routing.circuit.failure-threshold）；OPEN 窗口内请求直发备用模型，经 rag_routing_fallback_invoked_total 确认接管。核查主模型端点可用性/凭据/配额；HALF_OPEN 试探成功后自动闭合（计数清零）。"
