@@ -112,12 +112,10 @@ public class SmartRoutingChatModel implements ChatModel {
         return Flux.deferContextual(contextView -> {
             // 订阅期父观测（簇⑥ 批4 trace 修复）：DefaultChatClient 已把 chat_client
             // 观测写入 Context（KEY=micrometer.observation），取出供订阅线程开作用域
-            Observation parentObservation =
-                contextView.getOrDefault(ObservationThreadLocalAccessor.KEY, null);
+            Observation parentObservation = contextView.getOrDefault(ObservationThreadLocalAccessor.KEY, null);
             if (primaryBypassed()) {
                 metrics.recordFallbackInvoked();
-                return openParentScopeOnSubscribe(parentObservation,
-                    fallback.stream(retargetToFallback(prompt)));
+                return openParentScopeOnSubscribe(parentObservation, fallback.stream(retargetToFallback(prompt)));
             }
             recordHalfOpenProbeIfDue();
             Flux<ChatResponse> routed = primary.stream(prompt)
@@ -126,8 +124,7 @@ public class SmartRoutingChatModel implements ChatModel {
                     recordFailure(e);
                     metrics.recordFallbackInvoked();
                     // 备用重订阅发生在错误信号线程（非首次订阅线程），独立再包作用域
-                    return openParentScopeOnSubscribe(parentObservation,
-                        fallback.stream(retargetToFallback(prompt)));
+                    return openParentScopeOnSubscribe(parentObservation, fallback.stream(retargetToFallback(prompt)));
                 });
             return openParentScopeOnSubscribe(parentObservation, routed);
         });

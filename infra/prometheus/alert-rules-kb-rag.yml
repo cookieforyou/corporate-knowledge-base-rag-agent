@@ -11,7 +11,7 @@
 # 挂载方式（v2.56 批2 已接线）：prometheus.yml 的 rule_files 指向本文件；
 # scrape 目标 actuator prometheus 端点（8090，SecurityConfig 已放行）。
 # 语法自检：promtool check rules alert-rules-kb-rag.yml
-# 真实触发自检：六条真触发 + 八条 promtool 合成单测（alert-selfcheck/，
+# 真实触发自检：6 条真触发 + 8 条 promtool 合成单测（alert-selfcheck/，
 # 执行形态见 用户侧待执行项清单.md M1）。
 
 groups:
