@@ -169,7 +169,7 @@
               <el-radio-button value="tool">企业工具</el-radio-button>
             </el-radio-group>
             <el-upload :show-file-list="false" :before-upload="handleUpload"
-              accept=".pdf,.docx,.md,.txt,.html">
+              accept=".pdf,.docx,.pptx,.xlsx,.md,.txt,.html">
               <el-button text :disabled="streaming" class="attach-btn">
                 <el-icon><Paperclip /></el-icon>&nbsp;上传文档
               </el-button>

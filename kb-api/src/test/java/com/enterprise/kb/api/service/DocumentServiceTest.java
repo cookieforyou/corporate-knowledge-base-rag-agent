@@ -18,7 +18,9 @@ import io.minio.PutObjectArgs;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -360,5 +362,46 @@ class DocumentServiceTest {
             @Override public InputStream getInputStream() { return ByteArrayInputStream.nullInputStream(); }
             @Override public void transferTo(File dest) { throw new UnsupportedOperationException(); }
         };
+    }
+
+    // ── 上传格式白名单与类型映射（簇⑦ 4.14：PPTX/XLSX 扩容）──
+
+    /** 白名单内类型放行（含 4.14 新增 PPTX/XLSX），类型映射落库正确 */
+    @ParameterizedTest
+    @CsvSource({
+        "application/pdf, PDF",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document, DOCX",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation, PPTX",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, XLSX",
+        "text/markdown, MD",
+        "text/plain, TXT",
+        "text/html, HTML"
+    })
+    void uploadAllowedTypePassesAndMapsCorrectly(String contentType, String expectedType) throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "样本", contentType, "内容".getBytes());
+
+        service.upload(file, TENANT, "u-1", null);
+
+        ArgumentCaptor<KbDocument> captor = ArgumentCaptor.forClass(KbDocument.class);
+        verify(documentRepository).save(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo(expectedType);
+    }
+
+    /** 白名单外类型拒绝（含旧二进制格式 .ppt/.xls/.doc——与既有纪律一致仅收 OOXML 新格式） */
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "application/vnd.ms-powerpoint",       // .ppt 旧格式
+        "application/vnd.ms-excel",            // .xls 旧格式
+        "application/msword",                  // .doc 旧格式
+        "application/octet-stream"             // 未知二进制
+    })
+    void uploadLegacyOrUnknownTypeRejected(String contentType) {
+        MockMultipartFile file = new MockMultipartFile("file", "样本", contentType, "内容".getBytes());
+
+        assertThatThrownBy(() -> service.upload(file, TENANT, "u-1", null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("FILE_TYPE_UNSUPPORTED");
+        verifyNoInteractions(minioClient);
+        verify(documentRepository, never()).save(any());
     }
 }

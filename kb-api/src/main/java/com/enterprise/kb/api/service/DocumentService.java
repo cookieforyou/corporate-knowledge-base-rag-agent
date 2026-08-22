@@ -47,10 +47,13 @@ public class DocumentService {
     @Value("${minio.bucket}")
     private String bucket;
 
-    /** 允许的文件类型 */
+    /** 允许的文件类型（4.14：PPTX/XLSX 扩容——与既有白名单同纪律仅收 OOXML 新格式，
+     *  旧二进制格式 .ppt/.xls/.doc 不收，企业侧先转存；解析经 NATIVE Tika 天然兼容） */
     private static final Set<String> ALLOWED_TYPES = Set.of(
             "application/pdf", "text/markdown", "text/plain", "text/html",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
     /**
      * 单文件上传上限（安全簇② B2，2026-08-17 定案 50MB）：与
@@ -320,7 +323,7 @@ public class DocumentService {
         }
         if (file.getContentType() != null && !ALLOWED_TYPES.contains(file.getContentType())) {
             throw new BusinessException("FILE_TYPE_UNSUPPORTED",
-                "不支持的文件类型: " + file.getContentType() + "，仅支持 PDF/Docx/MD/TXT/HTML");
+                "不支持的文件类型: " + file.getContentType() + "，仅支持 PDF/Docx/PPTX/XLSX/MD/TXT/HTML");
         }
     }
 
@@ -329,6 +332,8 @@ public class DocumentService {
         return switch (contentType) {
             case "application/pdf" -> "PDF";
             case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "DOCX";
+            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> "PPTX";
+            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "XLSX";
             case "text/markdown" -> "MD";
             case "text/plain" -> "TXT";
             case "text/html" -> "HTML";

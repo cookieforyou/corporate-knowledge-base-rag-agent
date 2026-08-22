@@ -24,7 +24,8 @@ import java.util.Map;
  *
  * <pre>
  * 决策树（未被上传参数强制指定时）：
- *   非 PDF（md/txt/html/docx）      → NATIVE（Tika 最优解）
+ *   非 PDF（md/txt/html/docx/pptx/xlsx）→ NATIVE（Tika 最优解；4.14 扩容的
+ *                                         PPTX/XLSX 经 tika-parser-microsoft-module 天然兼容）
  *   PDF 且 deep-by-default=true    → DEEP（显式配置优先；DocMind 电子版/扫描件通吃）
  *   PDF 且文本密度 &lt; 50 字符/页   → OCR（疑似扫描件，qwen3.5-ocr 视觉识别）
  *   其余                           → NATIVE

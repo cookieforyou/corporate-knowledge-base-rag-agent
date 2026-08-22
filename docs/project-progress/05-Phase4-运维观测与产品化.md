@@ -23,7 +23,7 @@
 | 4.11 | Docker Compose 生产加固 + Flyway + 灾备最小集 + AppCDS | 部署 | 2.5d | 备份恢复演练 + 99.5% 兜底自检 | 🔄 2026-08-20 批1a Flyway 落地（v2.54：starter + flyway-database-postgresql 12.4.0；V1 基线 = schema.sql 十表幂等全量快照；baseline-on-migrate ECS 现网库零变更登记；同源双写纪律 + 双源一致性单测；kb-eval 主配置关 / IT 重开回归保险，7 章 §7.6）。批1b/2/3 见下方簇⑥节 |
 | 4.12 | Gatling 压测（检索真压 + 生成桩压 + 小样本真实 LLM + SSE 并发） | 测试 | 2d | 压测报告（新口径） | 🔄 2026-08-22 批5 机器侧完成（v2.59：kb-loadtest 模块 + 四场景 + 生成桩，方法论 15 §15.4 / 验收基线 18 §18.4）；ECS 执行与报告回填待用户（清单 LT1） |
 | 4.13 | 运维手册 + API 文档 + 用户使用手册 | 文档 | 2d | 完整文档交付 | |
-| 4.14 | PPT/Excel 格式支持（白名单扩容 + Tika 解析 + E2E） | kb-api/kb-etl | 0.5d | 新格式上传入库 E2E | |
+| 4.14 | PPT/Excel 格式支持（白名单扩容 + Tika 解析 + E2E） | kb-api/kb-etl | 0.5d | 新格式上传入库 E2E | 🔄 2026-08-22 簇⑦ 批1 机器侧（v2.60：用户定案仅收 OOXML 新格式 +PPTX/XLSX 两类 MIME；extractFileType 映射 PPTX/XLSX；解析面零改动实证——SmartParsingRouter 仅 `.pdf` 分叉，非 PDF → NATIVE Tika，tika-parser-microsoft-module 3.3.1 + poi-ooxml 5.5.1 编译域核验在列；前端三处 accept 与格式提示同步（Documents 上传/替换 + Chat 附件）；DocumentServiceTest +11 白名单与映射单测（含旧格式 .ppt/.xls/.doc 拒绝面）；kb-api -am 110 绿 + 前端构建绿）。**E2E 待用户自测：pptx/xlsx 上传 → 解析入库 → 检索命中** |
 
 ### 交付物
 

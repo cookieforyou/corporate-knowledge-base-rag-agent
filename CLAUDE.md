@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测五批机器侧全收官（08-20~22）**：批1a Flyway（v2.54）/批1b 容器化（v2.55）/批2 监控栈生产化（v2.56，告警 14 条自检矩阵）/批3 灾备最小集（v2.57，PG 备份+恢复演练+99.5% 自检）/批4 trace 残余清偿+SLA+安全组（v2.58）/批5 Gatling 压测（v2.59，kb-loadtest 四场景+生成桩）；各批落点见 7/13/15/17/18 章 + 05 卷任务行。机器侧就绪用户侧待跑项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（F1-F3/M1/DR1/SG1/LT1/G1/G2/E1/B5/D1 含详步骤）。登记缓做项见 04/06 卷与清单（B5 另跟踪、探针校准转下冲刺、S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md` → 00 每日进度 / 01-03 Phase1-3 / 04 优化冲刺 / 05 Phase4 含簇⑥ / 06 安全专项 / 07 Phase5；按子卷任务行定位，勿整读）。
+**当前阶段**：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥，v2.53 E2E 通过 08-20）完成；**Phase 4 簇⑥生产加固与压测五批机器侧全收官（08-20~22）**：批1a Flyway（v2.54）/批1b 容器化（v2.55）/批2 监控栈生产化（v2.56，告警 14 条自检矩阵）/批3 灾备最小集（v2.57，PG 备份+恢复演练+99.5% 自检）/批4 trace 残余清偿+SLA+安全组（v2.58）/批5 Gatling 压测（v2.59，kb-loadtest 四场景+生成桩）；各批落点见 7/13/15/17/18 章 + 05 卷任务行。**簇⑦文档与格式收尾开工（08-22）**：批1 4.14 PPT/Excel 机器侧完成（v2.60），剩 4.8 Prompt 专类收编 + 4.13 文档三件套（docs/delivery/）。机器侧就绪用户侧待跑项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（F1-F3/M1/DR1/SG1/LT1/G1/G2/E1/B5/D1 含详步骤）。登记缓做项见 04/06 卷与清单（B5 另跟踪、探针校准转下冲刺、S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md` → 00 每日进度 / 01-03 Phase1-3 / 04 优化冲刺 / 05 Phase4 含簇⑥ / 06 安全专项 / 07 Phase5；按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -88,7 +88,7 @@ kb-rag-agent/
 
 **基础设施**
 
-- 上传/ETL：`DocumentService`（PDF/DOCX/MD/TXT/HTML 白名单 → MinIO → kb_document）；`DocumentEtlService`（解析→切分→**SanitizingTransformer**（S4+PII 入库消毒：`injection_hit` 打标不阻断，MinIO 原件保留）→kb_chunk→向量化→ES 双写）；**增量重入库**：reparse/replace + version + REINDEXING 占用 + CLEANUP 蓝绿 diff
+- 上传/ETL：`DocumentService`（PDF/DOCX/PPTX/XLSX/MD/TXT/HTML 白名单（4.14 簇⑦ 扩容 +PPTX/XLSX，仅收 OOXML 新格式，ContentType 校验唯一拦截面） → MinIO → kb_document）；`DocumentEtlService`（解析→切分→**SanitizingTransformer**（S4+PII 入库消毒：`injection_hit` 打标不阻断，MinIO 原件保留）→kb_chunk→向量化→ES 双写）；**增量重入库**：reparse/replace + version + REINDEXING 占用 + CLEANUP 蓝绿 diff
 - 认证：`SecurityConfig`（/actuator/health|info|prometheus|metrics/** permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
 - 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 连接单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆 Jedis 共消费，**不可移除**

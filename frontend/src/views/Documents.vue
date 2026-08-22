@@ -109,16 +109,16 @@
         </el-select>
       </div>
       <el-upload drag multiple :show-file-list="true" :before-upload="handleUpload"
-        accept=".pdf,.docx,.md,.txt,.html" class="upload-zone">
+        accept=".pdf,.docx,.pptx,.xlsx,.md,.txt,.html" class="upload-zone">
         <el-icon class="upload-cloud"><UploadFilled /></el-icon>
         <div class="upload-hint">拖拽文件到此处，或<em>点击选择</em></div>
-        <div class="upload-formats">支持 PDF · DOCX · Markdown · TXT · HTML</div>
+        <div class="upload-formats">支持 PDF · DOCX · PPTX · XLSX · Markdown · TXT · HTML</div>
       </el-upload>
       <div class="upload-note">上传后自动进入 ETL 管道（解析 → 切分 → 向量化 → ES 双写），进度实时显示在页面顶部。</div>
     </el-dialog>
 
     <!-- 替换文件选择器（隐藏 input，簇⑥ C1） -->
-    <input ref="replaceInput" type="file" accept=".pdf,.docx,.md,.txt,.html"
+    <input ref="replaceInput" type="file" accept=".pdf,.docx,.pptx,.xlsx,.md,.txt,.html"
       style="display:none" @change="onReplaceFile" />
 
     <!-- ══ Chunk 抽屉 ══ -->
