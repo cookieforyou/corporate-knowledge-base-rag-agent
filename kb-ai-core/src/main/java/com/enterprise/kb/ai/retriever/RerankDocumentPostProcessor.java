@@ -4,11 +4,14 @@ import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -37,6 +40,13 @@ import java.util.Map;
  * catch 降级路径。
  *
  * <p>可插拔：未来切换 Qwen3-Reranker 私有部署 / Jina v3 等只需替换本实现 + 配置。
+ *
+ * <p><b>观测（Phase 5 簇①）</b>：rerank HTTP 调用经 {@link Observation} 包裹
+ * （{@code kb.rerank}），寻父 = 当前线程观测——RAA 双执行器已两级传播包裹
+ * （13 章 v2.32 ④），正常态挂载于检索链观测树之下；寻父落空（如 kb-eval
+ * NOOP registry）降级为独立 span 或无观测，不阻断主链。此前裸 RestClient
+ * 不产 observation，Langfuse trace 树检索层缺 rerank 节点（13 章 v2.31 ④
+ * 残余登记，本批清偿）。
  */
 @Slf4j
 @Component
@@ -51,11 +61,14 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     private final RetrievalProperties properties;
     /** 业务指标（Phase 4 簇①）：rerank 执行/降级计数，供 4.2 降级率告警 */
     private final AiBusinessMetrics metrics;
+    /** 观测注册表（Phase 5 簇①）：缺省回落 NOOP（kb-eval 等无观测装配的上下文零影响） */
+    private final ObservationRegistry observationRegistry;
 
     public RerankDocumentPostProcessor(
             JsonMapper jsonMapper,
             RetrievalProperties properties,
             AiBusinessMetrics metrics,
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
             @Value("${rag.rerank.endpoint:}") String endpoint,
             @Value("${rag.rerank.model:qwen3-rerank}") String model,
             @Value("${rag.rerank.api-key:}") String apiKey,
@@ -63,6 +76,8 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
         this.jsonMapper = jsonMapper;
         this.properties = properties;
         this.metrics = metrics;
+        this.observationRegistry = observationRegistryProvider
+            .getIfAvailable(() -> ObservationRegistry.NOOP);
         this.enabled = endpoint != null && !endpoint.isBlank();
         this.model = model;
         this.apiKey = apiKey;
@@ -112,11 +127,18 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                 "documents", documents.stream().map(Document::getText).toList(),
                 "top_n", Math.min(properties.getTopK(), documents.size()));
 
-            String raw = restClient.post()
-                .headers(h -> h.setBearerAuth(apiKey))
-                .body(body)
-                .retrieve()
-                .body(String.class);
+            // kb.rerank 观测包裹（Phase 5 簇①）：observeChecked 自动 start/openScope/
+            // error/stop——调用异常记录后经既有 catch 走降级，不改变容错语义。
+            // 寻父 = registry 当前观测（RAA 执行器传播包裹在场时挂检索链树之下）。
+            String raw = Observation.createNotStarted("kb.rerank", observationRegistry)
+                .contextualName("rerank " + model)
+                .lowCardinalityKeyValue("rerank.model", model)
+                .highCardinalityKeyValue("rerank.candidates", String.valueOf(documents.size()))
+                .observeChecked(() -> restClient.post()
+                    .headers(h -> h.setBearerAuth(apiKey))
+                    .body(body)
+                    .retrieve()
+                    .body(String.class));
 
             List<RerankResult> results;
             try {

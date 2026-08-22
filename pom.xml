@@ -41,6 +41,15 @@
         <!-- 2.0.5：1.20.1 的 docker-java 3.4 钉死 API 1.32，Docker Engine 29（最低 API 1.40+）
              全部请求 400；2.x 线 docker-java 3.7 兼容新引擎（2026-08-13 D3 实证） -->
         <testcontainers.version>2.0.5</testcontainers.version>
+        <!-- B5 漏洞治理（Phase 5 簇①，2026-08-23）：覆盖 Boot 4.1.0 BOM 管理版本，
+             清零 2026-08-18 dependency-check 基线 11 项 CRITICAL（8 CVE）——
+             tomcat 4 CVE（53434/55276/59083/59084）、httpclient5 CVE-2026-71290、
+             kotlin CVE-2026-53914（含 stdlib-common 1.9.10 残留）、netty CVE-2026-56820。
+             全部同线补丁/次版本升级（契约不变），回归验证后复扫确认。 -->
+        <tomcat.version>11.0.25</tomcat.version>
+        <httpclient5.version>5.6.4</httpclient5.version>
+        <kotlin.version>2.4.10</kotlin.version>
+        <netty.version>4.2.17.Final</netty.version>
     </properties>
 
     <dependencyManagement>
@@ -63,6 +72,20 @@
                 <artifactId>jsonschema-module-jackson</artifactId>
                 <version>5.0.0</version>
             </dependency>
+
+            <!-- B5 漏洞治理（Phase 5 簇①）：milvus-sdk-java CVE-2026-26190（CRITICAL 9.8），
+                 spring-ai-milvus-store 2.0.0 声明的 2.5.8 经此覆盖至 2.5 线最新补丁版；
+                 3.x 为 API 重写线（与 spring-ai-milvus-store 2.0.0 不兼容），不升 -->
+            <dependency>
+                <groupId>io.milvus</groupId>
+                <artifactId>milvus-sdk-java</artifactId>
+                <version>2.5.17</version>
+            </dependency>
+
+            <!-- B5 漏洞治理（Phase 5 簇①）：kotlin-stdlib-common（CVE-2026-53914）自 Kotlin 2.0
+                 起已并入 kotlin-stdlib，2.x 线不再发布 jar（镜像 404 实证）——无法钉版本升级，
+                 治理形态 = 声明点排除出依赖图（okhttp/minio/openai-java 链，见各模块 pom）；
+                 其 JVM 类由 kotlin-stdlib 2.4.10 全量承载，运行时零缺失（全模块回归背书） -->
 
             <!-- Internal Modules -->
             <dependency>

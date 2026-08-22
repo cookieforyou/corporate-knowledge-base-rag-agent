@@ -3,9 +3,13 @@ package com.enterprise.kb.ai.retriever;
 import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
+import org.springframework.beans.factory.ObjectProvider;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
@@ -23,10 +27,20 @@ class RerankDocumentPostProcessorTest {
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final AiBusinessMetrics metrics = new AiBusinessMetrics(meterRegistry);
 
+    /** 单值 ObjectProvider 桩（ObservationRegistry 注入位，同 SmartRoutingConfigTest 形态） */
+    private static ObjectProvider<ObservationRegistry> registryProvider(ObservationRegistry registry) {
+        return new ObjectProvider<>() {
+            @Override
+            public ObservationRegistry getObject() {
+                return registry;
+            }
+        };
+    }
+
     /** endpoint 为空 → 禁用态，走降级截断（超时参数簇③ D2 引入，禁用态不触达） */
     private final RerankDocumentPostProcessor disabled =
         new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
-            "", "qwen3-rerank", "", 5);
+            registryProvider(ObservationRegistry.NOOP), "", "qwen3-rerank", "", 5);
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
@@ -109,6 +123,7 @@ class RerankDocumentPostProcessorTest {
     void enabledUnreachable_callFails_countsFallbackOnce() {
         RerankDocumentPostProcessor unreachable =
             new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
+                registryProvider(ObservationRegistry.NOOP),
                 "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
 
         List<Document> result = unreachable.apply(new Query("q"), List.of(doc("a", 0.3), doc("b", 0.7)));
@@ -117,5 +132,58 @@ class RerankDocumentPostProcessorTest {
         assertEquals(List.of("b", "a"), result.stream().map(Document::getId).toList());
         assertEquals(1.0, meterRegistry.counter("rag.rerank.total").count());
         assertEquals(1.0, meterRegistry.counter("rag.rerank.fallback").count());
+    }
+
+    /** Phase 5 簇①：rerank HTTP 调用产观测——名称/标签钉死，失败记 error 且降级不扩散 */
+    @Test
+    void enabled_callProducesObservation_failureRecordedAndFallbackServes() {
+        List<Observation.Context> stopped = new ArrayList<>();
+        ObservationRegistry observationRegistry = ObservationRegistry.create();
+        observationRegistry.observationConfig()
+            .observationHandler((ObservationHandler<Observation.Context>) stopped::add);
+
+        RerankDocumentPostProcessor observed =
+            new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
+                registryProvider(observationRegistry),
+                "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
+
+        List<Document> result = observed.apply(new Query("q"), List.of(doc("a", 0.3), doc("b", 0.7)));
+
+        // 观测形态：kb.rerank 单次、低基数模型标签、失败携 error
+        assertEquals(1, stopped.size());
+        Observation.Context ctx = stopped.get(0);
+        assertEquals("kb.rerank", ctx.getName());
+        assertEquals("rerank qwen3-rerank", ctx.getContextualName());
+        assertTrue(ctx.getLowCardinalityKeyValues().stream()
+            .anyMatch(kv -> "rerank.model".equals(kv.getKey()) && "qwen3-rerank".equals(kv.getValue())));
+        assertNotNull(ctx.getError());
+        // 降级路径不受观测影响：融合分截断兜底仍生效
+        assertEquals(List.of("b", "a"), result.stream().map(Document::getId).toList());
+    }
+
+    /** Phase 5 簇①：父观测在场时 kb.rerank 挂其下（寻父 = registry 当前观测，合树前提） */
+    @Test
+    void enabled_parentObservationPresent_childNestsUnderParent() {
+        List<Observation.Context> stopped = new ArrayList<>();
+        ObservationRegistry observationRegistry = ObservationRegistry.create();
+        observationRegistry.observationConfig()
+            .observationHandler((ObservationHandler<Observation.Context>) stopped::add);
+
+        RerankDocumentPostProcessor observed =
+            new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
+                registryProvider(observationRegistry),
+                "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
+
+        Observation parent = Observation.createNotStarted("retrieval_gate", observationRegistry).start();
+        try (Observation.Scope ignored = parent.openScope()) {
+            observed.apply(new Query("q"), List.of(doc("a", 0.3)));
+        } finally {
+            parent.stop();
+        }
+
+        // kb.rerank 的父观测 = retrieval_gate（合树契约：不产生独立根 span）
+        Observation.Context rerankCtx = stopped.stream()
+            .filter(c -> "kb.rerank".equals(c.getName())).findFirst().orElseThrow();
+        assertSame(parent, rerankCtx.getParentObservation());
     }
 }

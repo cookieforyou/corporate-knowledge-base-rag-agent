@@ -27,6 +27,14 @@
             <groupId>com.openai</groupId>
             <artifactId>openai-java-client-okhttp</artifactId>
             <version>4.41.0</version>
+            <exclusions>
+                <!-- B5 治理（Phase 5 簇①）：kotlin-stdlib-common 2.0 起并入 kotlin-stdlib
+                     且 2.x 无 jar，声明点排除；类由 kotlin-stdlib 2.4.10 承载 -->
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>kotlin-stdlib-common</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
