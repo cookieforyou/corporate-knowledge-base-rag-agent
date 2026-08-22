@@ -1,0 +1,107 @@
+[
+  {
+    "id": "sec-01",
+    "category": "FACTOID",
+    "question": "公司数据密级分为几级？各级的保存期限分别是多久？"
+  },
+  {
+    "id": "sec-02",
+    "category": "FACTOID",
+    "question": "口令的最小长度和强制更换周期是多少？"
+  },
+  {
+    "id": "sec-04",
+    "category": "REASONING",
+    "question": "客户索要双方的合同明细（属 L3 级数据），可以直接通过邮件发给他吗？"
+  },
+  {
+    "id": "fin-01",
+    "category": "FACTOID",
+    "question": "增值税专用发票的认证期限是多少天？"
+  },
+  {
+    "id": "fin-02",
+    "category": "FACTOID",
+    "question": "增值税一般纳税人销售货物适用什么税率？"
+  },
+  {
+    "id": "fin-04",
+    "category": "FACTOID",
+    "question": "红字增值税专用发票信息表由谁填开？"
+  },
+  {
+    "id": "k8s-01",
+    "category": "FACTOID",
+    "question": "生产集群的 etcd 副本数为什么固定为 3？"
+  },
+  {
+    "id": "k8s-02",
+    "category": "FACTOID",
+    "question": "滚动更新策略的 maxSurge 和 maxUnavailable 默认值是多少？"
+  },
+  {
+    "id": "k8s-04",
+    "category": "FACTOID",
+    "question": "etcd 快照备份的频率和保留策略是什么？"
+  },
+  {
+    "id": "prd-01",
+    "category": "FACTOID",
+    "question": "XG-9000Pro 的电池容量是多少？"
+  },
+  {
+    "id": "prd-02",
+    "category": "FACTOID",
+    "question": "XG-9000Pro 的防护等级是什么？"
+  },
+  {
+    "id": "prd-04",
+    "category": "FACTOID",
+    "question": "XS-200 网关的最低工作温度是多少？"
+  },
+  {
+    "id": "dm-01",
+    "category": "FACTOID",
+    "question": "文档解析（大模型版）的异步提交接口有哪两个，分别对应哪种文件上传方式？"
+  },
+  {
+    "id": "dm-02",
+    "category": "FACTOID",
+    "question": "订单状态 Status 具体有哪几种取值？"
+  },
+  {
+    "id": "dm-04",
+    "category": "FACTOID",
+    "question": "调用 GetDocParserResult 获取长文档解析结果时如何分页拉取 layouts？"
+  },
+  {
+    "id": "cross-01",
+    "category": "MULTI_DOC",
+    "question": "发票手册和 K8s 运维规范分别如何定义「异常」情形的处置流程？"
+  },
+  {
+    "id": "cross-02",
+    "category": "MULTI_DOC",
+    "question": "知识库里有哪些关于期限/周期的硬性规定？"
+  },
+  {
+    "id": "boundary-013",
+    "category": "NEGATIVE",
+    "question": "智能问答助手的对话记录会保存多长时间？"
+  },
+  {
+    "id": "boundary-015",
+    "category": "NEGATIVE",
+    "question": "智能助手回答问题时依据的资料范围是什么？"
+  },
+  {
+    "id": "negative-001",
+    "category": "NEGATIVE",
+    "question": "今天北京的天气怎么样？"
+  },
+  {
+    "id": "negative-004",
+    "category": "NEGATIVE",
+    "question": "Python 的 GIL 是什么？请详细解释"
+  }
+]

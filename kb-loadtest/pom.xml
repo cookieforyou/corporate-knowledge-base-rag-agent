@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.enterprise</groupId>
+        <artifactId>kb-rag-agent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>kb-loadtest</artifactId>
+    <name>kb-loadtest（Gatling 压测）</name>
+    <description>簇⑥ 4.12 Gatling 压测：四场景（检索真压/生成桩压/真实 LLM 小样本/SSE 稳定）
+        + OpenAI 兼容生成桩；gatling:test 显式触发，不在默认 mvn test 路径执行场景</description>
+
+    <dependencies>
+        <!-- Gatling Highcharts（含 Java DSL）：仅压测消费，test scope -->
+        <dependency>
+            <groupId>io.gatling.highcharts</groupId>
+            <artifactId>gatling-charts-highcharts</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- gatling:test 显式触发（mvn gatling:test -pl kb-loadtest），不绑定生命周期阶段；
+                 Simulation 类命名 *Simulation 不在 surefire 匹配范围，根聚合 mvn test
+                 对本模块只编译（含 StubChatServerTest 常规单测）不跑压测场景 -->
+            <plugin>
+                <groupId>io.gatling</groupId>
+                <artifactId>gatling-maven-plugin</artifactId>
+                <version>${gatling-maven-plugin.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

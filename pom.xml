@@ -28,11 +28,16 @@
         <module>kb-api</module>
         <module>kb-admin</module>
         <module>kb-eval</module>
+        <module>kb-loadtest</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>2.0.0</spring-ai.version>
+        <!-- Gatling 压测（簇⑥ 批5 v2.59）：独立模块 kb-loadtest，gatling:test 显式触发，
+             Simulation 类命名 *Simulation 避开 surefire，默认 mvn test 只编译不跑压测 -->
+        <gatling.version>3.15.1</gatling.version>
+        <gatling-maven-plugin.version>4.21.10</gatling-maven-plugin.version>
         <!-- 2.0.5：1.20.1 的 docker-java 3.4 钉死 API 1.32，Docker Engine 29（最低 API 1.40+）
              全部请求 400；2.x 线 docker-java 3.7 兼容新引擎（2026-08-13 D3 实证） -->
         <testcontainers.version>2.0.5</testcontainers.version>
@@ -103,6 +108,13 @@
                 <version>${testcontainers.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Gatling（仅 kb-loadtest 消费，test scope 声明在子模块） -->
+            <dependency>
+                <groupId>io.gatling.highcharts</groupId>
+                <artifactId>gatling-charts-highcharts</artifactId>
+                <version>${gatling.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
