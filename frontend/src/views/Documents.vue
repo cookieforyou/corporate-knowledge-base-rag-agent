@@ -328,7 +328,7 @@ const statusChip = (s: string) =>
 const isLiveDocStatus = (s: string) => s === 'UPLOADING' || s === 'PARSING' || s === 'REINDEXING'
 
 const typeShort = (t: string) =>
-  ({ PDF: 'PDF', DOCX: 'Doc', MD: 'MD', TXT: 'Txt', HTML: 'Htm' } as Record<string, string>)[t] || 'File'
+  ({ PDF: 'PDF', DOCX: 'DOC', PPTX: 'PPT', XLSX: 'XLS', MD: 'MD', TXT: 'TXT', HTML: 'HTM' } as Record<string, string>)[t] || 'File'
 
 const fmtSize = (n: number) => {
   if (!n) return '—'
