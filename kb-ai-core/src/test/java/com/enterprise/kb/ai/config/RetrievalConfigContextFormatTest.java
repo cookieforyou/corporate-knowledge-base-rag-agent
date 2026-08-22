@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.ai.prompt.PromptTemplates;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
@@ -50,7 +51,7 @@ class RetrievalConfigContextFormatTest {
 
     @Test
     void groundingPromptRendersWithNumberedContextAndQuery() {
-        PromptTemplate template = new PromptTemplate(RetrievalConfig.GROUNDING_PROMPT);
+        PromptTemplate template = new PromptTemplate(PromptTemplates.GROUNDING_PROMPT);
         String context = RetrievalConfig.formatNumberedContext(
             List.of(Document.builder().text("防腐层是隔离层").build()));
 
@@ -69,7 +70,7 @@ class RetrievalConfigContextFormatTest {
      */
     @Test
     void emptyContextPromptRendersWithNoArguments() {
-        String rendered = new PromptTemplate(RetrievalConfig.EMPTY_CONTEXT_PROMPT).render();
+        String rendered = new PromptTemplate(PromptTemplates.EMPTY_CONTEXT_PROMPT).render();
 
         assertThat(rendered)
             .doesNotContain("{")
@@ -83,7 +84,7 @@ class RetrievalConfigContextFormatTest {
      */
     @Test
     void historyRewritePromptRendersAndSatisfiesCompressionContract() {
-        String rendered = new PromptTemplate(RetrievalConfig.HISTORY_REWRITE_PROMPT)
+        String rendered = new PromptTemplate(PromptTemplates.HISTORY_REWRITE_PROMPT)
             .render(Map.of("history", "USER: 企业版的年费是多少？\nASSISTANT: 企业版年费十万元。",
                 "query", "那专业版呢"));
 
@@ -94,7 +95,7 @@ class RetrievalConfigContextFormatTest {
 
         assertThatCode(() -> CompressionQueryTransformer.builder()
             .chatClientBuilder(mock(ChatClient.Builder.class))
-            .promptTemplate(new PromptTemplate(RetrievalConfig.HISTORY_REWRITE_PROMPT))
+            .promptTemplate(new PromptTemplate(PromptTemplates.HISTORY_REWRITE_PROMPT))
             .build()).doesNotThrowAnyException();
     }
 
@@ -114,16 +115,16 @@ class RetrievalConfigContextFormatTest {
         String context = RetrievalConfig.formatNumberedContext(List.of(hit, clean));
 
         assertThat(context).isEqualTo(
-            "[ref-1]\n" + RetrievalConfig.INDIRECT_WARNING_NOTE + "\n含植入指令的资料\n\n"
+            "[ref-1]\n" + PromptTemplates.INDIRECT_WARNING_NOTE + "\n含植入指令的资料\n\n"
                 + "[ref-2]\n正常资料\n\n");
-        assertThat(context).containsOnlyOnce(RetrievalConfig.INDIRECT_WARNING_NOTE);
+        assertThat(context).containsOnlyOnce(PromptTemplates.INDIRECT_WARNING_NOTE);
     }
 
     @Test
     void groundingPromptWrapsContextInUntrustedMarker() {
         // S2（v2.18）：检索内容置于不可信数据区，指令性文字声明为不得执行——
         // 间接注入软防线；同时护栏模板占位符渲染回归
-        PromptTemplate template = new PromptTemplate(RetrievalConfig.GROUNDING_PROMPT);
+        PromptTemplate template = new PromptTemplate(PromptTemplates.GROUNDING_PROMPT);
 
         String rendered = template.render(Map.of("context", "资料正文", "query", "问题"));
 

@@ -11,6 +11,7 @@ import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
+import com.enterprise.kb.ai.prompt.PromptTemplates;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -107,8 +108,7 @@ public class RagAgentChatClientConfig {
         // 系统提示金丝雀（安全簇① T5）：运行时随机 token 内嵌系统提示，
         // 输出回显由 OutputGuardrailAdvisor 聚合后验拦截（rag.guardrail.output.canary）
         return ChatClient.builder(chatModel, observationRegistry, null, null)
-            .defaultSystem(promptCanary.embed("你是企业知识库 RAG Agent 助手。用户提出知识库相关问题时，"
-                + "基于检索到的参考资料回答；用户寒暄、致谢或询问对话本身时，友好自然地直接回应。"))
+            .defaultSystem(promptCanary.embed(PromptTemplates.RAG_SYSTEM_PROMPT))
             .defaultAdvisors(
                 auditTraceAdvisor,
                 tokenBudgetAdvisor,

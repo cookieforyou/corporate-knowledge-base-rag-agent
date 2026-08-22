@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.ai.prompt.PromptTemplates;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -55,19 +56,7 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
     /** 历史消息单条截断长度：分类只需语义轮廓，防长回答撑爆分类 prompt */
     private static final int HISTORY_MESSAGE_MAX_CHARS = 300;
 
-    private static final String CLASSIFIER_PROMPT = """
-        你是企业知识库问答系统的意图分类器。根据对话历史与当前用户消息判定意图，并产出检索用查询。
-
-        【意图定义】
-        - CHITCHAT：寒暄、致谢、道别、对对话本身的元问题（如「我刚才问了什么」「你刚才说了什么」）、\
-        以及与知识库内容明显无关且无需检索即可回应的请求
-        - KNOWLEDGE：需要查询企业知识库才能回答的事实性/政策性/流程性问题（含基于上文的追问）
-
-        【判定纪律】拿不准时一律 KNOWLEDGE——误走检索仅多付开销，误免检索损失回答质量。
-
-        【rewrittenQuery 规则】intent=KNOWLEDGE 时必填：当前消息含指代/省略（如「它的」「那第二点呢」）\
-        时给出结合历史消解后的完整查询；否则原样返回当前消息。intent=CHITCHAT 时置 null。
-        """;
+    // 意图分类器模板收编于 PromptTemplates#INTENT_CLASSIFIER_PROMPT（4.8 Git Ops 外部化，簇⑦ 批2）
 
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
@@ -141,7 +130,7 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
     }
 
     private IntentResult classify(List<Message> history, String currentQuery) {
-        StringBuilder sb = new StringBuilder(CLASSIFIER_PROMPT);
+        StringBuilder sb = new StringBuilder(PromptTemplates.INTENT_CLASSIFIER_PROMPT);
         if (!history.isEmpty()) {
             sb.append("\n【对话历史（最近 ").append(history.size()).append(" 条）】\n");
             for (Message message : history) {

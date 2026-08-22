@@ -1,6 +1,7 @@
 package com.enterprise.kb.etl.transformer;
 
 import com.enterprise.kb.domain.enums.ChunkType;
+import com.enterprise.kb.etl.prompt.PromptTemplates;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -77,17 +78,8 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
     /** 低于此长度的 chunk 视为噪声，不值得一次 LLM 调用 */
     private static final int MIN_ENRICH_CHARS = 20;
 
-    private static final String CONTEXT_PROMPT = """
-        <document>
-        %s
-        </document>
-
-        请用 50-100 字说明下面这个片段在文档中的位置与作用（涉及什么主题、与上下文的关系），
-        只输出说明文本：
-        <chunk>
-        %s
-        </chunk>
-        """;
+    // 语境增强模板收编于 com.enterprise.kb.etl.prompt.PromptTemplates#CONTEXT_ENRICHMENT_PROMPT
+    //（4.8 Git Ops 外部化，簇⑦ 批2；%s 双槽契约 = 概要, 片段）
 
     private final ChatModel chatModel;
     private final int chunkMaxChars;
@@ -213,7 +205,8 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
     }
 
     private String generateContext(String excerpt, String chunkText) {
-        String promptText = CONTEXT_PROMPT.formatted(excerpt, truncate(chunkText, chunkMaxChars));
+        String promptText = PromptTemplates.CONTEXT_ENRICHMENT_PROMPT
+            .formatted(excerpt, truncate(chunkText, chunkMaxChars));
         ChatResponse response = chatModel.call(new Prompt(promptText));
         if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
             return null;

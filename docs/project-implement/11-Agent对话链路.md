@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-18 · v2.47（安全簇⑤：§11.5.1 链序表双链增 SemanticInjection(320) L2 语义判定；前版 v2.37 Phase 4 簇⑤ 4.10 MCP Server 产品化，§11.8 新增）
+> [📑 返回目录](./README.md) · 最后更新：2026-08-22 · v2.61（Phase 4 簇⑦ 批2：4.8 Prompt Git Ops 专类收编——对话链 9 模板归 `com.enterprise.kb.ai.prompt.PromptTemplates` 单一事实源；前版 v2.47 安全簇⑤ §11.5.1 链序表增 SemanticInjection(320) L2 语义判定）
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
@@ -22,6 +22,8 @@
 >
 > **v2.17 历史会话列表与恢复（2026-08-09，3.15 清单缺口补齐）**：新增 §11.7——归档时写 kb_message.citations（预留列启用，SSE TRACE 同形载荷，[ref-N] 对齐契约天然保持）；会话三端点（列表/消息/删除，tenant+user 双过滤 fail-closed，附录 C `/api/v1/agent/*` 锚点落地为扁平路径）；过期会话续聊记忆回填（chat 入口前置，PG 重建窗口 + SETNX 单发守卫 + fail-open）；前端对话页内可收起会话栏，历史消息复用现有渲染/溯源/反馈链路。
 > **v2.17.1（2026-08-09，E2E 修复）**：删除带反馈会话外键违例——kb_feedback.message_id 无级联，删除会话须同事务先清反馈（§11.7.2 DELETE 行）。
+>
+> **v2.61（2026-08-22，Phase 4 簇⑦ 批2——4.8 Prompt Git Ops 专类收编）**：对话链全部 Prompt 模板收编至单一事实源 `com.enterprise.kb.ai.prompt.PromptTemplates`（kb-ai-core，9 条：GROUNDING_PROMPT / INDIRECT_WARNING_NOTE / EMPTY_CONTEXT_PROMPT / HISTORY_REWRITE_PROMPT / INTENT_CLASSIFIER_PROMPT / INJECTION_JUDGE_PROMPT / RAG_SYSTEM_PROMPT / EVAL_SYSTEM_PROMPT / TOOL_SYSTEM_PROMPT）——原散落 6 处常量（RetrievalConfig ×3 + QueryRoutingAdvisor + SemanticInjectionAdvisor 分类器 + ChatConfig/Rag/Tool 三处 defaultSystem）全部改引用；解析链语境增强模板收编于 `com.enterprise.kb.etl.prompt.PromptTemplates`（kb-etl 不依赖 kb-ai-core 的架构约束，用户定案每模块一专类）；kb-eval Judge Prompt 既有 `JudgePrompts` 专类形态零改动。**Git Ops 纪律**：模板增删改一律经专类，`git log` 即版本史，消费方禁内联（PromptTemplatesTest / RetrievalConfigContextFormatTest 契约钉死）。外部化配置率 100% 达成（第 18 章验收，18.2 注记同步）。
 
 ---
 

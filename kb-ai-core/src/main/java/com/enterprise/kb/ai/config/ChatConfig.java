@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.config;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
+import com.enterprise.kb.ai.prompt.PromptTemplates;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
@@ -29,7 +30,7 @@ public class ChatConfig {
                                  RetrievalTraceAdvisor retrievalTraceAdvisor,
                                  RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
         return ChatClient.builder(chatModel)
-            .defaultSystem("你是企业知识库 RAG Agent 助手。")
+            .defaultSystem(PromptTemplates.EVAL_SYSTEM_PROMPT)
             .defaultAdvisors(retrievalTraceAdvisor, retrievalAugmentationAdvisor)
             .build();
     }
@@ -44,7 +45,7 @@ public class ChatConfig {
     public ChatClient evalGuardrailChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
                                               InputSanitizeAdvisor inputSanitizeAdvisor) {
         return ChatClient.builder(chatModel)
-            .defaultSystem("你是企业知识库 RAG Agent 助手。")
+            .defaultSystem(PromptTemplates.EVAL_SYSTEM_PROMPT)
             .defaultAdvisors(inputSanitizeAdvisor)
             .build();
     }
@@ -62,7 +63,7 @@ public class ChatConfig {
                                                 InputSanitizeAdvisor inputSanitizeAdvisor,
                                                 SemanticInjectionAdvisor semanticInjectionAdvisor) {
         return ChatClient.builder(chatModel)
-            .defaultSystem("你是企业知识库 RAG Agent 助手。")
+            .defaultSystem(PromptTemplates.EVAL_SYSTEM_PROMPT)
             .defaultAdvisors(inputSanitizeAdvisor, semanticInjectionAdvisor)
             .build();
     }
