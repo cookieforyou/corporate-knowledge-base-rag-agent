@@ -22,8 +22,8 @@
 | 4.10 | ★ MCP Server 宿主（5.11 提前）：`@McpTool` 三件套 + Casdoor JWT OAuth + scope 治理 + 审计/护栏链复用 | kb-api | 5-7d | 标准 MCP Client 真实调用 + 跨租户隔离 0 泄露 | ✅ 2026-08-16 簇⑤（E2E 通过）。spring-ai-starter-mcp-server-webmvc（Streamable HTTP /mcp，注解扫描注册）+ McpKnowledgeTools 三件套落 kb-ai-agent（search 检索链直调 / get_document 租户守卫+软删过滤+截断 / ask ragAgentChatClient 全链复用——护栏/配额/审计自动生效）+ McpIdentityGuard（JWT owner→tenantId fail-closed + rag.mcp.scope.required scope 治理）+ rag.mcp.* 三计数。E2E 三轮收敛：坑位㉚ protocol STREAMABLE 显式钉（连接修复）→ v2.38 审计会话 ID 36 字符钉死 + 注入词表中文补强。详见 2026-08-16 簇⑤ 状态块与 11 章 §11.8。**E2E 通过：三件套真实调用 + 跨租户隔离 + 注入拒答 + 计数自采全达成** |
 | 4.11 | Docker Compose 生产加固 + Flyway + 灾备最小集 + AppCDS | 部署 | 2.5d | 备份恢复演练 + 99.5% 兜底自检 | 🔄 2026-08-20 批1a Flyway 落地（v2.54：starter + flyway-database-postgresql 12.4.0；V1 基线 = schema.sql 十表幂等全量快照；baseline-on-migrate ECS 现网库零变更登记；同源双写纪律 + 双源一致性单测；kb-eval 主配置关 / IT 重开回归保险，7 章 §7.6）。批1b/2/3 见下方簇⑥节 |
 | 4.12 | Gatling 压测（检索真压 + 生成桩压 + 小样本真实 LLM + SSE 并发） | 测试 | 2d | 压测报告（新口径） | 🔄 2026-08-22 批5 机器侧完成（v2.59：kb-loadtest 模块 + 四场景 + 生成桩，方法论 15 §15.4 / 验收基线 18 §18.4）；ECS 执行与报告回填待用户（清单 LT1） |
-| 4.13 | 运维手册 + API 文档 + 用户使用手册 | 文档 | 2d | 完整文档交付 | ✅ 2026-08-22 簇⑦ 批3（用户定案落 `docs/delivery/` 新建）。三件套 + 目录导航：**运维手册**（部署拓扑/资产清单/环境变量族/首次部署·升级·CDS/备份恢复/监控告警 14 条速查/故障处置表/安全运维要点/99.5% 例行自检——事实源 17 章 §17.3-17.5 + 用户侧清单交叉引用）+ **API 文档**（通用约定：JWT 认证与 IDENTITY_INCOMPLETE 守卫/ApiResponse 包裹/全局错误码表 14 项/请求体限制；业务 8 组 18 端点 + 运维后台 4 组 17 端点全契约；SSE 帧协议三类命名帧；WS 进度实证形态 ?token= 握手；MCP 三工具集成要点；actuator 四项暴露面）+ **用户使用手册**（登录/五页面角色分层/溯源对话·审批卡片·反馈闭环/文档管理含 4.14 新格式/检索调试/Chunk 观测/运维中心五 Tab 工作流/FAQ）。素材采集实证：两路代理 + 源码直读交叉核验（WS 路径 /ws/etl/progress?token=&docId= 源码实证修正；Admin 五 Tab 与导航逐项核对） |
-| 4.14 | PPT/Excel 格式支持（白名单扩容 + Tika 解析 + E2E） | kb-api/kb-etl | 0.5d | 新格式上传入库 E2E | 🔄 2026-08-22 簇⑦ 批1 机器侧（v2.60：用户定案仅收 OOXML 新格式 +PPTX/XLSX 两类 MIME；extractFileType 映射 PPTX/XLSX；解析面零改动实证——SmartParsingRouter 仅 `.pdf` 分叉，非 PDF → NATIVE Tika，tika-parser-microsoft-module 3.3.1 + poi-ooxml 5.5.1 编译域核验在列；前端三处 accept 与格式提示同步（Documents 上传/替换 + Chat 附件）；DocumentServiceTest +11 白名单与映射单测（含旧格式 .ppt/.xls/.doc 拒绝面）；kb-api -am 110 绿 + 前端构建绿）。**E2E 待用户自测：pptx/xlsx 上传 → 解析入库 → 检索命中** |
+| 4.13 | 运维手册 + API 文档 + 用户使用手册 | 文档 | 2d | 完整文档交付 | ✅ 2026-08-22 簇⑦ 批3（用户定案落 `docs/delivery/` 新建）。三件套 + 目录导航：**运维手册**（部署拓扑/资产清单/环境变量族/首次部署·升级·CDS/备份恢复/监控告警 14 条速查/故障处置表/安全运维要点/99.5% 例行自检——事实源 17 章 §17.3-17.5 + 用户侧清单交叉引用）+ **API 文档**（通用约定：JWT 认证与 IDENTITY_INCOMPLETE 守卫/ApiResponse 包裹/全局错误码表 14 项/请求体限制；业务 8 组 18 端点 + 运维后台 4 组 17 端点全契约；SSE 帧协议三类命名帧；WS 进度实证形态 ?token= 握手；MCP 三工具集成要点；actuator 四项暴露面）+ **用户使用手册**（登录/五页面角色分层/溯源对话·审批卡片·反馈闭环/文档管理含 4.14 新格式/检索调试/Chunk 观测/运维中心五 Tab 工作流/FAQ）。素材采集实证：两路代理 + 源码直读交叉核验（WS 路径 /ws/etl/progress?token=&docId= 源码实证修正；Admin 五 Tab 与导航逐项核对）。**用户侧评审回传通过（2026-08-22）：无修订意见，4.13 验收达成 → Phase 4 全阶段收官** |
+| 4.14 | PPT/Excel 格式支持（白名单扩容 + Tika 解析 + E2E） | kb-api/kb-etl | 0.5d | 新格式上传入库 E2E | ✅ 2026-08-22 簇⑦ 批1（v2.60：用户定案仅收 OOXML 新格式 +PPTX/XLSX 两类 MIME；extractFileType 映射 PPTX/XLSX；解析面零改动实证——SmartParsingRouter 仅 `.pdf` 分叉，非 PDF → NATIVE Tika，tika-parser-microsoft-module 3.3.1 + poi-ooxml 5.5.1 编译域核验在列；前端三处 accept 与格式提示同步（Documents 上传/替换 + Chat 附件）；DocumentServiceTest +11 白名单与映射单测（含旧格式 .ppt/.xls/.doc 拒绝面）；kb-api -am 110 绿 + 前端构建绿）。**用户侧 E2E 回传通过（2026-08-22）：两格式上传入库 → 检索命中全链无异常，4.14 验收达成** |
 
 ### 交付物
 
@@ -66,14 +66,14 @@
 
 > 收口判据：4.11 验收（备份恢复演练 + 99.5% 兜底自检）+ 4.12 验收（压测报告新口径）+ 残余清偿或降级留档 + 文档回写（17 章整体重写 ECS 单体形态 / 13/15/18 章 / README / CLAUDE.md）。簇⑥收口即 Phase 4 全阶段收官，下一棒簇⑦文档与格式收尾（4.13/4.14）。
 
-### Phase 4 簇⑦：文档与格式收尾（2026-08-22 当日三批收官，收口即机器侧 Phase 4 收官）
+### Phase 4 簇⑦：文档与格式收尾（2026-08-22 当日三批机器侧收官；同日用户侧 Q1/Q2 回传通过 → Phase 4 全阶段收官）
 
 > 依据：第 8 章任务 4.13/4.14 + Phase 4 复审方案 §5.1 簇构成表行⑦（收尾小件批，3-4d，验证通道 = 文档评审 + 新格式 E2E）。用户三定案（开工前）：① 格式范围仅收 OOXML 新格式（.pptx/.xlsx，旧二进制不收）；② 4.8 采 PromptTemplates 专类收编（盘点扩大后每模块一专类——kb-etl 不依赖 kb-ai-core 架构约束）；③ 4.13 落 `docs/delivery/` 新建。
 
 | 批 | 构成 | 验收通道 | 完成情况 |
 |---|---|---|---|
-| 1 | 4.14 PPT/Excel：ALLOWED_TYPES +2 MIME + extractFileType 映射 + 前端三处 accept（Documents 上传/替换 + Chat 附件）+ 拒绝文案；解析面零改动实证（路由仅 `.pdf` 分叉，Tika microsoft-module 3.3.1 编译域在列） | 新格式上传入库检索命中（用户侧，清单 Q1） | ✅ 2026-08-22 机器侧（v2.60；+11 白名单/映射单测；实证口径 = ContentType 校验为唯一拦截面，accept 为浏览器提示面） |
+| 1 | 4.14 PPT/Excel：ALLOWED_TYPES +2 MIME + extractFileType 映射 + 前端三处 accept（Documents 上传/替换 + Chat 附件）+ 拒绝文案；解析面零改动实证（路由仅 `.pdf` 分叉，Tika microsoft-module 3.3.1 编译域在列） | 新格式上传入库检索命中（用户侧，清单 Q1） | ✅ 2026-08-22（v2.60；+11 白名单/映射单测；实证口径 = ContentType 校验为唯一拦截面，accept 为浏览器提示面）。**用户侧 E2E 回传通过：两格式入库 → 检索命中无异常** |
 | 2 | 4.8 Prompt Git Ops 专类收编：盘点实证 11 条（6 命名常量 + 4 defaultSystem 系统提示 + 1 警示注记；kb-eval JudgePrompts 既有专类零改动）→ 对话链 9 条归 `kb-ai-core/prompt/PromptTemplates` + 解析链 1 条归 `kb-etl/prompt/PromptTemplates`（每模块一专类）；消费方 6 文件改引用；契约测试 +8 | 外部化率 100%（第 18 章 §18.3 验收，达成注记已回写） | ✅ 2026-08-22（v2.61；纯结构搬移零漂移，模板文本逐字复现，渲染级回归由既有格式器测试承接） |
-| 3 | 4.13 文档三件套 → `docs/delivery/`：运维手册（部署/灾备/监控/故障处置/安全要点/例行自检，事实源 17 章 §17.3-17.5）+ API 文档（全端点契约 + 全局错误码表 + SSE/WS/MCP 协议，源码直读核验）+ 用户使用手册（五页面 + 运维中心五 Tab 工作流 + FAQ） | 文档评审（用户侧，清单 Q2——通过即 Phase 4 收官） | ✅ 2026-08-22（素材采集两路代理 + 源码直读交叉核验；WS 路径/五 Tab/导航等逐字核对） |
+| 3 | 4.13 文档三件套 → `docs/delivery/`：运维手册（部署/灾备/监控/故障处置/安全要点/例行自检，事实源 17 章 §17.3-17.5）+ API 文档（全端点契约 + 全局错误码表 + SSE/WS/MCP 协议，源码直读核验）+ 用户使用手册（五页面 + 运维中心五 Tab 工作流 + FAQ） | 文档评审（用户侧，清单 Q2——通过即 Phase 4 收官） | ✅ 2026-08-22（素材采集两路代理 + 源码直读交叉核验；WS 路径/五 Tab/导航等逐字核对）。**用户侧评审回传通过：无修订意见 → Phase 4 全阶段收官** |
 
-> 簇⑦收口判据：4.14 验收（新格式上传入库 E2E，Q1）+ 4.13 验收（完整文档交付评审，Q2）。机器侧三批全收官当日达成；用户侧回传后补记收官标记，**Phase 4 全阶段收官**，下一棒 Phase 5（07 卷）。
+> 簇⑦收口判据：4.14 验收（新格式上传入库 E2E，Q1）+ 4.13 验收（完整文档交付评审，Q2）。机器侧三批全收官当日达成；**用户侧 2026-08-22 回传：Q1 E2E 通过 + Q2 评审通过（无修订意见）——收口判据全达成，Phase 4 全阶段正式收官**。下一棒 Phase 5（07 卷）。
