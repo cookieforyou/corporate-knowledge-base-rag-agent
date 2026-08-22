@@ -85,7 +85,8 @@ cd frontend && npm install && npm run dev
 
 ## 文档
 
-- [全景实现报告 v2（按章拆分，设计唯一依据）](docs/project-implement/README.md)——v2 + v2.1-v2.29 修正
+- [全景实现报告 v2（按章拆分，设计唯一依据）](docs/project-implement/README.md)——v2 + v2.1-v2.61 修正
+- [交付文档三件套](docs/delivery/README.md)——运维手册 / API 文档 / 用户使用手册（簇⑦ 交付）
 - [进度追踪（按任务行定位）](docs/project-progress/项目阶段推进任务清单完成记录.md)
 - [Phase 1-3 复盘与优化方案](docs/project-optimization/)（六簇优化冲刺全收官）
 - [Phase 4 复审与规划方案（调研实证版）](docs/project-optimization/Phase%204%20复审与规划方案（调研实证版）.md)——七簇推进计划与定案记录
@@ -98,5 +99,5 @@ cd frontend && npm install && npm run dev
 | Phase 2 | 模块化混合检索（双路+RRF+重排）、来源溯源、解析路由升级（DocMind/OCR）、多轮记忆 | ✅ |
 | Phase 3 | 护栏配额、租户隔离、审计、反馈闭环、意图路由、双链路拆分（rag/tool）、评估门禁 | ✅（17 项） |
 | 优化冲刺 | 六簇：流式计账/熔断加固、检索调优 A/B、语境增强、Bad Case 治理、护栏加固、增量重入库 | ✅ |
-| Phase 4 | 七簇：观测地基 / 面板统计 / Chunk 运维与索引重建 / Bad Case 运营闭环 / MCP Server 产品化 / 生产加固压测 / 文档收尾 | 🚧 启动（簇① 进行中） |
+| Phase 4 | 七簇：观测地基 / 面板统计 / Chunk 运维与索引重建 / Bad Case 运营闭环 / MCP Server 产品化 / 生产加固压测 / 文档收尾 | 🔄 机器侧收官（簇①-⑦ 全完成；用户侧回传项见 `用户侧待执行项清单`） |
 | Phase 5 | 规划中（语义缓存、Multi-Agent、性能深度优化等，见路线图第八章） | ⏳ |
