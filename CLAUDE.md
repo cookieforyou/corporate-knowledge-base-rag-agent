@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：**Phase 4 全阶段正式收官（2026-08-22）**。此前完成：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥）。Phase 4 七簇：观测地基/面板统计/Chunk 运维/Bad Case 闭环/MCP/生产加固压测/文档收尾（三件套落 `docs/delivery/`）。**用户侧回传验收通过：Q1 新格式 E2E + Q2 文档评审（无修订意见）→ 收口判据全达成**。**Phase 5 复审定案（2026-08-22，08 章 v2.63，项目最后阶段）**：原 12 项裁决（销项 5.7/5.11、收窄 5.3/5.12、调整 5.1/5.9、归档 5.4、降级登记 5.5、保留 5.2/5.6/5.8/5.10）+ 新增三项（Context Cache/收尾清零簇/A2A 前瞻）+ 六簇推进（≈31 人日/6-7 周）；推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（簇⑥ F1-F3/M1/DR1/SG1/LT1 + 安全专项 G1/G2/E1/B5 + D1 含详步骤，不阻塞收官）。登记缓做项见 04/06 卷与清单（B5 另跟踪、探针校准转下冲刺、S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：**Phase 4 全阶段正式收官（2026-08-22）**。此前完成：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥）。Phase 4 七簇：观测地基/面板统计/Chunk 运维/Bad Case 闭环/MCP/生产加固压测/文档收尾（三件套落 `docs/delivery/`）。**用户侧回传验收通过：Q1 新格式 E2E + Q2 文档评审（无修订意见）→ 收口判据全达成**。**Phase 5 复审定案（2026-08-22，08 章 v2.63，项目最后阶段）**：原 12 项裁决（销项 5.7/5.11、收窄 5.3/5.12、调整 5.1/5.9、归档 5.4、降级登记 5.5、保留 5.2/5.6/5.8/5.10）+ 新增三项（Context Cache/收尾清零簇/A2A 前瞻）+ 六簇推进（≈31 人日/6-7 周）；推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（簇⑥ F1-F3/M1/DR1/SG1 + 安全专项 G1/G2/E1/B5（含残留 B5-3/B5-4）+ D1 含详步骤，不阻塞收官；LT1 已 2026-08-23 回传通过）。登记缓做项见 04/06 卷与清单（B5 另跟踪、探针校准转下冲刺、S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -59,7 +59,7 @@ kb-rag-agent/
 
 **MCP Server（簇⑤ 4.10）**：`spring-ai-starter-mcp-server-webmvc` 落 kb-api（Streamable HTTP `/mcp`，authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent（search/get_document 直调 / ask 全链复用；独立 `mcp-` 会话）；`McpIdentityGuard` 物化 RetrievalContext（owner 空白 `IDENTITY_INCOMPLETE`；scope 治理 MCP_SCOPE_DENIED）；容器无 ToolCallback Bean（HITL 不漏进 MCP）；独立限流桶 120/60s fail-open + 轻量审计；§11.8
 
-**平台层加固（安全簇②）**：CORS 白名单（allowCredentials 显式 false，与 WS 键独立）；上传 50/60MB + chat body 1MB，超限统一 413；CSP/frameOptions/HSTS 显式钉；actuator include 白名单钉死；dependency-check+CycloneDX（**NVD API key 强制**，CRITICAL 清零）；台账 12 §12.9 / 17 §17.3
+**平台层加固（安全簇②）**：CORS 白名单（allowCredentials 显式 false，与 WS 键独立）；上传 50/60MB + chat body 1MB，超限统一 413；CSP/frameOptions/HSTS 显式钉；actuator include 白名单钉死；dependency-check+CycloneDX（**NVD API key 强制**；CRITICAL 余 1 待上游修复线 GA + milvus 服务端 CVE 误判族级抑制）；台账 12 §12.9 / 17 §17.3
 
 **PII 识别器注册表（安全簇③）**：kb-commons `security/pii`——每类型独立识别器，七类（手机/身份证/邮箱/银行卡 Luhn/座机/车牌/IPv4）；**TextSanitizer.maskPii 退役**——单一实现源迁 Spring 单 Bean，对话链/ETL/审计/MCP/入口日志同实例；配置族 `rag.guardrail.pii.{type}.enabled` 缺省全开；NAME/ADDRESS 默认关；输出回显只计数不替换；kb-eval 干净集零命中门禁；§12.10
 
