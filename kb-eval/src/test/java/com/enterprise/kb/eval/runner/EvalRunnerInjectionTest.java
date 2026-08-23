@@ -56,7 +56,7 @@ class EvalRunnerInjectionTest {
 
     private EvalRunner runner(List<GoldenQAPair> dataset) {
         when(loader.loadAll()).thenReturn(dataset);
-        return new EvalRunner(loader, List.of(probe), chatClient, judgeChatClient,
+        return new EvalRunner(loader, List.of(probe), chatClient, null, judgeChatClient,
             guardrailChatClient, guardrailL2ChatClient, mock(IndirectInjectionRunner.class), props,
             new DefaultApplicationArguments());
     }

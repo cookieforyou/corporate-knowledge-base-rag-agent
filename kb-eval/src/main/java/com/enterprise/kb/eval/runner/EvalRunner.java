@@ -2,15 +2,19 @@ package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
+import com.enterprise.kb.ai.prompt.PromptTemplates;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.QACategory;
+import com.enterprise.kb.eval.metric.CitationMetrics;
 import com.enterprise.kb.eval.metric.JudgePrompts;
 import com.enterprise.kb.eval.metric.RetrievalMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -40,6 +44,7 @@ public class EvalRunner {
     private final GoldenDatasetLoader datasetLoader;
     private final RetrievalProbe retrievalProbe;
     private final ChatClient chatClient;        // 被测链路
+    private final ChatModel chatModel;          // 被测基座（Noise Robustness 评估侧生成，簇② 5.8）
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
     private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（簇⑤ B2 S6）
     private final ChatClient guardrailL2ChatClient; // INJECTION L1+L2 联合护栏链（安全簇⑤ E2）
@@ -50,6 +55,7 @@ public class EvalRunner {
     public EvalRunner(GoldenDatasetLoader datasetLoader,
                       List<RetrievalProbe> probes,
                       @Qualifier("chatClient") ChatClient chatClient,
+                      ChatModel chatModel,
                       @Qualifier("judgeChatClient") ChatClient judgeChatClient,
                       @Qualifier("evalGuardrailChatClient") ChatClient guardrailChatClient,
                       @Qualifier("evalGuardrailL2ChatClient") ChatClient guardrailL2ChatClient,
@@ -61,6 +67,7 @@ public class EvalRunner {
         //          vector/hybrid = 显式指定，用于 A/B 基线对比
         this.retrievalProbe = selectProbe(probes, props.getProbe());
         this.chatClient = chatClient;
+        this.chatModel = chatModel;
         this.judgeChatClient = judgeChatClient;
         this.guardrailChatClient = guardrailChatClient;
         this.guardrailL2ChatClient = guardrailL2ChatClient;
@@ -249,6 +256,10 @@ public class EvalRunner {
 
         warmupRetrieval();
 
+        // Noise Robustness 抽样映射（簇② 5.8）：正向用例按数据集顺序取前 N 条，
+        // 噪声问句 = 数据集内下一条用例的问题（循环取，确定性复跑可对照）
+        Map<String, String> noiseQueries = noiseQueryMap(dataset);
+
         // 并行执行（2026-08-03 提速）：单用例 = 检索 + 1 次生成 + 至多 2 次 Judge 的串联 LLM 调用，
         // 纯 IO 等待、用例间无共享状态（探针/ChatClient 均线程安全），并发后时延约 1/N。
         // Semaphore 限流 concurrency 个在飞用例（虚拟线程无上限，不限流会击穿 LLM API 速率限制）；
@@ -260,7 +271,7 @@ public class EvalRunner {
                 .map(pair -> executor.submit(() -> {
                     inflight.acquire();
                     try {
-                        return evaluateOne(pair);
+                        return evaluateOne(pair, noiseQueries.get(pair.id()));
                     } finally {
                         inflight.release();
                     }
@@ -299,7 +310,7 @@ public class EvalRunner {
         }
     }
 
-    private EvalResult evaluateOne(GoldenQAPair pair) {
+    private EvalResult evaluateOne(GoldenQAPair pair, String noiseQuery) {
         // 0. 注入攻击用例（簇⑤ B2 S6）：确定性判定，零 Judge 零检索——走 eval 专属
         //    护栏链（仅 InputSanitizeAdvisor，无配额/审计 Advisor，免 429 污染与审计噪声）；
         //    捕获 PROMPT_INJECTION → BLOCKED，正常返回 → NOT_BLOCKED（答案丢弃）
@@ -330,7 +341,8 @@ public class EvalRunner {
         // 负向用例无生成即无拒答判定，同样跳过）。语料标注核验/检索回归的秒级通道。
         if (props.isRetrievalOnly()) {
             return new EvalResult(pair, hits, null, recall, mrr, precision,
-                docRecall, docMrr, docPrecision, null, null, null, null, null, null, null);
+                docRecall, docMrr, docPrecision, null, null, null, null, null, null, null,
+                null, null, null, null, null);
         }
 
         // 3. 被测链路生成
@@ -341,7 +353,8 @@ public class EvalRunner {
             JudgePrompts.JudgeScore js = judge(String.format(
                 JudgePrompts.NEGATIVE_REJECTION, pair.question(), answer));
             return new EvalResult(pair, hits, answer, recall, mrr, precision,
-                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null, null);
+                docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null, null,
+                null, null, null, null, null);
         }
         String context = hits.stream()
             .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
@@ -350,9 +363,133 @@ public class EvalRunner {
             JudgePrompts.FAITHFULNESS, pair.question(), context, answer));
         JudgePrompts.JudgeScore relevancy = judge(String.format(
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
+
+        // 5. Phase 5 扩展指标（簇② 5.8）——观察带；总开关关时全 null（聚合自动跳过）
+        Double answerCorrectness = null;
+        String citationVerdict = null;
+        Double citationResolvableRate = null;
+        Double hallucinationRate = null;
+        String noiseVerdict = null;
+        if (props.getMetrics().isPhase5Enabled() && answer != null && !answer.isBlank()) {
+            // Answer Correctness：expectedAnswer 标注用例（当前语料零标注 → 全跳过）
+            if (pair.expectedAnswer() != null && !pair.expectedAnswer().isBlank()) {
+                JudgePrompts.JudgeScore ac = judge(String.format(
+                    JudgePrompts.ANSWER_CORRECTNESS, pair.question(), pair.expectedAnswer(), answer));
+                answerCorrectness = scoreOf(ac);
+            }
+            // Citation Attribution：①发出 ②可解析（确定性）③来源支撑（Judge）
+            var citation = judgeCitationAttribution(pair.question(), context, answer, hits.size());
+            citationVerdict = citation.verdict();
+            citationResolvableRate = citation.resolvableRate();
+            // Hallucination Rate：声明级核查（score 0-100 → 0-1 比率）
+            JudgePrompts.JudgeScore hr = judge(String.format(
+                JudgePrompts.HALLUCINATION_RATE, pair.question(), context, answer));
+            hallucinationRate = hr == null || hr.score() == null
+                ? null : Math.clamp(hr.score(), 0, 100) / 100.0;
+        }
+        // Noise Robustness：噪声抽样用例（正常生成成功且扩展开关开时）
+        if (noiseQuery != null && answer != null && !answer.isBlank()) {
+            noiseVerdict = judgeNoiseRobustness(pair.question(), hits, answer, noiseQuery);
+        }
+
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
             docRecall, docMrr, docPrecision,
-            scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null, null);
+            scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null, null,
+            answerCorrectness, citationVerdict, citationResolvableRate, hallucinationRate, noiseVerdict);
+    }
+
+    /**
+     * Citation Attribution 三步判定（簇② 5.8，16 章 §16.2）。
+     * ① 未发出引用 → NO_CITATION（免 Judge）；② 存在编号越界/失配 → NOT_SUPPORTED（确定性，
+     * 免 Judge）；③ 前两步通过才进 Judge 判来源支撑。省 Judge 调用 = 观察带成本控制。
+     */
+    private CitationOutcome judgeCitationAttribution(String question, String context, String answer, int contextSize) {
+        List<Integer> refs = CitationMetrics.extractRefs(answer);
+        if (refs.isEmpty()) {
+            return new CitationOutcome(CitationMetrics.VERDICT_NO_CITATION, null);
+        }
+        double resolvableRate = CitationMetrics.resolvableRate(refs, contextSize);
+        if (resolvableRate < 1.0) {
+            return new CitationOutcome(CitationMetrics.VERDICT_NOT_SUPPORTED, resolvableRate);
+        }
+        JudgePrompts.JudgeScore js = judge(String.format(
+            JudgePrompts.CITATION_ATTRIBUTION, question, context, answer));
+        String verdict = js != null && CitationMetrics.VERDICT_SUPPORTED.equalsIgnoreCase(js.verdict())
+            ? CitationMetrics.VERDICT_SUPPORTED : CitationMetrics.VERDICT_NOT_SUPPORTED;
+        return new CitationOutcome(verdict, resolvableRate);
+    }
+
+    /** 三步判定中间态（确定性阶段读数 + 最终 verdict） */
+    private record CitationOutcome(String verdict, Double resolvableRate) {}
+
+    /**
+     * Noise Robustness 对照（簇② 5.8，16 章 §16.2）：噪声问句检索一批无关证据，
+     * 与原证据编号续接混排（[ref-N] 契约与被测链路一致），经评估侧生成路径
+     * （同一基座 + 同一 GROUNDING_PROMPT，仅上下文不同）产出回答 B，
+     * Judge 判定 A/B 事实结论一致性。噪声证据不可用（检索空/全与原证据重叠）返回 null。
+     */
+    private String judgeNoiseRobustness(String question, List<RetrievalProbe.ProbeHit> baseHits,
+                                        String baseAnswer, String noiseQuery) {
+        List<RetrievalProbe.ProbeHit> noiseHits = retrievalProbe.probe(noiseQuery, props.getTopK());
+        List<RetrievalProbe.ProbeHit> base = baseHits == null ? List.of() : baseHits;
+        java.util.Set<String> baseIds = base.stream()
+            .map(RetrievalProbe.ProbeHit::chunkId).collect(Collectors.toSet());
+        List<RetrievalProbe.ProbeHit> disjoint = noiseHits.stream()
+            .filter(h -> !baseIds.contains(h.chunkId())).toList();
+        if (disjoint.isEmpty()) {
+            return null;
+        }
+        String noisyContext = numberedContext(base, disjoint);
+        String prompt = PromptTemplates.GROUNDING_PROMPT
+            .replace("{context}", noisyContext)
+            .replace("{query}", question);
+        String noisyAnswer = chatModel.call(new Prompt(prompt)).getResult().getOutput().getText();
+        if (noisyAnswer == null || noisyAnswer.isBlank()) {
+            return null;
+        }
+        JudgePrompts.JudgeScore js = judge(String.format(
+            JudgePrompts.NOISE_ROBUSTNESS, question, baseAnswer, noisyAnswer));
+        return js == null ? null : ("CONSISTENT".equalsIgnoreCase(js.verdict()) ? "CONSISTENT" : "DRIFTED");
+    }
+
+    /**
+     * 编号化证据渲染（与 {@code RetrievalConfig#formatNumberedContext} 同契约，10.6 / v2.15）：
+     * [ref-N] 编号行 + 正文；噪声证据接原证据续编号（K+1 起）。评估侧独立实现，
+     * 避免对 kb-ai-core 包私有方法的依赖。
+     */
+    static String numberedContext(List<RetrievalProbe.ProbeHit> base, List<RetrievalProbe.ProbeHit> noise) {
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        for (RetrievalProbe.ProbeHit h : base) {
+            sb.append("[ref-").append(++n).append("]\n").append(h.content()).append("\n\n");
+        }
+        for (RetrievalProbe.ProbeHit h : noise) {
+            sb.append("[ref-").append(++n).append("]\n").append(h.content()).append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Noise Robustness 抽样映射（簇② 5.8）：正向用例（非负向非注入）按数据集顺序
+     * 取前 noiseSampleSize 条，噪声问句 = 数据集内下一条用例问题（循环取）——
+     * 确定性：复跑抽到同批用例、同批噪声源，读数可纵向对照。
+     * 开关关 / 检索-only / 样本不足时返回空映射。
+     */
+    Map<String, String> noiseQueryMap(List<GoldenQAPair> dataset) {
+        Map<String, String> map = new LinkedHashMap<>();
+        int n = props.getMetrics().getNoiseSampleSize();
+        if (n <= 0 || props.isRetrievalOnly() || !props.getMetrics().isPhase5Enabled() || dataset.size() < 2) {
+            return map;
+        }
+        List<GoldenQAPair> positive = dataset.stream()
+            .filter(p -> !p.isNegative() && !p.isInjection()).toList();
+        for (int i = 0; i < Math.min(n, positive.size()); i++) {
+            GoldenQAPair target = positive.get(i);
+            int idx = dataset.indexOf(target);
+            GoldenQAPair noiseSource = dataset.get((idx + 1) % dataset.size());
+            map.put(target.id(), noiseSource.question());
+        }
+        return map;
     }
 
     /**
@@ -403,7 +540,8 @@ public class EvalRunner {
 
     private static EvalResult injectionResult(GoldenQAPair pair, String l1Verdict, String l2Verdict) {
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
-            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, l1Verdict, l2Verdict);
+            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, l1Verdict, l2Verdict,
+            null, null, null, null, null);
     }
 
     /** 异常链中提取 BusinessException（ChatClient 调用层可能包裹原因链） */
@@ -495,7 +633,41 @@ public class EvalRunner {
             injectionGate.size(),
             blockRate(injectionGate),
             blockRateByAttackType,
-            results);
+            results,
+            aggregatePhase5(results));
+    }
+
+    /**
+     * Phase 5 扩展指标聚合（簇② 5.8）：
+     * <ul>
+     *   <li>AC：expectedAnswer 标注且 Judge 产出（当前语料零标注 → 0 样本）；</li>
+     *   <li>CA：生成成功的正向用例为分母（含 NO_CITATION——grounding 契约要求引用，
+     *       未发出判负），SUPPORTED 为通过；</li>
+     *   <li>HR：声明级无依据占比均值；</li>
+     *   <li>NRob：噪声抽样且对照有效（CONSISTENT/DRIFTED 判定产出）为分母。</li>
+     * </ul>
+     */
+    static EvalReport.Phase5Metrics aggregatePhase5(List<EvalResult> results) {
+        List<EvalResult> ac = results.stream()
+            .filter(r -> r.answerCorrectness() != null).toList();
+        List<EvalResult> ca = results.stream()
+            .filter(r -> r.citationVerdict() != null).toList();
+        List<EvalResult> hr = results.stream()
+            .filter(r -> r.hallucinationRate() != null).toList();
+        List<EvalResult> noise = results.stream()
+            .filter(r -> r.noiseVerdict() != null).toList();
+        if (ac.isEmpty() && ca.isEmpty() && hr.isEmpty() && noise.isEmpty()) {
+            return EvalReport.Phase5Metrics.EMPTY;
+        }
+        long caSupported = ca.stream()
+            .filter(r -> CitationMetrics.VERDICT_SUPPORTED.equals(r.citationVerdict())).count();
+        long noiseConsistent = noise.stream()
+            .filter(r -> "CONSISTENT".equals(r.noiseVerdict())).count();
+        return new EvalReport.Phase5Metrics(
+            ac.size(), avg(ac, EvalResult::answerCorrectness),
+            ca.size(), ca.isEmpty() ? Double.NaN : (double) caSupported / ca.size(),
+            hr.size(), avg(hr, EvalResult::hallucinationRate),
+            noise.size(), noise.isEmpty() ? Double.NaN : (double) noiseConsistent / noise.size());
     }
 
     /** 拦截率 = BLOCKED / 样本数；空样本返回 NaN（门禁与报告按 NaN 跳过） */

@@ -40,10 +40,38 @@ public record EvalReport(
     int injectionGateEvaluated,        // 门禁子集（DIRECT + ENCODING_BYPASS）样本数
     double injectionGateBlockRate,     // 门禁子集拦截率（≥ injectionBlockRate 阈值）
     Map<AttackType, Double> injectionBlockRateByAttackType,
-    List<EvalResult> results
+    List<EvalResult> results,
+    Phase5Metrics phase5
 ) {
 
     private static final Logger log = LoggerFactory.getLogger(EvalReport.class);
+
+    /**
+     * Phase 5 扩展指标聚合（簇② 5.8，16 章 §16.2）——四新指标观察带读数。
+     * 均值类无样本为 NaN；比率类无样本为 NaN（报告渲染「无样本，跳过」）。
+     * **门禁纪律**：人类校准（5.8 批2，Cohen's κ ≥ 0.80）通过前只报告不门禁，
+     * 阈值已在 EvalProperties.Thresholds 预留（answerCorrectness / citationAttributionRate /
+     * hallucinationRate / noiseRobustness），校准定档后接入 assertThresholds。
+     */
+    public record Phase5Metrics(
+        int answerCorrectnessEvaluated,   // expectedAnswer 非空且 Judge 产出
+        double avgAnswerCorrectness,      // 1-5 均值
+        int citationEvaluated,            // 生成成功的正向用例（三步判定分母）
+        double citationPassRate,          // SUPPORTED 占比（NO_CITATION / NOT_SUPPORTED 均判负）
+        int hallucinationEvaluated,
+        double avgHallucinationRate,      // 0-1 均值（越低越好）
+        int noiseEvaluated,               // 噪声抽样且有效对照（生成成功、噪声证据可用）
+        double noiseConsistencyRate       // CONSISTENT 占比
+    ) {
+        /** 扩展指标全关（总开关关 / 检索-only）时的空聚合 */
+        public static final Phase5Metrics EMPTY =
+            new Phase5Metrics(0, Double.NaN, 0, Double.NaN, 0, Double.NaN, 0, Double.NaN);
+
+        public boolean isEmpty() {
+            return answerCorrectnessEvaluated + citationEvaluated
+                + hallucinationEvaluated + noiseEvaluated == 0;
+        }
+    }
 
     /**
      * 门禁判定：仅对「有样本且低于阈值」的指标报错；无样本指标跳过（建基线期策略）。
@@ -119,6 +147,9 @@ public record EvalReport(
             }
         }
 
+        // Phase 5 扩展指标（簇② 5.8）观察带纪律：人类校准（批2，Cohen's κ ≥ 0.80）
+        // 通过前只报告不门禁——阈值已在 Thresholds 预留，校准定档后于此接线
+
         if (!failures.isEmpty()) {
             throw new EvalFailedException("评估门禁未通过：\n" + failures);
         }
@@ -170,6 +201,23 @@ public record EvalReport(
             fmt(avgRecall), fmt(avgMrr), fmt(avgContextPrecision),
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
+
+        // 生成侧扩展（簇② 5.8，16 章 §16.2）：四新指标观察带读数——人类校准
+        // （κ≥0.80）通过前只报告不门禁；小节整体仅在有任一读数时渲染
+        if (phase5 != null && !phase5.isEmpty()) {
+            sb.append(System.lineSeparator()).append("── 生成侧扩展（Phase 5 观察带）──");
+            sb.append(String.format("%nAnswer Correctness:    %s",
+                fmtN(phase5.avgAnswerCorrectness(), phase5.answerCorrectnessEvaluated())));
+            sb.append(String.format("%nCitation Support Rate: %s   （三步：发出→可解析→来源支撑）",
+                fmtN(phase5.citationPassRate(), phase5.citationEvaluated())));
+            sb.append(String.format("%nHallucination Rate:    %s",
+                Double.isNaN(phase5.avgHallucinationRate())
+                    ? "无样本，跳过"
+                    : String.format("%.1f%%（n=%d）", phase5.avgHallucinationRate() * 100,
+                        phase5.hallucinationEvaluated())));
+            sb.append(String.format("%nNoise Consistency:     %s",
+                fmtN(phase5.noiseConsistencyRate(), phase5.noiseEvaluated())));
+        }
 
         // 负向用例判定分解（v2.43 四批）：Negative Rejection 是门禁指标却原来零逐例
         // 可观测——逐条列出未规范拒答（PARTIAL/NOT_REJECTED）用例的 ID + 判定，
@@ -268,5 +316,10 @@ public record EvalReport(
 
     private static String fmt(double v) {
         return Double.isNaN(v) ? "无样本，跳过" : String.format("%.3f", v);
+    }
+
+    /** 均值/比率渲染 + 样本数后缀；NaN → 「无样本，跳过」 */
+    private static String fmtN(double v, int n) {
+        return Double.isNaN(v) ? "无样本，跳过" : String.format("%.3f（n=%d）", v, n);
     }
 }

@@ -26,7 +26,8 @@ class EvalReportThresholdTest {
     private static EvalResult result(String id, QACategory category, double faithfulness) {
         GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
-            Double.NaN, Double.NaN, Double.NaN, faithfulness, 4.0, null, null, null, null, null);
+            Double.NaN, Double.NaN, Double.NaN, faithfulness, 4.0, null, null, null, null, null,
+            null, null, null, null, null);
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
@@ -35,7 +36,7 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             avgF, 4.0, Double.NaN,
-            0, Double.NaN, 0, Double.NaN, Map.of(), results);
+            0, Double.NaN, 0, Double.NaN, Map.of(), results, EvalReport.Phase5Metrics.EMPTY);
     }
 
     private static EvalResult injection(String id, AttackType attackType, boolean blocked) {
@@ -50,7 +51,8 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null,
             blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED,
             l2Blocked == null ? null
-                : l2Blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED);
+                : l2Blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED,
+            null, null, null, null, null);
     }
 
     private static EvalReport injectionReport(List<EvalResult> results) {
@@ -75,7 +77,7 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN,
-            injection.size(), allRate, gate.size(), gateRate, byType, results);
+            injection.size(), allRate, gate.size(), gateRate, byType, results, EvalReport.Phase5Metrics.EMPTY);
     }
 
     private static List<EvalResult> cases(QACategory cat, int count, double score) {
@@ -140,7 +142,7 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, 0.5,
-            0, Double.NaN, 0, Double.NaN, Map.of(), List.of());
+            0, Double.NaN, 0, Double.NaN, Map.of(), List.of(), EvalReport.Phase5Metrics.EMPTY);
         assertThatThrownBy(() -> report.assertThresholds(props))
             .isInstanceOf(EvalFailedException.class)
             .hasMessageContaining("Negative Rejection");
@@ -180,7 +182,7 @@ class EvalReportThresholdTest {
             0.0, 0.0, 0.0,
             5, 0.9, 0.8, 0.7,
             4.5, 4.8, Double.NaN,
-            0, Double.NaN, 0, Double.NaN, Map.of(), List.of());
+            0, Double.NaN, 0, Double.NaN, Map.of(), List.of(), EvalReport.Phase5Metrics.EMPTY);
         assertThat(withDoc.summary())
             .contains("文档级兜底")
             .contains("Doc Recall")
@@ -190,7 +192,7 @@ class EvalReportThresholdTest {
             0.9, 0.8, 0.7,
             0, Double.NaN, Double.NaN, Double.NaN,
             4.5, 4.8, Double.NaN,
-            0, Double.NaN, 0, Double.NaN, Map.of(), List.of());
+            0, Double.NaN, 0, Double.NaN, Map.of(), List.of(), EvalReport.Phase5Metrics.EMPTY);
         assertThat(noDoc.summary()).doesNotContain("文档级兜底");
     }
 
@@ -265,7 +267,7 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN,
             5, 0.9, 0.8, 0.7,
             Double.NaN, Double.NaN, Double.NaN,
-            2, 0.5, 1, 1.0, byType, results);
+            2, 0.5, 1, 1.0, byType, results, EvalReport.Phase5Metrics.EMPTY);
         assertThat(report.summary())
             .contains("[观察]" + System.lineSeparator() + "── 检索侧（文档级兜底");
 
@@ -274,7 +276,7 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN,
             5, 0.9, 0.8, 0.7,
             Double.NaN, Double.NaN, 1.0,
-            0, Double.NaN, 0, Double.NaN, Map.of(), List.of());
+            0, Double.NaN, 0, Double.NaN, Map.of(), List.of(), EvalReport.Phase5Metrics.EMPTY);
         assertThat(noInjection.summary())
             .contains("Negative Rejection:  1.00" + System.lineSeparator() + "── 检索侧（文档级兜底");
     }
@@ -284,7 +286,8 @@ class EvalReportThresholdTest {
             null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, null, null, verdict,
-            "REJECTED".equals(verdict) ? 5.0 : "PARTIAL".equals(verdict) ? 3.0 : 1.0, null, null, null);
+            "REJECTED".equals(verdict) ? 5.0 : "PARTIAL".equals(verdict) ? 3.0 : 1.0, null, null, null,
+            null, null, null, null, null);
     }
 
     private static EvalReport reportOfNegatives(List<EvalResult> results) {
@@ -294,7 +297,7 @@ class EvalReportThresholdTest {
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, rejected / (double) results.size(),
-            0, Double.NaN, 0, Double.NaN, Map.of(), results);
+            0, Double.NaN, 0, Double.NaN, Map.of(), results, EvalReport.Phase5Metrics.EMPTY);
     }
 
     /**
