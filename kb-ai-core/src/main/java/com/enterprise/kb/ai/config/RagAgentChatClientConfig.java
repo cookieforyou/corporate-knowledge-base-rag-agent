@@ -9,20 +9,26 @@ import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
+import com.enterprise.kb.ai.cache.CacheCheckAdvisor;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.memory.FaultTolerantChatMemory;
 import com.enterprise.kb.ai.prompt.PromptTemplates;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * RAG 对话链装配（设计文档 11.2/11.5，任务 3.19 双链路拆分）
@@ -76,12 +82,16 @@ public class RagAgentChatClientConfig {
      * 纯 RAG 生产对话链（护栏 + 多轮记忆 + 意图路由 + 溯源 + 混合检索 RAG，**零工具**）。
      * CONVERSATION_ID 与 RetrievalContext 由 Controller 经 advisor 参数传入。
      *
-     * <p>链序（11.2 v2.13 表去掉工具位）：Audit(10) → TokenBudget(30) → RateLimit(100) →
+     * <p>链序（11.2 v2.13 表去掉工具位，簇③ 批2 增 CacheCheck 460）：Audit(10) → TokenBudget(30) → RateLimit(100) →
      * OutputGuardrail(110) → InputSanitize(300) → SemanticInjection(320，安全簇⑤ E1) →
-     * Memory(400) → QueryRouting(440) → Trace(450) → RetrievalGate(500，内包
-     * RetrievalAugmentationAdvisor)。order 由各 Advisor getOrder() 决定，列表顺序不敏感。
+     * Memory(400) → QueryRouting(440) → Trace(450) → **CacheCheck(460，簇③ 5.6 批2，
+     * 条件挂载)** → RetrievalGate(500，内包 RetrievalAugmentationAdvisor)。
+     * order 由各 Advisor getOrder() 决定，列表顺序不敏感。
      * 审计居最外层：被拒/被限流请求同样落 kb_audit_log（11.6）。
      * L2 居记忆之前：二判拒绝内容不入多轮记忆仓储。
+     * 缓存居路由后门控前：闲聊先分流免误命中、命中旁路检索生成全套（11.9）。
+     * **{@code rag.cache.enabled=false}（缺省）时 CacheCheckAdvisor Bean 缺位，
+     * 经 {@link ObjectProvider} 容忍——链形态与批2 前完全一致（行为零变化纪律）**。
      *
      * <p>5.4 收窄版：QueryRoutingAdvisor 判定闲聊/对话元问题置 skipRetrieval，
      * RetrievalGateAdvisor 旁路整套检索管线携记忆直答；defaultSystem 双形态措辞
@@ -100,6 +110,7 @@ public class RagAgentChatClientConfig {
                                          QueryRoutingAdvisor queryRoutingAdvisor,
                                          RetrievalTraceAdvisor retrievalTraceAdvisor,
                                          RetrievalGateAdvisor retrievalGateAdvisor,
+                                         ObjectProvider<CacheCheckAdvisor> cacheCheckAdvisorProvider,
                                          PromptCanary promptCanary) {
         // 实证坑（Phase 4 簇① trace 碎片化定案）：ChatClient.builder(chatModel) 单参重载
         // 默认传 ObservationRegistry.NOOP（ChatClient 接口源码）——chat_client 与全部
@@ -107,19 +118,23 @@ public class RagAgentChatClientConfig {
         // 必须显式传入应用 ObservationRegistry Bean
         // 系统提示金丝雀（安全簇① T5）：运行时随机 token 内嵌系统提示，
         // 输出回显由 OutputGuardrailAdvisor 聚合后验拦截（rag.guardrail.output.canary）
+        List<Advisor> advisors = new ArrayList<>(List.of(
+            auditTraceAdvisor,
+            tokenBudgetAdvisor,
+            rateLimitAdvisor,
+            outputGuardrailAdvisor,
+            inputSanitizeAdvisor,
+            semanticInjectionAdvisor,
+            MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
+            queryRoutingAdvisor,
+            retrievalTraceAdvisor,
+            retrievalGateAdvisor));
+        // 语义缓存（簇③ 5.6 批2）：缺省关时 Bean 缺位——经 ObjectProvider 容忍，
+        // 链形态与批2 前完全一致（行为零变化纪律）
+        cacheCheckAdvisorProvider.ifAvailable(advisors::add);
         return ChatClient.builder(chatModel, observationRegistry, null, null)
             .defaultSystem(promptCanary.embed(PromptTemplates.RAG_SYSTEM_PROMPT))
-            .defaultAdvisors(
-                auditTraceAdvisor,
-                tokenBudgetAdvisor,
-                rateLimitAdvisor,
-                outputGuardrailAdvisor,
-                inputSanitizeAdvisor,
-                semanticInjectionAdvisor,
-                MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
-                queryRoutingAdvisor,
-                retrievalTraceAdvisor,
-                retrievalGateAdvisor)
+            .defaultAdvisors(advisors.toArray(new Advisor[0]))
             .build();
     }
 }

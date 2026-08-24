@@ -2,7 +2,19 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-24 · v2.71（Phase 5 簇③ 批1：语义缓存核心——§11.9 新增，Redis 8 内建搜索引擎 KNN 存取与失效，批2 CacheCheckAdvisor 接线待续）
+> [📑 返回目录](./README.md) · 最后更新：2026-08-25 · v2.72（Phase 5 簇③ 批2：CacheCheckAdvisor order 460 链序接线——命中重放 + 写入门槛 + 事件失效四处接线 + 观测 span，§11.9 扩充）
+>
+> **v2.72（2026-08-25，Phase 5 簇③ 5.6 批2：链序接线与事件失效）**：§11.9 扩充批2
+> 落地 + §11.5.1 链序表 460 插入——`CacheCheckAdvisor`（kb-ai-core/cache，直实现
+> CallAdvisor+StreamAdvisor，同 RetrievalGateAdvisor 门控形态）挂 rag 链
+> 路由(440)/溯源(450)之后、门控(500)之前：命中短路重放（缓存回答单帧下发 + 溯源载荷
+> 回填 RetrievalContext——Controller TRACE/审计/归档同形消费，[ref-N] 锚定不破）/
+> 未命中流末聚合异步写入（写入门槛：rag 链结构性 + 单轮 + 非闲聊 + 流正常完成 +
+> final 证据非空；嵌入向量查找-写入单次复用）；`kb.cache.semantic` 观测 span；
+> 事件失效四处接线（ETL COMPLETED 终态帧覆盖 reparse/replace/重建/首次入库 +
+> Chunk 编辑/软删/恢复）经 `rag:cache:invalidate` pub/sub 频道（重建经
+> ReindexGateway 委派 reparse 同路径，不重复接线）；`@ConditionalOnProperty` 条件
+> 装配 + 消费方 `ObjectProvider` 容忍（关闭态链形态零变化）；全反应器 817 单测绿（+25）。
 >
 > **v2.71（2026-08-24，Phase 5 簇③ 5.6 批1：语义缓存核心）**：新增 §11.9——
 > 查询级语义缓存 `SemanticCacheService`（kb-ai-core/cache）：Redis 8 内建查询引擎
@@ -567,11 +579,12 @@ kb-eval 只依赖 kb-ai-core 不受影响。
 
 | Bean | 模块 | Advisor 链（order） | tools | system 导向 |
 |---|---|---|---|---|
-| `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→**QueryRouting(440)**→Trace(450)→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
+| `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→**QueryRouting(440)**→Trace(450)→**CacheCheck(460，条件挂载)**→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
 | `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
 
 > v2.13 链序变更：440 插入 QueryRoutingAdvisor（意图分类），500 位由 RetrievalGateAdvisor 承接（组合式包裹原 RetrievalAugmentationAdvisor，skipRetrieval 时旁路整套 RAG 管线，见 §11.4 v2.13 注）。
 > v2.47 链序变更（安全簇⑤）：320 插入 SemanticInjectionAdvisor（L2 语义判定，12 章 §12.11）——L1 词表快筛之后、记忆之前，REGEX 可疑且干词未命中请求经备用模型二判，拒绝内容不入多轮记忆仓储。
+> v2.72 链序变更（簇③ 批2）：460 插入 CacheCheckAdvisor（语义缓存，§11.9）——路由后门控前：闲聊先分流免误命中、记忆已并便单轮判定，命中旁路 Gate(500)/改写/双路检索/RRF/重排/生成全套重放缓存回答与溯源；`rag.cache.enabled=false`（缺省）时 Bean 缺位经 ObjectProvider 容忍，链形态与变更前完全一致。
 
 **共享基座（均留 kb-ai-core）**：smartRoutingChatModel（主备容灾两链同享）、
 agentChatMemory（同 sessionId 跨链历史互通——历史进 prompt 不进检索 query）、
@@ -805,8 +818,10 @@ public class McpKnowledgeTools {
 
 ## 11.9 语义缓存（v2.71 新增，Phase 5 簇③ 5.6）
 
-> **批1 落地范围（2026-08-24）**：核心存取与失效（`SemanticCacheService`）+ 指标 +
-> 配置族；`CacheCheckAdvisor` 链序接线、写入侧质量守卫与事件驱动失效见批2（本节随批扩充）。
+> **落地范围**：批1（2026-08-24）核心存取与失效（`SemanticCacheService`）+ 指标 +
+> 配置族；批2（2026-08-25）`CacheCheckAdvisor` 链序接线、写入侧质量守卫、事件驱动
+> 失效四处接线与观测 span（见本节「批2」段）。批3 收口：N1 供应商侧 Context Cache
+> 定案 + 用户侧 E2E 验收。
 
 **形态**：查询级语义缓存——相似问句命中后短路「检索 + 重排 + 生成」全链，重放缓存
 回答与溯源（命中语义即「证据与生成已固化」）。载体 = Redis 8 内建查询引擎
@@ -845,3 +860,47 @@ warn；运行期任意异常 → fail-open 直通计 miss——缓存是优化�
 
 **批1 质量**：全反应器 795 单测绿（+18：命中判定/边界/确定性键/失效/探测降级/
 FLOAT32 小端契约）。
+
+**批2：链序接线（2026-08-25）**——`CacheCheckAdvisor`（order 460）挂 rag 链
+路由(440)/溯源(450)之后、门控(500)之前，直实现 `CallAdvisor + StreamAdvisor`
+（BaseAdvisor 模板无法表达「短路内层链」语义，同 RetrievalGateAdvisor 门控形态）。
+槽位裁决：① 路由先行——CHITCHAT 置 `skipRetrieval` 的免检索直答不查缓存（闲聊
+不入缓存，结构性免除误命中）；② 记忆(400)已并历史——单轮判定（prompt 内 USER
+消息数 == 1）可靠，多轮上下文依赖问句不入缓存；③ 命中旁路门控/改写/双路检索/
+RRF/重排/生成全套。
+
+**批2：命中重放**——缓存回答单帧下发（流式路径单 TOKEN 帧，前端追加协议兼容）；
+溯源载荷（`CacheTracePayload` 投影：source/chunks[text+score+metadata]/latencyMs，
+只存 TRACE/审计消费面字段，不序列化完整 Document）反序列化经
+`Document.builder()` 重建回填 `RetrievalContext.addTraceEntry`——Controller 流末
+TRACE 事件、审计落库、会话归档与正常检索同形消费（[ref-N] 锚定不破；解析失败降级
+空溯源，回答仍有效）。重放响应携带请求上下文（CONVERSATION_ID/RetrievalContext）
+透传外层记忆/输出护栏/溯源 advisor 的 after()——缓存回答同样过输出护栏聚合后验
+与审计三态（命中行落 SUCCESS + 缓存溯源，usage 空即零 token 计账，语义正确）。
+
+**批2：写入门槛（误命中防线）**——全部满足才写入：① rag 链（结构性：只挂
+ragAgentChatClient，tool/eval 链零触达；MCP ask 复用本链天然纳入）；② 单轮；
+③ 非闲聊路由；④ 流正常完成（SUCCESS 操作语义：拒绝/异常走错误路径不达写入）；
+⑤ final 重排证据非空（空证据拒答不缓存）。问句取 InputSanitize 掩码后形态
+（存取两侧同形，缓存键面 PII 卫生）。写入复用查找期嵌入向量——每请求单次嵌入
+调用零重复开销（未命中付嵌入双份：缓存查找 + 检索路内部，启用后延迟对照读批3
+E2E）。trace 载荷序列化失败即放弃写入（保守：不存无溯源条目）；实际落 Redis 经
+auditExecutor 虚拟线程异步（同款旁路写语义），不占响应路径延迟。
+
+**批2：事件失效接线（四处内容变更提交点）**——经
+`rag:cache:invalidate` pub/sub 频道（StringCodec + JSON 载荷
+`CacheInvalidationEvent{tenantId,documentId}`，命名与装配形态对齐护栏重载频道
+`rag:guardrail:reload` 先例；多实例形态全实例同步失效）：
+① kb-api `DocumentService` 重入库进度回调 **COMPLETED 终态帧**——覆盖
+reparse/replace/索引重建/**首次入库**（重建经 `ReindexGateway` 委派 reparse
+同路径，故重建侧**不重复接线**避免双发；首次入库无存量缓存，失效空转无害）；
+②③④ kb-admin `ChunkOpsService` 编辑/软删/恢复三门面（编辑=内容变更即失效；
+软删=证据面收缩、恢复=证据面扩张，保守失效）。发布器/订阅器与
+`SemanticCacheService` 同条件装配（缺省关零开销），发布失败仅 warn（TTL 兜底）。
+
+**批2：观测**——`kb.cache.semantic` span（对齐 `kb.rerank` 命名）包裹嵌入+查找，
+`cache.outcome` 低基数（hit/miss）+ `cache.tenant` 高基数；
+`ObservationRegistry` 经 `ObjectProvider` NOOP 降级（同重排观测形态）。
+
+**批2 质量**：全反应器 817 单测绿（+25：资格五闸/命中重放/溯源往返保真/写入门槛/
+流完成与错误分支/失效频道发布订阅生命周期 + 写路径接线断言）。

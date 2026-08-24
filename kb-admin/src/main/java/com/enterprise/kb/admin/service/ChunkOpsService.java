@@ -1,5 +1,6 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbChunk;
@@ -14,6 +15,7 @@ import com.enterprise.kb.etl.writer.EsIndexWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
@@ -58,6 +60,8 @@ public class ChunkOpsService {
     private final AiBusinessMetrics metrics;
     private final JsonMapper jsonMapper;
     private final Executor etlExecutor;
+    /** 语义缓存失效发布器（簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
+    private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
 
     public ChunkOpsService(KbChunkRepository chunkRepository,
                            KbDocumentRepository documentRepository,
@@ -67,7 +71,8 @@ public class ChunkOpsService {
                            SanitizingTransformer sanitizingTransformer,
                            AiBusinessMetrics metrics,
                            JsonMapper jsonMapper,
-                           @Qualifier("etlExecutor") Executor etlExecutor) {
+                           @Qualifier("etlExecutor") Executor etlExecutor,
+                           ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher) {
         this.chunkRepository = chunkRepository;
         this.documentRepository = documentRepository;
         this.chunkCleanupService = chunkCleanupService;
@@ -77,6 +82,7 @@ public class ChunkOpsService {
         this.metrics = metrics;
         this.jsonMapper = jsonMapper;
         this.etlExecutor = etlExecutor;
+        this.cacheInvalidationPublisher = cacheInvalidationPublisher;
     }
 
     /**
@@ -109,6 +115,8 @@ public class ChunkOpsService {
         metrics.recordChunkOps("edit");
         log.info("Chunk 编辑完成: chunkId={}, docId={}, injectionHit={}",
             chunkId, chunk.getDocId(), injectionHit);
+        // 语义缓存按文档失效（簇③ 5.6 批2）：内容已变更，引用该文档的缓存回答即失效
+        cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
 
         etlExecutor.execute(() -> reembedAndIndex(chunk, owned.doc()));
         return new ChunkOpsResult(chunk, true);
@@ -128,6 +136,8 @@ public class ChunkOpsService {
 
         KbChunk deleted = chunkCleanupService.softDelete(chunkId);
         metrics.recordChunkOps("soft_delete");
+        // 语义缓存按文档失效（簇③ 5.6 批2）：软删后证据面收缩，既有缓存回答保守失效
+        cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
         return new ChunkOpsResult(deleted != null ? deleted : chunk, true);
     }
 
@@ -149,6 +159,8 @@ public class ChunkOpsService {
         chunkRepository.save(chunk);
         metrics.recordChunkOps("restore");
         log.info("Chunk 恢复完成: chunkId={}, docId={}", chunkId, chunk.getDocId());
+        // 语义缓存按文档失效（簇③ 5.6 批2）：恢复后证据面扩张，既有缓存回答保守失效
+        cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
 
         etlExecutor.execute(() -> reembedAndIndex(chunk, owned.doc()));
         return new ChunkOpsResult(chunk, true);

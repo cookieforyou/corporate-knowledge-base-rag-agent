@@ -1,5 +1,6 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
@@ -31,6 +33,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -52,6 +55,7 @@ class ChunkOpsServiceTest {
     private VectorStore vectorStore;
     private EsIndexWriter esIndexWriter;
     private AiBusinessMetrics metrics;
+    private ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
     private ChunkOpsService service;
 
     @BeforeEach
@@ -62,10 +66,11 @@ class ChunkOpsServiceTest {
         vectorStore = mock(VectorStore.class);
         esIndexWriter = mock(EsIndexWriter.class);
         metrics = mock(AiBusinessMetrics.class);
+        cacheInvalidationPublisher = publisherProvider(null);
         // 真实消毒器（同源语义）：PII 开 + 注入扫描开（词表按需构造用例注入）
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter, new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, true),
-            metrics, new JsonMapper(), (Executor) Runnable::run);
+            metrics, new JsonMapper(), (Executor) Runnable::run, cacheInvalidationPublisher);
     }
 
     private KbChunk chunk(boolean deleted, String metadataJson) {
@@ -149,7 +154,7 @@ class ChunkOpsServiceTest {
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter,
             new SanitizingTransformer("", "测试注入占位词", PiiRecognizerRegistry.defaults(), true, true),
-            metrics, new JsonMapper(), (Executor) Runnable::run);
+            metrics, new JsonMapper(), (Executor) Runnable::run, cacheInvalidationPublisher);
         KbChunk chunk = chunk(false, "{\"heading_path\":\"A > B\"}");
         stubOwned(chunk, doc(TENANT, DocumentStatus.SUCCESS));
 
@@ -262,5 +267,48 @@ class ChunkOpsServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("CHUNK_NOT_DELETED");
         verify(chunkRepository, never()).save(any());
+    }
+
+    // ── 语义缓存失效接线（簇③ 5.6 批2）──
+
+    /** 三门面内容变更提交点均发布按文档失效事件（租户 + 文档 ID 契约） */
+    @Test
+    void editSoftDeleteRestorePublishCacheInvalidation() {
+        CacheInvalidationPublisher publisher = mock(CacheInvalidationPublisher.class);
+        service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
+            vectorStore, esIndexWriter, new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, true),
+            metrics, new JsonMapper(), (Executor) Runnable::run, publisherProvider(publisher));
+
+        // 编辑
+        KbChunk editable = chunk(false, "{}");
+        stubOwned(editable, doc(TENANT, DocumentStatus.SUCCESS));
+        service.edit(CHUNK_ID, TENANT, "新内容");
+        verify(publisher).publish(TENANT, DOC_ID);
+
+        // 软删（重新 stub：softDelete 经 C1 管道返回实体）
+        KbChunk deletable = chunk(false, "{}");
+        stubOwned(deletable, doc(TENANT, DocumentStatus.SUCCESS));
+        when(chunkCleanupService.softDelete(CHUNK_ID)).thenReturn(deletable);
+        service.softDelete(CHUNK_ID, TENANT);
+
+        // 恢复
+        KbChunk restorable = chunk(true, "{}");
+        stubOwned(restorable, doc(TENANT, DocumentStatus.SUCCESS));
+        service.restore(CHUNK_ID, TENANT);
+
+        verify(publisher, times(3)).publish(TENANT, DOC_ID);
+    }
+
+    /** 失效发布器 ObjectProvider 测试装配：publisher=null 即缺省关形态（ifAvailable 空转） */
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<CacheInvalidationPublisher> publisherProvider(CacheInvalidationPublisher publisher) {
+        ObjectProvider<CacheInvalidationPublisher> provider = mock(ObjectProvider.class);
+        if (publisher != null) {
+            org.mockito.Mockito.doAnswer(inv -> {
+                ((java.util.function.Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
+                return null;
+            }).when(provider).ifAvailable(any());
+        }
+        return provider;
     }
 }

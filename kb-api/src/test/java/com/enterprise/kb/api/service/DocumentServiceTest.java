@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.service;
 
+import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -22,6 +23,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -56,6 +58,7 @@ class DocumentServiceTest {
     private EtlProgressRedisWriter progressWriter;
     private ChunkCleanupService chunkCleanupService;
     private AiBusinessMetrics metrics;
+    private ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
 
     private DocumentService service;
 
@@ -68,8 +71,9 @@ class DocumentServiceTest {
         progressWriter = mock(EtlProgressRedisWriter.class);
         chunkCleanupService = mock(ChunkCleanupService.class);
         metrics = mock(AiBusinessMetrics.class);
+        cacheInvalidationPublisher = publisherProvider(null);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
-            etlService, progressWriter, chunkCleanupService, metrics);
+            etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher);
         // @Value 字段测试注入：MinIO args builder 在 build 时即校验 bucket 非空
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
         when(progressWriter.andThen(any())).thenReturn(p -> { });
@@ -229,6 +233,43 @@ class DocumentServiceTest {
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
         assertThat(outcome).isCompletedWithValue(true);
+    }
+
+    /**
+     * 语义缓存失效接线（簇③ 5.6 批2）：ETL COMPLETED 终态帧发布按文档失效事件
+     * （覆盖 reparse/replace/重建/首次入库同路径）；FAILED 帧不发布。
+     */
+    @Test
+    void reparseCompletedFramePublishesCacheInvalidation() {
+        CacheInvalidationPublisher publisher = mock(CacheInvalidationPublisher.class);
+        service = new DocumentService(minioClient, documentRepository, chunkRepository,
+            etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(publisher));
+        when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(doc(TENANT, DocumentStatus.SUCCESS)));
+        when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
+
+        service.reparse(DOC_ID, TENANT, null);
+        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        verify(etlService).process(eq(DOC_ID), captor.capture(), any());
+
+        captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
+        verify(publisher).publish(TENANT, DOC_ID);
+
+        captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
+        verifyNoMoreInteractions(publisher);
+    }
+
+    /** 失效发布器 ObjectProvider 测试装配：publisher=null 即缺省关形态（ifAvailable 空转） */
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<CacheInvalidationPublisher> publisherProvider(CacheInvalidationPublisher publisher) {
+        ObjectProvider<CacheInvalidationPublisher> provider = mock(ObjectProvider.class);
+        if (publisher != null) {
+            org.mockito.Mockito.doAnswer(inv -> {
+                ((java.util.function.Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
+                return null;
+            }).when(provider).ifAvailable(any());
+        }
+        return provider;
     }
 
     @Test

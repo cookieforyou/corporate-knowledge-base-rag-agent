@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.service;
 
+import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -17,6 +18,7 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,6 +45,8 @@ public class DocumentService {
     private final EtlProgressRedisWriter progressWriter;
     private final ChunkCleanupService chunkCleanupService;
     private final AiBusinessMetrics metrics;
+    /** 语义缓存失效发布器（簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
+    private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -194,7 +198,7 @@ public class DocumentService {
         metrics.recordReindexStarted();
         log.info("文档重解析已发起: docId={}, route={}", docId, route);
         CompletableFuture<Boolean> outcome = new CompletableFuture<>();
-        etlService.process(docId, reindexProgressCallback(doc.getName(), outcome), route);
+        etlService.process(docId, reindexProgressCallback(doc.getName(), doc.getTenantId(), outcome), route);
         return outcome;
     }
 
@@ -248,7 +252,7 @@ public class DocumentService {
         metrics.recordReindexStarted();
         log.info("文档替换重入库已发起: docId={}, name={}", docId, file.getOriginalFilename());
         // replace 端点不消费终态 future（回调层仍需汇聚以统一指标计数路径）
-        etlService.process(docId, reindexProgressCallback(doc.getName(), new CompletableFuture<>()), route);
+        etlService.process(docId, reindexProgressCallback(doc.getName(), doc.getTenantId(), new CompletableFuture<>()), route);
     }
 
     /**
@@ -271,15 +275,21 @@ public class DocumentService {
     }
 
     /**
-     * 重入库进度回调：Redis 双通道 + 终态指标计数 + 终态 future 汇聚（簇③ 4.5）。
+     * 重入库进度回调：Redis 双通道 + 终态指标计数 + 终态 future 汇聚（簇③ 4.5）
+     * + 语义缓存按文档失效广播（簇③ 5.6 批2）。
      * 异步 ETL 管线的成败观测点在进度回调层（COMPLETED/FAILED 终态帧）。
+     *
+     * <p><b>失效覆盖面</b>：COMPLETED 终态帧是内容变更提交点——reparse / replace /
+     * 索引重建（经 ReindexGateway 委派 {@link #reparse} 同路径）全覆盖，
+     * 故重建侧不再单独接线（避免双发）；首次入库亦经此帧（新文档无存量缓存，空转无害）。
      */
     private Consumer<com.enterprise.kb.etl.pipeline.EtlProgress> reindexProgressCallback(
-            String docName, CompletableFuture<Boolean> outcome) {
+            String docName, String tenantId, CompletableFuture<Boolean> outcome) {
         return progressWriter.andThen(p -> {
             if (p.getStage() == EtlStage.COMPLETED) {
                 metrics.recordReindexOutcome(true);
                 outcome.complete(true);
+                cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
                 log.info("文档重入库完成: docId={}, name={}", p.getDocId(), docName);
             } else if (p.getStage() == EtlStage.FAILED) {
                 metrics.recordReindexOutcome(false);
