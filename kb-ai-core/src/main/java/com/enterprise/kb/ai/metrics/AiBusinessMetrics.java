@@ -79,14 +79,20 @@ import java.util.Map;
  *       试探失败重开）/ 熔断窗口结束后主模型试探 / 备用模型接管请求，接线点
  *       SmartRoutingChatModel 熔断态变更与路由分支；主模型可用率与切换时序的
  *       指标底座（kb-rag-supplier-sla 面板 + KbPrimaryModelDegraded 告警消费）</li>
+ *   <li>{@code rag.retrieval.cache.hit / cache.miss / cache.invalidated}
+ *       ——语义缓存计数族（Phase 5 簇③ 5.6，13.3 预留位启用）：KNN 查找达阈命中
+ *       / 未命中（含索引空与相似度不足）/ 按文档失效删除条数，接线点
+ *       SemanticCacheService；命中率 = hit/(hit+miss)，对照 08 章簇③验收
+ *       （>30% 真实流量）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
  * 租户级观测走 Redis 账本键与 kb_audit_log。唯一标签例外 {@code rag.guardrail.flagged}
  * （安全簇① T7）：side/family 均为有界中性枚举（任务分解定案的低基数标签形态）。
  *
- * <p>设计稿 13.3 其余指标暂不注册：{@code rag.retrieval.cache.hit}（语义缓存
- * 未实现，Phase 5.6）、{@code rag.llm.*}（模型层调用计数随 Phase 4 可观测增强）。
+ * <p>设计稿 13.3 其余指标暂不注册：{@code rag.llm.*}（模型层调用计数随
+ * Phase 4 可观测增强）。{@code rag.retrieval.cache.hit} 已于 Phase 5 簇③ 5.6
+ * 启用（语义缓存计数族，见上）。
  */
 @Component
 public class AiBusinessMetrics {
@@ -181,6 +187,12 @@ public class AiBusinessMetrics {
     private final Counter routingCircuitHalfOpened;
     /** 备用模型接管计数（Phase 4 簇⑥ 批4）：OPEN 直发 + 失败即切，双路径合计 */
     private final Counter routingFallbackInvoked;
+    /** 语义缓存命中计数（Phase 5 簇③ 5.6，13.3 预留位启用）：KNN top-1 相似度达阈 */
+    private final Counter cacheHit;
+    /** 语义缓存未命中计数（Phase 5 簇③ 5.6）：索引空 / 相似度不足 / 运行期降级均计 */
+    private final Counter cacheMiss;
+    /** 语义缓存按文档失效删除条数（Phase 5 簇③ 5.6）：知识库变更事件驱动 */
+    private final Counter cacheInvalidated;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -350,6 +362,12 @@ public class AiBusinessMetrics {
             .description("主模型 HALF_OPEN 试探次数——熔断窗口结束后首个请求试探（簇⑥ 批4 SLA）").register(registry);
         this.routingFallbackInvoked = Counter.builder("rag.routing.fallback.invoked")
             .description("备用模型接管请求次数——OPEN 直发 + 失败即切双路径（簇⑥ 批4 SLA）").register(registry);
+        this.cacheHit = Counter.builder("rag.retrieval.cache.hit")
+            .description("语义缓存命中次数——KNN top-1 相似度达阈（簇③ 5.6，13.3 预留位启用）").register(registry);
+        this.cacheMiss = Counter.builder("rag.retrieval.cache.miss")
+            .description("语义缓存未命中次数——索引空/相似度不足/运行期降级均计（簇③ 5.6）").register(registry);
+        this.cacheInvalidated = Counter.builder("rag.retrieval.cache.invalidated")
+            .description("语义缓存按文档失效删除条数——知识库变更事件驱动（簇③ 5.6）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -443,6 +461,16 @@ public class AiBusinessMetrics {
     /** 备用模型接管计数（簇⑥ 批4 SLA）：OPEN 直发与失败即切双路径各计一次 */
     public void recordFallbackInvoked() {
         routingFallbackInvoked.increment();
+    }
+
+    /** 语义缓存查找计数（簇③ 5.6）：hit = KNN top-1 相似度达阈；命中率 = hit/(hit+miss) */
+    public void recordCacheLookup(boolean hit) {
+        (hit ? cacheHit : cacheMiss).increment();
+    }
+
+    /** 语义缓存按文档失效计数（簇③ 5.6）：一次事件删除的条目条数 */
+    public void recordCacheInvalidated(int count) {
+        cacheInvalidated.increment(count);
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */

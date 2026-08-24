@@ -231,6 +231,16 @@ rag:
       demote:
         enabled: ${RAG_RETRIEVAL_INJECTION_HIT_DEMOTE_ENABLED:false}
         factor: ${RAG_RETRIEVAL_INJECTION_HIT_DEMOTE_FACTOR:0.5}
+  # ── 语义缓存（Phase 5 簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
+  # 命中短路「检索+重排+生成」全链重放缓存回答与溯源；缺省关（用户侧 E2E 验证后启用，
+  # 同 eval L2 / 间接注入缺省关族纪律）；验收线 = 命中率 >30% + 命中延迟 P95 降 >40%（对照 18 §18.4）
+  cache:
+    enabled: ${RAG_CACHE_ENABLED:false}
+    # 命中判定余弦相似度阈值（KNN 距离 ≤ 1 - 阈值判命中）；行业生产区间 0.90-0.95，
+    # 0.95 保守起步——命中率不足时经配置下调观察误命中，不做无评估证据的调参
+    similarity-threshold: ${RAG_CACHE_SIMILARITY_THRESHOLD:0.95}
+    ttl: ${RAG_CACHE_TTL:1h}                      # 条目 TTL 兜底（知识库变更另有事件驱动即时失效）
+    embedding-dim: ${RAG_CACHE_EMBEDDING_DIM:1024}  # 与主检索链路 EmbeddingModel 同源（1024 钉死）
   rerank:
     endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
     model: ${RERANK_MODEL:qwen3-rerank}

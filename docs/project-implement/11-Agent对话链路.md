@@ -2,7 +2,17 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-22 · v2.61（Phase 4 簇⑦ 批2：4.8 Prompt Git Ops 专类收编——对话链 9 模板归 `com.enterprise.kb.ai.prompt.PromptTemplates` 单一事实源；前版 v2.47 安全簇⑤ §11.5.1 链序表增 SemanticInjection(320) L2 语义判定）
+> [📑 返回目录](./README.md) · 最后更新：2026-08-24 · v2.71（Phase 5 簇③ 批1：语义缓存核心——§11.9 新增，Redis 8 内建搜索引擎 KNN 存取与失效，批2 CacheCheckAdvisor 接线待续）
+>
+> **v2.71（2026-08-24，Phase 5 簇③ 5.6 批1：语义缓存核心）**：新增 §11.9——
+> 查询级语义缓存 `SemanticCacheService`（kb-ai-core/cache）：Redis 8 内建查询引擎
+> （FT.* VECTOR HNSW/COSINE，GA 起合入开源核心）经项目既有 Redisson `RSearch`
+> 类型化 API 消费（复审定案否决 Spring AI redis 向量存储模块——底层 Jedis 与
+> Redisson 双客户端），零新增依赖；每租户一索引域隔离（跨租户命中结构性不可达）+
+> KNN top-1 余弦阈值命中判定 + 问句指纹确定性键幂等写入 + 按文档 TAG 反查失效 +
+> 启动期能力探测自关 + 全路径 fail-open（缓存是优化件不是防线）；
+> 13.3 预留位 `rag.retrieval.cache.hit` 启用（+miss/invalidated）；`rag.cache.*`
+> 配置族（缺省关，同族纪律）；批2 落 `CacheCheckAdvisor` 链序接线与事件失效。
 >
 > **v2 修订**：① 11.1 核心 Advisor 由手搓 `PrefetchRagAdvisor` 改为第十章的 `RetrievalAugmentationAdvisor` 组装 + 瘦 `RetrievalTraceAdvisor`；② 全部虚构 API 修正为 2.0.0 GA 真实 API（`ChatClientRequest.from()`、`ToolContext.requestApproval()`、`RedisChatMemory`、`ToolRegistry.merge()` 等，详见各节 v2 注）；③ MCP 传输 SSE → Streamable HTTP。
 >
@@ -792,3 +802,46 @@ public class McpKnowledgeTools {
     // ask：ragChatService.chatRag(question, "mcp-" + UUID, ctx) 全链复用
 }
 ```
+
+## 11.9 语义缓存（v2.71 新增，Phase 5 簇③ 5.6）
+
+> **批1 落地范围（2026-08-24）**：核心存取与失效（`SemanticCacheService`）+ 指标 +
+> 配置族；`CacheCheckAdvisor` 链序接线、写入侧质量守卫与事件驱动失效见批2（本节随批扩充）。
+
+**形态**：查询级语义缓存——相似问句命中后短路「检索 + 重排 + 生成」全链，重放缓存
+回答与溯源（命中语义即「证据与生成已固化」）。载体 = Redis 8 内建查询引擎
+（FT.* VECTOR，Redis 8 GA 起将原 RediSearch 合入开源核心，无需 redis-stack），
+经项目既有 Redisson 客户端 `RSearch` 类型化 API 消费——**零新增依赖**（复审定案
+否决 Spring AI `vector-store-redis` 官方模块：其底层 Jedis 与项目 Redisson 形成
+双客户端；Redisson 4.x 类型化 search API 契约已源码级核验）。
+
+**存储模型**：每租户一索引（`kb-cache-idx-{tenant}`）+ 键域 `kb:cache:{tenant}:{指纹}`
+——索引域物理隔离，跨租户命中结构性不可达（与检索侧租户过滤、双向量库条件装配同
+域隔离纪律）。条目 = HASH 文档：嵌入向量（HNSW / COSINE / FLOAT32 小端，维度与主
+检索链路 EmbeddingModel 同源 1024）+ 问句 / 回答 / 溯源载荷（TRACE 事件 JSON）/
+文档引用（TAG 逗号分隔，失效反查面）/ 写入时刻。条目键 = 问句 SHA-256 前 8 字节
+十六进制——同问句幂等覆盖。编解码经自持 `CacheDocCodec`（String→UTF-8 / byte[]
+透传；实证核验 `StringCodec` 对 byte[] 执行 toString、`ByteArrayCodec` 强转均不适用）。
+
+**命中语义**：KNN top-1 + 余弦相似度 ≥ `rag.cache.similarity-threshold`（KNN 返回
+余弦距离 = 1 − 相似度，距离 ≤ 1 − 阈值判命中）。阈值缺省 0.95 保守起步（行业生产
+区间 0.90-0.95 上沿，调研实证）——命中率不足时经配置下调观察误命中，不做无评估
+证据的调参（同 `rag.retrieval.*` 纪律）。
+
+**失效**：双通道——① TTL 兜底（`rag.cache.ttl` 缺省 1h）；② 事件驱动按文档失效
+（`invalidateByDocument`：TAG 反查引用该文档的条目全删，批2 接知识库写路径四处 +
+软删）。入库门槛（批2 写入侧守卫）：仅审计三态 SUCCESS + 证据非空回答可入缓存，
+与反馈导出管道（16.6.1）同款复用材料质量纪律。
+
+**容错纪律（同限流/配额族）**：启动期能力探测（`FT._LIST`）不可用 → 整体自关 +
+warn；运行期任意异常 → fail-open 直通计 miss——缓存是优化件不是防线，故障不得
+传导为对话链失败。**缺省关**：`rag.cache.enabled` 缺省 false（`@ConditionalOnProperty`
+整体条件装配，Bean 不注册时消费方经 `ObjectProvider` 容忍缺位），用户侧 E2E 验证后
+启用收真实流量——同 eval L2 / 间接注入缺省关族纪律；kb-eval 零影响。
+
+**指标（13.3 预留位启用）**：`rag.retrieval.cache.hit / miss / invalidated` 三计数
+（零标签纪律延续），命中率 = hit/(hit+miss)，对照 08 章簇③验收（>30% 真实流量
++ 命中延迟 P95 降 >40%，基线见 18 §18.4）。
+
+**批1 质量**：全反应器 795 单测绿（+18：命中判定/边界/确定性键/失效/探测降级/
+FLOAT32 小端契约）。
