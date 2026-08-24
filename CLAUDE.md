@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25+RRF）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：**Phase 4 全阶段正式收官（2026-08-22）**。此前完成：Phase 1-3、优化冲刺与安全加固专项（簇①-⑥）。Phase 4 七簇：观测地基/面板统计/Chunk 运维/Bad Case 闭环/MCP/生产加固压测/文档收尾（三件套落 `docs/delivery/`）。**用户侧回传验收通过：Q1 新格式 E2E + Q2 文档评审（无修订意见）→ 收口判据全达成**。**Phase 5 复审定案（2026-08-22，08 章 v2.63，项目最后阶段）**：原 12 项裁决（销项 5.7/5.11、收窄 5.3/5.12、调整 5.1/5.9、归档 5.4、降级登记 5.5、保留 5.2/5.6/5.8/5.10）+ 新增三项（Context Cache/收尾清零簇/A2A 前瞻）+ 六簇推进（≈31 人日/6-7 周）；推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（簇⑥ F1-F3/M1/DR1/SG1 + 安全专项 G1/G2/E1/B5（残留唯余 B5-4 待上游 Kotlin GA；B5-3 ECS Milvus 2.6.22 已回传销账）+ D1 含详步骤，不阻塞收官；LT1 已 2026-08-23 回传通过）。登记缓做项见 04/06 卷与清单（B5 另跟踪、探针校准转下冲刺、S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：**Phase 4 全阶段收官（2026-08-22，七簇，三件套落 `docs/delivery/`）**；此前完成：Phase 1-3、优化冲刺与安全加固专项。**Phase 5 复审定案（2026-08-22，08 章 v2.64，项目最后阶段）**：12 项逐条裁决 + 新增三项（Context Cache/收尾清零簇/A2A 前瞻）+ 六簇推进（≈31 人日/6-7 周）；推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②机器侧就绪（待批5 用户侧回传）、簇③语义缓存机器侧收口（批1-3 + N1 定案，待 E2E 回传）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`（F1-F3/M1/DR1/SG1/G1/G2/E1/B5/D1；LT1 已通过；B5 残留唯余 B5-4 待上游 GA）。登记缓做项见 04/06 卷与清单（B5 另跟踪/探针校准转下冲刺/S9 不排期）。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -49,9 +49,11 @@ kb-rag-agent/
 
 **业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）+ 双供应商 SLA 族（熔断/接管计数，供 supplier-sla 面板与 KbPrimaryModelDegraded 告警）；不带租户标签（防基数）
 
-**观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse；总开关默认关；内容捕获单源开关；trace 合树 = 双链显式装配 + Controller contextWrite 桥接 + 检索双执行器传播包裹；流式主生成 POST 合树已清偿（批4）；rerank 观测清偿（`kb.rerank` span 合树）
+**观测地基（簇①）**：Observation → otel bridge → OTLP Langfuse；总开关默认关；内容捕获单源开关；trace 合树 = 双链装配 + contextWrite 桥接 + 双执行器传播包裹；流式主生成 POST 合树已清偿；rerank 观测清偿
 
-**面板与统计（簇②，批2 生产化）**：Grafana 五面板（含 supplier-sla）+ 监控 compose 生产形态（四服务 restart/healthcheck/限额/日志轮转 + Grafana 口令 env 化 `:?` 守卫 + node_exporter）+ 告警 14 条自检矩阵（真触发 + promtool 合成单测）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）；无指标支撑面板不设
+**面板与统计（簇②，批2 生产化）**：Grafana 五面板（含 supplier-sla）+ 监控 compose 生产形态 + 告警 14 条自检矩阵（真触发 + promtool 合成单测）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）；无指标支撑面板不设
+
+**语义缓存（Phase 5 簇③）**：`CacheCheckAdvisor(460)` 挂 rag 链路由后门控前（`rag.cache.enabled` 缺省关，关闭态链形态零变化）：命中短路重放缓存回答+溯源载荷 / 未命中流末异步写入（五闸 = 单轮+非闲聊+流正常完成+证据非空+rag 链结构性）；Redis 8 内建搜索引擎经 Redisson RSearch 零新增依赖（租户索引域隔离 + KNN 余弦阈值 0.95 + 指纹键 + docIds TAG 失效反查）；失效频道 `rag:cache:invalidate` 接四处写路径（ETL 终态帧 + Chunk 三门面）；指标 `rag.retrieval.cache.hit/miss/invalidated`；N1 = DeepSeek 前缀缓存默认开零代码；§11.9/11.10
 
 **Chunk 运维与重建（簇③）**：kb-admin 首建，kb-api fat jar 聚合（禁反向依赖）；租户守卫 @AuthenticationPrincipal Jwt 直消费（不复用 JwtUtils 防成环）。Chunk CRUD：编辑 = 同源消毒 → PG → 异步重嵌入（**delete→add 两步**——Milvus add 非 upsert）+ ES 覆写；软删委派 C1；恢复经重嵌入；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
@@ -77,12 +79,12 @@ kb-rag-agent/
 - 前端对话窗：sessionId 多轮 + rag/tool 切换 + TOOL_CALL 审批卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空双路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化检测+PII 掩码（七类）+注入拦截（`PROMPT_INJECTION`）；`SemanticInjectionAdvisor`(320) **L2 语义判定**（REGEX 命中∧干词未命中/跨轮信号触发备用模型二判，fail-open 回落 L1）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**、PII 回显观察；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；**间接注入扫描（簇④ D1）**：rerank 前扫描，warn/exclude 双策略；§12.8
-- **词表工程（簇①）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV；外部 file: 源整文件覆盖内置基线）；REGEX 模式轨；带外导入 import_words.py/import_corpus.py（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记（`rag.guardrail.flagged` + 审计 `guardrail_flags` 列），新词默认 FLAG 零误伤方转 BLOCK；输出三分类话术+系统提示金丝雀；§12.7。**热重载（簇⑥ F1）**：Registry 单一词表双 volatile 快照原子替换（fail-keep 保旧）+ 双触发（pub/sub + file: mtime 轮询回落；classpath 不轮询）；五消费方 Observer 化；F2 活视图 + /drill 演练端点（无指标无审计，value 不回显）。**词表 DB 单轨**：`rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门；kb-eval 恒 file 锁版）；kb_guardrail_rule 唯一事实源（编码 + (side,type,fingerprint) 去重；Seeder 首启迁移文件源全集）；CRUD API 只收 valueB64（新建默认 FLAG）+ POST /reload；写后编码 YAML 存档导出；前端第五 Tab 写路径；Git Ops 带外保留；§12.7
+- **词表工程（簇①）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV；外部 file: 源整文件覆盖内置基线）；REGEX 模式轨；带外导入 import_words.py/import_corpus.py（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记（`rag.guardrail.flagged` + 审计 `guardrail_flags` 列），新词默认 FLAG 零误伤方转 BLOCK；输出三分类话术+系统提示金丝雀；§12.7。**热重载（簇⑥ F1）**：Registry 单一词表双 volatile 快照原子替换（fail-keep 保旧）+ 双触发（pub/sub + file: mtime 轮询回落；classpath 不轮询）；五消费方 Observer 化；F2 活视图 + /drill 演练端点（无指标无审计，value 不回显）。**词表 DB 单轨**：`rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门；kb-eval 恒 file 锁版）；kb_guardrail_rule 唯一事实源（编码 + 指纹去重 + Seeder 首启迁移）；CRUD API 只收 valueB64（新建默认 FLAG）+ POST /reload；写后编码 YAML 存档导出；前端第五 Tab 写路径；Git Ops 带外保留；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；历史会话续聊回填；kb-eval 零 Redis 依赖
 - 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain（hybrid 直调检索器、chain 走全链须配 `eval.chain-probe.tenant-id`）；Golden 237（干净 110 + 注入 127）；门禁三分区契约（16 章）——L1 防域（DIRECT+ENCODING_BYPASS）≥95% / L2 防域（JAILBREAK+MULTILINGUAL）≥90%（力判联合链默认关）/ 观察集（ENCODING_OPAQUE）只报告；干净集 BLOCK+FLAG 零命中门禁；**间接注入评估（D3）**：`indirect/` 语料打标自洽 + Judge 抑制率，默认关；**Phase 5 四新指标观察带**（簇② 5.8）：AC/引用支撑三步/幻觉率声明级/噪声抽样对照——`eval.metrics.*`，人类校准 κ≥0.80 前只报告不门禁（校准 = 双标注表 + κ 回读 + AC 草稿；A/B = 快照 + eval-diff，内容盲；导出 = JSONL SFT/DPO [kb-admin，审计过滤+PII 掩码]）
 
-**压测资产（kb-loadtest，簇⑥ 批5）**：Gatling 3.15.1 Java DSL（gatling:test 显式触发，*Simulation surefire 域外）；四场景 = A 检索真压 P95<500ms / B 生成桩压 50 并发 / C 真实 LLM 10 样本 TTFT·TPOT（计费敏感缺省关）/ D 20 并发 SSE 多轮会话；内置 StubChatServer（纯 JDK，OpenAI chunk 全契约）零计费压应用层；SSE 帧判别源码级核验定案；语料 = Golden 干净集按 ID 引用（注入集零接触）；执行步骤清单 LT1；方法论 15 §15.4 / 基线 18 §18.4
+**压测资产（kb-loadtest，簇⑥ 批5）**：Gatling 3.15.1 Java DSL（gatling:test 显式触发）；四场景 = A 检索真压 / B 生成桩压（内置纯 JDK StubChatServer 零计费）/ C 真实 LLM TTFT·TPOT（计费敏感缺省关）/ D SSE 多轮会话；语料 = Golden 干净集按 ID 引用（注入集零接触）；执行步骤清单 LT1；方法论 15 §15.4 / 基线 18 §18.4
 
 **解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika（PPTX/XLSX 亦走此路）/ 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落，显式失败上抛）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img + heading_path；**Contextual 语境增强默认开**；chunk 确定性 ID；向量化 10 条/批
 
