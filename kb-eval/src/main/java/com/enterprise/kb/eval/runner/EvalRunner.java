@@ -20,6 +20,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,6 +51,7 @@ public class EvalRunner {
     private final ChatClient guardrailL2ChatClient; // INJECTION L1+L2 联合护栏链（安全簇⑤ E2）
     private final IndirectInjectionRunner indirectInjectionRunner; // 间接注入评估（簇④ D3）
     private final EvalProperties props;
+    private final JsonMapper jsonMapper;   // 机读快照序列化（簇② 5.9 批3，Jackson 3 命名空间，坑位⑬）
     private final ApplicationArguments args;
 
     public EvalRunner(GoldenDatasetLoader datasetLoader,
@@ -61,6 +63,7 @@ public class EvalRunner {
                       @Qualifier("evalGuardrailL2ChatClient") ChatClient guardrailL2ChatClient,
                       IndirectInjectionRunner indirectInjectionRunner,
                       EvalProperties props,
+                      JsonMapper jsonMapper,
                       ApplicationArguments args) {
         this.datasetLoader = datasetLoader;
         // 探针选择：auto = order 最小者胜出（混合探针 order=0 自动替代单路基线 order=100）；
@@ -73,6 +76,7 @@ public class EvalRunner {
         this.guardrailL2ChatClient = guardrailL2ChatClient;
         this.indirectInjectionRunner = indirectInjectionRunner;
         this.props = props;
+        this.jsonMapper = jsonMapper;
         this.args = args;
     }
 
@@ -91,9 +95,11 @@ public class EvalRunner {
     public void runOnStartup() {
         boolean ci = props.getCi().isEnabled();
         // 工具模式不跑全量评估：标注辅助（簇④ A4）/ expectedAnswer 草稿与 κ 回读
-        // （簇② 批2）——避免工具性启动白烧一整轮模型调用
+        // （簇② 批2）/ A/B 差异报表（簇② 批3，纯快照消费零计费）——
+        // 避免工具性启动白烧一整轮模型调用
         if (!ci && (args.containsOption("eval.annotate-query") || args.containsOption("eval.annotate-all")
-                || args.containsOption("eval.draft-answers") || args.containsOption("eval.calibration-readback"))) {
+                || args.containsOption("eval.draft-answers") || args.containsOption("eval.calibration-readback")
+                || args.containsOption("eval.diff"))) {
             return;
         }
         // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」
@@ -121,25 +127,76 @@ public class EvalRunner {
     /**
      * 报告双通道发布：① stdout 直出（不依赖日志配置，CI 日志必可见）；
      * ② 落盘 target/eval-report{-label}.txt（本地可复查的历史产物；run-label 非空时
-     * 文件名带标签——簇④ E1 校准复跑与 A/B 快照各留独立文件，避免互覆）
+     * 文件名带标签——簇④ E1 校准复跑与 A/B 快照各留独立文件，避免互覆）。
+     *
+     * <p>簇② 5.9 批3：报告头加运行锚点（git hash + 提交时间 + 运行时刻），
+     * 并同步落盘机读快照 target/eval-results{-label}.json（A/B diff 数据面，
+     * {@code --eval.diff} 消费）。
      */
     private void publishReport(EvalReport report) {
+        GitAnchor anchor = GitAnchor.resolve();
         String summary = report.summary();
         if (props.isRetrievalOnly()) {
             summary = "【检索-only 模式】生成侧与 Judge 已跳过，仅检索侧指标有效"
                 + System.lineSeparator() + summary;
         }
-        System.out.println(summary);
-        log.info("\n{}", summary);
+        String header = renderAnchorHeader(anchor, props.getRunLabel());
+        System.out.println(header + summary);
+        log.info("\n{}", header + summary);
         try {
             String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
             String fileName = label.isEmpty() ? "eval-report.txt" : "eval-report-" + label + ".txt";
             java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
             java.nio.file.Files.createDirectories(out.getParent());
-            java.nio.file.Files.writeString(out, summary + System.lineSeparator());
+            java.nio.file.Files.writeString(out, header + summary + System.lineSeparator());
             log.info("评估报告已写入: {}", out.toAbsolutePath());
         } catch (Exception e) {
             log.warn("评估报告落盘失败（不影响门禁）: {}", e.getMessage());
+        }
+        writeSnapshot(report, anchor);
+    }
+
+    /**
+     * 运行锚点头（簇② 5.9 批3）：git 提交 + 工作区状态 + 运行时刻——
+     * A/B 双跑差异归因的代码形态回溯依据（Prompt Git Ops 4.8：prompt 版本即
+     * git 版本）。工作区脏时哈希不能完全代表运行代码，显式 ⚠。
+     */
+    static String renderAnchorHeader(GitAnchor anchor, String runLabel) {
+        String ls = System.lineSeparator();
+        StringBuilder sb = new StringBuilder();
+        sb.append("── 运行锚点 ──").append(ls);
+        sb.append("运行标签:  ")
+            .append(runLabel == null || runLabel.isBlank() ? "（无）" : runLabel).append(ls);
+        if (anchor.resolved()) {
+            sb.append("git 提交:  ").append(anchor.commitShort()).append("（").append(anchor.commit()).append("）")
+                .append(ls);
+            sb.append("提交时间:  ").append(anchor.commitTime()).append("；工作区: ")
+                .append(anchor.dirty() ? "脏 ⚠（含未提交改动，锚点不完全代表代码形态）" : "干净").append(ls);
+        } else {
+            sb.append("git 提交:  ").append(GitAnchor.UNKNOWN).append("（非 git 工作区或 git 不可用）").append(ls);
+        }
+        sb.append("运行时刻:  ").append(anchor.runAt()).append(ls);
+        return sb.toString();
+    }
+
+    /**
+     * 机读快照落盘（簇② 5.9 批3）：target/eval-results{-label}.json——
+     * 锚点 + 运行配置 + 聚合 + 逐用例读数（内容盲，见 {@link EvalSnapshot}）。
+     * 落盘失败不阻断评估（与报告落盘同容错等级）。
+     */
+    private void writeSnapshot(EvalReport report, GitAnchor anchor) {
+        try {
+            EvalSnapshot snapshot = EvalSnapshot.from(report, props, anchor);
+            String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
+            String fileName = label.isEmpty() ? "eval-results.json" : "eval-results-" + label + ".json";
+            java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
+            java.nio.file.Files.createDirectories(out.getParent());
+            java.nio.file.Files.writeString(out,
+                jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(snapshot)
+                    + System.lineSeparator());
+            log.info("评估机读快照已写入: {}（A/B 差异报表经 --eval.diff 消费）", out.toAbsolutePath());
+        } catch (Exception e) {
+            log.warn("评估机读快照落盘失败（不影响评估）: {}", e.getMessage());
         }
     }
 

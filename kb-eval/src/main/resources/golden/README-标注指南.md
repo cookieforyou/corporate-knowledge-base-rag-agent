@@ -89,6 +89,30 @@ mvn spring-boot:run -pl kb-eval \
 `eval.calibration.kappa-target`（缺省 0.80）判 PASS/FAIL——κ≥0.80 前观察带
 四指标只报告不门禁。
 
+## A/B 双跑差异报表（簇② 批3，Prompt 效果对比）
+
+Prompt Git Ops 形态：prompt 版本即 git 版本，双跑 = 两个 git 版本各跑一轮
+全量评估（每轮计费，注意窗口安排）：
+
+```bash
+# ① 基线版本全量评估（快照 eval-results-baseline.json 随报告落盘）
+EVAL_RUN_LABEL=baseline mvn spring-boot:run -pl kb-eval
+
+# ② 切换到候选版本（git checkout / prompt 改动）后复跑
+EVAL_RUN_LABEL=candidate mvn spring-boot:run -pl kb-eval
+
+# ③ 差异报表（零计费；标签解析为 target/eval-results-{label}.json）
+mvn spring-boot:run -pl kb-eval \
+  -Dspring-boot.run.arguments=--eval.diff=baseline,candidate
+```
+
+产出 `target/eval-diff-baseline-candidate.md`：双跑锚点（git 哈希 + 提交/运行
+时刻 + 工作区脏标）+ 运行配置一致性核验（单变量 A/B 假设，失配 ⚠）+ 聚合指标
+Δ（对照 `eval.thresholds.regression`=0.03 容忍带判 IMPROVED/REGRESSED/STABLE）
++ 分类分解 + 逐例判定翻转/数值异动/答案指纹变化 + 用例集漂移告警。**可比性
+纪律**：两轮除被验证变量外配置须一致（探针/Judge 口径/开关组合），工作区脏
+时锚点 ⚠ 提示结论需谨慎；报表为观察面，不入门禁。
+
 ## 数量与分布目标（16.1）
 
 - 总量 **50+** 条，其中负向用例 **≥ 20%**

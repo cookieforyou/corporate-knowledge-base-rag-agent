@@ -35,7 +35,8 @@ class EvalRunnerPhase5Test {
                 return 0;
             }
         };
-        return new EvalRunner(null, List.of(stub), null, null, null, null, null, null, props, null);
+        return new EvalRunner(null, List.of(stub), null, null, null, null, null, null, props,
+            tools.jackson.databind.json.JsonMapper.builder().build(), null);
     }
 
     private static GoldenQAPair pair(String id, QACategory category, String question) {
@@ -240,5 +241,35 @@ class EvalRunnerPhase5Test {
             .contains("答案B-t-01")              // NRob 人审需见答案 B
             .contains("Hallucination Rate = 25.0%")
             .contains("Citation Attribution = SUPPORTED");
+    }
+
+    // ── 运行锚点头（簇② 5.9 批3） ──
+
+    @Test
+    void anchorHeaderCarriesGitFormAndDirtyMarker() {
+        GitAnchor anchor = new GitAnchor("a".repeat(40), "a".repeat(10),
+            "2026-08-20T10:00:00+08:00", true, "2026-08-24T01:00:00Z");
+
+        String header = EvalRunner.renderAnchorHeader(anchor, "baseline");
+
+        assertThat(header)
+            .contains("运行标签:  baseline")
+            .contains("a".repeat(10))
+            .contains("2026-08-20T10:00:00+08:00")
+            .contains("脏 ⚠")                    // 工作区脏显式标记，锚点不完全代表代码形态
+            .contains("2026-08-24T01:00:00Z");
+    }
+
+    @Test
+    void anchorHeaderDegradesGracefullyOutsideGit() {
+        GitAnchor anchor = new GitAnchor(GitAnchor.UNKNOWN, GitAnchor.UNKNOWN, GitAnchor.UNKNOWN,
+            false, "2026-08-24T01:00:00Z");
+
+        String header = EvalRunner.renderAnchorHeader(anchor, null);
+
+        assertThat(header)
+            .contains("（无）")                   // 空标签渲染
+            .contains(GitAnchor.UNKNOWN)
+            .doesNotContain("脏 ⚠");
     }
 }

@@ -58,7 +58,7 @@ class EvalRunnerInjectionTest {
         when(loader.loadAll()).thenReturn(dataset);
         return new EvalRunner(loader, List.of(probe), chatClient, null, judgeChatClient,
             guardrailChatClient, guardrailL2ChatClient, mock(IndirectInjectionRunner.class), props,
-            new DefaultApplicationArguments());
+            null, new DefaultApplicationArguments());
     }
 
     private static GoldenQAPair injectionCase(String id, AttackType type) {
