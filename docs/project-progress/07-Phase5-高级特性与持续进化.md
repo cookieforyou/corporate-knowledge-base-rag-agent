@@ -17,7 +17,7 @@
 | 5.5 | 实现多知识库动态路由（不同领域独立 VectorStore） | kb-ai-core | 3d | 按领域自动选择知识库 | |
 | 5.6 | 实现 Semantic Cache（Redis RediSearch + 语义相似度） | kb-ai-core | 3d | 相似问题缓存命中率 > 30% | |
 | 5.7 | 扩充 Golden Dataset 至 200+ 问答对（基线已在 Phase 2.16 建立） | kb-eval | 3d | 测试集覆盖主要场景 | ✅ **销项（2026-08-23 登记，Phase 5 复审裁决）**：提前达成——现 237 条（干净 110 + 注入 127，三分区门禁全绿），超额完成（200+ 目标），复审方案 §二 裁决留痕 |
-| 5.8 | 扩充 LLM-as-Judge 评估管道（指标全集见第十六章） | kb-eval | 3d→4d（复审） | 全指标自动评分 + 人类校准 κ≥0.80（复审口径） | 🟡 **批1 完成（2026-08-24）**：四新指标扩管道落地观察带——AC（expectedAnswer 对照，语料零标注待标注批）/ CA 三步（发出→可解析确定性前置→来源支撑）/ HR 声明级 / NRob 抽样对照（缺省关）；阈值预留不门禁（校准纪律），16 章 v2.67；全反应器 471 单测绿（+15）。批2 = 人类校准通道（κ 计算 + 50 例双标注） |
+| 5.8 | 扩充 LLM-as-Judge 评估管道（指标全集见第十六章） | kb-eval | 3d→4d（复审） | 全指标自动评分 + 人类校准 κ≥0.80（复审口径） | 🟡 **批1+批2 完成（2026-08-24）**：批1 四新指标扩管道落地观察带——AC（expectedAnswer 对照）/ CA 三步（发出→可解析确定性前置→来源支撑）/ HR 声明级 / NRob 抽样对照（缺省关）；阈值预留不门禁（校准纪律），16 章 v2.67。批2 人类校准通道——五维校准表双通道（材料 MD + 打分 CSV 双标注）+ Cohen's κ 计算器（名义/二次加权）+ 回读器（`--eval.calibration-readback`，对照 `eval.calibration.kappa-target=0.80`）+ expectedAnswer 机器侧草稿生成器（`--eval.draft-answers`，PG 真值直查零循环，用户定案机器侧草稿 + 人工审定），16 章 v2.68；全模块 740 单测绿（批1+15 / 批2+28）。余批5 用户侧读数：50 例双标注 + κ 定档 + 草稿审定回写 |
 | 5.9 | 实现 A/B 测试框架（Prompt 效果对比） | kb-eval/kb-ai-core | 3d | 双版本效果量化对比 | |
 | 5.10 | 实现反馈闭环导出管道（JSONL SFT 格式） | kb-admin | 2d | 可用于模型微调的数据导出 | |
 | 5.11 | 实现 MCP Server 宿主（知识库对外暴露为 MCP 服务） | kb-api | 3d | 第三方 Agent 可调用知识库 | ✅ **销项（2026-08-23 登记，Phase 5 复审裁决）**：已在 Phase 4 4.10 提前交付（v2.60，§11.8 三件套 + 身份守卫 + 独立限流审计，标准 Client 兼容与跨租户隔离验证通过），复审方案 §二 裁决留痕 |
@@ -59,8 +59,8 @@
 | 项 | 内容 | 状态 |
 |---|------|------|
 | 批1 四指标扩管道 | `JudgePrompts` +4 套 G-Eval Prompt；`EvalRunner` 逐用例接线（AC 对照 expectedAnswer / CA 三步确定性前置省 Judge / HR 声明级 0-100→0-1 / NRob 抽样噪声对照——同一基座 + GROUNDING_PROMPT 编号续接混排）；`EvalReport` 嵌套 `Phase5Metrics` 聚合 +「生成侧扩展（Phase 5 观察带）」小节；开关 `eval.metrics.phase5-enabled`（缺省开）/ `noise-sample-size`（缺省 0）；阈值预留不门禁（校准纪律，单测钉死）；16 章 v2.67 | ✅ 2026-08-24（全反应器 471 单测绿，+15） |
-| AC 读数前置：expectedAnswer 标注 | 实证：Golden 语料 237 条零 `expectedAnswer`/`expectedKeywords` 标注——AC 代码就绪、读数待标注批（回灌通道已支持该字段；标注形态批2 定案，机器侧草稿 + 人工审定为候选形态） | ⏳ 批2 议题 |
-| 批2 人类校准通道 | judge-agreement-sheet 扩新指标维度 + 人工分回读 + Cohen's κ 计算（目标 ≥0.80）；50 例正交双标注交付用户侧 | 📋 待启动 |
+| AC 读数前置：expectedAnswer 标注 | 标注形态定案（2026-08-24 用户拍板）：**机器侧草稿 + 人工审定**——草稿生成器已交付（`--eval.draft-answers`：golden 标注 chunk PG 直查真值零循环起草，缺失回落探针标记重点审定；Judge 通道起草保跨厂商独立性）；人工审定回写 golden 语料后置入批5 复跑窗口 | 🟡 生成器就绪，审定回写并批5 |
+| 批2 人类校准通道 | 既有 E1 单维一致率通道扩为五维校准通道：打分材料 MD + 打分 CSV（human_a/human_b 正交双标注）；`CohensKappa` 名义 κ（CA NO_CITATION 归并判负 / HR 比率>0 二值化 / NRob）+ 二次加权 κ（F/AC 1-5）+ E1 邻差≤1 一致率口径延续；回读器 `--eval.calibration-readback` 逐维三对 κ（Judge×A/Judge×B/A×B）对照 `eval.calibration.kappa-target`（0.80）判 PASS/FAIL；50 例正交双标注 = 批5 复跑 `EVAL_JUDGE_AGREEMENT_SAMPLE=50` 产出；`EvalResult` +noiseAnswer（NRob 人审需见答案 B） | ✅ 2026-08-24（全模块 740 单测绿，+28；16 章 v2.68；golden 标注指南补两节） |
 | 批3 A/B 双跑报表 | 报告头锚点（git hash + 时间戳）+ `eval-diff(labelA, labelB)` 差异报表生成器 | 📋 待启动 |
 | 批4 反馈导出管道 | kb-admin `FeedbackExportService`：kb_feedback + trace_id 关联 → JSONL 双格式（SFT 单轮 + DPO 偏好对），只导出不绑定平台（百炼通道门槛：SFT≥100/DPO≥50 对） | 📋 待启动 |
-| 批5 用户侧合并复跑 | 全量基线（四新指标首读数）+ TABLE 观察项销账读数 + 清单 E1（L2 门禁）合并执行；校准标注 50 例 + 导出 E2E ≥200 例 | 📋 待批1-4交付 |
+| 批5 用户侧合并复跑 | 全量基线（四新指标首读数）+ TABLE 观察项销账读数 + 清单 E1（L2 门禁）合并执行，一次性开关组合 = `EVAL_JUDGE_AGREEMENT_SAMPLE=50`（校准表）+ `EVAL_METRICS_NOISE_SAMPLE_SIZE>0`（NRob 抽样）+ `EVAL_GUARDRAIL_L2_ENABLED=true`；并行窗口另跑 `--eval.draft-answers`（AC 草稿，审定回写后 AC 才有读数）；复跑后双标注回填 → κ 回读定档 + 导出 E2E ≥200 例 | 📋 待批3-4交付 |

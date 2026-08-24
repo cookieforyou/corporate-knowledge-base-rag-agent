@@ -20,7 +20,7 @@ class EvalRunnerSampleTest {
         GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.0, 4.0, null, null, null, null, null,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
     }
 
     /** 镜像真实 Golden 分布：FACTOID 39 / REASONING 17 / TABLE 15 / MULTI_DOC 9 = 80 */

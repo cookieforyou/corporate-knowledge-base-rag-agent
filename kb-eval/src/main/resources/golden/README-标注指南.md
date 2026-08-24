@@ -53,6 +53,42 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
    （步骤 1-3，带锚点）承接；退役样本寄存 `boundary-qa-bench.json.example`（.example
    不加载，转正向标注或语料演进后复用）。
 
+## expectedAnswer 草稿审定（簇② 批2，AC 指标前置标注）
+
+Answer Correctness 指标依赖 `expectedAnswer` 字段（理想回答）。标注形态定案
+**机器侧草稿 + 人工审定**（2026-08-24 用户定案）：
+
+```bash
+# 对全部未标注的正向用例起草理想回答（计费：每用例 1 次 Judge 模型调用，
+# 需 ECS 基础设施 + DASHSCOPE_API_KEY）
+mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.draft-answers
+```
+
+- 真值材料：优先用例 `expectedChunkIds` 对应的 `kb_chunk` 原文（直查存活
+  chunk，不依赖检索质量——零循环）；标注缺失/失效时回落探针 Top-8 候选，
+  审定表标记 `RETRIEVAL_FALLBACK` 重点复核
+- 产出：`target/expected-answer-drafts.json`（机读）+ `expected-answer-drafts.md`
+  （审定表，含采纳/修订/重写勾选位）
+- 审定纪律：人工是最终事实源——草稿正确原文采纳，有误直接修订，无可取处重写；
+  审定稿回写对应语料 JSON 的 `expectedAnswer` 字段（随语料变更正常提交）
+
+## 人类校准打分表（簇② 批2，κ≥0.80 定档通道）
+
+```bash
+# 全量评估时带出校准抽样表（judge-agreement-sample=50 → 50 例正交双标注）
+EVAL_JUDGE_AGREEMENT_SAMPLE=50 mvn spring-boot:run -pl kb-eval
+# 两位标注人独立回填 target/judge-agreement-sheet.csv 的 human_a / human_b 列后回读
+mvn spring-boot:run -pl kb-eval \
+  -Dspring-boot.run.arguments=--eval.calibration-readback=target/judge-agreement-sheet.csv
+```
+
+五维口径：faithfulness / answer_correctness 填 1-5 整数；citation_attribution
+填 SUPPORTED / NOT_SUPPORTED（回答无引用 → NOT_SUPPORTED）；hallucination
+填 YES / NO（≥1 条无依据声明即 YES）；noise_robustness 填 CONSISTENT / DRIFTED
+（对照材料中的答案 A / B）。报告逐维三对 κ（Judge×A / Judge×B / A×B）对照
+`eval.calibration.kappa-target`（缺省 0.80）判 PASS/FAIL——κ≥0.80 前观察带
+四指标只报告不门禁。
+
 ## 数量与分布目标（16.1）
 
 - 总量 **50+** 条，其中负向用例 **≥ 20%**

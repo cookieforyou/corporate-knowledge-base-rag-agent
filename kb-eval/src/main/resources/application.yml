@@ -33,7 +33,11 @@ eval:
   sample-size: 0                          # CI 快跑可设 10（每类抽样）
   probe: ${EVAL_PROBE:auto}               # auto | vector | hybrid | chain（A/B 基线对比）
   run-label: ${EVAL_RUN_LABEL:}           # 运行标签（簇④ E1）：报告落盘 eval-report-{label}.txt，复跑快照防互覆
-  judge-agreement-sample: ${EVAL_JUDGE_AGREEMENT_SAMPLE:0}  # 人工-Judge 一致率抽样条数（簇④ E1，0=关）
+  judge-agreement-sample: ${EVAL_JUDGE_AGREEMENT_SAMPLE:0}  # 人类校准抽样条数（簇② 批2 五维校准表；0=关，复审口径批5 复跑置 50）
+  # 人类校准回读（簇② 批2）：人工双标注（human_a/human_b）回填 CSV 后，
+  # --eval.calibration-readback=<csv> 回读逐维计算 Cohen's κ；κ≥目标 → 观察带接入门禁定档
+  calibration:
+    kappa-target: ${EVAL_CALIBRATION_KAPPA_TARGET:0.80}
   # chain 探针专属（簇① A1）：走完整 advisor 链度量改写/扩展/重排收益，每用例含一次生成调用；
   # 检索器对「有 ctx 无租户」fail-closed，须设语料租户（当前 tenant_001）；
   # 间接注入评估（簇④ D3）runner 同消费本键（租户同源）

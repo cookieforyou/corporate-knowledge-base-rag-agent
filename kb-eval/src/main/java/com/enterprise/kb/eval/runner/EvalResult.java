@@ -34,7 +34,9 @@ public record EvalResult(
     String citationVerdict,     // Citation Attribution 三步判定：SUPPORTED / NOT_SUPPORTED / NO_CITATION
     Double citationResolvableRate, // 第二步可解析率（未发出引用 → null）
     Double hallucinationRate,   // 无依据声明占比 0-1（Judge 声明级核查）
-    String noiseVerdict         // Noise Robustness：CONSISTENT / DRIFTED；仅噪声抽样用例，未抽中 → null
+    String noiseVerdict,        // Noise Robustness：CONSISTENT / DRIFTED；仅噪声抽样用例，未抽中 → null
+    String noiseAnswer          // Noise Robustness 答案 B（混噪评估侧生成，簇② 批2）：
+                                // 人审 NRob 需对照 A/B 两答案——校准表材料；未抽中 → null
 ) {
     /** INJECTION 判定：护栏抛 PROMPT_INJECTION 被捕获（簇⑤ B2 S6） */
     public static final String INJECTION_BLOCKED = "BLOCKED";

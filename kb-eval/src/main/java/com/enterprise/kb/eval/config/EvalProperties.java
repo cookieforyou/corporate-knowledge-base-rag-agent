@@ -38,9 +38,11 @@ public class EvalProperties {
     private String runLabel = "";
 
     /**
-     * 人工-Judge 一致率抽样条数（簇④ E1，0 = 关闭）。非零时全量评估后按分类分层抽样，
-     * 落盘 target/judge-agreement-sheet.md 供人工打分，度量 Judge 可信度
-     * （一致口径 |人工−Judge|≤1，目标一致率 ≥85%，Phase 5.8 人类校准前置）。
+     * 人类校准抽样条数（簇④ E1 建基 / 簇② 批2 扩为五维校准通道；0 = 关闭）。
+     * 非零时全量评估后按分类分层抽样，落盘双通道——
+     * {@code target/judge-agreement-sheet.md}（打分材料）+
+     * {@code target/judge-agreement-sheet.csv}（human_a/human_b 双标注打分表）。
+     * 复审口径 50 例正交双标注：批5 合并复跑时置 50。
      */
     private int judgeAgreementSample = 0;
 
@@ -60,6 +62,19 @@ public class EvalProperties {
     private final Indirect indirect = new Indirect();
     private final Guardrail guardrail = new Guardrail();
     private final Metrics metrics = new Metrics();
+    private final Calibration calibration = new Calibration();
+
+    /**
+     * 人类校准（簇② 批2）：打分表回读（--eval.calibration-readback）后逐维计算
+     * Cohen's κ（Judge×标注人A / Judge×标注人B / A×B 三对），对照本目标判
+     * PASS/FAIL。κ≥0.80 为观察带四新指标接入门禁的前置判据（复审方案定案）。
+     */
+    @Getter
+    @Setter
+    public static class Calibration {
+        /** κ 校准目标（逐维；名义 κ 与二次加权 κ 同目标线） */
+        private double kappaTarget = 0.80;
+    }
 
     /**
      * Phase 5 扩展指标开关组（簇② 5.8，16 章 §16.2）——四新指标：

@@ -114,7 +114,7 @@ class EvalRunnerPhase5Test {
         GoldenQAPair pair = pair(id, QACategory.FACTOID, "问题-" + id);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.5, 4.5, null, null, null, null, null,
-            ac, caVerdict, caVerdict == null ? null : 1.0, hr, noise);
+            ac, caVerdict, caVerdict == null ? null : 1.0, hr, noise, null);
     }
 
     @Test
@@ -180,5 +180,65 @@ class EvalRunnerPhase5Test {
         org.assertj.core.api.Assertions.assertThatCode(
                 () -> reportWith(low).assertThresholds(props))
             .doesNotThrowAnyException();
+    }
+
+    // ── 人类校准表（簇② 批2）：CSV 打分表 + MD 材料 ──
+
+    /** 全维度结果：F=4、AC=5、CA=SUPPORTED、HR=0.25、NR=CONSISTENT（带答案 B） */
+    private static EvalResult fullResult(String id) {
+        GoldenQAPair pair = new GoldenQAPair(id, QACategory.TABLE, "问题-" + id,
+            null, "理想回答-" + id, null, null, null, null, null);
+        return new EvalResult(pair, List.of(), "回答-" + id, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, 4.0, 4.0, null, null, null, null, null,
+            5.0, "SUPPORTED", 1.0, 0.25, "CONSISTENT", "答案B-" + id);
+    }
+
+    @Test
+    void calibrationCsvCarriesAllPresentDimensions() {
+        String csv = EvalRunner.renderCalibrationCsv(List.of(fullResult("t-01")));
+
+        assertThat(csv).startsWith("case_id,category,dimension,judge_value,human_a,human_b\n");
+        assertThat(csv)
+            .contains("t-01,TABLE,faithfulness,4,,\n")
+            .contains("t-01,TABLE,answer_correctness,5,,\n")
+            .contains("t-01,TABLE,citation_attribution,SUPPORTED,,\n")
+            .contains("t-01,TABLE,hallucination,0.25,,\n")
+            .contains("t-01,TABLE,noise_robustness,CONSISTENT,,\n");
+    }
+
+    @Test
+    void calibrationCsvOmitsAbsentDimensionsAndKeepsNoCitationRaw() {
+        // 仅 F 与 CA=NO_CITATION：CSV 原样携带（归并语义在回读层，生成层不丢信息）
+        EvalResult minimal = new EvalResult(pair("f-01", QACategory.FACTOID, "问题"),
+            List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, 3.0, 3.0, null, null, null, null, null,
+            null, "NO_CITATION", null, null, null, null);
+
+        String csv = EvalRunner.renderCalibrationCsv(List.of(minimal));
+
+        assertThat(csv)
+            .contains("f-01,FACTOID,faithfulness,3,,\n")
+            .contains("f-01,FACTOID,citation_attribution,NO_CITATION,,\n")
+            .doesNotContain("answer_correctness")
+            .doesNotContain("hallucination")
+            .doesNotContain("noise_robustness");
+    }
+
+    @Test
+    void agreementSheetMaterialsCarryPhase5ReadingsAndNoiseAnswer() {
+        String md = runner().renderAgreementSheet(List.of(fullResult("t-01")));
+
+        assertThat(md)
+            .contains("人类校准打分材料")
+            .contains("faithfulness")
+            .contains("answer_correctness")
+            .contains("citation_attribution")
+            .contains("hallucination")
+            .contains("noise_robustness")
+            .contains("理想回答-t-01")          // AC 人审对照的理想回答材料
+            .contains("答案 B（混噪生成，NRob 对照）")
+            .contains("答案B-t-01")              // NRob 人审需见答案 B
+            .contains("Hallucination Rate = 25.0%")
+            .contains("Citation Attribution = SUPPORTED");
     }
 }

@@ -204,6 +204,30 @@ public final class JudgePrompts {
         先在 reason 中比对两回答的事实结论，再给出 verdict。score 按 CONSISTENT=5 / DRIFTED=1 填写。
         """;
 
+    /**
+     * expectedAnswer 机器侧草稿（簇② 批2，用户定案「机器侧草稿 + 人工审定」）：
+     * 依据真值材料起草理想回答，供人工审定后回写 golden/*.json 的 expectedAnswer
+     * 字段（AC 指标前置标注）。真值材料 = 用例 expectedChunkIds 对应 PG chunk 原文
+     * （零循环：不依赖检索质量）；缺失时回落探针候选并在审定表显式标记。
+     */
+    public static final String ANSWER_DRAFT = """
+        你是 RAG 评估的参考答案编写员。请仅依据下方【参考资料】，为【用户问题】编写一段
+        理想回答（作为 Answer Correctness 指标的标准答案标注素材，供人工审定）。
+
+        要求：
+        - 事实仅取自参考资料，禁止引入外部知识或推测
+        - 覆盖资料中与问题相关的全部事实要点，表述简洁客观
+        - 数字、名称、条款细节逐字忠于资料，不改写不近似化
+        - 若资料不足以完整回答，只写有依据的部分，并在末尾注明「资料缺失：……」
+        - 直接输出理想回答正文，不要前言、不要解释你的编写过程
+
+        【用户问题】
+        %s
+
+        【参考资料】
+        %s
+        """;
+
     /** Judge 结构化输出模型 */
     public record JudgeScore(Integer score, String reason, String verdict) {}
 }

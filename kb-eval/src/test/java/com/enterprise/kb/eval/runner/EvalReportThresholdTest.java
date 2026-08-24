@@ -27,7 +27,7 @@ class EvalReportThresholdTest {
         GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, faithfulness, 4.0, null, null, null, null, null,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
@@ -52,7 +52,7 @@ class EvalReportThresholdTest {
             blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED,
             l2Blocked == null ? null
                 : l2Blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
     }
 
     private static EvalReport injectionReport(List<EvalResult> results) {
@@ -287,7 +287,7 @@ class EvalReportThresholdTest {
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, null, null, verdict,
             "REJECTED".equals(verdict) ? 5.0 : "PARTIAL".equals(verdict) ? 3.0 : 1.0, null, null, null,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
     }
 
     private static EvalReport reportOfNegatives(List<EvalResult> results) {

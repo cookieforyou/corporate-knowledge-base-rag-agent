@@ -90,7 +90,10 @@ public class EvalRunner {
     @EventListener(ApplicationReadyEvent.class)
     public void runOnStartup() {
         boolean ci = props.getCi().isEnabled();
-        if (!ci && (args.containsOption("eval.annotate-query") || args.containsOption("eval.annotate-all"))) {
+        // 工具模式不跑全量评估：标注辅助（簇④ A4）/ expectedAnswer 草稿与 κ 回读
+        // （簇② 批2）——避免工具性启动白烧一整轮模型调用
+        if (!ci && (args.containsOption("eval.annotate-query") || args.containsOption("eval.annotate-all")
+                || args.containsOption("eval.draft-answers") || args.containsOption("eval.calibration-readback"))) {
             return;
         }
         // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」
@@ -141,10 +144,17 @@ public class EvalRunner {
     }
 
     /**
-     * 人工-Judge 一致率抽样表（簇④ E1，judge-agreement-sample > 0 时启用）：
-     * 全量评估后按分类分层抽 N 条正向用例，落盘 target/judge-agreement-sheet.md
-     * 供人工盲打分，度量 Judge 可信度（一致口径 |人工−Judge|≤1，目标 ≥85%）。
-     * 检索-only / ci 门禁模式无意义，跳过。
+     * 人类校准抽样表（簇④ E1 建基，簇② 批2 扩为五维校准通道；
+     * judge-agreement-sample > 0 时启用）：全量评估后按分类分层抽 N 条正向用例，
+     * 落盘双通道——
+     * <ul>
+     *   <li>{@code target/judge-agreement-sheet.md}：打分材料（问题/参考资料/回答/
+     *       各维 Judge 值与理由；NRob 含答案 B），供标注人阅读；</li>
+     *   <li>{@code target/judge-agreement-sheet.csv}：打分表（长表，每行 = 用例×维度，
+     *       human_a/human_b 双标注列），人工填写后经 --eval.calibration-readback
+     *       回读计算 Cohen's κ（目标 ≥0.80，观察带接入门禁的前置判据）。</li>
+     * </ul>
+     * 检索-only 模式无意义，跳过。
      */
     private void writeJudgeAgreementSheetIfNeeded(EvalReport report) {
         int n = props.getJudgeAgreementSample();
@@ -154,17 +164,21 @@ public class EvalRunner {
         List<EvalResult> generation = report.results().stream()
             .filter(r -> !r.isNegative() && r.faithfulness() != null).toList();
         if (generation.isEmpty()) {
-            log.warn("一致率抽样跳过：无生成侧评估结果");
+            log.warn("校准抽样跳过：无生成侧评估结果");
             return;
         }
         List<EvalResult> sampled = stratifiedSample(generation, n, 42L);
         try {
-            java.nio.file.Path out = java.nio.file.Path.of("target", "judge-agreement-sheet.md");
-            java.nio.file.Files.createDirectories(out.getParent());
-            java.nio.file.Files.writeString(out, renderAgreementSheet(sampled));
-            log.info("人工-Judge 一致率抽样表（{} 条）已写入: {}", sampled.size(), out.toAbsolutePath());
+            java.nio.file.Path outDir = java.nio.file.Path.of("target");
+            java.nio.file.Files.createDirectories(outDir);
+            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.md"),
+                renderAgreementSheet(sampled));
+            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.csv"),
+                renderCalibrationCsv(sampled));
+            log.info("人类校准抽样表（{} 条，MD 材料 + CSV 打分表）已写入: {}",
+                sampled.size(), outDir.toAbsolutePath());
         } catch (Exception e) {
-            log.warn("一致率抽样表落盘失败（不影响评估）: {}", e.getMessage());
+            log.warn("校准抽样表落盘失败（不影响评估）: {}", e.getMessage());
         }
     }
 
@@ -207,25 +221,32 @@ public class EvalRunner {
         return sampled;
     }
 
-    private String renderAgreementSheet(List<EvalResult> sampled) {
+    /**
+     * 校准表材料渲染（阅读面）。五维打分口径随头部说明下发；分数填写在配套
+     * CSV（human_a/human_b 双列），本文件只提供判定所需材料。
+     */
+    String renderAgreementSheet(List<EvalResult> sampled) {
         EvalProperties.Judge j = props.getJudge();
         StringBuilder sb = new StringBuilder();
-        sb.append("# 人工-Judge 一致率打分表（簇④ E1）").append(System.lineSeparator());
+        sb.append("# 人类校准打分材料（簇② 5.8 批2）").append(System.lineSeparator());
         sb.append(System.lineSeparator());
         sb.append(String.format("- Judge: %s（temperature=%.1f, enable_thinking=%s）%n",
             j.getModel(), j.getTemperature(), j.isEnableThinking()));
         sb.append(String.format("- 运行标签: %s%n",
             props.getRunLabel() == null || props.getRunLabel().isBlank() ? "（无）" : props.getRunLabel()));
-        sb.append("- 打分口径：仅评【回答】对【参考资料】的忠实度（同 Judge 的 Faithfulness 维度），1-5 整数").append(System.lineSeparator());
-        sb.append("- 一致判定：|人工分 − Judge 分| ≤ 1 记一致；目标一致率 ≥ 85%").append(System.lineSeparator());
+        sb.append("- 填写通道：配套 `judge-agreement-sheet.csv` 的 human_a / human_b 列")
+            .append("（两位标注人独立填写，互不参照）").append(System.lineSeparator());
+        sb.append("- 校准判据：逐维 Cohen's κ ≥ 0.80（回读命令 `--eval.calibration-readback=<csv>`）")
+            .append(System.lineSeparator());
+        sb.append(System.lineSeparator()).append("## 五维打分口径").append(System.lineSeparator());
         sb.append(System.lineSeparator());
-        sb.append("| # | 用例 ID | 分类 | Judge 分 | 人工分（填写） |").append(System.lineSeparator());
-        sb.append("|---|---|---|---|---|").append(System.lineSeparator());
-        for (int i = 0; i < sampled.size(); i++) {
-            EvalResult r = sampled.get(i);
-            sb.append(String.format("| %d | %s | %s | %.0f | |%n",
-                i + 1, r.pair().id(), r.pair().category(), r.faithfulness()));
-        }
+        sb.append("| 维度（CSV dimension 列） | 人工填写 | 口径 |").append(System.lineSeparator());
+        sb.append("|---|---|---|").append(System.lineSeparator());
+        sb.append("| faithfulness | 1-5 整数 | 回答对参考资料的忠实度（同 E1 口径） |").append(System.lineSeparator());
+        sb.append("| answer_correctness | 1-5 整数 | 对照理想回答的事实正确性（仅理想回答已标注用例） |").append(System.lineSeparator());
+        sb.append("| citation_attribution | SUPPORTED / NOT_SUPPORTED | 回答中每个 [ref-N] 标注是否被对应编号资料支撑；回答未发出任何引用 → NOT_SUPPORTED |").append(System.lineSeparator());
+        sb.append("| hallucination | YES / NO | 回答是否含参考资料无依据的事实声明（≥1 条即 YES） |").append(System.lineSeparator());
+        sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的事实结论是否一致（仅噪声抽样用例） |").append(System.lineSeparator());
         sb.append(System.lineSeparator()).append("---").append(System.lineSeparator());
         for (int i = 0; i < sampled.size(); i++) {
             EvalResult r = sampled.get(i);
@@ -234,15 +255,80 @@ public class EvalRunner {
                 .collect(Collectors.joining("\n\n"));
             sb.append(String.format("%n## %d. %s（%s）%n%n", i + 1, r.pair().id(), r.pair().category()));
             sb.append("**问题**：").append(r.pair().question()).append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append("**参考资料**（Judge 所见）：").append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append("**参考资料**（Judge 所见，[ref-N] 对应编号）：")
+                .append(System.lineSeparator());
             sb.append(System.lineSeparator()).append(context).append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append("**模型回答**：").append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append(r.answer() == null ? "（生成失败）" : r.answer()).append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append(String.format("**Judge 评分**：%.0f%n%n", r.faithfulness()));
-            sb.append("**Judge 理由**：").append(r.judgeReason() == null ? "（无）" : r.judgeReason()).append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append("**人工分**：____（1-5 整数）").append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append("**模型回答（答案 A）**：").append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append(r.answer() == null ? "（生成失败）" : r.answer())
+                .append(System.lineSeparator());
+            sb.append(System.lineSeparator()).append("**Judge 读数**：").append(System.lineSeparator());
+            sb.append(System.lineSeparator())
+                .append(String.format("- Faithfulness = %.0f（理由：%s）%n",
+                    r.faithfulness(), r.judgeReason() == null ? "无" : r.judgeReason()));
+            if (r.pair().expectedAnswer() != null && !r.pair().expectedAnswer().isBlank()) {
+                sb.append(System.lineSeparator()).append("**理想回答**（AC 打分对照）：")
+                    .append(System.lineSeparator()).append(System.lineSeparator())
+                    .append(r.pair().expectedAnswer()).append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append(String.format("- Answer Correctness = %.0f%n",
+                    r.answerCorrectness() == null ? Double.NaN : r.answerCorrectness()));
+            }
+            if (r.citationVerdict() != null) {
+                sb.append(String.format("- Citation Attribution = %s（可解析率 %s）%n",
+                    r.citationVerdict(),
+                    r.citationResolvableRate() == null ? "—"
+                        : String.format(java.util.Locale.ROOT, "%.2f", r.citationResolvableRate())));
+            }
+            if (r.hallucinationRate() != null) {
+                sb.append(String.format(java.util.Locale.ROOT, "- Hallucination Rate = %.1f%%%n",
+                    r.hallucinationRate() * 100));
+            }
+            if (r.noiseVerdict() != null) {
+                sb.append(String.format("- Noise Robustness = %s%n", r.noiseVerdict()));
+                sb.append(System.lineSeparator()).append("**答案 B（混噪生成，NRob 对照）**：")
+                    .append(System.lineSeparator()).append(System.lineSeparator())
+                    .append(r.noiseAnswer() == null ? "（无）" : r.noiseAnswer())
+                    .append(System.lineSeparator());
+            }
         }
         return sb.toString();
+    }
+
+    /**
+     * 校准打分表渲染（填写面，簇② 批2）：长表，每行 = 用例 × 维度，
+     * 列 = case_id,category,dimension,judge_value,human_a,human_b。
+     * 维度行只在 Judge 产出该维读数时生成；HR 的 judge_value 为原始比率
+     * （回读层二值化：>0 → YES）；CA 原样携带 NO_CITATION（回读层归并为
+     * NOT_SUPPORTED——与聚合语义一致，未发出引用判负）。
+     */
+    static String renderCalibrationCsv(List<EvalResult> sampled) {
+        StringBuilder sb = new StringBuilder("case_id,category,dimension,judge_value,human_a,human_b\n");
+        for (EvalResult r : sampled) {
+            String id = r.pair().id();
+            String category = r.pair().category().name();
+            if (r.faithfulness() != null) {
+                sb.append(csvRow(id, category, "faithfulness",
+                    String.format(java.util.Locale.ROOT, "%.0f", r.faithfulness())));
+            }
+            if (r.answerCorrectness() != null) {
+                sb.append(csvRow(id, category, "answer_correctness",
+                    String.format(java.util.Locale.ROOT, "%.0f", r.answerCorrectness())));
+            }
+            if (r.citationVerdict() != null) {
+                sb.append(csvRow(id, category, "citation_attribution", r.citationVerdict()));
+            }
+            if (r.hallucinationRate() != null) {
+                sb.append(csvRow(id, category, "hallucination",
+                    String.format(java.util.Locale.ROOT, "%s", r.hallucinationRate())));
+            }
+            if (r.noiseVerdict() != null) {
+                sb.append(csvRow(id, category, "noise_robustness", r.noiseVerdict()));
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String csvRow(String id, String category, String dimension, String judgeValue) {
+        return id + "," + category + "," + dimension + "," + judgeValue + ",,\n";
     }
 
     public EvalReport runFullEval() {
@@ -342,7 +428,7 @@ public class EvalRunner {
         if (props.isRetrievalOnly()) {
             return new EvalResult(pair, hits, null, recall, mrr, precision,
                 docRecall, docMrr, docPrecision, null, null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         }
 
         // 3. 被测链路生成
@@ -354,7 +440,7 @@ public class EvalRunner {
                 JudgePrompts.NEGATIVE_REJECTION, pair.question(), answer));
             return new EvalResult(pair, hits, answer, recall, mrr, precision,
                 docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         }
         String context = hits.stream()
             .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
@@ -388,14 +474,20 @@ public class EvalRunner {
                 ? null : Math.clamp(hr.score(), 0, 100) / 100.0;
         }
         // Noise Robustness：噪声抽样用例（正常生成成功且扩展开关开时）
+        String noiseAnswer = null;
         if (noiseQuery != null && answer != null && !answer.isBlank()) {
-            noiseVerdict = judgeNoiseRobustness(pair.question(), hits, answer, noiseQuery);
+            NoiseOutcome noise = judgeNoiseRobustness(pair.question(), hits, answer, noiseQuery);
+            if (noise != null) {
+                noiseVerdict = noise.verdict();
+                noiseAnswer = noise.noisyAnswer();
+            }
         }
 
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
             docRecall, docMrr, docPrecision,
             scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null, null,
-            answerCorrectness, citationVerdict, citationResolvableRate, hallucinationRate, noiseVerdict);
+            answerCorrectness, citationVerdict, citationResolvableRate, hallucinationRate, noiseVerdict,
+            noiseAnswer);
     }
 
     /**
@@ -427,9 +519,10 @@ public class EvalRunner {
      * 与原证据编号续接混排（[ref-N] 契约与被测链路一致），经评估侧生成路径
      * （同一基座 + 同一 GROUNDING_PROMPT，仅上下文不同）产出回答 B，
      * Judge 判定 A/B 事实结论一致性。噪声证据不可用（检索空/全与原证据重叠）返回 null。
+     * 答案 B 随判定一并回收（簇② 批2）——校准表人审 NRob 需对照 A/B 两答案。
      */
-    private String judgeNoiseRobustness(String question, List<RetrievalProbe.ProbeHit> baseHits,
-                                        String baseAnswer, String noiseQuery) {
+    private NoiseOutcome judgeNoiseRobustness(String question, List<RetrievalProbe.ProbeHit> baseHits,
+                                              String baseAnswer, String noiseQuery) {
         List<RetrievalProbe.ProbeHit> noiseHits = retrievalProbe.probe(noiseQuery, props.getTopK());
         List<RetrievalProbe.ProbeHit> base = baseHits == null ? List.of() : baseHits;
         java.util.Set<String> baseIds = base.stream()
@@ -449,8 +542,15 @@ public class EvalRunner {
         }
         JudgePrompts.JudgeScore js = judge(String.format(
             JudgePrompts.NOISE_ROBUSTNESS, question, baseAnswer, noisyAnswer));
-        return js == null ? null : ("CONSISTENT".equalsIgnoreCase(js.verdict()) ? "CONSISTENT" : "DRIFTED");
+        if (js == null) {
+            return null;
+        }
+        return new NoiseOutcome("CONSISTENT".equalsIgnoreCase(js.verdict()) ? "CONSISTENT" : "DRIFTED",
+            noisyAnswer);
     }
+
+    /** Noise Robustness 判定 + 答案 B（混噪生成原文，校准表材料） */
+    private record NoiseOutcome(String verdict, String noisyAnswer) {}
 
     /**
      * 编号化证据渲染（与 {@code RetrievalConfig#formatNumberedContext} 同契约，10.6 / v2.15）：
@@ -541,7 +641,7 @@ public class EvalRunner {
     private static EvalResult injectionResult(GoldenQAPair pair, String l1Verdict, String l2Verdict) {
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, l1Verdict, l2Verdict,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
     }
 
     /** 异常链中提取 BusinessException（ChatClient 调用层可能包裹原因链） */
