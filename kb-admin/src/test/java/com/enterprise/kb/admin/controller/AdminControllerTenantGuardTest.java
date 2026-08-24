@@ -15,6 +15,7 @@ import com.enterprise.kb.admin.dto.RootCauseRequest;
 import com.enterprise.kb.admin.service.AuditLogQueryService;
 import com.enterprise.kb.admin.service.BadCaseService;
 import com.enterprise.kb.admin.service.ChunkOpsService;
+import com.enterprise.kb.admin.service.FeedbackExportService;
 import com.enterprise.kb.admin.service.GuardrailAdminService;
 import com.enterprise.kb.admin.service.GuardrailRuleOpsService;
 import com.enterprise.kb.admin.service.IndexRebuildService;
@@ -51,10 +52,12 @@ class AdminControllerTenantGuardTest {
     private BadCaseService badCaseService;
     private GuardrailAdminService guardrailAdminService;
     private GuardrailRuleOpsService guardrailRuleOpsService;
+    private FeedbackExportService feedbackExportService;
     private ChunkAdminController chunkController;
     private RebuildController rebuildController;
     private BadCaseAdminController badCaseController;
     private GuardrailAdminController guardrailController;
+    private FeedbackExportAdminController exportController;
 
     @BeforeEach
     void setUp() {
@@ -64,10 +67,12 @@ class AdminControllerTenantGuardTest {
         badCaseService = mock(BadCaseService.class);
         guardrailAdminService = mock(GuardrailAdminService.class);
         guardrailRuleOpsService = mock(GuardrailRuleOpsService.class);
+        feedbackExportService = mock(FeedbackExportService.class);
         chunkController = new ChunkAdminController(chunkOpsService);
         rebuildController = new RebuildController(indexRebuildService);
         badCaseController = new BadCaseAdminController(auditLogQueryService, badCaseService);
         guardrailController = new GuardrailAdminController(guardrailAdminService, guardrailRuleOpsService);
+        exportController = new FeedbackExportAdminController(feedbackExportService);
     }
 
     private static Jwt jwtWithOwner(String owner) {
@@ -321,5 +326,60 @@ class AdminControllerTenantGuardTest {
         assertThat(drillResponse.data().injectionMatches()).isEmpty();
         verify(guardrailAdminService).listRules("injection", null, null, null, null, null, 0, 20);
         verify(guardrailAdminService).drill("演练文本");
+    }
+
+    // ── FeedbackExportAdminController（簇② 5.10 批4）──
+
+    @Test
+    void exportEndpointsRejectMissingOrBlankTenant() {
+        assertThatThrownBy(() -> exportController.summary(null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> exportController.export(jwtWithOwner(" "), "sft"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        assertThatThrownBy(() -> exportController.export(null, "dpo"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+        verify(feedbackExportService, never()).summary(anyString());
+        verify(feedbackExportService, never()).exportLines(anyString(), any());
+    }
+
+    @Test
+    void exportServesJsonlAttachmentForValidTenant() {
+        when(feedbackExportService.exportLines("t-1", FeedbackExportService.ExportFormat.SFT))
+            .thenReturn(List.of("{\"messages\":[]}"));
+
+        var response = exportController.export(jwtWithOwner("t-1"), "sft");
+
+        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(response.getHeaders().getFirst("Content-Disposition"))
+            .contains("attachment").contains("kb-feedback-sft-t-1-").contains(".jsonl");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(new String(response.getBody(), java.nio.charset.StandardCharsets.UTF_8))
+            .isEqualTo("{\"messages\":[]}\n");
+        verify(feedbackExportService).exportLines("t-1", FeedbackExportService.ExportFormat.SFT);
+    }
+
+    @Test
+    void exportRejectsUnknownFormatBeforeReachingService() {
+        assertThatThrownBy(() -> exportController.export(jwtWithOwner("t-1"), "kto"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("INVALID_EXPORT_FORMAT");
+        verify(feedbackExportService, never()).exportLines(anyString(), any());
+    }
+
+    @Test
+    void exportSummaryDelegatesOwnerClaimAsTenant() {
+        when(feedbackExportService.summary("t-1")).thenReturn(
+            new com.enterprise.kb.admin.dto.FeedbackExportSummary(
+                2, 1, 1, 1, 2, 1, 1, 1, 0, 0, 0, 0,
+                100, false, 50, false));
+
+        var response = exportController.summary(jwtWithOwner("t-1"));
+
+        assertThat(response.data().sftRecords()).isEqualTo(2);
+        assertThat(response.data().dpoTargetMet()).isFalse();
+        verify(feedbackExportService).summary("t-1");
     }
 }
