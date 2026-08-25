@@ -144,4 +144,58 @@ class RrfFusionTest {
         assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get("fusion_score"), 1e-12);
         assertEquals(0.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
     }
+
+    // ── N 路泛化（簇④ 5.2：向量 + BM25 + Graph 三路 RRF 同口径）──
+
+    @Test
+    void fuseN_threeRoutes_tripleHitRanksFirstWithAllRankKeys() {
+        // a 三路齐中（vector#1 / bm25#2 / graph#1）→ 三项倒数和最高
+        Map<String, List<Document>> routes = new java.util.LinkedHashMap<>();
+        routes.put("vector", List.of(doc("a", Map.of("vector_score", 0.9)), doc("v2", Map.of())));
+        routes.put("bm25", List.of(doc("b1", Map.of()), doc("a", Map.of())));
+        routes.put("graph", List.of(doc("a", Map.of("graph_score", 0.8, "graph_entity_hits", "甲公司")), doc("g2", Map.of())));
+
+        List<Document> fused = fusion.fuse(routes, 10);
+
+        Document a = fused.get(0);
+        assertEquals("a", a.getId());
+        int rrfK = properties.getRrfK();
+        double expected = 1.0 / (rrfK + 1) + 1.0 / (rrfK + 2) + 1.0 / (rrfK + 1);
+        assertEquals(expected, (Double) a.getMetadata().get("fusion_score"), 1e-12);
+        assertEquals(1, a.getMetadata().get("vector_rank"));
+        assertEquals(2, a.getMetadata().get("bm25_rank"));
+        assertEquals(1, a.getMetadata().get("graph_rank"));
+        // 图路元数据并集透传（实体命中溯源面）
+        assertEquals("甲公司", a.getMetadata().get("graph_entity_hits"));
+        assertEquals(4, fused.size());
+    }
+
+    @Test
+    void fuseN_emptyRouteIgnored_dualRouteSemanticsPreserved() {
+        // graph 路空（未命中/降级）→ 与双路融合逐位一致（兼容签名对照）
+        Map<String, List<Document>> routes = new java.util.LinkedHashMap<>();
+        routes.put("vector", List.of(doc("a", Map.of())));
+        routes.put("bm25", List.of(doc("a", Map.of())));
+        routes.put("graph", List.of());
+
+        List<Document> fusedN = fusion.fuse(routes, 10);
+        List<Document> fusedDual = fusion.fuse(List.of(doc("a", Map.of())), List.of(doc("a", Map.of())), 10);
+
+        assertEquals(fusedDual.get(0).getMetadata().get("fusion_score"),
+            fusedN.get(0).getMetadata().get("fusion_score"));
+        assertFalse(fusedN.get(0).getMetadata().containsKey("graph_rank"));
+    }
+
+    @Test
+    void fuseN_routeRankKeyNamespaced() {
+        // 路名即排名键前缀：开放路名不互相污染
+        Map<String, List<Document>> routes = new java.util.LinkedHashMap<>();
+        routes.put("graph", List.of(doc("g1", Map.of())));
+
+        Document fused = fusion.fuse(routes, 10).get(0);
+
+        assertEquals(1, fused.getMetadata().get("graph_rank"));
+        assertFalse(fused.getMetadata().containsKey("vector_rank"));
+        assertFalse(fused.getMetadata().containsKey("bm25_rank"));
+    }
 }

@@ -4,14 +4,19 @@ import com.enterprise.kb.ai.advisor.QueryRoutingAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.prompt.PromptTemplates;
+import com.enterprise.kb.ai.retriever.GraphDocumentRetriever;
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.IndirectInjectionScanPostProcessor;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RewriteCapturingQueryTransformer;
+import com.enterprise.kb.domain.repository.KbChunkRepository;
+import com.enterprise.kb.domain.repository.KbDocumentRepository;
+import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
@@ -19,8 +24,11 @@ import org.springframework.ai.rag.preretrieval.query.transformation.CompressionQ
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
 import io.micrometer.context.ContextExecutorService;
 import io.micrometer.context.ContextSnapshot;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,7 +50,7 @@ import java.util.concurrent.Executors;
  * {@code chatClient} Bean 名不变，被测链路切换对评估器零感知。
  */
 @Configuration
-@EnableConfigurationProperties(RetrievalProperties.class)
+@EnableConfigurationProperties({RetrievalProperties.class, GraphRetrievalProperties.class})
 public class RetrievalConfig {
 
     /*
@@ -196,6 +204,26 @@ public class RetrievalConfig {
     @Bean(destroyMethod = "close")
     public ExecutorService hybridRetrievalExecutor() {
         return contextPropagatingHybridExecutor();
+    }
+
+    /**
+     * Graph 路检索器（簇④ 5.2，三路融合第三路）——条件装配：
+     * {@code rag.graph.enabled=true} 才在场，{@link HybridDocumentRetriever} 经
+     * {@code ObjectProvider} 容忍缺位；关闭态双路链形态逐字节不变（同缓存族纪律）。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "rag.graph", name = "enabled", havingValue = "true")
+    public GraphDocumentRetriever graphDocumentRetriever(
+            GraphGateway graphGateway,
+            EmbeddingModel embeddingModel,
+            KbChunkRepository chunkRepository,
+            KbDocumentRepository documentRepository,
+            GraphRetrievalProperties graphRetrievalProperties,
+            AiBusinessMetrics metrics,
+            ObjectProvider<ObservationRegistry> observationRegistryProvider) {
+        return new GraphDocumentRetriever(graphGateway, embeddingModel,
+            chunkRepository, documentRepository, graphRetrievalProperties,
+            metrics, observationRegistryProvider);
     }
 
     /** retrievalExecutor 构造逻辑提取（单测直调同构实例，防装配漂移） */

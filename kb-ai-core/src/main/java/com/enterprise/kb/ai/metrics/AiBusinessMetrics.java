@@ -193,6 +193,18 @@ public class AiBusinessMetrics {
     private final Counter cacheMiss;
     /** 语义缓存按文档失效删除条数（Phase 5 簇③ 5.6）：知识库变更事件驱动 */
     private final Counter cacheInvalidated;
+    /** Graph 路检索执行计数（Phase 5 簇④ 5.2，三路融合第三路） */
+    private final Counter graphRetrievalTotal;
+    /** Graph 路命中计数（实体匹配 → chunk 反查结果非空）；命中率 = hit/total */
+    private final Counter graphRetrievalHit;
+    /** Graph 路检索耗时（查询嵌入 → 向量索引 → 邻域展开 → PG 反查全管线） */
+    private final Timer graphRetrievalLatency;
+    /** 图谱抽取执行计数（簇④ 5.1，经 GraphExtractionListener SPI 委派） */
+    private final Counter graphExtractionTotal;
+    /** 图谱抽取成功计数（实体/关系写图完成） */
+    private final Counter graphExtractionSucceeded;
+    /** 图谱抽取失败计数（管道级故障；单 chunk 失败不计——隔离语义） */
+    private final Counter graphExtractionFailed;
 
     public AiBusinessMetrics(MeterRegistry registry) {
         this.feedbackLike = Counter.builder("rag.feedback.like")
@@ -368,6 +380,20 @@ public class AiBusinessMetrics {
             .description("语义缓存未命中次数——索引空/相似度不足/运行期降级均计（簇③ 5.6）").register(registry);
         this.cacheInvalidated = Counter.builder("rag.retrieval.cache.invalidated")
             .description("语义缓存按文档失效删除条数——知识库变更事件驱动（簇③ 5.6）").register(registry);
+        this.graphRetrievalTotal = Counter.builder("rag.retrieval.graph.total")
+            .description("Graph 路检索执行次数——三路融合第三路（簇④ 5.2）").register(registry);
+        this.graphRetrievalHit = Counter.builder("rag.retrieval.graph.hit")
+            .description("Graph 路命中次数——实体匹配经 chunk 反查结果非空（簇④ 5.2）").register(registry);
+        this.graphRetrievalLatency = Timer.builder("rag.retrieval.graph.latency")
+            .description("Graph 路检索耗时——嵌入/向量索引/邻域展开/PG 反查全管线（簇④ 5.2）")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(registry);
+        this.graphExtractionTotal = Counter.builder("rag.graph.extraction.total")
+            .description("图谱抽取执行次数——经 GraphExtractionListener SPI 委派（簇④ 5.1）").register(registry);
+        this.graphExtractionSucceeded = Counter.builder("rag.graph.extraction.succeeded")
+            .description("图谱抽取成功次数——实体/关系写图完成（簇④ 5.1）").register(registry);
+        this.graphExtractionFailed = Counter.builder("rag.graph.extraction.failed")
+            .description("图谱抽取失败次数——管道级故障，单 chunk 失败不计（簇④ 5.1）").register(registry);
     }
 
     /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
@@ -471,6 +497,25 @@ public class AiBusinessMetrics {
     /** 语义缓存按文档失效计数（簇③ 5.6）：一次事件删除的条目条数 */
     public void recordCacheInvalidated(int count) {
         cacheInvalidated.increment(count);
+    }
+
+    /** Graph 路检索计数（簇④ 5.2）：hit = chunk 反查结果非空 */
+    public void recordGraphRetrieval(boolean hit) {
+        graphRetrievalTotal.increment();
+        if (hit) {
+            graphRetrievalHit.increment();
+        }
+    }
+
+    /** Graph 路检索耗时（簇④ 5.2）：全管线真实耗时，Prometheus 侧出分位 */
+    public void recordGraphRetrievalLatency(Duration elapsed) {
+        graphRetrievalLatency.record(elapsed);
+    }
+
+    /** 图谱抽取结果计数（簇④ 5.1）：total 每文档抽取各计一次，成败分桶 */
+    public void recordGraphExtraction(boolean succeeded) {
+        graphExtractionTotal.increment();
+        (succeeded ? graphExtractionSucceeded : graphExtractionFailed).increment();
     }
 
     /** 用户反馈计数（3.17 反馈 API 接线点） */

@@ -12,6 +12,7 @@ import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
 import com.enterprise.kb.etl.pipeline.EtlStage;
+import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
 import io.minio.MinioClient;
@@ -73,7 +74,8 @@ class DocumentServiceTest {
         metrics = mock(AiBusinessMetrics.class);
         cacheInvalidationPublisher = publisherProvider(null);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
-            etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher);
+            etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
+            graphPublisherProvider(null));   // 图谱抽取派发器缺省缺位（簇④，关闭态零变化）
         // @Value 字段测试注入：MinIO args builder 在 build 时即校验 bucket 非空
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
         when(progressWriter.andThen(any())).thenReturn(p -> { });
@@ -243,7 +245,8 @@ class DocumentServiceTest {
     void reparseCompletedFramePublishesCacheInvalidation() {
         CacheInvalidationPublisher publisher = mock(CacheInvalidationPublisher.class);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
-            etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(publisher));
+            etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(publisher),
+            graphPublisherProvider(null));
         when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(doc(TENANT, DocumentStatus.SUCCESS)));
         when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
@@ -257,6 +260,19 @@ class DocumentServiceTest {
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
         verifyNoMoreInteractions(publisher);
+    }
+
+    /** 图谱抽取派发器 provider 桩（簇④）：缺省缺位 = null 直传（关闭态零变化） */
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<GraphExtractionPublisher> graphPublisherProvider(GraphExtractionPublisher publisher) {
+        ObjectProvider<GraphExtractionPublisher> provider = mock(ObjectProvider.class);
+        if (publisher != null) {
+            org.mockito.Mockito.doAnswer(inv -> {
+                ((java.util.function.Consumer<GraphExtractionPublisher>) inv.getArgument(0)).accept(publisher);
+                return null;
+            }).when(provider).ifAvailable(any());
+        }
+        return provider;
     }
 
     /** 失效发布器 ObjectProvider 测试装配：publisher=null 即缺省关形态（ifAvailable 空转） */

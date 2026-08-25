@@ -8,10 +8,13 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -57,19 +60,26 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     private final RetrievalProperties properties;
     /** 双路并行共享执行器（v2.19 簇③ D2 收编为 Bean，取代每请求 new） */
     private final ExecutorService executor;
+    /**
+     * Graph 路检索器（簇④ 5.2，三路融合第三路）：{@code rag.graph.enabled=true}
+     * 条件装配——关闭态 Bean 缺位，ObjectProvider 容忍，双路形态逐字节不变。
+     */
+    private final ObjectProvider<GraphDocumentRetriever> graphRetrieverProvider;
 
     public HybridDocumentRetriever(VectorStore vectorStore,
                                    ElasticsearchDocumentRetriever esRetriever,
                                    RrfFusion rrfFusion,
                                    AiBusinessMetrics metrics,
                                    RetrievalProperties properties,
-                                   ExecutorService executor) {
+                                   ExecutorService executor,
+                                   ObjectProvider<GraphDocumentRetriever> graphRetrieverProvider) {
         this.vectorStore = vectorStore;
         this.esRetriever = esRetriever;
         this.rrfFusion = rrfFusion;
         this.metrics = metrics;
         this.properties = properties;
         this.executor = executor;
+        this.graphRetrieverProvider = graphRetrieverProvider;
     }
 
     @Override
@@ -86,11 +96,15 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         }
         long start = System.currentTimeMillis();
 
-        // 虚拟线程并行双路召回；两路各自容错（失败/超时 → 空列表，降级矩阵 10.2）
-        // 共享执行器（簇③ D2）：等待与超时语义不变——await 阻塞 + 超时取消
+        // 虚拟线程并行多路召回；各路各自容错（失败/超时 → 空列表，降级矩阵 10.2 三路扩展）
+        // 共享执行器（簇③ D2）：等待与超时语义不变——await 阻塞 + 超时取消。
+        // Graph 路（簇④ 5.2）条件在场：关闭态 provider 空 → 双路形态逐字节不变
+        GraphDocumentRetriever graphRetriever = graphRetrieverProvider.getIfAvailable();
         List<Document> vectorHits;
         List<Document> bm25Hits;
+        List<Document> graphHits = List.of();
         long[] vectorLatency = new long[1];
+        long[] graphLatency = new long[1];
         Future<List<Document>> vectorFuture = executor.submit(
             () -> retrieveSafely(() -> {
                 long t0 = System.currentTimeMillis();
@@ -100,21 +114,42 @@ public class HybridDocumentRetriever implements DocumentRetriever {
             }, "vector"));
         Future<List<Document>> bm25Future = executor.submit(
             () -> retrieveSafely(() -> esRetriever.retrieve(query, recallSize), "bm25"));
+        Future<List<Document>> graphFuture = graphRetriever == null ? null : executor.submit(
+            () -> retrieveSafely(() -> {
+                long t0 = System.currentTimeMillis();
+                List<Document> hits = graphRetriever.retrieve(query, recallSize);
+                graphLatency[0] = System.currentTimeMillis() - t0;
+                return hits;
+            }, "graph"));
         vectorHits = await(vectorFuture, "vector");
         bm25Hits = await(bm25Future, "bm25");
-
-        // 向量路 trace（bm25 路由 ES 检索器自记录；Future.get 建立 happens-before，
-        // 此刻 ES 路写入与 vectorLatency 赋值均已可见，CopyOnWriteArrayList 保证快照读安全）
-        if (ctx != null) {
-            ctx.addTraceEntry("vector", vectorHits, vectorLatency[0]);
+        if (graphFuture != null) {
+            graphHits = await(graphFuture, "graph");
         }
 
-        List<Document> fused = rrfFusion.fuse(vectorHits, bm25Hits, recallSize);
+        // 向量路/图路 trace（bm25 路由 ES 检索器自记录；Future.get 建立 happens-before，
+        // 此刻写入均已可见，CopyOnWriteArrayList 保证快照读安全）
+        if (ctx != null) {
+            ctx.addTraceEntry("vector", vectorHits, vectorLatency[0]);
+            if (graphFuture != null) {
+                ctx.addTraceEntry("graph", graphHits, graphLatency[0]);
+            }
+        }
+
+        // N 路 RRF 融合（簇④ 5.2）：graph 路仅在场时入融合面；关闭态双路键序不变
+        Map<String, List<Document>> routeHits = new LinkedHashMap<>();
+        routeHits.put("vector", vectorHits);
+        routeHits.put("bm25", bm25Hits);
+        if (graphFuture != null) {
+            routeHits.put("graph", graphHits);
+        }
+        List<Document> fused = rrfFusion.fuse(routeHits, recallSize);
         long elapsed = System.currentTimeMillis() - start;
         // 检索延迟 Timer（rag.retrieval.latency，3.13）：真实耗时，Prometheus 侧出分位
         metrics.recordRetrievalLatency(Duration.ofMillis(elapsed));
-        log.debug("混合检索完成: vector={} bm25={} fused={} 耗时={}ms",
-            vectorHits.size(), bm25Hits.size(), fused.size(), elapsed);
+        log.debug("混合检索完成: vector={} bm25={} graph={} fused={} 耗时={}ms",
+            vectorHits.size(), bm25Hits.size(),
+            graphFuture == null ? "off" : graphHits.size(), fused.size(), elapsed);
         return fused;
     }
 

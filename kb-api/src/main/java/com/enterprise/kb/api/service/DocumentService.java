@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.service;
 
 import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
+import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -47,6 +48,8 @@ public class DocumentService {
     private final AiBusinessMetrics metrics;
     /** 语义缓存失效发布器（簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
+    /** 图谱抽取派发器（簇④ 5.1 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
+    private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -290,6 +293,10 @@ public class DocumentService {
                 metrics.recordReindexOutcome(true);
                 outcome.complete(true);
                 cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
+                // 图谱抽取旁路派发（簇④ 5.1）：与缓存失效同位独立并行——抽取耗时长，
+                // 不串行等待；覆盖面同缓存失效（reparse/replace/重建/首次入库），
+                // 重建侧不重复接线（委派 reparse 同路径）
+                graphExtractionPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
                 log.info("文档重入库完成: docId={}, name={}", p.getDocId(), docName);
             } else if (p.getStage() == EtlStage.FAILED) {
                 metrics.recordReindexOutcome(false);
