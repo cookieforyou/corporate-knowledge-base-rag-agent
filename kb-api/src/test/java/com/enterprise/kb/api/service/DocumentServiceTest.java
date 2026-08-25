@@ -13,6 +13,7 @@ import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
 import com.enterprise.kb.etl.pipeline.EtlStage;
 import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
+import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
 import io.minio.MinioClient;
@@ -75,7 +76,7 @@ class DocumentServiceTest {
         cacheInvalidationPublisher = publisherProvider(null);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
-            graphPublisherProvider(null));   // 图谱抽取派发器缺省缺位（簇④，关闭态零变化）
+            graphPublisherProvider(null), emptyGraphGatewayProvider());   // 图谱抽取派发器缺省缺位（簇④，关闭态零变化）
         // @Value 字段测试注入：MinIO args builder 在 build 时即校验 bucket 非空
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
         when(progressWriter.andThen(any())).thenReturn(p -> { });
@@ -114,6 +115,53 @@ class DocumentServiceTest {
         // 三库级联经共享组件（esByDocId=true 文档级扫尾）+ MinIO + 文档行
         verify(chunkCleanupService).physicalDelete(DOC_ID, List.of("c-1", "c-2"), true);
         verify(documentRepository).delete(document);
+    }
+
+    /** 簇④ 批3：文档删除尽力清理图引用（网关故障不阻断删除主流程） */
+    @Test
+    void deleteCleansGraphReferencesBestEffort() {
+        GraphGateway gateway = mock(GraphGateway.class);
+        service = new DocumentService(minioClient, documentRepository, chunkRepository,
+            etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
+            graphPublisherProvider(null), gatewayProvider(gateway));
+        KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
+        when(chunkRepository.findByDocIdOrderByChunkIndex(DOC_ID)).thenReturn(List.of());
+
+        service.delete(DOC_ID, TENANT);
+
+        verify(gateway).removeDocument(TENANT, DOC_ID);
+        verify(documentRepository).delete(document);
+    }
+
+    /** 簇④ 批3：图清理故障不击穿删除（尽力而为语义） */
+    @Test
+    void deleteSucceedsEvenWhenGraphCleanupFails() {
+        GraphGateway gateway = mock(GraphGateway.class);
+        org.mockito.Mockito.doThrow(new RuntimeException("Neo4j 不可达"))
+            .when(gateway).removeDocument(anyString(), anyString());
+        service = new DocumentService(minioClient, documentRepository, chunkRepository,
+            etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
+            graphPublisherProvider(null), gatewayProvider(gateway));
+        KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
+        when(chunkRepository.findByDocIdOrderByChunkIndex(DOC_ID)).thenReturn(List.of());
+
+        service.delete(DOC_ID, TENANT);
+
+        verify(documentRepository).delete(document);   // 删除主流程不受图故障影响
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<GraphGateway> gatewayProvider(GraphGateway gateway) {
+        ObjectProvider<GraphGateway> provider = mock(ObjectProvider.class);
+        if (gateway != null) {
+            org.mockito.Mockito.doAnswer(inv -> {
+                ((java.util.function.Consumer<GraphGateway>) inv.getArgument(0)).accept(gateway);
+                return null;
+            }).when(provider).ifAvailable(any());
+        }
+        return provider;
     }
 
     @Test
@@ -246,7 +294,7 @@ class DocumentServiceTest {
         CacheInvalidationPublisher publisher = mock(CacheInvalidationPublisher.class);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(publisher),
-            graphPublisherProvider(null));
+            graphPublisherProvider(null), emptyGraphGatewayProvider());
         when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(doc(TENANT, DocumentStatus.SUCCESS)));
         when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
@@ -260,6 +308,12 @@ class DocumentServiceTest {
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
         verifyNoMoreInteractions(publisher);
+    }
+
+    /** 图谱网关 provider 桩（簇④）：缺省缺位形态（关闭态零变化） */
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<GraphGateway> emptyGraphGatewayProvider() {
+        return mock(ObjectProvider.class);
     }
 
     /** 图谱抽取派发器 provider 桩（簇④）：缺省缺位 = null 直传（关闭态零变化） */

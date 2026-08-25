@@ -7,8 +7,10 @@ import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
+import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
+import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import com.enterprise.kb.etl.transformer.HtmlProtectingSplitter;
 import com.enterprise.kb.etl.transformer.SanitizingTransformer;
 import com.enterprise.kb.etl.writer.EsIndexWriter;
@@ -62,6 +64,10 @@ public class ChunkOpsService {
     private final Executor etlExecutor;
     /** 语义缓存失效发布器（簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
+    /** 图谱网关（簇④ 批3）：软删/恢复同步图内锚点标记；缺省关时 Bean 缺位 */
+    private final ObjectProvider<GraphGateway> graphGateway;
+    /** 图谱抽取派发器（簇④ 批3）：编辑变更内容后按文档重抽取；缺省关时 Bean 缺位 */
+    private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
 
     public ChunkOpsService(KbChunkRepository chunkRepository,
                            KbDocumentRepository documentRepository,
@@ -72,7 +78,9 @@ public class ChunkOpsService {
                            AiBusinessMetrics metrics,
                            JsonMapper jsonMapper,
                            @Qualifier("etlExecutor") Executor etlExecutor,
-                           ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher) {
+                           ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher,
+                           ObjectProvider<GraphGateway> graphGateway,
+                           ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher) {
         this.chunkRepository = chunkRepository;
         this.documentRepository = documentRepository;
         this.chunkCleanupService = chunkCleanupService;
@@ -83,6 +91,8 @@ public class ChunkOpsService {
         this.jsonMapper = jsonMapper;
         this.etlExecutor = etlExecutor;
         this.cacheInvalidationPublisher = cacheInvalidationPublisher;
+        this.graphGateway = graphGateway;
+        this.graphExtractionPublisher = graphExtractionPublisher;
     }
 
     /**
@@ -117,6 +127,9 @@ public class ChunkOpsService {
             chunkId, chunk.getDocId(), injectionHit);
         // 语义缓存按文档失效（簇③ 5.6 批2）：内容已变更，引用该文档的缓存回答即失效
         cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
+        // 图谱重抽取（簇④ 批3）：内容已变更，按文档幂等重抽取收敛实体/关系
+        // （实体锚定文本，无法单 chunk 局部更新）
+        graphExtractionPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
 
         etlExecutor.execute(() -> reembedAndIndex(chunk, owned.doc()));
         return new ChunkOpsResult(chunk, true);
@@ -138,6 +151,7 @@ public class ChunkOpsService {
         metrics.recordChunkOps("soft_delete");
         // 语义缓存按文档失效（簇③ 5.6 批2）：软删后证据面收缩，既有缓存回答保守失效
         cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
+        syncGraphChunkDeleted(tenantId, chunkId, true);
         return new ChunkOpsResult(deleted != null ? deleted : chunk, true);
     }
 
@@ -161,12 +175,28 @@ public class ChunkOpsService {
         log.info("Chunk 恢复完成: chunkId={}, docId={}", chunkId, chunk.getDocId());
         // 语义缓存按文档失效（簇③ 5.6 批2）：恢复后证据面扩张，既有缓存回答保守失效
         cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
+        syncGraphChunkDeleted(tenantId, chunkId, false);
 
         etlExecutor.execute(() -> reembedAndIndex(chunk, owned.doc()));
         return new ChunkOpsResult(chunk, true);
     }
 
     // ── 内部方法 ──
+
+    /**
+     * 图谱锚点软删标记同步（簇④ 批3）：翻转图内 Chunk 锚点 is_deleted——
+     * 实体引用保留（恢复即复活，无需重抽取）。<b>尽力而为</b>：图故障仅告警，
+     * 不击穿运维主流程（最坏 = 图路短暂多/少召回一条，下次重抽取收敛）。
+     */
+    private void syncGraphChunkDeleted(String tenantId, String chunkId, boolean deleted) {
+        graphGateway.ifAvailable(gateway -> {
+            try {
+                gateway.setChunksDeleted(tenantId, List.of(chunkId), deleted);
+            } catch (Exception e) {
+                log.warn("图谱锚点软删标记同步失败（不阻断运维操作）: chunkId={}, {}", chunkId, e.getMessage());
+            }
+        });
+    }
 
     /** chunk + 所属文档装载与守卫：不存在/跨租户 → CHUNK_NOT_FOUND（fail-closed） */
     private OwnedChunk loadOwned(String chunkId, String tenantId) {

@@ -10,9 +10,11 @@ import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
+import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.transformer.SanitizingTransformer;
 import com.enterprise.kb.etl.writer.EsIndexWriter;
+import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -70,7 +72,9 @@ class ChunkOpsServiceTest {
         // 真实消毒器（同源语义）：PII 开 + 注入扫描开（词表按需构造用例注入）
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter, new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, true),
-            metrics, new JsonMapper(), (Executor) Runnable::run, cacheInvalidationPublisher);
+            metrics, new JsonMapper(), (Executor) Runnable::run, cacheInvalidationPublisher,
+            ChunkOpsServiceTest.<GraphGateway>emptyProvider(),
+            ChunkOpsServiceTest.<GraphExtractionPublisher>emptyProvider());
     }
 
     private KbChunk chunk(boolean deleted, String metadataJson) {
@@ -154,7 +158,9 @@ class ChunkOpsServiceTest {
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter,
             new SanitizingTransformer("", "测试注入占位词", PiiRecognizerRegistry.defaults(), true, true),
-            metrics, new JsonMapper(), (Executor) Runnable::run, cacheInvalidationPublisher);
+            metrics, new JsonMapper(), (Executor) Runnable::run, cacheInvalidationPublisher,
+            ChunkOpsServiceTest.<GraphGateway>emptyProvider(),
+            ChunkOpsServiceTest.<GraphExtractionPublisher>emptyProvider());
         KbChunk chunk = chunk(false, "{\"heading_path\":\"A > B\"}");
         stubOwned(chunk, doc(TENANT, DocumentStatus.SUCCESS));
 
@@ -277,7 +283,9 @@ class ChunkOpsServiceTest {
         CacheInvalidationPublisher publisher = mock(CacheInvalidationPublisher.class);
         service = new ChunkOpsService(chunkRepository, documentRepository, chunkCleanupService,
             vectorStore, esIndexWriter, new SanitizingTransformer("", "", PiiRecognizerRegistry.defaults(), true, true),
-            metrics, new JsonMapper(), (Executor) Runnable::run, publisherProvider(publisher));
+            metrics, new JsonMapper(), (Executor) Runnable::run, publisherProvider(publisher),
+            ChunkOpsServiceTest.<GraphGateway>emptyProvider(),
+            ChunkOpsServiceTest.<GraphExtractionPublisher>emptyProvider());
 
         // 编辑
         KbChunk editable = chunk(false, "{}");
@@ -297,6 +305,12 @@ class ChunkOpsServiceTest {
         service.restore(CHUNK_ID, TENANT);
 
         verify(publisher, times(3)).publish(TENANT, DOC_ID);
+    }
+
+    /** 图谱域 ObjectProvider 空装配（簇④）：关闭态缺位形态（getIfAvailable/ifAvailable 空转） */
+    @SuppressWarnings("unchecked")
+    private static <T> ObjectProvider<T> emptyProvider() {
+        return mock(ObjectProvider.class);
     }
 
     /** 失效发布器 ObjectProvider 测试装配：publisher=null 即缺省关形态（ifAvailable 空转） */

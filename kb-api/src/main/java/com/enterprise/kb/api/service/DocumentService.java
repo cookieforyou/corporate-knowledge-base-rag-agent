@@ -50,6 +50,8 @@ public class DocumentService {
     private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
     /** 图谱抽取派发器（簇④ 5.1 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
+    /** 图谱网关（簇④ 批3）：文档删除时尽力清理图引用；缺省关时 Bean 缺位 */
+    private final ObjectProvider<com.enterprise.kb.infrastructure.graph.GraphGateway> graphGateway;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -176,6 +178,16 @@ public class DocumentService {
         } catch (Exception e) {
             log.warn("MinIO 对象清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
         }
+
+        // 图谱引用清理（簇④ 批3）：Chunk 锚点删除 + 实体/关系引用摘除 + 孤儿清扫
+        // 尽力而为——图故障不阻断删除（残留引用经下次同文档重抽取/孤儿清扫收敛）
+        graphGateway.ifAvailable(gateway -> {
+            try {
+                gateway.removeDocument(tenantId, docId);
+            } catch (Exception e) {
+                log.warn("图数据清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
+            }
+        });
 
         documentRepository.delete(doc);
         log.info("文档已删除: id={}, name={}, chunks={}", docId, doc.getName(), chunkIds.size());
