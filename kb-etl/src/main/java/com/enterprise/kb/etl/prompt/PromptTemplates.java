@@ -33,4 +33,31 @@ public final class PromptTemplates {
         %s
         </chunk>
         """;
+
+    /**
+     * 知识图谱实体关系抽取模板（簇④ GraphRAG，5.1）：目标片段 + 前后相邻片段
+     * 三槽经 String.formatted 填充（%s 三槽，顺序 = 相邻上文, 目标片段, 相邻下文；
+     * 窗口语境缓解切分边界切断实体陈述）。产出经 ChatClient {@code .entity()}
+     * 映射为结构化抽取结果——模板本体只描述抽取语义，输出格式指令由
+     * 结构化输出转换器自动附加。
+     */
+    public static final String KG_EXTRACTION_PROMPT = """
+        你是企业知识库的实体关系抽取器。阅读目标片段（附前后相邻片段仅作语境参考），
+        抽取目标片段中的实体与实体间关系。
+
+        【相邻上文】
+        %s
+
+        【目标片段】
+        %s
+
+        【相邻下文】
+        %s
+
+        【抽取要求】
+        1. 实体：名称取片段中的规范全称；类型限 PERSON / ORG / PRODUCT / CONCEPT / LOCATION / TECH / EVENT / OTHER 之一；描述 ≤100 字，须携带可区分信息（是什么、关键属性或作用）
+        2. 关系：仅抽取目标片段中明确陈述的关系；源与目标必须是本轮已抽取的实体名；关系类型用简短大写英文标识（如 WORKS_AT / PART_OF / DEPENDS_ON / LOCATED_IN / PRODUCED_BY / RELATED_TO）；描述 ≤50 字
+        3. 宁缺毋滥：不确定的不抽取；代词、片段外信息、泛化词（如"系统""用户"）不作为实体
+        4. 目标片段无明确实体时返回空数组
+        """;
 }

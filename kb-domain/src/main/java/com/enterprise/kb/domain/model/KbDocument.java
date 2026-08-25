@@ -2,6 +2,7 @@ package com.enterprise.kb.domain.model;
 
 import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.enums.DocumentStatus;
+import com.enterprise.kb.domain.enums.GraphStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -66,6 +67,18 @@ public class KbDocument {
      */
     @Column(name = "version")
     private Integer version = 1;
+
+    /**
+     * 图谱构建状态（Phase 5 簇④，V2 迁移）：抽取是 ETL 成功后的异步旁路，
+     * 独立于文档入库主状态追踪图覆盖形态；回填任务按 PENDING/FAILED 选目标。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "graph_status", length = 20)
+    private GraphStatus graphStatus = GraphStatus.PENDING;
+
+    /** 最近一次图谱抽取完成/失败时间（运维观测与回填选目标用） */
+    @Column(name = "graph_updated_at")
+    private LocalDateTime graphUpdatedAt;
 
     @Column(name = "created_by", length = 50)
     private String createdBy;

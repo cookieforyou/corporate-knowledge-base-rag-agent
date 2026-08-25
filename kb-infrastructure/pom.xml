@@ -86,5 +86,14 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
         </dependency>
+
+        <!-- Neo4j 官方 Java 驱动（簇④ GraphRAG）：原生 Bolt 直连，自建 GraphGateway，
+             不引 Spring Data Neo4j（定案：图查询全走显式 Cypher，ORM 层无收益）。
+             版本由 Boot BOM 托管（4.1.0 = 6.1.0，落码核验在案）。
+             条件装配：rag.graph.enabled=false 时无 Driver Bean、无连接尝试（关闭态零变化）。 -->
+        <dependency>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
+        </dependency>
     </dependencies>
 </project>

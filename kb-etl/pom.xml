@@ -27,6 +27,11 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
+        <!-- ChatClient 结构化输出（簇④ 图谱抽取 .entity() 映射） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-client-chat</artifactId>
+        </dependency>
 
         <!-- JSoup for HTML parsing -->
         <dependency>

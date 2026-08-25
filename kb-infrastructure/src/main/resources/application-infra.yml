@@ -42,6 +42,19 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 3s
 
+  # Neo4j（Phase 5 簇④ GraphRAG，第二台 ECS 自托管 Community 实例）
+  # 手工装配 Driver（Neo4jConfig），不引 spring-boot-neo4j starter——连接生命周期
+  # 完全受 rag.graph.enabled 门控（关闭态无 Driver Bean、无连接尝试）。
+  # 本段只承载连接事实；功能开关与调优在 application-ai.yml rag.graph.*。
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    authentication:
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD:}
+    database: ${NEO4J_DATABASE:neo4j}
+    connection-timeout-seconds: ${NEO4J_CONNECTION_TIMEOUT_SECONDS:10}
+    query-timeout-seconds: ${NEO4J_QUERY_TIMEOUT_SECONDS:5}
+
 # MinIO 对象存储
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}

@@ -28,12 +28,16 @@ CREATE TABLE IF NOT EXISTS kb_document (
     -- 存量库升级 DDL：
     --   ALTER TABLE kb_document ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
     version         INT NOT NULL DEFAULT 1,
+    -- 簇④ GraphRAG（V2）：图谱构建状态（抽取为 ETL 后异步旁路，独立状态机）
+    graph_status     VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    graph_updated_at TIMESTAMP,
     created_by      VARCHAR(50),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_tenant_status ON kb_document (tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_created_at ON kb_document (created_at);
+CREATE INDEX IF NOT EXISTS idx_doc_graph_status ON kb_document (graph_status);
 
 -- 2. 章节表
 CREATE TABLE IF NOT EXISTS kb_section (
