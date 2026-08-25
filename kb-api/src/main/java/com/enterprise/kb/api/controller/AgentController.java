@@ -297,8 +297,10 @@ public class AgentController {
             .toList());
     }
 
+    /** 簇④：追加 graph 路得分/排名键（图路缺位时元数据无键，帧形态不变） */
     private static final List<String> SCORE_KEYS =
-        List.of("bm25_score", "bm25_rank", "vector_rank", "fusion_score", "rerank_score", "rerank_rank");
+        List.of("bm25_score", "bm25_rank", "vector_rank", "graph_score", "graph_rank",
+            "fusion_score", "rerank_score", "rerank_rank");
 
     /** Chunk 轻量投影（不序列化全文，控制 SSE 帧体积） */
     private static ChunkTrace toChunkTrace(Document doc, String source) {

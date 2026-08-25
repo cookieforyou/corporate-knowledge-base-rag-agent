@@ -215,6 +215,27 @@ public class Neo4jGraphGateway implements GraphGateway {
         }
     }
 
+    @Override
+    public List<GraphRecords.EntityChainSample> sampleEntityChains(String tenantId, int limit) {
+        if (tenantId == null || tenantId.isBlank()) {
+            return List.of();   // fail-closed：无租户零触达
+        }
+        try (Session session = driver.session(sessionConfig)) {
+            return session.executeRead(tx -> {
+                Result result = tx.run(SAMPLE_ENTITY_CHAINS, Map.of(
+                    "tenantId", tenantId, "limit", Math.max(1, limit)));
+                List<GraphRecords.EntityChainSample> samples = new ArrayList<>();
+                while (result.hasNext()) {
+                    Record record = result.next();
+                    samples.add(new GraphRecords.EntityChainSample(
+                        record.get("chain").asList(Value::asString),
+                        record.get("chunkIds").asList(Value::asString)));
+                }
+                return samples;
+            }, txConfig);
+        }
+    }
+
     // ── 参数转换与守卫 ────────────────────────────────────────────────
 
     private static void requireTenant(String tenantId) {
@@ -390,5 +411,18 @@ public class Neo4jGraphGateway implements GraphGateway {
         WITH entities, count(r) AS relations
         OPTIONAL MATCH (c:Chunk {tenant_id: $tenantId})
         RETURN entities, relations, count(c) AS chunkAnchors
+        """;
+
+    /** 二跳实体链采样（多跳草稿材料）：a→b→c 链 + 链首/尾关联存活 chunk 反查 */
+    private static final String SAMPLE_ENTITY_CHAINS = """
+        MATCH (a:Entity {tenant_id: $tenantId})-[:RELATED_TO]->(b:Entity {tenant_id: $tenantId})
+              -[:RELATED_TO]->(c:Entity {tenant_id: $tenantId})
+        WHERE a.id <> c.id
+        WITH DISTINCT a, b, c
+        LIMIT $limit
+        OPTIONAL MATCH (ca:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(a)
+        OPTIONAL MATCH (cc:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(c)
+        WITH a, b, c, collect(DISTINCT ca.id) AS caIds, collect(DISTINCT cc.id) AS ccIds
+        RETURN [a.name, b.name, c.name] AS chain, caIds + ccIds AS chunkIds
         """;
 }

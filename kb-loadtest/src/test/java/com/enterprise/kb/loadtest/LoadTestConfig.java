@@ -66,9 +66,13 @@ public final class LoadTestConfig {
         return intOf("loadtest.a.duration.seconds", "LOADTEST_A_DURATION_SECONDS", 60);
     }
 
-    /** 4.12 验收线：检索链路 P95 < 500ms（含改写 LLM + 双路召回 + rerank 外部调用） */
+    /**
+     * 4.12 验收线：检索链路 P95（含改写 LLM + 多路召回 + rerank 外部调用）。
+     * 簇④ 前双路基线 500；三路融合（向量+BM25+Graph）抬升至 600——图路预算
+     * ~100ms 与双路并行（取 max 非求和），+100ms 余量覆盖图路抖动；18 §18.4 同步。
+     */
     public static int aP95ThresholdMs() {
-        return intOf("loadtest.a.p95.threshold.ms", "LOADTEST_A_P95_THRESHOLD_MS", 500);
+        return intOf("loadtest.a.p95.threshold.ms", "LOADTEST_A_P95_THRESHOLD_MS", 600);
     }
 
     // ── 场景 B：生成桩压 ──

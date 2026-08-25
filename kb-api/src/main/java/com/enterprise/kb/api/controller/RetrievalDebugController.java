@@ -84,6 +84,8 @@ public class RetrievalDebugController {
         Map<String, CandidateBuilder> merged = new LinkedHashMap<>();
         boolean bm25Present = false;
         boolean vectorHasHits = false;
+        boolean graphPresent = false;
+        boolean graphHasHits = false;
 
         for (RetrievalContext.TraceEntry entry : ctx.getTraceSummary()) {
             switch (entry.source()) {
@@ -99,6 +101,13 @@ public class RetrievalDebugController {
                     for (Document doc : entry.documents()) {
                         rank++;
                         builder(merged, doc).fillVector(doc, rank);
+                    }
+                }
+                case "graph" -> {   // 簇④：图路仅在场时入视图（关闭态零形态变化）
+                    graphPresent = true;
+                    graphHasHits = !entry.documents().isEmpty();
+                    for (Document doc : entry.documents()) {
+                        builder(merged, doc).fillGraph(doc);
                     }
                 }
                 default -> { /* final 序列单独处理 */ }
@@ -127,9 +136,13 @@ public class RetrievalDebugController {
                 a.fusionScore() != null ? a.fusionScore() : 0);
         });
 
-        return new RetrievalDebugResult(query, rewrittenQuery, latency, candidates, Map.of(
-            "vector", vectorHasHits ? "OK" : "DEGRADED",
-            "bm25", bm25Present ? "OK" : "DEGRADED"));
+        Map<String, String> degradation = new LinkedHashMap<>();
+        degradation.put("vector", vectorHasHits ? "OK" : "DEGRADED");
+        degradation.put("bm25", bm25Present ? "OK" : "DEGRADED");
+        if (graphPresent) {   // 关闭态不出现 graph 键（响应形态零变化）
+            degradation.put("graph", graphHasHits ? "OK" : "DEGRADED");
+        }
+        return new RetrievalDebugResult(query, rewrittenQuery, latency, candidates, degradation);
     }
 
     private static CandidateBuilder builder(Map<String, CandidateBuilder> merged, Document doc) {
@@ -148,6 +161,9 @@ public class RetrievalDebugController {
         private Integer vectorRank;
         private Double bm25Score;
         private Integer bm25Rank;
+        private Double graphScore;
+        private Integer graphRank;
+        private String graphEntityHits;
         private Double fusionScore;
         private Double rerankScore;
         private Integer rerankRank;
@@ -179,6 +195,15 @@ public class RetrievalDebugController {
             fillCommon(doc);
         }
 
+        /** 图路得分/排名/命中实体（簇④）：元数据键族同双路契约 */
+        void fillGraph(Document doc) {
+            Map<String, Object> meta = doc.getMetadata();
+            if (meta.get("graph_score") instanceof Number n) this.graphScore = n.doubleValue();
+            if (meta.get("graph_rank") instanceof Number n) this.graphRank = n.intValue();
+            if (meta.get("graph_entity_hits") != null) this.graphEntityHits = String.valueOf(meta.get("graph_entity_hits"));
+            fillCommon(doc);
+        }
+
         void fillFinal(Document doc, int rank) {
             Map<String, Object> meta = doc.getMetadata();
             if (meta.get("fusion_score") instanceof Number n) this.fusionScore = n.doubleValue();
@@ -191,6 +216,7 @@ public class RetrievalDebugController {
         Candidate build() {
             return new Candidate(chunkId, fileName, pageNum, chunkType, content,
                 vectorScore, vectorRank, bm25Score, bm25Rank,
+                graphScore, graphRank, graphEntityHits,
                 fusionScore, rerankScore, rerankRank, finalRank);
         }
     }

@@ -130,7 +130,7 @@ const latencies = computed(() => {
   const l = result.value.latencyMs
   return [
     { key: 'rewrite', label: '改写', value: l.rewrite, color: 'var(--gold-600)' },
-    { key: 'retrieval', label: '双路召回', value: l.retrieval, color: 'var(--c-vector)' },
+    { key: 'retrieval', label: '多路召回', value: l.retrieval, color: 'var(--c-vector)' },
     { key: 'rerank', label: '重排', value: l.rerank, color: 'var(--c-rerank)' },
     { key: 'total', label: '全链路', value: l.total, color: 'var(--pine-800)' }
   ]
@@ -144,6 +144,7 @@ const maxes = computed(() => {
   return {
     vector: max(c => c.vectorScore),
     bm25: max(c => c.bm25Score),
+    graph: max(c => c.graphScore),
     fusion: max(c => c.fusionScore),
     rerank: max(c => c.rerankScore)
   }
@@ -151,12 +152,20 @@ const maxes = computed(() => {
 
 function scoreDims(c: RetrievalCandidate) {
   const m = maxes.value
-  return [
+  // 图路维度（簇④）：仅该候选命中图路时呈现（关闭态/未命中自然缺位，零空行）
+  type Dim = { key: string; label: string; value: number | undefined | null; rank: number | null | undefined; max: number; color: string }
+  const dims: Dim[] = [
     { key: 'vector', label: '向量相似度', value: c.vectorScore, rank: c.vectorRank, max: m.vector, color: 'var(--c-vector)' },
-    { key: 'bm25', label: 'BM25', value: c.bm25Score, rank: c.bm25Rank, max: m.bm25, color: 'var(--c-bm25)' },
+    { key: 'bm25', label: 'BM25', value: c.bm25Score, rank: c.bm25Rank, max: m.bm25, color: 'var(--c-bm25)' }
+  ]
+  if (c.graphScore != null || c.graphRank != null) {
+    dims.push({ key: 'graph', label: c.graphEntityHits ? `图谱·${c.graphEntityHits}` : '图谱', value: c.graphScore, rank: c.graphRank, max: m.graph, color: 'var(--c-graph, var(--c-bm25))' })
+  }
+  dims.push(
     { key: 'fusion', label: 'RRF 融合', value: c.fusionScore, rank: null, max: m.fusion, color: 'var(--c-fusion)' },
     { key: 'rerank', label: '重排分', value: c.rerankScore, rank: c.rerankRank, max: m.rerank, color: 'var(--c-rerank)' }
-  ]
+  )
+  return dims
 }
 
 const barWidth = (v: number | undefined | null, max: number) =>

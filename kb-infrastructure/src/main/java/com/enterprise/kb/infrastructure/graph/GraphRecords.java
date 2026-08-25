@@ -44,4 +44,10 @@ public final class GraphRecords {
         List<String> entityNames,
         int hop) {
     }
+
+    /** 二跳实体链样本（多跳测试集草稿材料）：实体名链 a→b→c + 链首/尾关联存活 chunk */
+    public record EntityChainSample(
+        List<String> entityNames,
+        List<String> chunkIds) {
+    }
 }

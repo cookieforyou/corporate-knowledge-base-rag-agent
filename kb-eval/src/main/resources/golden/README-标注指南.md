@@ -113,6 +113,29 @@ mvn spring-boot:run -pl kb-eval \
 纪律**：两轮除被验证变量外配置须一致（探针/Judge 口径/开关组合），工作区脏
 时锚点 ⚠ 提示结论需谨慎；报表为观察面，不入门禁。
 
+## 多跳专项测试集（簇④ 5.2，GraphRAG 验收 ≥30 例）
+
+多跳用例（`category=MULTI_HOP`）：答案须经实体链跨片段/跨文档推理得出
+（如「A 公司 CTO 曾任教的大学」= A 公司 →CTO→ 人名 →大学 二跳链）。
+语料 `golden/multihop-qa.json`（当前空集占位，≥30 例后门禁生效）。
+
+**产出工作流（机器侧草稿 + 人工审定，沿用 AC 草稿先例）**：
+
+```bash
+# ① 前置：图谱启用（rag.graph.enabled=true）+ 存量回填已跑（图覆盖存在）
+# ② 起草多跳候选题材料（零 LLM 计费：图谱二跳实体链采样 + PG chunk 摘录）
+EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
+  -Dspring-boot.run.arguments=--eval.draft-multihop
+# → target/multihop-drafts.json / .md（实体链 + chunk ID + 摘录材料表）
+# ③ 人工审定：基于材料编写 question + expectedAnswer（必填，门禁消费），
+#    expectedChunkIds 取材料表 chunk ID，回写 golden/multihop-qa.json
+```
+
+**门禁口径**：多跳准确率 = AC≥4.0（1-5 Judge）判通过的用例占比，≥80% 达标；
+样本 ≥ `eval.thresholds.multi-hop-min-samples`（默认 5）才门禁，未达只报告
+（测试集建设初期保护，同分类地板小样本纪律）。MULTI_HOP 走正向 Judge 管道
+（检索 + 生成 + 五维评分），检索侧图路贡献经 Debug 检索台 graph 维度观测。
+
 ## 数量与分布目标（16.1）
 
 - 总量 **50+** 条，其中负向用例 **≥ 20%**

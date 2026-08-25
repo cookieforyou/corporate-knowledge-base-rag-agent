@@ -126,6 +126,26 @@ public record EvalReport(
                 "Negative Rejection %.2f < 阈值 %.2f（样本 %d）%n",
                 negativeRejectionRate, t.getNegativeRejection(), negativeEvaluated));
         }
+        // 多跳准确率门禁（簇④ 5.2）：MULTI_HOP 分类 AC 通过率 ≥80%；
+        // 样本不足最小样本数只报告不门禁（测试集建设初期保护，同分类地板纪律）
+        List<EvalResult> multiHop = results.stream()
+            .filter(r -> r.pair().category() == QACategory.MULTI_HOP).toList();
+        if (multiHop.size() >= t.getMultiHopMinSamples()) {
+            long passed = multiHop.stream()
+                .filter(r -> r.answerCorrectness() != null
+                    && r.answerCorrectness() >= t.getMultiHopAcPassScore())
+                .count();
+            double accuracy = (double) passed / multiHop.size();
+            if (accuracy < t.getMultiHopMinAccuracy()) {
+                failures.append(String.format(
+                    "多跳准确率 %.2f < 阈值 %.2f（样本 %d，AC≥%.1f 判通过）%n",
+                    accuracy, t.getMultiHopMinAccuracy(), multiHop.size(),
+                    t.getMultiHopAcPassScore()));
+            }
+        } else if (!multiHop.isEmpty()) {
+            log.warn("多跳样本 {} < 最小样本 {}——准确率只报告不门禁",
+                multiHop.size(), t.getMultiHopMinSamples());
+        }
         // 注入拦截门禁（簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
         // JAILBREAK / MULTILINGUAL 属 L2 防域（安全簇⑤ E2 升格，见下条）、
         // ENCODING_OPAQUE 为观察集——L1 不拦截属设计行为，只报告不门禁

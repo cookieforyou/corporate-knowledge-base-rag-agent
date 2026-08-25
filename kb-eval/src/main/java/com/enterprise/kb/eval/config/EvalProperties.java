@@ -167,6 +167,15 @@ public class EvalProperties {
         private double faithfulnessCategoryFloor = 3.5;
         /** 地板生效的最小样本数：分类样本不足时跳过地板检查（小样本均值噪声过大） */
         private int faithfulnessCategoryMinSamples = 3;
+        /**
+         * 多跳准确率门禁（簇④ 5.2，「多跳推理准确率 >80%」验收的度量承接）：
+         * MULTI_HOP 分类以 Answer Correctness 达 {@code multiHopAcPassScore}
+         * 判通过，通过率低于此阈值门禁失败；样本不足 {@code multiHopMinSamples}
+         * 只报告不门禁（测试集建设初期保护）。多跳用例须标注 expectedAnswer。
+         */
+        private double multiHopMinAccuracy = 0.80;
+        private double multiHopAcPassScore = 4.0;
+        private int multiHopMinSamples = 5;
         private double negativeRejection = 0.85;
         /**
          * 注入拦截率门禁（簇⑤ B2 S6，12 章「拦截率 >95%」验收的度量承接）：

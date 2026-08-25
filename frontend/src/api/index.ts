@@ -176,6 +176,9 @@ export interface RetrievalCandidate {
   vectorRank?: number
   bm25Score?: number
   bm25Rank?: number
+  graphScore?: number
+  graphRank?: number
+  graphEntityHits?: string
   fusionScore?: number
   rerankScore?: number
   rerankRank?: number

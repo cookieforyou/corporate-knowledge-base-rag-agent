@@ -128,6 +128,7 @@ body {
 .chip-gold  { background: var(--gold-100); color: var(--gold-600); border-color: #EBD9B4; }
 .chip-vector{ background: #E8F1F8; color: var(--c-vector); border-color: #CFE2F0; }
 .chip-bm25  { background: #FAEFE4; color: var(--c-bm25);   border-color: #F0DCC4; }
+.chip-graph { background: #E7F2EA; color: var(--pine-700); border-color: #CFE5D6; }
 .chip-fusion{ background: var(--pine-50);  color: var(--c-fusion); border-color: var(--pine-100); }
 .chip-rerank{ background: #F7EAEF; color: var(--c-rerank); border-color: #EED3DC; }
 .chip-ok    { background: #E6F3EC; color: var(--ok);       border-color: #CBE6D8; }

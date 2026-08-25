@@ -17,11 +17,12 @@ public record RetrievalDebugResult(
     Map<String, String> degradation
 ) {
 
-    /** 各阶段耗时（ms）：rewrite 查询改写 / retrieval 双路并行召回 / rerank 精排 / total 全链路 */
+    /** 各阶段耗时（ms）：rewrite 查询改写 / retrieval 多路并行召回（含图路，簇④）/ rerank 精排 / total 全链路 */
     public record Latency(long rewrite, long retrieval, long rerank, long total) {}
 
     /**
-     * 单候选 Chunk 全维度得分：向量相似度/排名、BM25 分/排名、RRF 融合分、
+     * 单候选 Chunk 全维度得分：向量相似度/排名、BM25 分/排名、
+     * Graph 贡献分/排名 + 命中实体（簇④，图路缺位时为 null）、RRF 融合分、
      * 重排分/排名、最终排名。未出现在某路的维度为 null。
      */
     public record Candidate(
@@ -34,6 +35,9 @@ public record RetrievalDebugResult(
         Integer vectorRank,
         Double bm25Score,
         Integer bm25Rank,
+        Double graphScore,
+        Integer graphRank,
+        String graphEntityHits,
         Double fusionScore,
         Double rerankScore,
         Integer rerankRank,

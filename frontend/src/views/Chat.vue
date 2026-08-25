@@ -71,7 +71,7 @@
           <div v-if="msg.role === 'assistant' && msg.sources?.length" class="trace-panel panel">
             <button class="trace-toggle" @click="msg.traceOpen = !msg.traceOpen">
               <el-icon><Document /></el-icon>
-              <span>溯源 · {{ finalCount(msg) }} 条证据（双路检索）</span>
+              <span>溯源 · {{ finalCount(msg) }} 条证据（多路检索）</span>
               <el-icon class="trace-caret" :class="{ open: msg.traceOpen }"><ArrowDown /></el-icon>
             </button>
             <transition name="slide-fade">
@@ -516,14 +516,15 @@ const progressStatus = computed(() => {
 })
 
 const srcLabel = (s: string) =>
-  ({ vector: '向量路', bm25: 'BM25 路', final: '最终注入' } as Record<string, string>)[s] || s
+  ({ vector: '向量路', bm25: 'BM25 路', graph: '图谱路', final: '最终注入' } as Record<string, string>)[s] || s
 
 const srcChipClass = (s: string) =>
-  ({ vector: 'chip-vector', bm25: 'chip-bm25', final: 'chip-rerank' } as Record<string, string>)[s] || 'chip-mute'
+  ({ vector: 'chip-vector', bm25: 'chip-bm25', graph: 'chip-graph', final: 'chip-rerank' } as Record<string, string>)[s] || 'chip-mute'
 
 const scoreClass = (k: string) =>
   k.startsWith('bm25') ? 'sc-bm25' : k.startsWith('vector') || k === 'similarity'
-    ? 'sc-vector' : k.startsWith('rerank') ? 'sc-rerank' : 'sc-fusion'
+    ? 'sc-vector' : k.startsWith('graph') ? 'sc-graph'
+      : k.startsWith('rerank') ? 'sc-rerank' : 'sc-fusion'
 
 const fmtScore = (v: number) =>
   Math.abs(v) >= 10 ? v.toFixed(1) : Number(v).toFixed(3)
@@ -676,6 +677,7 @@ function finalCount(msg: Message) {
 }
 .sc-vector { background: #E8F1F8; color: var(--c-vector); }
 .sc-bm25   { background: #FAEFE4; color: var(--c-bm25); }
+.sc-graph  { background: #EAF4EC; color: #2F7D4F; }
 .sc-fusion { background: var(--pine-50); color: var(--c-fusion); }
 .sc-rerank { background: #F7EAEF; color: var(--c-rerank); }
 .chunk-snippet {

@@ -30,6 +30,15 @@ class EvalReportThresholdTest {
             null, null, null, null, null, null);
     }
 
+    /** 多跳用例（簇④）：携 AC 读数，faithfulness 取过门禁值隔离变量 */
+    private static EvalResult multiHop(String id, double answerCorrectness) {
+        GoldenQAPair pair = new GoldenQAPair(id, QACategory.MULTI_HOP, "多跳-" + id,
+            null, "标准答案", null, null, null, null, null);
+        return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, 4.5, 4.0, null, null, null, null, null,
+            answerCorrectness, null, null, null, null, null);
+    }
+
     private static EvalReport reportOf(List<EvalResult> results) {
         double avgF = results.stream().mapToDouble(EvalResult::faithfulness).average().orElse(Double.NaN);
         return new EvalReport("chain", results.size(), 0, results.size(), 0,
@@ -131,6 +140,37 @@ class EvalReportThresholdTest {
         List<EvalResult> results = new ArrayList<>();
         results.addAll(cases(QACategory.FACTOID, 10, 4.5));
         results.addAll(cases(QACategory.TABLE, 2, 3.0));
+        assertThatCode(() -> reportOf(results).assertThresholds(props))
+            .doesNotThrowAnyException();
+    }
+
+    // ── 多跳准确率门禁（簇④ 5.2）──
+
+    @Test
+    void multiHopAccuracyBelowThresholdFails() {
+        // 5 条多跳：2 条通过（AC≥4.0）/ 3 条未过 → 通过率 0.4 < 0.8 门禁失败
+        List<EvalResult> results = List.of(
+            multiHop("mh-1", 4.5), multiHop("mh-2", 4.0),
+            multiHop("mh-3", 3.0), multiHop("mh-4", 2.5), multiHop("mh-5", 3.5));
+        assertThatThrownBy(() -> reportOf(results).assertThresholds(props))
+            .isInstanceOf(EvalFailedException.class)
+            .hasMessageContaining("多跳准确率");
+    }
+
+    @Test
+    void multiHopAccuracyAboveThresholdPasses() {
+        List<EvalResult> results = List.of(
+            multiHop("mh-1", 4.5), multiHop("mh-2", 4.0), multiHop("mh-3", 5.0),
+            multiHop("mh-4", 4.2), multiHop("mh-5", 3.0));   // 4/5 = 0.8 达标
+        assertThatCode(() -> reportOf(results).assertThresholds(props))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void multiHopSmallSampleReportsOnly() {
+        // 3 条 < 最小样本 5：即使通过率低也只报告不门禁
+        List<EvalResult> results = List.of(
+            multiHop("mh-1", 2.0), multiHop("mh-2", 2.5), multiHop("mh-3", 3.0));
         assertThatCode(() -> reportOf(results).assertThresholds(props))
             .doesNotThrowAnyException();
     }

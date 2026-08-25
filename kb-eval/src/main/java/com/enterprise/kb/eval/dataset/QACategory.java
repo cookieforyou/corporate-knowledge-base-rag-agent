@@ -12,6 +12,13 @@ public enum QACategory {
     TABLE,
     /** 多文档聚合 */
     MULTI_DOC,
+    /**
+     * 多跳推理（簇④ 5.2）：答案须经实体链跨片段/跨文档推理得出
+     * （GraphRAG 专项测试集分区）。走正向 Judge 管道；门禁 = 多跳准确率
+     * （AC 通过率）≥80%（样本达 {@code eval.thresholds.multi-hop-min-samples}
+     * 才门禁，未达只报告——同分类地板小样本纪律）。
+     */
+    MULTI_HOP,
     /** 负向：知识库外问题，期望规范拒答（Negative Rejection 指标） */
     NEGATIVE,
     /**
