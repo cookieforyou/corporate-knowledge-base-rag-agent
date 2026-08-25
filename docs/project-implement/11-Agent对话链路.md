@@ -2,7 +2,16 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-25 · v2.73（Phase 5 簇③ 批3 收口：N1 供应商侧 Context Cache 定案——§11.10 新增，DeepSeek 前缀缓存默认开零代码；簇③机器侧闭环）
+> [📑 返回目录](./README.md) · 最后更新：2026-08-25 · v2.74（Phase 5 簇③ 5.6 E2E 热修：Redisson hasIndex 与 Redis Stack 错误文案不兼容——坑位㉝；配置类启动注册补齐）
+>
+> **v2.74（2026-08-25，Phase 5 簇③ 5.6 E2E 热修）**：用户侧簇③-E2E 首跑实证暴露
+> 批1 两处缺口并修复（§11.9 末「E2E 热修」段）：① **坑位㉝**——Redisson 4.6.1
+> `hasIndex` 经 Lua 包裹 `FT.INFO` 判存在，仅错误文案匹配 "not found"/"no such
+> index" 判不存在；Redis Stack / RediSearch 对不存在索引返回 "Unknown index
+> name"——文案不匹配即上抛异常，租户索引惰性创建永不执行（查找/写入全程
+> fail-open 直通）→ 服务侧补认该文案族为「不存在」；② `SemanticCacheProperties`
+> 缺 Bean 注册致启用态启动失败（**坑位㉞**）→ 补 `@Component`（同
+> `ParsingProperties` 先例）。
 >
 > **v2.73（2026-08-25，Phase 5 簇③ 5.6 批3：N1 定案收口）**：新增 §11.10——供应商侧
 > Context Cache（N1，复审定案纳入项）按 2026-08-24 用户裁决**收窄为 DeepSeek 侧**：
@@ -915,6 +924,22 @@ reparse/replace/索引重建/**首次入库**（重建经 `ReindexGateway` 委�
 
 **批2 质量**：全反应器 817 单测绿（+25：资格五闸/命中重放/溯源往返保真/写入门槛/
 流完成与错误分支/失效频道发布订阅生命周期 + 写路径接线断言）。
+
+**E2E 热修（v2.74，2026-08-25）**——用户侧簇③-E2E 首跑暴露并修复批1 两处缺口：
+① **租户索引永不创建（坑位㉝）**——项目钉的 Redisson 4.6.1 `hasIndex` 经 Lua
+包裹 `FT.INFO` 判存在，仅当错误文案匹配 "not found"/"no such index" 返回不存在，
+否则原样上抛（源码级核验 `RedissonSearch#hasIndexAsync`）；而 ECS Redis Stack
+（RediSearch 2.10.20）对不存在索引返回 "Unknown index name"——文案不匹配致
+`ensureIndex` 在 `FT.CREATE` 前即中断，查找/写入每请求经 fail-open 直通、缓存
+全程未生效（启动期 `FT._LIST` 探测通过，故障面只在逐租户惰性建索引路径）。
+修复 = `indexExists` 对 `hasIndex` 异常按文案族补认「unknown index → 不存在」，
+非文案异常（连接故障等）仍上抛由外层 fail-open 兜底，容错语义不变。
+② **启动期注册遗漏（坑位㉞）**——`SemanticCacheProperties` 仅
+`@ConfigurationProperties` 无 Bean 注册（批1 单测手工装配掩盖），
+`rag.cache.enabled=true` 时构造注入失败启动即崩 → 补 `@Component`（对齐
+`ParsingProperties` 先例）。
+**教训登记**：条件装配 Bean 的启动期装配形态不可由单测手工装配替代核验。
+质量：全反应器单测绿（+2：文案兜住建索引 / 连接故障不误建）。
 
 ## 11.10 供应商侧 Context Cache（v2.73 新增，Phase 5 簇③ 5.6 批3 / N1）
 

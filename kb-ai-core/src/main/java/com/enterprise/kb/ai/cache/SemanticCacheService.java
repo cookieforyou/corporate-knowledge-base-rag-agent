@@ -208,7 +208,28 @@ public class SemanticCacheService {
         }
     }
 
-    /** 租户索引惰性创建（首触达建，hasIndex 短路重复建） */
+    /**
+     * 索引存在探测——对 Redisson {@code hasIndex} 的文案盲区补认（坑位㉝）：
+     * Redisson 4.6.1 经 Lua 包裹 {@code FT.INFO} 判存在，仅当错误文案匹配
+     * "not found"/"no such index" 返回不存在，不匹配即上抛原错误（源码级核验
+     * {@code RedissonSearch#hasIndexAsync}）；而 Redis Stack / RediSearch 对不存在
+     * 索引返回 "Unknown index name"——文案不匹配致惰性建索引永不执行。此处按
+     * 文案族兜住判「不存在」；其余异常（连接故障等）上抛，由调用方外层
+     * fail-open 兜底（与自关态同语义）。
+     */
+    private boolean indexExists(String index) {
+        try {
+            return search.hasIndex(index);
+        } catch (Exception e) {
+            String message = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+            if (message.contains("unknown index")) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    /** 租户索引惰性创建（首触达建，ensuredIndexes 短路重复建） */
     private void ensureIndex(String tenantId) {
         String index = indexName(tenantId);
         if (ensuredIndexes.contains(index)) {
@@ -218,7 +239,7 @@ public class SemanticCacheService {
             if (ensuredIndexes.contains(index)) {
                 return;
             }
-            if (!search.hasIndex(index)) {
+            if (!indexExists(index)) {
                 search.createIndex(index,
                         IndexOptions.defaults().on(IndexType.HASH).prefix(keyPrefix(tenantId)),
                         FieldIndex.hnswVector(FIELD_EMBEDDING)

@@ -264,6 +264,30 @@ class SemanticCacheServiceTest {
         verify(search).createIndex(eq("kb-cache-idx-t-1"), any(), any(), any());
     }
 
+    @Test
+    void unknownIndexNameWordingTreatedAsAbsentAndIndexCreated() {
+        // 坑位㉝：Redis Stack / RediSearch 对不存在索引返回 "Unknown index name"，
+        // Redisson 4.6.1 hasIndex 错误匹配表（not found / no such index）不覆盖该
+        // 文案 → 上抛异常；须按「不存在」兜住并创建（否则惰性建索引永不执行）
+        when(search.hasIndex("kb-cache-idx-t-1")).thenThrow(new RuntimeException(
+                "Unknown index name. command: (EVALSHA_RO, cached script: FT.INFO ...)"));
+        when(search.search(anyString(), anyString(), any()))
+                .thenReturn(new SearchResult(0, List.of()));
+
+        service.lookup("t-1", vector(0.1f));
+
+        verify(search).createIndex(eq("kb-cache-idx-t-1"), any(), any(), any());
+    }
+
+    @Test
+    void nonWordingHasIndexFailurePropagatesToFailOpenWithoutCreation() {
+        // 连接故障等非文案异常不得误判为「不存在」——上抛由外层 fail-open 兜底
+        when(search.hasIndex(anyString())).thenThrow(new RuntimeException("connection refused"));
+
+        assertThat(service.lookup("t-1", vector(0.1f))).isEmpty();
+        verify(search, never()).createIndex(anyString(), any(), any(), any());
+    }
+
     // ── 纯函数契约 ──
 
     @Test
