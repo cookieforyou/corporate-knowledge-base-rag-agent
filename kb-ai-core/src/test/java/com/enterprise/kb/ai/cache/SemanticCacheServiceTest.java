@@ -236,7 +236,32 @@ class SemanticCacheServiceTest {
 
         ArgumentCaptor<String> query = ArgumentCaptor.forClass(String.class);
         verify(search).search(eq("kb-cache-idx-t-1"), query.capture(), any());
-        assertThat(query.getValue()).isEqualTo("@docIds:{doc-9}");
+        // 坑位㉟：TAG 表达式内 - 为否定符，连字符须转义（存储侧原值不动）
+        assertThat(query.getValue()).isEqualTo("@docIds:{doc\\-9}");
+    }
+
+    @Test
+    void invalidateEscapesUuidDocumentIdInTagQuery() {
+        // 实证形态：文档引用为 UUID（含连字符），未转义即 Syntax error（坑位㉟）
+        when(search.search(anyString(), anyString(), any()))
+                .thenReturn(new SearchResult(0, List.of()));
+        when(search.hasIndex(anyString())).thenReturn(true);
+
+        service.invalidateByDocument("t-1", "c966ddac-e9af-4f3e-a0cd-171159e0a26f");
+
+        ArgumentCaptor<String> query = ArgumentCaptor.forClass(String.class);
+        verify(search).search(eq("kb-cache-idx-t-1"), query.capture(), any());
+        assertThat(query.getValue()).isEqualTo(
+                "@docIds:{c966ddac\\-e9af\\-4f3e\\-a0cd\\-171159e0a26f}");
+    }
+
+    @Test
+    void escapeTagValueOnlyEscapesTagSpecialCharacters() {
+        assertThat(SemanticCacheService.escapeTagValue("c966ddac-e9af"))
+                .isEqualTo("c966ddac\\-e9af");
+        // 字母数字与下划线原样通过（sanitize 后值域只含 [a-zA-Z0-9_-]）
+        assertThat(SemanticCacheService.escapeTagValue("doc_9x")).isEqualTo("doc_9x");
+        assertThat(SemanticCacheService.escapeTagValue("")).isEmpty();
     }
 
     @Test

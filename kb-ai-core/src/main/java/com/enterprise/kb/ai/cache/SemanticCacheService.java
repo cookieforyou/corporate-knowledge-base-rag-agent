@@ -190,7 +190,7 @@ public class SemanticCacheService {
         try {
             ensureIndex(tenantId);
             SearchResult result = search.search(indexName(tenantId),
-                    "@" + FIELD_DOC_IDS + ":{" + sanitize(documentId) + "}",
+                    "@" + FIELD_DOC_IDS + ":{" + escapeTagValue(sanitize(documentId)) + "}",
                     QueryOptions.defaults().noContent(true).limit(0, INVALIDATION_BATCH));
             if (result.getTotal() == 0) {
                 return 0;
@@ -289,6 +289,28 @@ public class SemanticCacheService {
     /** 索引名/键域净化：仅收字母数字下划线连字符（租户域隔离的命名卫生） */
     static String sanitize(String value) {
         return value.replaceAll("[^a-zA-Z0-9_-]", "_");
+    }
+
+    /** TAG 表达式特殊字符集（坑位㉟，RediSearch 查询语法实证） */
+    private static final String TAG_SPECIAL_CHARS = ",.<>{}[]\"':;!@#$%^&*()-+=~";
+
+    /**
+     * TAG 查询值转义（坑位㉟）：TAG 表达式内特殊字符具语法含义（如 {@code -}
+     * 为否定符），文档引用为 UUID 形态（含连字符）时不转义即 Syntax error——
+     * 查询侧逐字符反斜杠转义，存储侧原值不动（转义只作用于查询解析，匹配仍
+     * 按原值）。实证：Redis Stack / RediSearch 2.10.20，未转义 UUID 报
+     * 「Syntax error at offset N near …」。
+     */
+    static String escapeTagValue(String value) {
+        StringBuilder escaped = new StringBuilder(value.length() + 4);
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (TAG_SPECIAL_CHARS.indexOf(c) >= 0) {
+                escaped.append('\\');
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
     }
 
     private static List<String> splitDocIds(String joined) {
