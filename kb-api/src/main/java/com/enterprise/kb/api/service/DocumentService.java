@@ -113,8 +113,16 @@ public class DocumentService {
         log.info("文档元数据已落库: id={}, name={}", docId, file.getOriginalFilename());
 
         // 3. 触发异步 ETL（进度双通道：Redis Hash 状态 + Pub/Sub 实时推送 WebSocket，9.6/2.13）
-        etlService.process(docId, progressWriter.andThen(p ->
-                log.debug("ETL 进度: docId={}, stage={}, pct={}", p.getDocId(), p.getStage(), p.getPercentage())),
+        etlService.process(docId, progressWriter.andThen(p -> {
+                log.debug("ETL 进度: docId={}, stage={}, pct={}", p.getDocId(), p.getStage(), p.getPercentage());
+                if (p.getStage() == EtlStage.COMPLETED) {
+                    // 首次入库终态帧旁路派发（簇④ 5.1 热修）：与重入库回调同语义同覆盖面——
+                    // 缓存失效（新文档无存量缓存，空转无害）+ 图谱抽取异步派发；
+                    // 首次入库不计 reindex 指标、无终态 future 汇聚（与重入库回调的差异面）
+                    cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
+                    graphExtractionPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
+                }
+            }),
             parseForcedRoute(parseRoute));
 
         return docId;
@@ -296,7 +304,8 @@ public class DocumentService {
      *
      * <p><b>失效覆盖面</b>：COMPLETED 终态帧是内容变更提交点——reparse / replace /
      * 索引重建（经 ReindexGateway 委派 {@link #reparse} 同路径）全覆盖，
-     * 故重建侧不再单独接线（避免双发）；首次入库亦经此帧（新文档无存量缓存，空转无害）。
+     * 故重建侧不再单独接线（避免双发）；首次入库在 {@link #upload} 侧独立接线同语义旁路
+     * （簇④ 5.1 热修：首接误以为首入亦经本回调，实为独立回调漏接——实证回写）。
      */
     private Consumer<com.enterprise.kb.etl.pipeline.EtlProgress> reindexProgressCallback(
             String docName, String tenantId, CompletableFuture<Boolean> outcome) {

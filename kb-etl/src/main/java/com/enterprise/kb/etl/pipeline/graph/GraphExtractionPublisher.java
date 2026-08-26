@@ -13,9 +13,10 @@ import java.util.concurrent.Executors;
  * {@link GraphExtractionService}——<b>抽取是旁路管道，不阻塞调用方主流程</b>
  * （ETL 终态帧 / 回填任务经本入口统一派发）。
  *
- * <p><b>接线点（批2）</b>：kb-api {@code DocumentService} 重入库进度回调
- * COMPLETED 终态帧——覆盖首次入库 / reparse / replace / 索引重建
- * （重建委派 reparse 同路径，不重复接线），同语义缓存失效发布器旁位。
+ * <p><b>接线点（批2 + 5.1 热修）</b>：kb-api {@code DocumentService} 两处
+ * COMPLETED 终态帧——重入库进度回调（reparse / replace / 索引重建，
+ * 重建委派 reparse 同路径不重复接线）+ 首次入库 upload 回调（批2 漏接，
+ * 热修补齐），同语义缓存失效发布器旁位。
  *
  * <p><b>fail-open 纪律</b>：派发/抽取故障仅 warn——图谱是检索增强件，
  * 不得击穿文档入库/运维主流程（{@code GraphStatus.FAILED} 留痕，

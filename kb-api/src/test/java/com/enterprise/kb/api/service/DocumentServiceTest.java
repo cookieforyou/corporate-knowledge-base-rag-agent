@@ -286,8 +286,9 @@ class DocumentServiceTest {
     }
 
     /**
-     * 语义缓存失效接线（簇③ 5.6 批2）：ETL COMPLETED 终态帧发布按文档失效事件
-     * （覆盖 reparse/replace/重建/首次入库同路径）；FAILED 帧不发布。
+     * 语义缓存失效接线（簇③ 5.6 批2）：重入库 ETL COMPLETED 终态帧发布按文档失效事件
+     * （覆盖 reparse/replace/重建；首次入库经 upload 侧独立接线，见下方回归守卫）；
+     * FAILED 帧不发布。
      */
     @Test
     void reparseCompletedFramePublishesCacheInvalidation() {
@@ -308,6 +309,36 @@ class DocumentServiceTest {
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
         verifyNoMoreInteractions(publisher);
+    }
+
+    /**
+     * 首次入库终态帧旁路派发接线（簇④ 5.1 热修回归守卫）：upload COMPLETED 帧
+     * 发布缓存失效 + 图谱抽取派发（与重入库回调同语义——批2 首接漏接此处，
+     * 误以为首次入库亦经 reindexProgressCallback，实证 E2E 暴露）；
+     * FAILED 帧不发布。
+     */
+    @Test
+    void uploadCompletedFramePublishesGraphExtractionAndCacheInvalidation() {
+        CacheInvalidationPublisher cachePublisher = mock(CacheInvalidationPublisher.class);
+        GraphExtractionPublisher graphPublisher = mock(GraphExtractionPublisher.class);
+        service = new DocumentService(minioClient, documentRepository, chunkRepository,
+            etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(cachePublisher),
+            graphPublisherProvider(graphPublisher), emptyGraphGatewayProvider());
+        ReflectionTestUtils.setField(service, "bucket", "test-bucket");
+        when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
+        MockMultipartFile file = new MockMultipartFile("file", "样本.md", "text/markdown", "内容".getBytes());
+
+        service.upload(file, TENANT, "u-1", null);
+
+        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        verify(etlService).process(anyString(), captor.capture(), any());
+
+        captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
+        verify(cachePublisher).publish(TENANT, DOC_ID);
+        verify(graphPublisher).publish(TENANT, DOC_ID);
+
+        captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
+        verifyNoMoreInteractions(cachePublisher, graphPublisher);   // FAILED 帧零发布
     }
 
     /** 图谱网关 provider 桩（簇④）：缺省缺位形态（关闭态零变化） */

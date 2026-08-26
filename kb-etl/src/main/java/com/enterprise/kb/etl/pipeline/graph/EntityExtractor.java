@@ -6,6 +6,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,7 @@ public class EntityExtractor {
 
     private final ChatClient chatClient;
 
+    @Autowired
     public EntityExtractor(GraphExtractionProperties properties) {
         this(buildExtractionModel(properties));
     }
