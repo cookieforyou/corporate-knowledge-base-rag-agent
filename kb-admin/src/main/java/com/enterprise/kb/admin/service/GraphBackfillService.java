@@ -32,8 +32,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 解析与向量结果，经重建端点回填会白付解析 + 嵌入费用）。
  *
  * <p>编排模式沿用 {@code IndexRebuildService}：滑动窗口并发 + 单文档终态汇聚；
- * 差异在单文档执行体 = {@link GraphExtractionService#extract} 同步调用
- * （其内部已有令牌桶 + 信号量双限流，窗口并发仅控制在飞文档数）。
+ * 差异在单文档执行体 = {@link GraphExtractionService#extract} 同步调用，
+ * 经 {@link GraphExtractionService.RateProfile#BACKFILL 回填档}消费（缺省 60 次/分
+ * 独立桶——v2.79 实证 20 次/分使令牌桶成回填墙钟唯一瓶颈；其内部信号量仍是
+ * 供应商在飞闸门，窗口并发仅控制在飞文档数）。
  *
  * <p><b>选目标口径</b>：{@code docIds} 缺省 = 租户全量待回填——入库成功
  * （SUCCESS）且 {@code graph_status} 为 PENDING/EXTRACTING/FAILED 者（幂等重跑
@@ -54,7 +56,7 @@ public class GraphBackfillService {
     private final Executor etlExecutor;
     private final RedisGraphBackfillStore store;
 
-    /** 在飞文档窗口——抽取内部已限流（20 次/分/租户），窗口仅控并发面 */
+    /** 在飞文档窗口——抽取内部已限流（回填档缺省 60 次/分独立桶），窗口仅控并发面 */
     @Value("${rag.graph.backfill.concurrency:2}")
     private int concurrency;
 
@@ -137,7 +139,8 @@ public class GraphBackfillService {
                 while (iterator.hasNext() && pending.size() < window) {
                     String docId = iterator.next().getId();
                     pending.put(docId, CompletableFuture
-                        .supplyAsync(() -> extractionService.extract(tenantId, docId), etlExecutor)
+                        .supplyAsync(() -> extractionService.extract(tenantId, docId,
+                            GraphExtractionService.RateProfile.BACKFILL), etlExecutor)
                         .orTimeout(docTimeoutMinutes, TimeUnit.MINUTES)
                         .exceptionally(ex -> false));
                 }

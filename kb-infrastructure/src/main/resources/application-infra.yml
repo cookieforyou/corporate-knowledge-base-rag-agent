@@ -54,6 +54,8 @@ spring:
     database: ${NEO4J_DATABASE:neo4j}
     connection-timeout-seconds: ${NEO4J_CONNECTION_TIMEOUT_SECONDS:10}
     query-timeout-seconds: ${NEO4J_QUERY_TIMEOUT_SECONDS:5}
+    # 闲置连接存活探测阈值——出借前验证，死连接（中间层闲置超时掐断）剔除换新（v2.79）
+    liveness-check-seconds: ${NEO4J_LIVENESS_CHECK_SECONDS:60}
 
 # MinIO 对象存储
 minio:

@@ -244,7 +244,8 @@ rag:
       base-url: ${RAG_GRAPH_EXTRACTION_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       api-key: ${RAG_GRAPH_EXTRACTION_API_KEY:${DASHSCOPE_API_KEY:}}
       model: ${RAG_GRAPH_EXTRACTION_MODEL:qwen3.7-plus}
-      rate: ${RAG_GRAPH_EXTRACTION_RATE:20}                          # 每租户令牌桶速率（次/窗口；v2.78 实证 10→20，限流只布节奏不增成本）
+      rate: ${RAG_GRAPH_EXTRACTION_RATE:20}                          # 增量档每租户令牌桶速率（次/窗口；v2.78 实证 10→20，限流只布节奏不增成本）
+      backfill-rate: ${RAG_GRAPH_BACKFILL_RATE:60}                   # 回填档速率（v2.79：显式有界批量，独立桶 …:backfill:{tenant}，令牌不再是墙钟瓶颈）
       rate-interval-seconds: ${RAG_GRAPH_EXTRACTION_RATE_INTERVAL_SECONDS:60}
       concurrency: ${RAG_GRAPH_EXTRACTION_CONCURRENCY:3}             # JVM 在飞抽取并发上限
       max-tokens: ${RAG_GRAPH_EXTRACTION_MAX_TOKENS:4000}            # 单次抽取响应上限（v2.78 实证 2000 截断富集片段）

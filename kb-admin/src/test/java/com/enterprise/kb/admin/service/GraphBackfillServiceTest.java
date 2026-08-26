@@ -84,14 +84,16 @@ class GraphBackfillServiceTest {
             doc("d-failed", DocumentStatus.SUCCESS, GraphStatus.FAILED),
             doc("d-extracting", DocumentStatus.SUCCESS, GraphStatus.EXTRACTING),
             doc("d-done", DocumentStatus.SUCCESS, GraphStatus.COMPLETED)));
-        when(extractionService.extract(anyString(), anyString())).thenReturn(true);
+        when(extractionService.extract(anyString(), anyString(), any())).thenReturn(true);
 
         service.start(TENANT, null);
 
-        verify(extractionService).extract(TENANT, "d-pending");
-        verify(extractionService).extract(TENANT, "d-failed");
-        verify(extractionService).extract(TENANT, "d-extracting");   // 崩溃残留收敛兜底
-        verify(extractionService, never()).extract(TENANT, "d-done");   // 幂等收敛
+        verify(extractionService).extract(TENANT, "d-pending", GraphExtractionService.RateProfile.BACKFILL);
+        verify(extractionService).extract(TENANT, "d-failed", GraphExtractionService.RateProfile.BACKFILL);
+        // 崩溃残留收敛兜底
+        verify(extractionService).extract(TENANT, "d-extracting", GraphExtractionService.RateProfile.BACKFILL);
+        verify(extractionService, never())   // 幂等收敛
+            .extract(eq(TENANT), eq("d-done"), any());
         verify(store).tryStart(TENANT, 3);
     }
 
@@ -117,13 +119,13 @@ class GraphBackfillServiceTest {
         when(documentRepository.findById("d1")).thenReturn(Optional.of(owned));
         when(documentRepository.findById("d2")).thenReturn(Optional.of(crossTenant));
         when(documentRepository.findById("d3")).thenReturn(Optional.of(parsing));
-        when(extractionService.extract(anyString(), anyString())).thenReturn(true);
+        when(extractionService.extract(anyString(), anyString(), any())).thenReturn(true);
 
         service.start(TENANT, List.of("d1", "d2", "d3"));
 
-        verify(extractionService).extract(TENANT, "d1");
-        verify(extractionService, never()).extract(TENANT, "d2");   // 跨租户
-        verify(extractionService, never()).extract(TENANT, "d3");   // 未成功入库
+        verify(extractionService).extract(TENANT, "d1", GraphExtractionService.RateProfile.BACKFILL);
+        verify(extractionService, never()).extract(eq(TENANT), eq("d2"), any());   // 跨租户
+        verify(extractionService, never()).extract(eq(TENANT), eq("d3"), any());   // 未成功入库
         verify(store).tryStart(TENANT, 1);
     }
 
@@ -145,8 +147,8 @@ class GraphBackfillServiceTest {
             eq(TENANT), anyList())).thenReturn(List.of(
             doc("d-ok", DocumentStatus.SUCCESS, GraphStatus.PENDING),
             doc("d-bad", DocumentStatus.SUCCESS, GraphStatus.PENDING)));
-        when(extractionService.extract(eq(TENANT), eq("d-ok"))).thenReturn(true);
-        when(extractionService.extract(eq(TENANT), eq("d-bad"))).thenReturn(false);
+        when(extractionService.extract(eq(TENANT), eq("d-ok"), any())).thenReturn(true);
+        when(extractionService.extract(eq(TENANT), eq("d-bad"), any())).thenReturn(false);
 
         service.start(TENANT, null);
 
@@ -166,7 +168,7 @@ class GraphBackfillServiceTest {
             eq(TENANT), anyList())).thenReturn(List.of(
             doc("d1", DocumentStatus.SUCCESS, GraphStatus.PENDING),
             doc("d2", DocumentStatus.SUCCESS, GraphStatus.PENDING)));
-        when(extractionService.extract(anyString(), anyString())).thenAnswer(inv -> {
+        when(extractionService.extract(anyString(), anyString(), any())).thenAnswer(inv -> {
             Thread.sleep(1_500);   // 大于 1s 轮询窗口 → 至少经历一次超时续轮询
             return true;
         });
@@ -194,8 +196,8 @@ class GraphBackfillServiceTest {
             asyncService.start(TENANT, null);
 
             assertThat(finished.await(30, TimeUnit.SECONDS)).as("回填任务收敛终态").isTrue();
-            verify(extractionService).extract(TENANT, "d1");
-            verify(extractionService).extract(TENANT, "d2");
+            verify(extractionService).extract(TENANT, "d1", GraphExtractionService.RateProfile.BACKFILL);
+            verify(extractionService).extract(TENANT, "d2", GraphExtractionService.RateProfile.BACKFILL);
             verify(store, times(2)).recordResult(eq(TENANT), eq(true));
             assertThat(interruptedSeen.get())
                 .as("轮询线程不得被中断标志污染（超时 ≠ 中断，坑位㊳）").isFalse();

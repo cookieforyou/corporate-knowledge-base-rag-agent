@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -179,6 +180,37 @@ class GraphExtractionServiceTest {
         assertThat(anchors.getValue()).hasSize(2);    // 两个含实体 chunk 落锚
         assertThat(listener.started).isEqualTo(1);
         assertThat(listener.succeeded).isEqualTo(1);
+        // 增量档桶键钉死（双档分桶基线侧，与回填档守卫互为镜像；每可抽取 chunk 一次获取）
+        verify(redissonClient, atLeastOnce()).getRateLimiter("rag:ratelimit:graph-extraction:t1");
+    }
+
+    @Test
+    void backfillProfileUsesDedicatedBucketKey() {
+        KbDocument doc = doc("t1");
+        when(documentRepository.findById("d1")).thenReturn(Optional.of(doc));
+        when(chunkRepository.findByDocIdOrderByChunkIndex("d1")).thenReturn(List.of(
+            chunk("c1", 0, "Alpha Corp 发布了年度财报，营收增长显著。")));
+        when(entityExtractor.extract(any(), anyString(), any())).thenReturn(result(
+            List.of(new ExtractionResult.EntityExtraction("Alpha Corp", "ORG", "企业")), List.of()));
+
+        boolean ok = service.extract("t1", "d1", GraphExtractionService.RateProfile.BACKFILL);
+
+        assertThat(ok).isTrue();
+        // 回填档独立桶（免与增量档 setRate 同键互覆——同键异速率重置桶态）
+        verify(redissonClient).getRateLimiter("rag:ratelimit:graph-extraction:backfill:t1");
+        verify(redissonClient, never()).getRateLimiter("rag:ratelimit:graph-extraction:t1");
+    }
+
+    @Test
+    void rateProfilesMapToDistinctRatesAndBuckets() {
+        assertThat(service.rateFor(GraphExtractionService.RateProfile.INCREMENTAL))
+            .as("增量档缺省 20 次/窗口").isEqualTo(20);
+        assertThat(service.rateFor(GraphExtractionService.RateProfile.BACKFILL))
+            .as("回填档缺省 60 次/窗口").isEqualTo(60);
+        assertThat(service.bucketKey("t1", GraphExtractionService.RateProfile.INCREMENTAL))
+            .isEqualTo("rag:ratelimit:graph-extraction:t1");
+        assertThat(service.bucketKey("t1", GraphExtractionService.RateProfile.BACKFILL))
+            .isEqualTo("rag:ratelimit:graph-extraction:backfill:t1");
     }
 
     @Test

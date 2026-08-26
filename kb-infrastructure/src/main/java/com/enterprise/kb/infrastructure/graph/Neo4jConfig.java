@@ -32,6 +32,10 @@ public class Neo4jConfig {
         Config config = Config.builder()
             .withConnectionTimeout(properties.getConnectionTimeoutSeconds(), TimeUnit.SECONDS)
             .withMaxConnectionPoolSize(10)
+            // 闲置连接出借前存活探测（v2.79，驱动 6.1.0 API javap 实证）：
+            // 长闲置池化连接会被中间层（nginx stream L4 / 云 NAT）闲置超时掐断，
+            // 不探测则首笔事务撞死连接瞬抛 ServiceUnavailableException（重试自愈但噪声）
+            .withConnectionLivenessCheckTimeout(properties.getLivenessCheckSeconds(), TimeUnit.SECONDS)
             .build();
         Driver driver = GraphDatabase.driver(
             properties.getUri(),

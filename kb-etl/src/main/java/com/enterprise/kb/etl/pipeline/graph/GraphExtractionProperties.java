@@ -45,6 +45,16 @@ public class GraphExtractionProperties {
      */
     private int rate = 20;
 
+    /**
+     * 回填档令牌桶速率（次/窗口）——v2.79 用户侧 E2E 三轮实证新增：20 次/分
+     * 使令牌桶成为回填墙钟唯一瓶颈（70 chunk 文档 5 分 01 秒恰打满速率上限）。
+     * 回填 = 管理员显式触发的有界幂等批量，60 次/分（1 次/秒）高于信号量
+     * 3 在飞的可持续吞吐（~45 次/分）——令牌不再是约束，墙钟落回信号量节奏。
+     * 限流只布节奏不增成本（调用总数不变）；独立桶 {@code …:backfill:{tenant}}
+     * 免与增量档 setRate 互覆。
+     */
+    private int backfillRate = 60;
+
     private int rateIntervalSeconds = 60;
 
     /** JVM 在飞抽取并发上限（信号量闸门，防虚拟线程无界打爆供应商） */

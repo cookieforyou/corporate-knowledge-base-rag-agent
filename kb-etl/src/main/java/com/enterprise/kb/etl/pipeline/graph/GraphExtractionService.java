@@ -47,11 +47,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p><b>限流双层</b>（避业务高峰 + 供应商护栏）：
  * <ul>
- *   <li>Redisson 令牌桶 {@code rag:ratelimit:graph-extraction:{tenantId}}
- *       （缺省 20 次/分钟/租户，{@code RateLimitAdvisor} 同形态）——获取超时
- *       跳过该 chunk（成本管控非安全边界，不击穿文档级抽取）；</li>
+ *   <li>Redisson 令牌桶——<b>双档分桶</b>（v2.79）：增量派发档
+ *       {@code rag:ratelimit:graph-extraction:{tenantId}}（缺省 20 次/分钟/租户，
+ *       {@code RateLimitAdvisor} 同形态）；回填档独立桶
+ *       {@code …:backfill:{tenantId}}（缺省 60 次/分钟——显式有界批量，
+ *       令牌不再墙钟瓶颈）。分桶免两档 {@code setRate} 互覆（同键异速率
+ *       会重置桶态）。获取超时跳过该 chunk（成本管控非安全边界，不击穿
+ *       文档级抽取）；</li>
  *   <li>JVM 信号量（缺省 3 在飞）——虚拟线程无界，显式闸门防打爆供应商
- *       （{@code ContextualEnrichmentTransformer} 同先例）。</li>
+ *       （{@code ContextualEnrichmentTransformer} 同先例；双档共享此闸，
+ *       供应商瞬时压力上限不随档位变化）。</li>
  * </ul>
  *
  * <p><b>实体嵌入批量化</b>（v2.78 实证提速）：描述嵌入按
@@ -67,6 +72,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class GraphExtractionService {
 
     static final String RATE_LIMITER_KEY_PREFIX = "rag:ratelimit:graph-extraction:";
+
+    /** 回填档桶键中段（独立桶，免与增量档 setRate 互覆——同键异速率重置桶态） */
+    static final String BACKFILL_BUCKET_INFIX = "backfill:";
+
+    /**
+     * 限流档（v2.79 双档）：速率与桶键成对分档。
+     */
+    public enum RateProfile {
+        /** ETL 终态帧派发档——缺省 20 次/分（避业务高峰 + 供应商 RPM 护栏） */
+        INCREMENTAL,
+        /** 回填档——缺省 60 次/分（管理员显式触发的有界幂等批量；信号量仍是在飞闸门） */
+        BACKFILL
+    }
 
     /** 令牌获取等待上限：等待即排队，超时跳过该 chunk（后台管道不无限阻塞） */
     private static final long RATE_ACQUIRE_TIMEOUT_SECONDS = 30;
@@ -107,12 +125,18 @@ public class GraphExtractionService {
         extractionExecutor.close();
     }
 
+    /** 抽取单文档并幂等写图（增量派发档，缺省 20 次/分桶）。 */
+    public boolean extract(String tenantId, String docId) {
+        return extract(tenantId, docId, RateProfile.INCREMENTAL);
+    }
+
     /**
      * 抽取单文档并幂等写图。
      *
+     * @param profile 限流档——速率与桶键成对（{@link RateProfile}）
      * @return true = 抽取成功写图；false = 跳过/失败（守卫拒绝、文档缺失、管道异常）
      */
-    public boolean extract(String tenantId, String docId) {
+    public boolean extract(String tenantId, String docId, RateProfile profile) {
         KbDocument doc = documentRepository.findById(docId).orElse(null);
         if (doc == null || !doc.getTenantId().equals(tenantId)) {
             log.warn("图谱抽取拒绝：文档不存在或租户不匹配（fail-closed）: docId={}", docId);
@@ -132,7 +156,7 @@ public class GraphExtractionService {
 
         try {
             // 阶段一：逐 chunk 结构化抽取（有界并发 + 令牌桶限流，失败隔离）
-            ExtractionResult[] results = extractChunks(tenantId, chunks, candidates);
+            ExtractionResult[] results = extractChunks(tenantId, chunks, candidates, profile);
 
             // 阶段二：实体合并（确定性 ID 收敛）+ 描述嵌入（维度快失败守卫）
             List<EntityAggregate> aggregates = mergeEntities(tenantId, chunks, candidates, results);
@@ -168,7 +192,7 @@ public class GraphExtractionService {
     // ── 阶段一：逐 chunk 抽取 ─────────────────────────────────────────
 
     private ExtractionResult[] extractChunks(String tenantId, List<KbChunk> allChunks,
-                                             List<KbChunk> candidates) {
+                                             List<KbChunk> candidates, RateProfile profile) {
         Map<String, Integer> indexById = new HashMap<>();
         for (int i = 0; i < allChunks.size(); i++) {
             indexById.put(allChunks.get(i).getId(), i);
@@ -187,7 +211,7 @@ public class GraphExtractionService {
                     return;
                 }
                 try {
-                    if (!tryAcquireToken(tenantId)) {
+                    if (!tryAcquireToken(tenantId, profile)) {
                         rateLimited.incrementAndGet();
                         return;     // 限流排队超时：跳过该 chunk（成本管控非正确性边界）
                     }
@@ -202,23 +226,35 @@ public class GraphExtractionService {
         }
         CompletableFuture.allOf(inFlight.toArray(CompletableFuture[]::new)).join();
         if (rateLimited.get() > 0) {
-            log.warn("图谱抽取限流跳过 {} 个 chunk（租户桶 {} 次/{}s）",
-                rateLimited.get(), properties.getRate(), properties.getRateIntervalSeconds());
+            log.warn("图谱抽取限流跳过 {} 个 chunk（租户桶 {} 次/{}s，档 {}）",
+                rateLimited.get(), rateFor(profile), properties.getRateIntervalSeconds(), profile);
         }
         return slots;
     }
 
-    private boolean tryAcquireToken(String tenantId) {
+    private boolean tryAcquireToken(String tenantId, RateProfile profile) {
         try {
-            RRateLimiter limiter = redissonClient.getRateLimiter(RATE_LIMITER_KEY_PREFIX + tenantId);
+            RRateLimiter limiter = redissonClient.getRateLimiter(bucketKey(tenantId, profile));
             limiter.setRate(RateLimiterArgs.of(RateType.OVERALL,
-                properties.getRate(), Duration.ofSeconds(properties.getRateIntervalSeconds())));
+                rateFor(profile), Duration.ofSeconds(properties.getRateIntervalSeconds())));
             return limiter.tryAcquire(1, RATE_ACQUIRE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             // Redis 故障 fail-open（抽取是旁路管道，限流是成本管控非安全边界）
             log.warn("图谱抽取限流器故障，fail-open 放行: {}", e.getMessage());
             return true;
         }
+    }
+
+    /** 档→桶键（双档分桶，免 setRate 互覆）；包内可见供单测直断 */
+    String bucketKey(String tenantId, RateProfile profile) {
+        return profile == RateProfile.BACKFILL
+            ? RATE_LIMITER_KEY_PREFIX + BACKFILL_BUCKET_INFIX + tenantId
+            : RATE_LIMITER_KEY_PREFIX + tenantId;
+    }
+
+    /** 档→速率（次/窗口）；包内可见供单测直断 */
+    int rateFor(RateProfile profile) {
+        return profile == RateProfile.BACKFILL ? properties.getBackfillRate() : properties.getRate();
     }
 
     // ── 阶段二：实体合并与嵌入 ────────────────────────────────────────

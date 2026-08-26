@@ -30,6 +30,14 @@ public class Neo4jProperties {
     /** 会话级查询超时（秒）——图路检索/写入的单次事务上限 */
     private int queryTimeoutSeconds = 5;
 
+    /**
+     * 闲置连接存活探测阈值（秒）——池内连接闲置超过该阈值，出借前先验证存活，
+     * 死连接（被中间层闲置超时掐断的 bolt+s 会话）剔除换新。v2.79 用户侧 E2E
+     * 三轮实证：回填期首笔写图撞上长闲置死连接，beginTransaction 瞬抛
+     * {@code ServiceUnavailableException}（驱动指数退避重试自愈但留 WARN 噪声）。
+     */
+    private int livenessCheckSeconds = 60;
+
     @Data
     public static class Authentication {
         private String username = "neo4j";
