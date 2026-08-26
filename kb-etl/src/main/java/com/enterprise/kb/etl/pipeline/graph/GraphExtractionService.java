@@ -15,6 +15,7 @@ import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.ratelimiter.RateLimiterArgs;
+import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -47,11 +48,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p><b>限流双层</b>（避业务高峰 + 供应商护栏）：
  * <ul>
  *   <li>Redisson 令牌桶 {@code rag:ratelimit:graph-extraction:{tenantId}}
- *       （缺省 10 次/分钟/租户，{@code RateLimitAdvisor} 同形态）——获取超时
+ *       （缺省 20 次/分钟/租户，{@code RateLimitAdvisor} 同形态）——获取超时
  *       跳过该 chunk（成本管控非安全边界，不击穿文档级抽取）；</li>
  *   <li>JVM 信号量（缺省 3 在飞）——虚拟线程无界，显式闸门防打爆供应商
  *       （{@code ContextualEnrichmentTransformer} 同先例）。</li>
  * </ul>
+ *
+ * <p><b>实体嵌入批量化</b>（v2.78 实证提速）：描述嵌入按
+ * {@code embedBatchSize}（缺省 10，同 ETL 分批纪律）单请求批量调用，
+ * 批失败批内回落逐条（保单点失败隔离），维度快失败守卫不变。
  *
  * <p><b>幂等</b>：写图经 {@link GraphGateway#replaceDocumentGraph}（单事务清除
  * 该文档既有图引用再写入），重复触发（重入库/回填重发）天然收敛。
@@ -261,28 +266,91 @@ public class GraphExtractionService {
 
     private List<GraphRecords.EntityWrite> embedEntities(List<EntityAggregate> aggregates,
                                                          AtomicInteger skipped) {
-        List<GraphRecords.EntityWrite> writes = new ArrayList<>();
-        for (EntityAggregate aggregate : aggregates) {
-            String corpus = aggregate.description() == null || aggregate.description().isBlank()
-                ? aggregate.name() : aggregate.description();
-            float[] embedding;
-            try {
-                embedding = embeddingModel.embed(corpus);
-            } catch (Exception e) {
-                log.warn("实体嵌入失败（该实体不写图）: name={}, {}", aggregate.name(), e.getMessage());
-                skipped.incrementAndGet();
-                continue;
+        List<GraphRecords.EntityWrite> writes = new ArrayList<>(aggregates.size());
+        int batchSize = Math.max(1, properties.getEmbedBatchSize());
+        for (int from = 0; from < aggregates.size(); from += batchSize) {
+            List<EntityAggregate> batch =
+                aggregates.subList(from, Math.min(from + batchSize, aggregates.size()));
+            Map<String, float[]> vectors = embedBatch(batch);
+            for (EntityAggregate aggregate : batch) {
+                if (!vectors.containsKey(aggregate.id())) {
+                    skipped.incrementAndGet();   // 批内回落逐条时单点失败——跳过该实体不击穿文档
+                    continue;
+                }
+                float[] embedding = vectors.get(aggregate.id());
+                if (embedding == null || embedding.length != GraphGateway.ENTITY_EMBEDDING_DIMENSIONS) {
+                    throw new IllegalStateException("实体嵌入维度不符（期望 "
+                        + GraphGateway.ENTITY_EMBEDDING_DIMENSIONS + "，实际 "
+                        + (embedding == null ? "null" : embedding.length) + "）——嵌入源与图索引不同源");
+                }
+                writes.add(new GraphRecords.EntityWrite(aggregate.id(), aggregate.name(),
+                    aggregate.type(), aggregate.description() == null ? "" : aggregate.description(),
+                    embedding, aggregate.chunkIds()));
             }
-            if (embedding == null || embedding.length != GraphGateway.ENTITY_EMBEDDING_DIMENSIONS) {
-                throw new IllegalStateException("实体嵌入维度不符（期望 "
-                    + GraphGateway.ENTITY_EMBEDDING_DIMENSIONS + "，实际 "
-                    + (embedding == null ? "null" : embedding.length) + "）——嵌入源与图索引不同源");
-            }
-            writes.add(new GraphRecords.EntityWrite(aggregate.id(), aggregate.name(),
-                aggregate.type(), aggregate.description() == null ? "" : aggregate.description(),
-                embedding, aggregate.chunkIds()));
         }
         return writes;
+    }
+
+    /** 实体嵌入语料：描述优先，空描述落名称（与批量化前逐条口径同语义） */
+    private static String embeddingCorpus(EntityAggregate aggregate) {
+        return aggregate.description() == null || aggregate.description().isBlank()
+            ? aggregate.name() : aggregate.description();
+    }
+
+    /**
+     * 批量嵌入（10 条/批，同 ETL {@code kb.etl.embed-batch-size} 纪律——
+     * DashScope embedding 单请求硬限 ≤20 条）：批量请求 + index 防御性归位；
+     * 批失败/响应形态异常 → 批内回落逐条调用，保单点失败隔离语义不退化。
+     *
+     * @return entityId → 向量；失败跳过的实体键缺位（调用方计数跳过）
+     */
+    private Map<String, float[]> embedBatch(List<EntityAggregate> batch) {
+        List<String> corpus = batch.stream().map(GraphExtractionService::embeddingCorpus).toList();
+        try {
+            float[][] ordered = placeByIndex(
+                embeddingModel.embedForResponse(corpus).getResults(), batch.size());
+            if (ordered != null) {
+                Map<String, float[]> vectors = new LinkedHashMap<>();
+                for (int i = 0; i < batch.size(); i++) {
+                    vectors.put(batch.get(i).id(), ordered[i]);
+                }
+                return vectors;
+            }
+            log.warn("实体嵌入批量响应形态异常（条数/下标不符），回落逐条嵌入: batchSize={}", batch.size());
+        } catch (Exception e) {
+            log.warn("实体嵌入批量调用失败，回落逐条嵌入: batchSize={}, {}", batch.size(), e.getMessage());
+        }
+        Map<String, float[]> vectors = new LinkedHashMap<>();
+        for (EntityAggregate aggregate : batch) {
+            try {
+                vectors.put(aggregate.id(), embeddingModel.embed(embeddingCorpus(aggregate)));
+            } catch (Exception e) {
+                log.warn("实体嵌入失败（该实体不写图）: name={}, {}", aggregate.name(), e.getMessage());
+            }
+        }
+        return vectors;
+    }
+
+    /** 批量响应按 index 归位输入序；条数/下标异常（越界、重复、空洞）返回 null 触发回落 */
+    private static float[][] placeByIndex(List<Embedding> results, int expected) {
+        if (results.size() != expected) {
+            return null;
+        }
+        float[][] vectors = new float[expected][];
+        for (int i = 0; i < results.size(); i++) {
+            Integer index = results.get(i).getIndex();
+            int slot = index == null ? i : index;
+            if (slot < 0 || slot >= expected || vectors[slot] != null) {
+                return null;
+            }
+            vectors[slot] = results.get(i).getOutput();
+        }
+        for (float[] vector : vectors) {
+            if (vector == null) {
+                return null;
+            }
+        }
+        return vectors;
     }
 
     // ── 阶段三：关系解析 ──────────────────────────────────────────────

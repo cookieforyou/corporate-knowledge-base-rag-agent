@@ -34,21 +34,33 @@ public class RedisGraphBackfillStore {
 
     private final RedissonClient redissonClient;
     private final Duration taskTtl;
+    private final Duration staleTaskThreshold;
 
     public RedisGraphBackfillStore(RedissonClient redissonClient,
-                                   @Value("${rag.admin.rebuild.task-ttl-hours:24}") long taskTtlHours) {
+                                   @Value("${rag.admin.rebuild.task-ttl-hours:24}") long taskTtlHours,
+                                   @Value("${rag.graph.backfill.stale-hours:6}") long staleHours) {
         this.redissonClient = redissonClient;
         this.taskTtl = Duration.ofHours(Math.max(1, taskTtlHours));
+        this.staleTaskThreshold = Duration.ofHours(Math.max(1, staleHours));
     }
 
     /**
-     * 受理任务：既有 RUNNING 态 → false（调用方转 409）；否则登记
+     * 受理任务：既有在途 RUNNING 态 → false（调用方转 409）；否则登记
      * RUNNING + total + startedAt 并挂 TTL。
+     *
+     * <p><b>陈旧接管（v2.78 实证补丁）</b>：startedAt 超阈值（缺省 6h）的 RUNNING
+     * = 进程崩溃残留（用户侧 E2E OOM 崩溃后 409 死锁实证）——合法回填远短于此，
+     * 就地接管重置计数，无需手工清 Redis 键。
      */
     public boolean tryStart(String tenantId, int total) {
         RMap<String, String> state = stateMap(tenantId);
-        if (GraphBackfillView.STATUS_RUNNING.equals(state.get("status"))) {
+        if (GraphBackfillView.STATUS_RUNNING.equals(state.get("status"))
+            && !isStale(state.get("startedAt"))) {
             return false;
+        }
+        if (GraphBackfillView.STATUS_RUNNING.equals(state.get("status"))) {
+            log.warn("图谱回填接管陈旧 RUNNING 任务（崩溃残留，startedAt={}）: tenant={}",
+                state.get("startedAt"), tenantId);
         }
         state.putAll(Map.of(
             "status", GraphBackfillView.STATUS_RUNNING,
@@ -58,6 +70,12 @@ public class RedisGraphBackfillStore {
         counter(tenantId, "succeeded").set(0);
         counter(tenantId, "failed").set(0);
         return true;
+    }
+
+    /** RUNNING 态陈旧判定：startedAt 缺失/不可解析/超阈值一律视为崩溃残留 */
+    private boolean isStale(String startedAt) {
+        LocalDateTime started = parseTime(startedAt);
+        return started == null || started.plus(staleTaskThreshold).isBefore(LocalDateTime.now());
     }
 
     public void recordResult(String tenantId, boolean success) {

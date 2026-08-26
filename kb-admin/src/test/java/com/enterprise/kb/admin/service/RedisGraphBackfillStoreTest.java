@@ -8,6 +8,7 @@ import org.redisson.api.RAtomicLong;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -62,7 +63,7 @@ class RedisGraphBackfillStoreTest {
         when(redisson.getAtomicLong(ArgumentMatchers.contains("succeeded"))).thenReturn(succeeded);
         when(redisson.getAtomicLong(ArgumentMatchers.contains("failed"))).thenReturn(failed);
 
-        store = new RedisGraphBackfillStore(redisson, 24);
+        store = new RedisGraphBackfillStore(redisson, 24, 6);
     }
 
     @Test
@@ -96,5 +97,28 @@ class RedisGraphBackfillStoreTest {
     @Test
     void viewEmptyWithoutTaskState() {
         assertThat(store.view(TENANT)).isEmpty();
+    }
+
+    @Test
+    void staleRunningTaskTakenOverAfterThreshold() {
+        assertThat(store.tryStart(TENANT, 12)).isTrue();
+        // 崩溃残留模拟：startedAt 回拨超陈旧阈值（进程崩溃后 409 死锁实证，v2.78）
+        state.put("startedAt", LocalDateTime.now().minusHours(7).toString());
+
+        assertThat(store.tryStart(TENANT, 5))
+            .as("陈旧 RUNNING = 崩溃残留，就地接管重置（无需手工清 Redis 键）")
+            .isTrue();
+        assertThat(state.get("total")).isEqualTo("5");
+        assertThat(state.get("status")).isEqualTo(GraphBackfillView.STATUS_RUNNING);
+    }
+
+    @Test
+    void unparseableStartedAtTreatedAsStaleAndTakenOver() {
+        state.put("status", GraphBackfillView.STATUS_RUNNING);
+        state.put("startedAt", "不可解析的时间戳");
+
+        assertThat(store.tryStart(TENANT, 2))
+            .as("startedAt 缺失/不可解析同判陈旧，防 409 永久死锁")
+            .isTrue();
     }
 }

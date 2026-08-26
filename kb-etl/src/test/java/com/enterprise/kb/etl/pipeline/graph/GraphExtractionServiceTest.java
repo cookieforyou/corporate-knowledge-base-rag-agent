@@ -13,7 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RedissonClient;
+import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.ArrayList;
@@ -30,6 +32,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -84,7 +88,9 @@ class GraphExtractionServiceTest {
         // 签名实证（redisson 4.6.1 javap）：tryAcquire(long permits, long timeout, TimeUnit)
         when(limiter.tryAcquire(anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(true);
         lenient().when(redissonClient.getRateLimiter(anyString())).thenReturn(limiter);
-        lenient().when(embeddingModel.embed(anyString())).thenReturn(new float[1024]);
+        // 批量化缺省桩（v2.78）：批量请求按输入序回 1024 维向量（带 index 归位材料）
+        lenient().when(embeddingModel.embedForResponse(any())).thenAnswer(inv ->
+            batchResponse(inv.getArgument(0), 1024));
 
         ObjectProvider<GraphExtractionListener> provider = mock(ObjectProvider.class);
         when(provider.orderedStream()).thenAnswer(inv -> Stream.of(listener));
@@ -115,6 +121,18 @@ class GraphExtractionServiceTest {
     private static ExtractionResult result(List<ExtractionResult.EntityExtraction> entities,
                                            List<ExtractionResult.RelationExtraction> relations) {
         return new ExtractionResult(entities, relations);
+    }
+
+    /** 批量嵌入响应构造（按输入序 + 显式 index，与供应商契约同形；
+     *  null 容错——Mockito 桩注册期以 null 实参探测既有桩） */
+    private static EmbeddingResponse batchResponse(List<String> texts, int dimensions) {
+        List<Embedding> embeddings = new ArrayList<>();
+        if (texts != null) {
+            for (int i = 0; i < texts.size(); i++) {
+                embeddings.add(new Embedding(new float[dimensions], i));
+            }
+        }
+        return new EmbeddingResponse(embeddings);
     }
 
     @Test
@@ -208,7 +226,8 @@ class GraphExtractionServiceTest {
             chunk("c1", 0, "Alpha Corp 发布了年度财报，营收增长显著。")));
         when(entityExtractor.extract(any(), anyString(), any())).thenReturn(result(
             List.of(new ExtractionResult.EntityExtraction("Alpha Corp", "ORG", "企业")), List.of()));
-        when(embeddingModel.embed(anyString())).thenReturn(new float[512]);
+        when(embeddingModel.embedForResponse(any())).thenAnswer(inv ->
+            batchResponse(inv.getArgument(0), 512));
 
         boolean ok = service.extract("t1", "d1");
 
@@ -263,5 +282,65 @@ class GraphExtractionServiceTest {
 
         assertThat(ok).isTrue();
         verifyNoInteractions(entityExtractor, graphGateway);
+    }
+
+    @Test
+    void entitiesEmbeddedInBatchesOfTen() {
+        KbDocument doc = doc("t1");
+        when(documentRepository.findById("d1")).thenReturn(Optional.of(doc));
+        when(chunkRepository.findByDocIdOrderByChunkIndex("d1")).thenReturn(List.of(
+            chunk("c1", 0, "一篇涵盖十二项独立技术的综述材料，逐项陈述细节。")));
+        List<ExtractionResult.EntityExtraction> twelve = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            twelve.add(new ExtractionResult.EntityExtraction("实体-" + i, "TECH", "技术描述 " + i));
+        }
+        when(entityExtractor.extract(any(), anyString(), any())).thenReturn(result(twelve, List.of()));
+
+        boolean ok = service.extract("t1", "d1");
+
+        assertThat(ok).isTrue();
+        // 12 实体 = 10 条/批 ×2 次批量请求（逐条形态为 12 次往返，批量化实证提速项）
+        verify(embeddingModel, times(2)).embedForResponse(any());
+        verify(embeddingModel, never()).embed(anyString());
+    }
+
+    @Test
+    void batchEmbeddingFailureFallsBackToPerEntityIsolation() {
+        KbDocument doc = doc("t1");
+        when(documentRepository.findById("d1")).thenReturn(Optional.of(doc));
+        when(chunkRepository.findByDocIdOrderByChunkIndex("d1")).thenReturn(List.of(
+            chunk("c1", 0, "Alpha Corp 发布了年度财报，营收增长显著。")));
+        when(entityExtractor.extract(any(), anyString(), any())).thenReturn(result(
+            List.of(new ExtractionResult.EntityExtraction("Alpha Corp", "ORG", "企业")),
+            List.of()));
+        when(embeddingModel.embedForResponse(any())).thenThrow(new RuntimeException("批量端点故障"));
+        when(embeddingModel.embed(anyString())).thenReturn(new float[1024]);
+
+        boolean ok = service.extract("t1", "d1");
+
+        assertThat(ok).as("批失败回落逐条，单点隔离语义不退化").isTrue();
+        assertThat(doc.getGraphStatus()).isEqualTo(GraphStatus.COMPLETED);
+        verify(embeddingModel).embed(anyString());
+    }
+
+    @Test
+    void malformedBatchResponseFallsBackToPerEntity() {
+        KbDocument doc = doc("t1");
+        when(documentRepository.findById("d1")).thenReturn(Optional.of(doc));
+        when(chunkRepository.findByDocIdOrderByChunkIndex("d1")).thenReturn(List.of(
+            chunk("c1", 0, "Alpha Corp 发布了年度财报，营收增长显著。")));
+        when(entityExtractor.extract(any(), anyString(), any())).thenReturn(result(
+            List.of(new ExtractionResult.EntityExtraction("Alpha Corp", "ORG", "企业")),
+            List.of()));
+        // 条数与输入不符（供应商响应形态异常）→ 归位守卫拒绝 → 回落逐条
+        when(embeddingModel.embedForResponse(any()))
+            .thenReturn(new EmbeddingResponse(List.of()));
+        when(embeddingModel.embed(anyString())).thenReturn(new float[1024]);
+
+        boolean ok = service.extract("t1", "d1");
+
+        assertThat(ok).isTrue();
+        assertThat(doc.getGraphStatus()).isEqualTo(GraphStatus.COMPLETED);
+        verify(embeddingModel).embed(anyString());
     }
 }

@@ -244,9 +244,11 @@ rag:
       base-url: ${RAG_GRAPH_EXTRACTION_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       api-key: ${RAG_GRAPH_EXTRACTION_API_KEY:${DASHSCOPE_API_KEY:}}
       model: ${RAG_GRAPH_EXTRACTION_MODEL:qwen3.7-plus}
-      rate: ${RAG_GRAPH_EXTRACTION_RATE:10}                          # 每租户令牌桶速率（次/窗口）
+      rate: ${RAG_GRAPH_EXTRACTION_RATE:20}                          # 每租户令牌桶速率（次/窗口；v2.78 实证 10→20，限流只布节奏不增成本）
       rate-interval-seconds: ${RAG_GRAPH_EXTRACTION_RATE_INTERVAL_SECONDS:60}
       concurrency: ${RAG_GRAPH_EXTRACTION_CONCURRENCY:3}             # JVM 在飞抽取并发上限
+      max-tokens: ${RAG_GRAPH_EXTRACTION_MAX_TOKENS:4000}            # 单次抽取响应上限（v2.78 实证 2000 截断富集片段）
+      embed-batch-size: ${RAG_GRAPH_EXTRACTION_EMBED_BATCH_SIZE:10}  # 实体嵌入单批条数（同 ETL 分批纪律，供应商硬限 ≤20）
       max-chunk-chars: ${RAG_GRAPH_EXTRACTION_MAX_CHUNK_CHARS:1500}  # 单片段截断阈值
       min-chunk-chars: ${RAG_GRAPH_EXTRACTION_MIN_CHUNK_CHARS:20}    # 短片段跳过阈值
     # 图路检索（5.2）：检索期零 LLM——查询嵌入 → 向量索引实体匹配 → 邻域展开 → chunk 反查

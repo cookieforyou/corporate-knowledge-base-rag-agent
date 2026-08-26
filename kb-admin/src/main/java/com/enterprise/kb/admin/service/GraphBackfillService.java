@@ -15,12 +15,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -33,8 +36,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * （其内部已有令牌桶 + 信号量双限流，窗口并发仅控制在飞文档数）。
  *
  * <p><b>选目标口径</b>：{@code docIds} 缺省 = 租户全量待回填——入库成功
- * （SUCCESS）且 {@code graph_status} 为 PENDING/FAILED 者（幂等重跑天然跳过
- * COMPLETED）；显式 {@code docIds} = 目标增量（越权/状态不符前置记失败明细）。
+ * （SUCCESS）且 {@code graph_status} 为 PENDING/EXTRACTING/FAILED 者（幂等重跑
+ * 天然跳过 COMPLETED；**EXTRACTING 残留** = 进程崩溃中断的收敛兜底——幂等重写
+ * 天然收敛，用户侧 E2E 实证 OOM 崩溃遗留，v2.78 补入）；显式 {@code docIds}
+ * = 目标增量（越权/状态不符前置记失败明细）。
  *
  * <p><b>单租户单任务</b>：既有回填在途 → 409 {@code GRAPH_BACKFILL_RUNNING}
  * （回填幂等收敛，无需并行多任务）。
@@ -49,12 +54,16 @@ public class GraphBackfillService {
     private final Executor etlExecutor;
     private final RedisGraphBackfillStore store;
 
-    /** 在飞文档窗口——抽取内部已限流（10 次/分/租户），窗口仅控并发面 */
+    /** 在飞文档窗口——抽取内部已限流（20 次/分/租户），窗口仅控并发面 */
     @Value("${rag.graph.backfill.concurrency:2}")
     private int concurrency;
 
     @Value("${rag.graph.backfill.doc-timeout-minutes:15}")
     private long docTimeoutMinutes;
+
+    /** 终态轮询窗口（秒）——窗口未走完仅表示抽取在途，续轮询，绝不可置中断标志（坑位㊳） */
+    @Value("${rag.graph.backfill.poll-seconds:60}")
+    private long pollSeconds;
 
     public GraphBackfillService(KbDocumentRepository documentRepository,
                                 ObjectProvider<GraphExtractionService> extractionServiceProvider,
@@ -80,6 +89,7 @@ public class GraphBackfillService {
                     tenantId, List.of(DocumentStatus.SUCCESS)).stream()
                 .filter(doc -> doc.getGraphStatus() == null
                     || doc.getGraphStatus() == GraphStatus.PENDING
+                    || doc.getGraphStatus() == GraphStatus.EXTRACTING
                     || doc.getGraphStatus() == GraphStatus.FAILED)
                 .forEach(targets::add);
         } else {
@@ -119,27 +129,30 @@ public class GraphBackfillService {
     /** 回填主循环：滑动窗口并发 + 单文档终态汇聚（模式同重建任务） */
     private void runTask(String tenantId, List<KbDocument> targets,
                          GraphExtractionService extractionService, int preFailed) {
-        Map<String, CompletableFuture<Boolean>> pending = new ConcurrentHashMap<>();
-        int window = Math.max(1, concurrency);
-        for (KbDocument doc : targets) {
-            while (pending.size() >= window) {
+        try {
+            Map<String, CompletableFuture<Boolean>> pending = new ConcurrentHashMap<>();
+            int window = Math.max(1, concurrency);
+            Iterator<KbDocument> iterator = targets.iterator();
+            while (iterator.hasNext() || !pending.isEmpty()) {
+                while (iterator.hasNext() && pending.size() < window) {
+                    String docId = iterator.next().getId();
+                    pending.put(docId, CompletableFuture
+                        .supplyAsync(() -> extractionService.extract(tenantId, docId), etlExecutor)
+                        .orTimeout(docTimeoutMinutes, TimeUnit.MINUTES)
+                        .exceptionally(ex -> false));
+                }
                 awaitAny(pending);
                 drainCompleted(pending, tenantId);
             }
-            String docId = doc.getId();
-            CompletableFuture<Boolean> future = CompletableFuture
-                .supplyAsync(() -> extractionService.extract(tenantId, docId), etlExecutor)
-                .orTimeout(docTimeoutMinutes, TimeUnit.MINUTES)
-                .exceptionally(ex -> false);
-            pending.put(docId, future);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("图谱回填任务被中断（在途抽取独立完成，残留经再次回填收敛）: tenant={}", tenantId);
+        } finally {
+            // 终态必达收敛——中断亦须落终态，否则 RUNNING 残留至 TTL 过期前持续 409
+            // 前置失败（越权/状态不符）不入任务计数——受理前拒绝，非任务内失败
+            store.finish(tenantId);
+            log.info("图谱回填任务完成: tenant={}, preFailed={}", tenantId, preFailed);
         }
-        while (!pending.isEmpty()) {
-            awaitAny(pending);
-            drainCompleted(pending, tenantId);
-        }
-        // 前置失败（越权/状态不符）不入任务计数——受理前拒绝，非任务内失败
-        store.finish(tenantId);
-        log.info("图谱回填任务完成: tenant={}, preFailed={}", tenantId, preFailed);
     }
 
     private void drainCompleted(Map<String, CompletableFuture<Boolean>> pending, String tenantId) {
@@ -153,12 +166,18 @@ public class GraphBackfillService {
         });
     }
 
-    private static void awaitAny(Map<String, CompletableFuture<Boolean>> pending) {
+    /**
+     * 轮询等待任一文档终态。<b>超时 ≠ 中断</b>（坑位㊳ 实证）：TimeoutException
+     * 仅表示轮询窗口未走完——若误置中断标志，任务线程后续每次轮询立即惊醒（热自旋，
+     * 异常栈 + anyOf 对象高速分配挤爆堆——用户侧 E2E 大文档回填 OutOfMemoryError
+     * 根因），且同线程一切可中断调用（Redisson 计数回写）全线 InterruptedException。
+     */
+    private void awaitAny(Map<String, CompletableFuture<Boolean>> pending) throws InterruptedException {
         try {
             CompletableFuture.anyOf(pending.values().toArray(CompletableFuture[]::new))
-                .get(1, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            Thread.currentThread().interrupt();
+                .get(pollSeconds, TimeUnit.SECONDS);
+        } catch (TimeoutException | ExecutionException e) {
+            // 窗口未走完 = 抽取在途续轮询；ExecutionException 已被 exceptionally 收敛，防御兜底
         }
     }
 }
