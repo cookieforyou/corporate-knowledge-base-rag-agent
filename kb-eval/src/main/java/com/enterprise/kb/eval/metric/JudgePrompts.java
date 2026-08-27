@@ -104,7 +104,7 @@ public final class JudgePrompts {
 
     /**
      * Answer Correctness（簇② 5.8，16 章 §16.2）：回答与理想回答的事实一致性，1-5 分。
-     * 仅对 {@code expectedAnswer} 非空的用例评估（当前 Golden 语料零标注 → 读数待标注，
+     * 仅对 {@code expectedAnswer} 非空的用例评估（2026-08-27 批5 审定回写后 80 正向例已标注，
      * 加载器字段联动见 GoldenQAPair javadoc）。
      */
     public static final String ANSWER_CORRECTNESS = """

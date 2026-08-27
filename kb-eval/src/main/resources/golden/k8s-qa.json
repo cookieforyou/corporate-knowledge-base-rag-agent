@@ -3,6 +3,7 @@
     "id": "k8s-01",
     "category": "FACTOID",
     "question": "生产集群的 etcd 副本数为什么固定为 3？",
+    "expectedAnswer": "生产集群的 etcd 副本数固定为 3，是为了容忍单节点故障。",
     "expectedChunkIds": [
       "df647894-b466-336f-9083-888a0d68cec1"
     ],
@@ -14,6 +15,7 @@
     "id": "k8s-02",
     "category": "FACTOID",
     "question": "滚动更新策略的 maxSurge 和 maxUnavailable 默认值是多少？",
+    "expectedAnswer": "滚动更新策略的 maxSurge 默认值为 25%，maxUnavailable 默认值为 25%。",
     "expectedChunkIds": [
       "7048aac0-b3df-38b7-93cb-241d648f4b94"
     ],
@@ -25,6 +27,7 @@
     "id": "k8s-03",
     "category": "FACTOID",
     "question": "核心业务的可用性目标是多少？",
+    "expectedAnswer": "核心业务可用性目标为 99.95%（月度停机 ≤ 21.6 分钟）。",
     "expectedChunkIds": [
       "1e7f8b8c-ceb9-38c1-a598-79c1acaad222"
     ],
@@ -36,6 +39,7 @@
     "id": "k8s-04",
     "category": "FACTOID",
     "question": "etcd 快照备份的频率和保留策略是什么？",
+    "expectedAnswer": "etcd 每日凌晨 02:00 执行快照备份，保留最近 7 天。",
     "expectedChunkIds": [
       "df647894-b466-336f-9083-888a0d68cec1"
     ],
@@ -47,6 +51,7 @@
     "id": "k8s-05",
     "category": "FACTOID",
     "question": "命名空间默认最多可以创建多少个 Pod？",
+    "expectedAnswer": "命名空间默认最多可以创建 200 个 Pod。",
     "expectedChunkIds": [
       "9cdc5f2c-63aa-380d-a666-08a5d42b11f9"
     ],
@@ -58,6 +63,7 @@
     "id": "k8s-06",
     "category": "FACTOID",
     "question": "周五下午可以执行生产变更吗？",
+    "expectedAnswer": "周五下午禁止执行非紧急生产变更。根据运维规范，生产变更限于工作日 10:00-12:00 与 14:00-17:00，且明确规定周五下午及节假日前禁止非紧急变更。",
     "expectedChunkIds": [
       "1e7f8b8c-ceb9-38c1-a598-79c1acaad222"
     ],
@@ -69,6 +75,7 @@
     "id": "k8s-07",
     "category": "TABLE",
     "question": "Deployment、StatefulSet、DaemonSet 三种控制器怎么选？",
+    "expectedAnswer": "Deployment 适用于无状态服务（如 Web API、网关、Worker），其副本可互换，Pod IP 随机，无需持久化或共享存储。StatefulSet 适用于有状态服务（如数据库、Kafka、ZooKeeper），需稳定身份，具备固定 DNS（pod-0.svc）及每副本独立 PVC 的存储特征；使用 StatefulSet 必须配置 `volumeClaimTemplates`，副本按序号顺序启停（0 → N-1），删除 StatefulSet 不会自动删除 PVC，且禁止将无状态服务放入 StatefulSet。DaemonSet 适用于每节点单实例的系统服务（如日志采集、监控探针、CNI 插件），常见宿主机网络并挂载宿主机路径。",
     "expectedChunkIds": [
       "4755275a-4d0a-34e6-a223-c719c9661969"
     ],
@@ -80,6 +87,7 @@
     "id": "k8s-08",
     "category": "TABLE",
     "question": "出现 OOMKilled 应该怎么排查处置？",
+    "expectedAnswer": "OOMKilled 的常见原因包括内存 limit 低于实际用量、内存泄漏。排查命令为 `kubectl top pod` + 监控曲线。处置要点为调大 limit 或排查泄漏。",
     "expectedChunkIds": [
       "ba1828b6-b530-367f-9d50-69a35200433e"
     ],
@@ -91,6 +99,7 @@
     "id": "k8s-09",
     "category": "TABLE",
     "question": "各节点池的规格和用途是怎么划分的？",
+    "expectedAnswer": "生产集群工作节点按业务域划分节点池，具体规格和用途如下：\n1. control-plane 节点池：规格为 8C16G，数量为 3，用于 API Server / etcd / 控制器。\n2. app-general 节点池：规格为 16C32G，数量为 6，用于无状态业务负载。\n3. app-stateful 节点池：规格为 16C64G + SSD，数量为 4，用于数据库、消息队列等有状态服务。\n4. batch-compute 节点池：规格为 32C64G，数量为弹性 2-10，用于离线计算、CI 构建。",
     "expectedChunkIds": [
       "df647894-b466-336f-9083-888a0d68cec1"
     ],
@@ -102,6 +111,7 @@
     "id": "k8s-10",
     "category": "TABLE",
     "question": "蓝绿发布和金丝雀发布在回滚速度和资源开销上怎么对比？",
+    "expectedAnswer": "蓝绿发布回滚速度为秒级（切回旧环境），资源开销高（双倍资源）；金丝雀发布回滚速度为秒级（摘除金丝雀），资源开销中（+少量 Pod）。",
     "expectedChunkIds": [
       "7048aac0-b3df-38b7-93cb-241d648f4b94"
     ],
@@ -113,6 +123,7 @@
     "id": "k8s-11",
     "category": "FACTOID",
     "question": "Ingress 和 Service 的本质区别是什么？",
+    "expectedAnswer": "Service 工作在四层（TCP/UDP 转发，由 kube-proxy 实现），Ingress 工作在七层（HTTP 路由、域名分流、TLS 终结）。",
     "expectedChunkIds": [
       "8cde6bfd-bd61-3919-9fe7-62d5a8c0fba0"
     ],
@@ -124,6 +135,7 @@
     "id": "k8s-12",
     "category": "FACTOID",
     "question": "删除 StatefulSet 会自动删除 PVC 吗？",
+    "expectedAnswer": "删除 StatefulSet 不会自动删除 PVC，以防止数据误删。",
     "expectedChunkIds": [
       "4755275a-4d0a-34e6-a223-c719c9661969"
     ],
@@ -135,6 +147,7 @@
     "id": "k8s-13",
     "category": "REASONING",
     "question": "为什么规范禁止把无状态服务放进 StatefulSet？",
+    "expectedAnswer": "禁止将无状态服务放入 StatefulSet 的原因在于其滚动更新语义不同，会拖慢发布。",
     "expectedChunkIds": [
       "4755275a-4d0a-34e6-a223-c719c9661969"
     ],
@@ -146,6 +159,7 @@
     "id": "k8s-14",
     "category": "REASONING",
     "question": "一个 Java 业务服务上线，资源限制应该怎么配置才合规？",
+    "expectedAnswer": "Java 业务服务上线的资源限制配置需遵循以下合规要求：\n\n1. **容器级强制规则**：\n   - 所有容器必须声明 requests 与 limits。\n   - limits.cpu 不得超过 requests.cpu 的 2 倍（防止超卖挤兑）。\n   - Java 应用 limits.memory 须与 JVM 堆参数（-Xmx）配套设置，建议堆外预留 25%。\n\n2. **命名空间级资源配额约束**：\n   - CPU 申请总量上限（requests.cpu）为 32 核，限制总量上限（limits.cpu）为 64 核。\n   - 内存申请总量上限（requests.memory）为 64Gi，限制总量上限（limits.memory）为 128Gi。\n   - 最大 Pod 数量为 200，最大 PVC 数量为 20。",
     "expectedChunkIds": [
       "9cdc5f2c-63aa-380d-a666-08a5d42b11f9"
     ],
@@ -157,6 +171,7 @@
     "id": "k8s-15",
     "category": "REASONING",
     "question": "一次生产变更要满足哪些条件才能执行？",
+    "expectedAnswer": "生产变更限于工作日 10:00-12:00 与 14:00-17:00；周五下午及节假日前禁止非紧急变更。每次发布必须包含回滚方案、监控看板链接、验证用例清单，缺一不得执行。",
     "expectedChunkIds": [
       "1e7f8b8c-ceb9-38c1-a598-79c1acaad222"
     ],

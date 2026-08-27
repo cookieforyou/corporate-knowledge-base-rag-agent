@@ -71,6 +71,11 @@ mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.draft-answers
   （审定表，含采纳/修订/重写勾选位）
 - 审定纪律：人工是最终事实源——草稿正确原文采纳，有误直接修订，无可取处重写；
   审定稿回写对应语料 JSON 的 `expectedAnswer` 字段（随语料变更正常提交）
+- **审定完成（2026-08-27，批5）**：80 正向例全量审定回写——74 采纳 / 5 修订 /
+  1 重写（cross-08 草稿误判「无持续时长参数」，锚点实含售后质保期表与网关断网缓存、
+  续航、SLA 停机、异步查询窗口等时长事实，按五锚点语料重写）；字段序 =
+  id/category/question/expectedAnswer/expectedChunkIds/expectedDocs（同 multihop 先例）；
+  AC 指标自此转可读数（下一轮全量复跑出首读数）
 
 ## 人类校准打分表（簇② 批2，κ≥0.80 定档通道）
 

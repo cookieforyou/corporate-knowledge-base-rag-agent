@@ -514,7 +514,7 @@ public class EvalRunner {
         Double hallucinationRate = null;
         String noiseVerdict = null;
         if (props.getMetrics().isPhase5Enabled() && answer != null && !answer.isBlank()) {
-            // Answer Correctness：expectedAnswer 标注用例（当前语料零标注 → 全跳过）
+            // Answer Correctness：expectedAnswer 标注用例（2026-08-27 批5 回写后 80 正向例已标注）
             if (pair.expectedAnswer() != null && !pair.expectedAnswer().isBlank()) {
                 JudgePrompts.JudgeScore ac = judge(String.format(
                     JudgePrompts.ANSWER_CORRECTNESS, pair.question(), pair.expectedAnswer(), answer));
@@ -797,7 +797,7 @@ public class EvalRunner {
     /**
      * Phase 5 扩展指标聚合（簇② 5.8）：
      * <ul>
-     *   <li>AC：expectedAnswer 标注且 Judge 产出（当前语料零标注 → 0 样本）；</li>
+     *   <li>AC：expectedAnswer 标注且 Judge 产出（2026-08-27 批5 回写后 80 正向例已标注）；</li>
      *   <li>CA：生成成功的正向用例为分母（含 NO_CITATION——grounding 契约要求引用，
      *       未发出判负），SUPPORTED 为通过；</li>
      *   <li>HR：声明级无依据占比均值；</li>

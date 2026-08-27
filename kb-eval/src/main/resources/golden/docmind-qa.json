@@ -3,6 +3,7 @@
     "id": "dm-01",
     "category": "FACTOID",
     "question": "文档解析（大模型版）的异步提交接口有哪两个，分别对应哪种文件上传方式？",
+    "expectedAnswer": "文档解析（大模型版）的异步提交接口有两个：本地文件上传对应的接口为SubmitDocParserJobAdvance接口，URL文件上传对应的接口为SubmitDocParserJob接口。",
     "expectedChunkIds": [
       "360cbfc8-2ee9-368d-813d-9de2300d2d8b"
     ],
@@ -14,6 +15,7 @@
     "id": "dm-02",
     "category": "FACTOID",
     "question": "订单状态 Status 具体有哪几种取值？",
+    "expectedAnswer": "订单状态 Status 有四种取值：\n1. Init：订单处于待处理队列中。\n2. Processing：正在解析处理。\n3. success：文件处理成功，此时 NumberOfSuccessfulParsing 将不再变化。\n4. Fail：文件处理失败。",
     "expectedChunkIds": [
       "bae10c67-a5cc-3f1e-a961-31f8537f65d2",
       "9ee8c64f-b2fd-3f44-a67a-e3a148d19887"
@@ -26,6 +28,7 @@
     "id": "dm-03",
     "category": "FACTOID",
     "question": "PageIndex 参数只支持哪些格式的文件解析？",
+    "expectedAnswer": "PageIndex参数只支持pdf、word、ppt三种格式的文件解析使用。",
     "expectedChunkIds": [
       "746cd65f-400c-33c1-8ac0-f359c1c3b717"
     ],
@@ -37,6 +40,7 @@
     "id": "dm-04",
     "category": "FACTOID",
     "question": "调用 GetDocParserResult 获取长文档解析结果时如何分页拉取 layouts？",
+    "expectedAnswer": "调用 GetDocParserResult 接口时，可通过 LayoutNum 标记值和 LayoutStepSize 步长进行分页拉取 layouts。具体做法是进行多次结果查询，例如通过指定范围 [LayoutNum, LayoutNum+LayoutStepSize] 获取内容（如 0~100、100~200 块）。这种方式能在长文档解析过程中提前获取已解析完的内容。需要注意的是，LayoutStepSize 过长会出现报错，可以适当调小。",
     "expectedChunkIds": [
       "68b9ec62-11e0-3187-aa74-1e0a8e55e711",
       "11bc8ba1-0506-3c17-a7d0-9add8905220f"
@@ -49,6 +53,7 @@
     "id": "dm-05",
     "category": "TABLE",
     "question": "异步提交接口的 LlmEnhancement 参数开启后，哪两种情况会返回大模型解析结果？",
+    "expectedAnswer": "开启 LlmEnhancement 参数后，以下两种情况会返回大模型解析结果：\n1. 对于 PPT 文件（包括 PPT 类型的 PDF 文件），当解析置信度 (layoutConf) 小于等于 0.8。\n2. 文件中的图表 (chart) 部分，目前支持 3 种图表，分别为：标值图、估值图、其它图。",
     "expectedChunkIds": [
       "e16708bc-9c7a-3001-90c2-bf8c12854492"
     ],
@@ -60,6 +65,7 @@
     "id": "dm-06",
     "category": "TABLE",
     "question": "OutputHtmlTable 参数需要同时开启哪个参数，表格 HTML 存放在版面块的哪个字段？",
+    "expectedAnswer": "开启 OutputHtmlTable 参数需同步开启 LlmEnhancement 参数。表格 HTML 存放在版面块的 llmResult 字段中。",
     "expectedChunkIds": [
       "e16708bc-9c7a-3001-90c2-bf8c12854492"
     ],
@@ -71,6 +77,7 @@
     "id": "dm-07",
     "category": "TABLE",
     "question": "版面类型列表中 figure 类型和 contents 类型的 subType 分别是什么？",
+    "expectedAnswer": "根据参考资料中的版面信息类型对照表：\n- figure 类型的 subType 是 picture。\n- contents 类型的 subType 是 cate。",
     "expectedChunkIds": [
       "979b4a42-1994-3fae-a1b1-fe8c530985de"
     ],
@@ -82,6 +89,7 @@
     "id": "dm-08",
     "category": "TABLE",
     "question": "段落音频（audio_frames）信息包含哪些字段？",
+    "expectedAnswer": "audio_frames 信息包含以下字段：\n- start_time：音频开始时间(单位: ms)\n- end_time：音频结束时间(单位:ms)\n- file_url：音频文件url\n- ASR_info：音频asr结果",
     "expectedChunkIds": [
       "8f837c99-08e9-3714-86ea-767a8cb882f9"
     ],
@@ -93,6 +101,7 @@
     "id": "dm-09",
     "category": "FACTOID",
     "question": "OutputFormat 参数支持哪些类型，各自返回什么？",
+    "expectedAnswer": "OutputFormat参数支持以下类型：\n1. markdown：在状态查询服务中会返回文档的markdown结果。\n2. visualLayoutInfo：在QueryDocParserStatus状态查询服务中会返回文档页Page图片信息，在GetDocParserResult结果查询服务中会返回layout的坐标信息。",
     "expectedChunkIds": [
       "746cd65f-400c-33c1-8ac0-f359c1c3b717"
     ],
@@ -104,6 +113,7 @@
     "id": "dm-10",
     "category": "FACTOID",
     "question": "Python 参考示例中运行解析脚本的命令格式是什么？",
+    "expectedAnswer": "在Python参考示例中，运行解析脚本的命令格式为：python3 docmind_example_parser.py input_file output_file.md",
     "expectedChunkIds": [
       "168a1767-fdaf-36ec-b8cc-6637f3d09380"
     ],
@@ -115,6 +125,7 @@
     "id": "dm-11",
     "category": "REASONING",
     "question": "版面解析置信度偏低的 PPT 类文档，应通过哪个请求参数提升解析效果，需要注意什么代价？",
+    "expectedAnswer": "应通过设置请求参数 LlmEnhancement 为 True 来提升解析效果：开启该选项后，对于 PPT 文件（包括 PPT 类型的 PDF 文件），当解析置信度（layoutConf）小于等于 0.8 时，会返回大模型解析结果。需要注意的代价是：开启后接口响应时间可能会显著增加，请按需开启。",
     "expectedChunkIds": [
       "e16708bc-9c7a-3001-90c2-bf8c12854492"
     ],
@@ -126,6 +137,7 @@
     "id": "dm-12",
     "category": "REASONING",
     "question": "完成一次文档解析（大模型版）调用需要依次调用哪些接口？各自的作用是什么？",
+    "expectedAnswer": "文档解析（大模型版）接口为异步接口，完成一次调用需依次执行以下三个步骤：\n1. 提交任务：调用文档解析异步提交服务 SubmitDocParserJobAdvance 或 SubmitDocParserJob 接口进行异步任务提交；\n2. 查询状态：调用文档解析（大模型版）状态查询服务 QueryDocParserStatus 接口进行处理状态查询；\n3. 查询结果：根据处理状态，调用 GetDocParserResult 接口进行结果查询。",
     "expectedChunkIds": [
       "93bc2f2f-0292-3c0d-97fd-f2c3dc529a2b"
     ],
@@ -137,6 +149,7 @@
     "id": "dm-13",
     "category": "TABLE",
     "question": "文档解析（大模型版）能识别哪些版面类型？",
+    "expectedAnswer": "文档解析（大模型版）能识别的版面类型包括：\n\n1. **标题类**：\n   - title（标题），子类型 doc_name（文档名称）\n   - doc_title（文档标题）\n   - doc_subtitle（文档副标题）\n   - para_title（段落标题）\n   - contents_title（目录标题），子类型 cate_title（目录标题）\n\n2. **目录类**：\n   - contents（目录主体），子类型 cate（目录主体）\n\n3. **文字类**：\n   - text（普通文字），子类型 para（段落）\n   - multicolumn（多栏文字）\n\n4. **图表与图片类**：\n   - figure（图表），子类型 picture（图片）\n   - logo（logo）\n   - figure_name（图名），子类型 pic_title（图片标题）\n   - figure_note（图注），子类型 pic_caption（图注）\n   - foot_image（页脚图片）\n   - head_image（页眉图片）\n\n5. **页眉页脚及页码类**：\n   - foot（页脚），子类型 page_footer（页脚）\n   - head（页眉），子类型 page_header（页眉）\n   - head_pagenum（页眉页码），子类型 page（页码）\n   - foot_pagenum（页脚页码），子类型 page（页码）\n\n6. **注释类**：\n   - corner_note（脚注），子类型 footer_note（脚注）\n   - end_note（尾注），子类型 endnode（尾注）\n\n7. **其他结构类**：\n   - side（侧栏），子类型 sidebar（侧栏）\n   - table_name（表格名称）\n   - table_note（表注）\n   - formula（公式）\n   - table（表格）",
     "expectedChunkIds": [
       "979b4a42-1994-3fae-a1b1-fe8c530985de",
       "45fd413c-5107-34fe-9f63-a9a4ba58cb5d",

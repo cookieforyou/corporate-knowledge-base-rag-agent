@@ -3,6 +3,7 @@
     "id": "sec-01",
     "category": "FACTOID",
     "question": "公司数据密级分为几级？各级的保存期限分别是多久？",
+    "expectedAnswer": "公司数据实行四级密级管理。一级（L1 公开）保存期限不限；二级（L2 内部）保存期限为 3 年；三级（L3 秘密）保存期限为 5 年；四级（L4 机密）保存期限为 10 年。",
     "expectedChunkIds": [
       "cb567667-0972-37ac-809b-e55a2aa6a9be"
     ],
@@ -14,6 +15,7 @@
     "id": "sec-02",
     "category": "FACTOID",
     "question": "口令的最小长度和强制更换周期是多少？",
+    "expectedAnswer": "口令长度不得少于 12 个字符；每 90 天强制更换一次。",
     "expectedChunkIds": [
       "731ca116-8a08-303f-8621-1a47eebbd09b"
     ],
@@ -25,6 +27,7 @@
     "id": "sec-03",
     "category": "FACTOID",
     "question": "员工离职后，其账号和权限要在多长时间内处理完毕？",
+    "expectedAnswer": "员工离职当日禁用其全部账号，关联权限在 24 小时内回收完毕。",
     "expectedChunkIds": [
       "f6e950bc-7a1a-3773-8ffd-8d6616792076"
     ],
@@ -36,6 +39,7 @@
     "id": "sec-04",
     "category": "REASONING",
     "question": "客户索要双方的合同明细（属 L3 级数据），可以直接通过邮件发给他吗？",
+    "expectedAnswer": "不可以。L3 级数据原则上禁止外发；确有法律法规要求的，须分管高管书面批准并做脱敏处理。",
     "expectedChunkIds": [
       "c1219ae3-5e02-3ff5-a5ec-20053c1f95ff"
     ],
@@ -47,6 +51,7 @@
     "id": "sec-05",
     "category": "REASONING",
     "question": "测试环境需要使用生产环境的原始数据，要走什么手续？",
+    "expectedAnswer": "确需在测试环境使用生产原始数据的，须经数据所有者与信息安全团队双重审批，授权有效期不得超过 30 天，到期自动回收。",
     "expectedChunkIds": [
       "3542d2e7-105b-3103-824c-7a493cbd844a"
     ],
@@ -58,6 +63,7 @@
     "id": "sec-06",
     "category": "FACTOID",
     "question": "P1 级安全事件的书面初报时限是多久？",
+    "expectedAnswer": "P1 级安全事件发现后，需在 2 小时内提交书面初报。",
     "expectedChunkIds": [
       "c12d7350-4c6c-3585-ab34-f5a0431ddd2f"
     ],
@@ -69,6 +75,7 @@
     "id": "sec-07",
     "category": "REASONING",
     "question": "安全事件处置分为哪几步？每步的责任方和时限要求是什么？",
+    "expectedAnswer": "安全事件处置分为遏制、调查、恢复、复盘四步。1. 遏制：由运维值班组负责，目标是在30分钟内切断扩散路径（隔离主机、封禁账号、下线接口）；2. 调查：由信息安全团队负责，48小时内完成根因分析与影响面评估；3. 恢复：由业务系统所有者负责，在安全团队确认风险消除后恢复业务；4. 复盘：由信息安全委员会牵头，5个工作日内输出复盘报告并归档，整改项纳入跟踪台账。",
     "expectedChunkIds": [
       "3ef94023-af2c-3343-b1d1-6477a8b8a610"
     ],
@@ -80,6 +87,7 @@
     "id": "sec-08",
     "category": "REASONING",
     "question": "匿名化处理后的数据还属于个人信息吗？脱敏和匿名化的关键区别是什么？",
+    "expectedAnswer": "根据参考资料，匿名化处理后的信息不属于个人信息。\n\n脱敏和匿名化的关键区别在于**可逆性**：\n1. **脱敏**：对数据中的敏感字段进行变形、掩码或替换处理，保留数据格式与业务可用性，且脱敏规则可授权还原。\n2. **匿名化**：对个人信息进行不可逆处理，使其无法识别特定个人且不能复原。",
     "expectedChunkIds": [
       "54e15667-90e6-336e-a1ac-a75038f61f22"
     ],
@@ -91,6 +99,7 @@
     "id": "sec-09",
     "category": "REASONING",
     "question": "把客户个人信息存到外部公有云 SaaS 系统里，是否符合规定？",
+    "expectedAnswer": "不符合规定。客户个人信息属于L3（秘密）级数据，根据资料中“7.2 云服务与 SaaS 使用”的规定，公有云 SaaS 服务禁止存储 L3 及以上数据。",
     "expectedChunkIds": [
       "cb567667-0972-37ac-809b-e55a2aa6a9be",
       "015993fe-dfc7-3e7f-a4ba-28a7301f9d77"
@@ -103,6 +112,7 @@
     "id": "sec-10",
     "category": "FACTOID",
     "question": "安全审计日志最少要保存多长时间？",
+    "expectedAnswer": "安全审计日志保存期限不少于 180 天，重要系统日志保存不少于 1 年。",
     "expectedChunkIds": [
       "5a21a459-7227-3ccd-9f6f-e65f34ea9c0a"
     ],
@@ -114,6 +124,7 @@
     "id": "sec-11",
     "category": "FACTOID",
     "question": "管理办法 v2.3 版做了哪些主要修订？",
+    "expectedAnswer": "v2.3 版的主要修订包括：增加云服务数据密级映射（第七章 7.2）；删除流程增加备份同步清理要求（第四章 4.5）。",
     "expectedChunkIds": [
       "2fc2fc1a-687e-3a1e-8071-f80d1689df72"
     ],
@@ -125,6 +136,7 @@
     "id": "sec-12",
     "category": "TABLE",
     "question": "访问 L4 级数据需要经过谁的审批？",
+    "expectedAnswer": "访问 L4 级数据需要经过分管高管 + 信息安全委员会审批。",
     "expectedChunkIds": [
       "cb567667-0972-37ac-809b-e55a2aa6a9be"
     ],
@@ -136,6 +148,7 @@
     "id": "sec-13",
     "category": "TABLE",
     "question": "P1 和 P2 级安全事件的判定标准分别是什么？",
+    "expectedAnswer": "P1级（重大事件）的判定标准为：L4 级数据泄露，或核心业务系统中断超过 2 小时。\nP2级（较大事件）的判定标准为：L3 级数据泄露，或单部门业务中断超过 4 小时。",
     "expectedChunkIds": [
       "c6375cd4-9edf-3b73-b5e6-26df4ad1c786"
     ],
@@ -147,6 +160,7 @@
     "id": "sec-14",
     "category": "REASONING",
     "question": "员工用自己的个人设备接入公司数据办公，公司提供补贴吗？",
+    "expectedAnswer": "公司不提供 BYOD 设备补贴。",
     "expectedChunkIds": [
       "f776e3dc-da61-3e22-a324-7370d8f5faa3"
     ],

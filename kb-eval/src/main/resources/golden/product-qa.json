@@ -3,6 +3,7 @@
     "id": "prd-01",
     "category": "FACTOID",
     "question": "XG-9000Pro 的电池容量是多少？",
+    "expectedAnswer": "XG-9000Pro 的电池容量为 6800mAh，支持 33W 快充与磁吸充电。",
     "expectedChunkIds": [
       "fa001488-9bd4-32ac-9f1b-6d44abb7caf0"
     ],
@@ -14,6 +15,7 @@
     "id": "prd-02",
     "category": "FACTOID",
     "question": "XG-9000Pro 的防护等级是什么？",
+    "expectedAnswer": "XG-9000Pro 的防护等级为 IP68 + 1.8 米六面抗跌落（MIL-STD-810H）。",
     "expectedChunkIds": [
       "fa001488-9bd4-32ac-9f1b-6d44abb7caf0"
     ],
@@ -25,6 +27,7 @@
     "id": "prd-03",
     "category": "FACTOID",
     "question": "XR-5500 的续航时间大约多久？",
+    "expectedAnswer": "XR-5500 的续航时间约 2.5 小时。",
     "expectedChunkIds": [
       "5751a39e-16c7-3396-951d-2ca95e72e073"
     ],
@@ -36,6 +39,7 @@
     "id": "prd-04",
     "category": "FACTOID",
     "question": "XS-200 网关的最低工作温度是多少？",
+    "expectedAnswer": "XS-200 网关的最低工作温度为 -40℃。",
     "expectedChunkIds": [
       "0cf3008b-bb46-3822-a0cf-776e91d3e783"
     ],
@@ -47,6 +51,7 @@
     "id": "prd-05",
     "category": "FACTOID",
     "question": "红外热成像模组 XG-TIR-01 支持哪些型号？",
+    "expectedAnswer": "红外热成像模组 XG-TIR-01 仅兼容 XG-9000Pro。",
     "expectedChunkIds": [
       "95babd78-d81d-3f67-8af7-bbf53d298200"
     ],
@@ -58,6 +63,7 @@
     "id": "prd-06",
     "category": "FACTOID",
     "question": "磁吸充电底座 ACC-MCD-33 兼容哪些型号？",
+    "expectedAnswer": "磁吸充电底座 ACC-MCD-33 兼容 XG-9000Pro 和 XG-7000。",
     "expectedChunkIds": [
       "95babd78-d81d-3f67-8af7-bbf53d298200"
     ],
@@ -69,6 +75,7 @@
     "id": "prd-07",
     "category": "FACTOID",
     "question": "XG 系列的整机质保期是多久？",
+    "expectedAnswer": "XG 系列的整机质保期为 24 个月。",
     "expectedChunkIds": [
       "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
     ],
@@ -80,6 +87,7 @@
     "id": "prd-08",
     "category": "TABLE",
     "question": "XG-9000Pro 和 XG-7000 有哪些主要差异？",
+    "expectedAnswer": "XG-7000 为上一代型号，与 XG-9000Pro 的主要差异如下：\n1. **处理器**：XG-7000 处理器主频为 2.2GHz（XG-9000Pro 为八核 2.8GHz）。\n2. **电池**：XG-7000 电池容量为 5000mAh（XG-9000Pro 为 6800mAh）。\n3. **防护等级**：XG-7000 防护等级为 IP67（XG-9000Pro 为 IP68 + 1.8 米六面抗跌落）。\n4. **定位模块**：XG-7000 无 RTK 定位模块（XG-9000Pro 支持 GPS + 北斗 + RTK 厘米级差分定位）。\n此外，两者电池与模组不兼容。",
     "expectedChunkIds": [
       "fa001488-9bd4-32ac-9f1b-6d44abb7caf0"
     ],
@@ -91,6 +99,7 @@
     "id": "prd-09",
     "category": "TABLE",
     "question": "各产品系列的质保政策有什么区别？",
+    "expectedAnswer": "XG、XR、XS三大系列的整机质保期分别为24个月、12个月和36个月；电池质保期方面，XG系列为12个月，XR系列为6个月，XS系列不适用。延保服务上，XG和XR系列可购+12个月，XS系列可购+24个月。三款产品的保修起始日均为购机发票日期。\n\n在保修排除条款上，进水（超出防护等级使用）、私拆、非授权维修点维修、不可抗力损坏均不在保修范围内。此外，XG系列支持以换代修服务（购买延保后生效），换机后质保期延续原机剩余时长，不重新计算。",
     "expectedChunkIds": [
       "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
     ],
@@ -102,6 +111,7 @@
     "id": "prd-10",
     "category": "FACTOID",
     "question": "型号命名规则里档位码 9 代表什么？",
+    "expectedAnswer": "档位码四位数中首位为档位，其中 9 代表旗舰。",
     "expectedChunkIds": [
       "b3407c8c-6a9d-3719-a3ea-dc30e8e3b053"
     ],
@@ -113,6 +123,7 @@
     "id": "prd-11",
     "category": "REASONING",
     "question": "户外电力巡检需要厘米级定位和热成像功能，应该选哪款产品，配什么模组？",
+    "expectedAnswer": "应选产品型号为 XG-9000Pro，该终端支持 GPS + 北斗 + RTK 厘米级差分定位。需配备的模组为红外热成像模组（配件编码：XG-TIR-01），该模组仅兼容 XG-9000Pro。",
     "expectedChunkIds": [
       "fa001488-9bd4-32ac-9f1b-6d44abb7caf0",
       "95babd78-d81d-3f67-8af7-bbf53d298200"
@@ -125,6 +136,7 @@
     "id": "prd-12",
     "category": "REASONING",
     "question": "XG 系列设备用了两年半坏了，能免费保修吗？",
+    "expectedAnswer": "不能免费保修。XG 系列整机质保期为 24 个月，保修起始日为购机发票日期。设备使用两年半（30 个月）已超过整机质保期，且资料中未提及该情况下的免费保修政策。",
     "expectedChunkIds": [
       "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
     ],
@@ -136,6 +148,7 @@
     "id": "prd-13",
     "category": "REASONING",
     "question": "我想给 XG-7000 配备红外热成像模组和磁吸充电底座，分别能买到吗？",
+    "expectedAnswer": "可以买到磁吸充电底座，但买不到红外热成像模组。\n\n1. **磁吸充电底座**：配件编码为 ACC-MCD-33，兼容 XG-7000（以及 XG-9000Pro），具备 33W 输出及状态指示灯。\n2. **红外热成像模组**：配件编码为 XG-TIR-01，仅兼容 XG-9000Pro，不兼容 XG-7000。",
     "expectedChunkIds": [
       "95babd78-d81d-3f67-8af7-bbf53d298200"
     ],
@@ -147,6 +160,7 @@
     "id": "prd-14",
     "category": "FACTOID",
     "question": "设备被非授权维修点拆过机之后出了故障，还能申请官方保修吗？",
+    "expectedAnswer": "不能申请官方保修。根据售后服务政策中的保修排除条款，非授权维修点维修不在保修范围内。",
     "expectedChunkIds": [
       "61c58f6c-6c89-3c89-a5bb-db9fcb7d493f"
     ],

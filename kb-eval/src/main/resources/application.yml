@@ -58,7 +58,7 @@ eval:
     l2-enabled: ${EVAL_GUARDRAIL_L2_ENABLED:false}
   # Phase 5 扩展指标（簇② 5.8，16 章 §16.2）：AC/引用支撑/幻觉率三项逐用例 Judge
   # 指标 + Noise Robustness 抽样对照——观察带（人类校准 κ≥0.80 通过前只报告不门禁）；
-  # AC 读数前置 = Golden expectedAnswer 标注（当前语料零标注 → 该指标暂无样本）
+  # AC 读数前置 = Golden expectedAnswer 标注（2026-08-27 批5 审定回写 80 正向例，AC 转可读数）
   metrics:
     phase5-enabled: ${EVAL_METRICS_PHASE5_ENABLED:true}
     noise-sample-size: ${EVAL_METRICS_NOISE_SAMPLE_SIZE:0}   # 0=关；每抽中用例 +1 生成 +1 Judge
