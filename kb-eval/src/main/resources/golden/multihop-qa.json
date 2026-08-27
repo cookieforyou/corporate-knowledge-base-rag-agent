@@ -1,1 +1,327 @@
-[]
+[
+  {
+    "id": "multihop-01",
+    "category": "MULTI_HOP",
+    "question": "CQRS 是由谁提出的？与它常配合使用的事件溯源（Event Sourcing）的核心思想是什么？",
+    "expectedAnswer": "CQRS（命令查询职责分离）由 Greg Young 提出，核心思想是将系统的写操作（Command）和读操作（Query）从模型层面进行分离；事件溯源的核心思想是不存储实体的当前状态，而是存储导致状态变化的一系列事件，通过重放事件来重建实体状态。",
+    "expectedChunkIds": [
+      "687d5bd8-48be-35f5-bc01-edcb7be9d6b5",
+      "32fb4fcf-16d9-32c4-9ded-4498035b4a74"
+    ]
+  },
+  {
+    "id": "multihop-02",
+    "category": "MULTI_HOP",
+    "question": "DDD 中领域事件的命名规范是什么？它有哪些作用，其中所支撑的 CQRS 模式由谁提出？",
+    "expectedAnswer": "领域事件表示领域中发生的重要业务事件，是过去发生的事实，命名使用过去时态（如 OrderCreated、PaymentCompleted）；其作用包括解耦聚合、实现最终一致性、支持审计溯源和支撑 CQRS；CQRS 由 Greg Young 提出。",
+    "expectedChunkIds": [
+      "53981f7a-4665-378f-a79e-4fcf16f31fcf",
+      "687d5bd8-48be-35f5-bc01-edcb7be9d6b5"
+    ]
+  },
+  {
+    "id": "multihop-03",
+    "category": "MULTI_HOP",
+    "question": "以 Java SDK 为例调用文档解析（大模型版）的结果查询类 API 时，传入的 ID 参数是从哪里获得的？",
+    "expectedAnswer": "需先调用异步提交接口 SubmitDocParserJob 或 SubmitDocParserJobAdvance 提交解析任务（支持本地文件上传和 URL 文件上传两种方式，本地文件上传使用 SubmitDocParserJobAdvance 接口）；提交接口的返回参数包含 RequestId、Data、Id、Code、Message，其中 Id 字段即订单号；后续状态查询与结果查询接口的入参 ID 就是该提交接口返回的出参 Id，结果查询 API 通过传入 ID 参数查询流水号。",
+    "expectedChunkIds": [
+      "9224d4bb-0eff-3f37-9da2-6d482495460c",
+      "6ea6800d-f40c-3475-8024-42c7385c4610",
+      "2fce28a9-d832-31e7-acdf-4d6edcc00d9e",
+      "3ffc1d50-61a2-3c67-9431-8d1f444a362c",
+      "3baab2cb-77f4-3e7d-b286-f6d6710fbb11"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
+    ]
+  },
+  {
+    "id": "multihop-04",
+    "category": "MULTI_HOP",
+    "question": "文档解析（大模型版）接口的完整异步调用流程是怎样的？提交接口返回的 Id 在哪一步被消费？",
+    "expectedAnswer": "该接口为异步接口，完整流程为：先调用文档解析异步提交服务 SubmitDocParserJobAdvance 或 SubmitDocParserJob 进行异步任务提交；然后调用状态查询服务 QueryDocParserStatus 进行处理状态查询，其入参 ID 就是提交接口返回的出参 Id；最后根据处理状态调用结果查询接口获取解析结果。",
+    "expectedChunkIds": [
+      "93bc2f2f-0292-3c0d-97fd-f2c3dc529a2b",
+      "6ea6800d-f40c-3475-8024-42c7385c4610",
+      "3ffc1d50-61a2-3c67-9431-8d1f444a362c",
+      "2fce28a9-d832-31e7-acdf-4d6edcc00d9e"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
+    ]
+  },
+  {
+    "id": "multihop-05",
+    "category": "MULTI_HOP",
+    "question": "调用 QueryDocParserStatus 查询文档解析处理状态时，入参 ID 从哪里来？查询结果可能返回哪些状态？",
+    "expectedAnswer": "调用状态查询接口的入参 ID 就是前面异步任务提交接口（SubmitDocParserJobAdvance 或 SubmitDocParserJob）返回的出参 ID；查询结果包含 Status 状态和 NumberOfSuccessfulParsing（已处理的模块数）；Status 状态有处理中、处理成功、处理失败三种情况。",
+    "expectedChunkIds": [
+      "93bc2f2f-0292-3c0d-97fd-f2c3dc529a2b",
+      "3ffc1d50-61a2-3c67-9431-8d1f444a362c",
+      "2fce28a9-d832-31e7-acdf-4d6edcc00d9e"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
+    ]
+  },
+  {
+    "id": "multihop-06",
+    "category": "MULTI_HOP",
+    "question": "PageIndex 参数只支持哪些格式的文件解析？如果希望在状态查询服务中获得文档的 markdown 解析结果，OutputFormat 参数应如何设置？",
+    "expectedAnswer": "PageIndex 参数只支持 pdf、word、ppt 三种格式的文件解析使用；OutputFormat 参数支持 markdown 和 visualLayoutInfo 两种类型，设置为 markdown 时，状态查询服务中会返回文档的 markdown 结果。",
+    "expectedChunkIds": [
+      "746cd65f-400c-33c1-8ac0-f359c1c3b717",
+      "3ffc1d50-61a2-3c67-9431-8d1f444a362c"
+    ],
+    "expectedDocs": [
+      "阿里云文档解析（大模型版）介绍.pdf"
+    ]
+  },
+  {
+    "id": "multihop-07",
+    "category": "MULTI_HOP",
+    "question": "DDD 战术设计中，实体（Entity）为什么必须有唯一标识？订单聚合（Order Aggregate）示例展示了哪些聚合设计内容？",
+    "expectedAnswer": "实体是具有唯一标识（Identity）的对象，通过标识（如 ID、UUID）来区分而不是通过属性值，并具有生命周期（创建、修改、销毁）与可变性；订单聚合示例展示了聚合根、值对象以及外部引用方式，并总结出聚合设计的四条黄金法则。",
+    "expectedChunkIds": [
+      "5f2253ee-3270-39bf-a948-dc76e55ddbb2",
+      "fbda1c70-8630-3c86-ba1a-14b5df7490b6"
+    ]
+  },
+  {
+    "id": "multihop-08",
+    "category": "MULTI_HOP",
+    "question": "DDD 文档总结章节概括了哪些核心价值？其中用于遗留系统平滑演进的绞杀者模式由谁在何时提出，命名灵感来自什么？",
+    "expectedAnswer": "DDD 的核心价值包括统一语言（打破业务与技术的壁垒，让所有人说同一种话）、管理复杂性（通过战略设计如限界上下文、子域划分将复杂系统拆解为可管理的单元）、保护核心资产等；用于遗留系统改造的绞杀者模式（Strangler Fig）由 Martin Fowler 于 2004 年提出，命名灵感来自热带雨林中的绞杀榕——种子落在宿主树上依附生长，根系逐渐延伸至地面，最终通过争夺阳光和养分将宿主树绞杀。",
+    "expectedChunkIds": [
+      "f72a10bf-1969-3a98-b8af-4d8365b38082",
+      "efe6b1f5-acb4-3895-a9c6-4a3fbf08cfd5"
+    ]
+  },
+  {
+    "id": "multihop-09",
+    "category": "MULTI_HOP",
+    "question": "修缮者模式（Branch by Abstraction）的定义和适用场景是什么？它与绞杀者模式相比后者由谁在何时提出？",
+    "expectedAnswer": "修缮者模式是在不改变外部行为的前提下，对遗留系统的特定模块进行隔离和内部改造，适用于局部架构优化，如将模块内部的混乱代码重构为 DDD 的聚合模型；绞杀者模式由 Martin Fowler 于 2004 年提出，灵感来自绞杀榕的生态特性，用于逐步替换遗留系统。",
+    "expectedChunkIds": [
+      "49eed6de-a9ad-3177-8944-e085c276c848",
+      "efe6b1f5-acb4-3895-a9c6-4a3fbf08cfd5"
+    ]
+  },
+  {
+    "id": "multihop-10",
+    "category": "MULTI_HOP",
+    "question": "领域事件在 CQRS 中发挥什么作用？CQRS 常与哪种持久化模式配合使用，数据库是否必须物理分离？",
+    "expectedAnswer": "领域事件是过去发生的重要业务事实，其作用包括解耦聚合、实现最终一致性、支持审计溯源和支撑 CQRS；CQRS 常与事件溯源配合使用；CQRS 不要求物理分离数据库（可以同库不同表/视图），但物理分离效果更好。",
+    "expectedChunkIds": [
+      "53981f7a-4665-378f-a79e-4fcf16f31fcf",
+      "8cb96b2f-c309-3a9f-b42d-45ab8726f6c0"
+    ]
+  },
+  {
+    "id": "multihop-11",
+    "category": "MULTI_HOP",
+    "question": "分支模式（Parallel Run）如何通过新旧系统并行运行验证新系统的正确性？新旧系统之间通过什么机制实现异步协作？",
+    "expectedAnswer": "分支模式让新旧系统同时运行并对比两者的结果：请求同时发给新旧系统，以旧系统的结果为准返回给用户，再异步对比新旧结果，从而确保新系统的正确性；新旧系统通过领域事件实现异步协作，并结合限界上下文作为拆分单元、防腐层保护新系统避免被旧模型污染。",
+    "expectedChunkIds": [
+      "d9b1853a-a891-37a5-9293-44757c764630",
+      "4336d669-7d39-3880-9016-1f7858305948"
+    ]
+  },
+  {
+    "id": "multihop-12",
+    "category": "MULTI_HOP",
+    "question": "事件风暴（Event Storming）由谁提出、定位是什么？如果系统读写比例严重不对称，应采用哪种模式？",
+    "expectedAnswer": "事件风暴是由 Alberto Brandolini 提出的一种协作式工作坊方法，用于快速探索复杂业务领域，是 DDD 战略设计和限界上下文识别的核心实践工具；对于读写比例严重不对称（读远大于写）的系统，应采用 CQRS 模式，将写操作（Command）与读操作（Query）从模型层面分离。",
+    "expectedChunkIds": [
+      "f4f964b8-8a24-3431-ab5c-9541ebcb2235",
+      "aa152088-3e62-3da9-b5fa-92a221d79801",
+      "687d5bd8-48be-35f5-bc01-edcb7be9d6b5"
+    ]
+  },
+  {
+    "id": "multihop-13",
+    "category": "MULTI_HOP",
+    "question": "事件风暴工作坊流程如何逐步组织领域事件？由此引入 CQRS 时有哪些注意事项？",
+    "expectedAnswer": "工作坊流程依次为：无序发散（所有参与者即领域专家和开发人员在墙上贴出尽可能多的领域事件）、时间线排序（按时间顺序排列事件并去除重复）、识别命令和聚合（为每个事件找出触发它的命令和处理命令的聚合）、标注策略和外部系统等后续步骤；引入 CQRS 需注意：它增加了系统复杂度，不要在没有必要的场景使用；不要求物理分离数据库（可以同库不同表/视图），但物理分离效果更好；且常与事件溯源配合使用。",
+    "expectedChunkIds": [
+      "3a729e71-980c-396a-9c63-49533b47a633",
+      "8cb96b2f-c309-3a9f-b42d-45ab8726f6c0"
+    ]
+  },
+  {
+    "id": "multihop-14",
+    "category": "MULTI_HOP",
+    "question": "事件风暴识别出领域事件与命令后，若对应系统需要独立优化读写性能而引入 CQRS，它适用于哪三类典型场景？",
+    "expectedAnswer": "CQRS 的三类典型适用场景是：读写比例严重不对称的系统（读远大于写）、读写模型差异大的系统（如复杂的报表查询）、需要独立优化读写性能的系统；由于 CQRS 会增加系统复杂度，不要在没有必要的场景使用。",
+    "expectedChunkIds": [
+      "3a729e71-980c-396a-9c63-49533b47a633",
+      "aa152088-3e62-3da9-b5fa-92a221d79801",
+      "8cb96b2f-c309-3a9f-b42d-45ab8726f6c0"
+    ]
+  },
+  {
+    "id": "multihop-15",
+    "category": "MULTI_HOP",
+    "question": "绞杀者模式的核心思想是什么？它的实施步骤如何与 DDD 的机制结合？",
+    "expectedAnswer": "绞杀者模式的核心思想是不直接重写遗留系统，而是在其外围逐步构建新系统，通过流量路由逐渐将请求从旧系统转移到新系统，直到旧系统完全被替代；实施步骤包括部署门面层（Facade/API Gateway）、识别迁移单元、构建新服务、灰度切换等；与 DDD 的结合为：以限界上下文作为拆分单元（每次迁移一个限界上下文）、防腐层保护新系统（新系统通过 ACL 与旧系统交互避免被旧模型污染）、领域事件实现新旧系统异步协作。",
+    "expectedChunkIds": [
+      "8da33351-1068-3582-8376-402ca857eb1d",
+      "1e80a7d7-1a7f-34a6-b686-69197978c61a",
+      "4336d669-7d39-3880-9016-1f7858305948"
+    ]
+  },
+  {
+    "id": "multihop-16",
+    "category": "MULTI_HOP",
+    "question": "识别限界上下文有哪些实践途径？其中语言边界如何判断可能跨越了上下文？",
+    "expectedAnswer": "识别限界上下文有三种实践途径：事件风暴（通过识别领域事件，聚合命令和聚合，自然浮现出边界）、语言边界、业务能力分析（根据组织的业务能力划分）；语言边界的判断方法是：当同一个术语需要加前缀才能区分时，说明可能跨越了上下文；限界上下文是 DDD 中最重要的战略设计概念。",
+    "expectedChunkIds": [
+      "619ca1a9-20aa-337b-b1f4-35d21bff0cae",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-17",
+    "category": "MULTI_HOP",
+    "question": "在大型系统中，为什么试图建立一个全局统一的领域模型是不现实的？请以「用户」一词为例说明。",
+    "expectedAnswer": "原因包括语义冲突、认知负荷和团队协作三方面；其中语义冲突指同一个词在不同业务场景中含义不同，例如「用户」在账户上下文中是登录凭证（用户名、密码），在订单上下文中含义则不同；因此 DDD 引入限界上下文这一最重要的战略设计概念来划定明确的边界。",
+    "expectedChunkIds": [
+      "6210bb15-4674-3c24-930c-84f9c65f2771",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-18",
+    "category": "MULTI_HOP",
+    "question": "DDD 落地实践中有哪些常见反模式？贫血模型的问题是什么，正确做法是什么？",
+    "expectedAnswer": "DDD 落地实践中的常见反模式包括贫血模型、上帝聚合等；贫血模型指实体只有 getter/setter、业务逻辑全部放在 Service 中，正确做法是让实体和值对象承载业务逻辑；这些反模式的治理与限界上下文密切相关——限界上下文是 DDD 中最重要的战略设计概念，为模型划定明确的边界。",
+    "expectedChunkIds": [
+      "20d73161-092b-30f3-8c11-107dd6de385f",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-19",
+    "category": "MULTI_HOP",
+    "question": "当同一个术语需要加前缀才能区分时，这说明什么？它属于哪种限界上下文识别方法？该方法与事件风暴有何联系？",
+    "expectedAnswer": "这说明可能跨越了上下文，属于识别限界上下文的语言边界方法；识别限界上下文还有事件风暴、业务能力分析等途径；事件风暴是由 Alberto Brandolini 提出的协作式工作坊方法，通过识别领域事件、聚合命令和聚合让边界自然浮现，是限界上下文识别的核心实践工具。",
+    "expectedChunkIds": [
+      "619ca1a9-20aa-337b-b1f4-35d21bff0cae",
+      "f4f964b8-8a24-3431-ab5c-9541ebcb2235"
+    ]
+  },
+  {
+    "id": "multihop-20",
+    "category": "MULTI_HOP",
+    "question": "什么是领域（Domain）？子域与限界上下文的对应关系在理想状态和现实情况下分别是怎样的？",
+    "expectedAnswer": "领域是软件所要解决的业务问题空间，一个复杂的业务领域通常需要拆分为多个子域；子域与限界上下文的理想状态是一个子域对应一个限界上下文（1:1）；现实情况是一个子域可能被拆分为多个限界上下文，或者一个限界上下文包含多个子域（遗留系统常见）；限界上下文是 DDD 中最重要的战略设计概念。",
+    "expectedChunkIds": [
+      "94eed218-6599-3c39-b863-63716bf3e499",
+      "56a7ef34-8c08-31bd-b784-04e8e7ef7519",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-21",
+    "category": "MULTI_HOP",
+    "question": "事件风暴由谁提出？它与限界上下文识别是什么关系？",
+    "expectedAnswer": "事件风暴是由 Alberto Brandolini 提出的一种协作式工作坊方法，用于快速探索复杂业务领域，是 DDD 战略设计和限界上下文识别的核心实践工具；限界上下文是 DDD 中最重要的战略设计概念，事件风暴通过识别领域事件、聚合命令和聚合让边界自然浮现。",
+    "expectedChunkIds": [
+      "76f0c2bc-3ac6-3d55-8a8f-80ae82284ab9",
+      "f4f964b8-8a24-3431-ab5c-9541ebcb2235",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-22",
+    "category": "MULTI_HOP",
+    "question": "事件风暴工作坊流程包含哪些具体步骤？为什么说它是识别限界上下文的核心实践工具？",
+    "expectedAnswer": "工作坊流程包括：无序发散（所有参与者在墙上贴出尽可能多的领域事件）、时间线排序（按时间顺序排列事件并去除重复）、识别命令和聚合（为每个事件找出触发它的命令和处理命令的聚合）、标注策略和外部系统等步骤；事件风暴是由 Alberto Brandolini 提出的协作式工作坊方法，通过识别领域事件让边界自然浮现，因此是 DDD 战略设计和限界上下文识别的核心实践工具。",
+    "expectedChunkIds": [
+      "3a729e71-980c-396a-9c63-49533b47a633",
+      "f4f964b8-8a24-3431-ab5c-9541ebcb2235",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-23",
+    "category": "MULTI_HOP",
+    "question": "DDD 的「管理复杂性」这一核心价值如何实现？其中起关键作用的概念在战略设计中处于什么地位？",
+    "expectedAnswer": "DDD 不仅仅是一套技术方法论，更是一种以业务为中心的思维方式，其核心价值包括统一语言、管理复杂性、保护核心资产等；管理复杂性通过战略设计（限界上下文、子域划分）实现，将复杂系统拆解为可管理的单元；限界上下文是 DDD 中最重要的战略设计概念。",
+    "expectedChunkIds": [
+      "f72a10bf-1969-3a98-b8af-4d8365b38082",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-24",
+    "category": "MULTI_HOP",
+    "question": "「用户」一词在账户上下文中指什么？同一术语在不同上下文含义不同这一现象被称为什么，说明了什么？",
+    "expectedAnswer": "「用户」在账户上下文中是登录凭证（用户名、密码），而在订单上下文中含义不同；这一现象称为语义冲突，说明在大型系统中试图建立一个全局统一的领域模型是不现实的，需要通过限界上下文划定显式的语义边界和业务边界。",
+    "expectedChunkIds": [
+      "6210bb15-4674-3c24-930c-84f9c65f2771",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-25",
+    "category": "MULTI_HOP",
+    "question": "战术设计关注在单个限界上下文内部做什么？DDD 知识体系总览图中战略设计与战术设计各包含哪些内容？",
+    "expectedAnswer": "战术设计关注的是在单个限界上下文内部如何精细地构建领域模型，并将其落地为代码；DDD 知识体系总览图显示，战略设计涵盖通用语言、上下文映射、子域划分等内容，战术设计涵盖实体、聚合等核心概念，两者由架构支撑与协作建模关联；限界上下文是 DDD 中最重要的战略设计概念。",
+    "expectedChunkIds": [
+      "5db9c339-c471-385b-a222-ef63369c1bee",
+      "3baabf82-606c-351d-99d2-a32a8503a03b",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-26",
+    "category": "MULTI_HOP",
+    "question": "同一个词在订单上下文、账户上下文等不同业务场景中含义不同，这一现象称为什么？可以用哪种协作建模方法来识别和对齐上下文边界？",
+    "expectedAnswer": "这一现象称为语义冲突，是大型系统中无法建立全局统一领域模型的原因之一；可以用事件风暴来识别和对齐上下文边界——事件风暴是由 Alberto Brandolini 提出的协作式工作坊方法，用于快速探索复杂业务领域，通过识别领域事件让边界自然浮现，是限界上下文识别的核心实践工具。",
+    "expectedChunkIds": [
+      "6210bb15-4674-3c24-930c-84f9c65f2771",
+      "f4f964b8-8a24-3431-ab5c-9541ebcb2235"
+    ]
+  },
+  {
+    "id": "multihop-27",
+    "category": "MULTI_HOP",
+    "question": "绞杀者模式的实施步骤中，迁移单元是依据什么识别的？该依据在 DDD 战略设计中处于什么地位？",
+    "expectedAnswer": "实施步骤的第二步是识别迁移单元：基于 DDD 的限界上下文，确定要迁移的业务功能；限界上下文是 DDD 中最重要的战略设计概念，作为迁移单元能保证每次迁移的业务功能边界明确完整。",
+    "expectedChunkIds": [
+      "1e80a7d7-1a7f-34a6-b686-69197978c61a",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-28",
+    "category": "MULTI_HOP",
+    "question": "限界上下文的三重边界是什么？请分别说明每种边界的含义。",
+    "expectedAnswer": "限界上下文具有三重边界：语义边界——同一术语在边界内有唯一含义，跨边界需要翻译；模型边界——领域模型只在边界内有效，不跨越边界引用；团队/物理边界——通常一个限界上下文由一个团队维护并对应独立的物理部署；限界上下文是 DDD 中最重要的战略设计概念。",
+    "expectedChunkIds": [
+      "65f4d1c5-2239-397f-9803-2f9b9f1af875",
+      "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ]
+  },
+  {
+    "id": "multihop-29",
+    "category": "MULTI_HOP",
+    "question": "CQRS 的写侧（Command 侧）与读侧（Query 侧）在使用领域模型上有何区别？",
+    "expectedAnswer": "写侧（Command 侧）使用领域模型（聚合根、实体、值对象）处理业务逻辑，保证数据一致性和业务规则，操作粒度为聚合；读侧（Query 侧）绕过领域模型，直接查询数据库返回 DTO，可以使用非规范化的读模型（如物化视图、搜索引擎等），性能优化不受领域模型约束。",
+    "expectedChunkIds": [
+      "069f1857-e4cd-3270-a870-5e01b2cd0f39",
+      "88c3f99c-280d-3edf-9347-c9fdceb6e64f"
+    ]
+  },
+  {
+    "id": "multihop-30",
+    "category": "MULTI_HOP",
+    "question": "防腐层（ACL）的定义是什么？为什么它要把上游模型翻译成下游自己的领域模型？",
+    "expectedAnswer": "防腐层是在下游限界上下文中创建一个隔离层，将上游（外部系统）的模型翻译成下游自己的领域模型，是 DDD 中最具实战价值的模式之一；之所以需要翻译，是因为限界上下文是一个显式定义的语义边界和业务边界，边界内领域模型中的每一个术语都有唯一且明确的含义，业务规则自洽一致，模型不需要与边界外的模型保持一致。",
+    "expectedChunkIds": [
+      "9b590567-183c-384a-84b3-b46002f175e7",
+      "425ceb36-4c20-3474-ba59-7edcefc747b3"
+    ]
+  }
+]

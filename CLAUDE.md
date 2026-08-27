@@ -28,7 +28,7 @@ kb-rag-agent/
 ├── kb-ai-agent/       # Agent 事务域：tool/（Mock 工具+HITL 账本）、config/（toolAgentChatClient）、service/、mcp/（4.10 三件套+身份守卫）
 ├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
-├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(237=干净110+注入127) + CI 门禁
+├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(267=干净110+注入127+多跳30) + CI 门禁
 ├── kb-loadtest/       # Gatling 压测四场景 + StubChatServer 生成桩（簇⑥ 批5，显式触发）
 ├── frontend/          # Vue3（Login/Chat 溯源对话/Documents/Debug 检索台/Chunks 观测台/Admin 运维中心五 Tab）
 └── docs/              # 设计章 + 进度
@@ -84,7 +84,7 @@ kb-rag-agent/
 - **词表工程（簇①）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV；外部 file: 源整文件覆盖内置基线）；REGEX 模式轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记，新词默认 FLAG 零误伤方转 BLOCK；§12.7。**热重载（簇⑥ F1）**：单一词表双 volatile 快照原子替换（fail-keep）+ 双触发（pub/sub + file: mtime 轮询回落）；**词表 DB 单轨**：`rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门；kb-eval 恒 file）；kb_guardrail_rule 唯一事实源 + CRUD 只收 valueB64 + POST /reload + 编码 YAML 存档；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；历史会话续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain（chain 须配 `eval.chain-probe.tenant-id`）；Golden 237（干净 110 + 注入 127）+ `MULTI_HOP` 多跳分区（簇④，`multihop-qa.json` 空集占位，门禁 = AC≥4.0 通过率 ≥80%，样本 ≥5 生效）；门禁三分区契约（16 章）——L1 防域（DIRECT+ENCODING_BYPASS）≥95% / L2 防域（JAILBREAK+MULTILINGUAL）≥90%（力判联合链默认关）/ 观察集只报告；干净集 BLOCK+FLAG 零命中门禁；**间接注入评估（D3）**：默认关；**Phase 5 四新指标观察带**（簇②）：AC/引用支撑/幻觉率/噪声对照 `eval.metrics.*`，κ≥0.80 前只报告不门禁；A/B = 快照 + eval-diff 内容盲；导出 = JSONL SFT/DPO（kb-admin，审计过滤+PII 掩码）
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain（chain 须配 `eval.chain-probe.tenant-id`）；Golden 267（干净 110 + 注入 127 + 多跳 30）——`MULTI_HOP` 分区（簇④，`multihop-qa.json` 2026-08-27 审定回写 30 例，门禁 = AC≥4.0 通过率 ≥80%，样本 30≥5 生效态）；门禁三分区契约（16 章）——L1 防域（DIRECT+ENCODING_BYPASS）≥95% / L2 防域（JAILBREAK+MULTILINGUAL）≥90%（力判联合链默认关）/ 观察集只报告；干净集 BLOCK+FLAG 零命中门禁；**间接注入评估（D3）**：默认关；**Phase 5 四新指标观察带**（簇②）：AC/引用支撑/幻觉率/噪声对照 `eval.metrics.*`，κ≥0.80 前只报告不门禁；A/B = 快照 + eval-diff 内容盲；导出 = JSONL SFT/DPO（kb-admin，审计过滤+PII 掩码）
 
 **压测资产（kb-loadtest，簇⑥ 批5）**：Gatling 3.15.1 Java DSL（gatling:test 显式触发）；四场景 = A 检索真压 / B 生成桩压（内置纯 JDK StubChatServer 零计费）/ C 真实 LLM TTFT·TPOT（计费敏感缺省关）/ D SSE 多轮会话；语料 = Golden 干净集按 ID 引用（注入集零接触）；执行步骤清单 LT1；方法论 15 §15.4 / 基线 18 §18.4
 
