@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②机器侧就绪（待批5 用户侧回传）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过，分支 `phase5-cluster4-graphrag` 合并回 main 随批5 窗口）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②批5 用户侧复跑 ①②③④ 完成（κ 定档 FAIL 观察带维持；余 ⑤导出 E2E + L2/TABLE 决策）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过；分支 `phase5-cluster4-graphrag` 2026-08-28 已合并回 main）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
