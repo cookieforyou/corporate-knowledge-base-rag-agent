@@ -97,7 +97,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         long start = System.currentTimeMillis();
 
         // 虚拟线程并行多路召回；各路各自容错（失败/超时 → 空列表，降级矩阵 10.2 三路扩展）
-        // 共享执行器（簇③ D2）：等待与超时语义不变——await 阻塞 + 超时取消。
+        // 共享执行器（簇③ D2）：await 阻塞 + 超时**非打断式**取消（坑位㊶）。
         // Graph 路（簇④ 5.2）条件在场：关闭态 provider 空 → 双路形态逐字节不变
         GraphDocumentRetriever graphRetriever = graphRetrieverProvider.getIfAvailable();
         List<Document> vectorHits;
@@ -175,14 +175,19 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         }
     }
 
-    /** 等待单路结果：超时即取消并降级为空，不阻塞另一路 */
+    /** 等待单路结果：超时即非打断式取消并降级为空，不阻塞另一路 */
     private List<Document> await(Future<List<Document>> future, String route) {
         int timeoutSeconds = properties.getPathTimeoutSeconds();
         try {
             return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("检索路径 [{}] 超时（{}s），降级为空结果", route, timeoutSeconds);
-            future.cancel(true);
+            // 非打断式取消（坑位㊶，簇④ 用户侧 E2E 五轮实证）：cancel(true) 中断正阻塞在
+            // Neo4j 驱动内的线程时，驱动终止并丢弃该 bolt 连接（「Thread interrupted while
+            // running query in transaction」），负载下超时频发 → 池连接反复销毁重建的抖动 +
+            // 大段噪声栈。cancel(false) 弃任务：虚拟线程廉价放任跑完，结果自然丢弃；
+            // 图路在服务端事务超时（spring.neo4j.query-timeout-seconds）内收敛，连接正常归池。
+            future.cancel(false);
             return List.of();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

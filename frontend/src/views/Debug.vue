@@ -3,7 +3,7 @@
     <header class="page-head reveal">
       <div>
         <h1 class="t-display page-title">检索调试台</h1>
-        <p class="page-desc">直调检索链路（不经 LLM）——改写 → 双路召回 → RRF 融合 → 重排，全维度得分透视</p>
+        <p class="page-desc">直调检索链路（不经 LLM）——改写 → 多路召回 → RRF 融合 → 重排，全维度得分透视</p>
       </div>
     </header>
 
@@ -31,7 +31,7 @@
           <div class="degrade-row">
             <span class="chip" v-for="(v, k) in result.degradation" :key="k"
               :class="v === 'OK' ? 'chip-ok' : 'chip-danger'">
-              {{ k === 'vector' ? '向量路' : 'BM25 路' }} · {{ v }}
+              {{ routeLabel(k) }} · {{ v }}
             </span>
           </div>
         </div>
@@ -167,6 +167,10 @@ function scoreDims(c: RetrievalCandidate) {
   )
   return dims
 }
+
+/** 降级芯片路由标签：键映射与 Chat 溯源同族（簇④ 三路扩展，未知键原样回显） */
+const routeLabel = (k: string) =>
+  ({ vector: '向量路', bm25: 'BM25 路', graph: '图谱路' } as Record<string, string>)[k] || k
 
 const barWidth = (v: number | undefined | null, max: number) =>
   v == null ? 0 : Math.max((Math.abs(v) / max) * 100, 2)
