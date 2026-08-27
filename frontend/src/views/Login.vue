@@ -18,7 +18,7 @@
         <ul class="brand-points">
           <li class="reveal" style="--d:.16s">
             <i class="point-bar" />
-            <div><b>双路混合检索</b><span>向量语义 + BM25 关键词，RRF 融合 + qwen3-rerank 精排</span></div>
+            <div><b>多路混合检索</b><span>向量语义 + BM25 关键词 + 图谱实体，RRF 融合 + qwen3-rerank 精排</span></div>
           </li>
           <li class="reveal" style="--d:.24s">
             <i class="point-bar" />

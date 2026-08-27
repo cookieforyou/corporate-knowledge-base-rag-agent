@@ -25,7 +25,7 @@
           <span class="pulse-dot" />
           <div>
             <div class="engine-title">混合检索引擎</div>
-            <div class="engine-sub">向量 · BM25 · RRF · Rerank</div>
+            <div class="engine-sub">向量 · BM25 · 图谱 · RRF · Rerank</div>
           </div>
         </div>
         <div class="user-card">

@@ -284,7 +284,7 @@
               <pre class="detail-json">{{ pretty(detail.rerankedChunks) }}</pre>
             </div>
             <div v-if="detail.retrievedChunks" class="detail-sec">
-              <div class="t-label">双路原始命中</div>
+              <div class="t-label">多路原始命中</div>
               <pre class="detail-json">{{ pretty(detail.retrievedChunks) }}</pre>
             </div>
             <div v-if="detail.toolCalls" class="detail-sec">
@@ -807,7 +807,7 @@ const ROOT_CAUSES: Record<RootCause, string> = {
   PARSING_GAP: '解析不足'
 }
 const ROOT_CAUSE_HINTS: Record<RootCause, string> = {
-  RETRIEVAL_MISS: '目标证据未进入重排序列（切分/向量/BM25/重排环节丢失）',
+  RETRIEVAL_MISS: '目标证据未进入重排序列（切分/向量/BM25/图谱/重排环节丢失）',
   REWRITE_DRIFT: '多轮压缩/改写偏离原意，检索方向错误',
   HALLUCINATION: '证据命中且正确，回答编造或偏离证据',
   PARSING_GAP: '解析/切分缺陷导致证据本身缺失'

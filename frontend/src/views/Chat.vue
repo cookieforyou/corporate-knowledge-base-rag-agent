@@ -12,7 +12,7 @@
       </div>
       <div class="head-badges">
         <span class="chip chip-pine">DeepSeek V4</span>
-        <span class="chip chip-gold">双路混合检索</span>
+        <span class="chip chip-gold">多路混合检索</span>
         <span class="chip chip-rerank">qwen3-rerank 精排</span>
         <el-button size="small" round :disabled="streaming" @click="newChat">
           <el-icon><Refresh /></el-icon>&nbsp;新对话
@@ -40,6 +40,7 @@
           <template v-if="store.mode === 'rag'">
             <span class="pipe-step chip chip-vector">向量召回</span><i class="pipe-sep" />
             <span class="pipe-step chip chip-bm25">BM25 召回</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-graph">图谱召回</span><i class="pipe-sep" />
             <span class="pipe-step chip chip-fusion">RRF 融合</span><i class="pipe-sep" />
             <span class="pipe-step chip chip-rerank">精排</span><i class="pipe-sep" />
             <span class="pipe-step chip chip-gold">Grounding 生成</span>

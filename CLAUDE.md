@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②机器侧就绪（待批5 用户侧回传）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 机器侧收口（2026-08-26，五批落地，用户侧 E2E 待执行，分支 `phase5-cluster4-graphrag`）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②机器侧就绪（待批5 用户侧回传）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过，分支 `phase5-cluster4-graphrag` 合并回 main 随批5 窗口）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -79,7 +79,7 @@ kb-rag-agent/
 - **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 创建并填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末直读推 TRACE
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE 为 JSON {messageId,traceId}）+ 命名 TRACE（三路溯源与 [ref-N] 对齐）/TOOL_CALL（仅 tool 链）
 - 前端对话窗：sessionId 多轮 + rag/tool 切换 + TOOL_CALL 审批卡片
-- 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空双路零触达
+- 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判，fail-open 回落 L1）；`OutputGuardrailAdvisor`(110) 黑名单整段替换、**流式聚合后验**、PII 回显观察；`TokenBudgetAdvisor`(30) 租户日账本；`RateLimitAdvisor`(100) Redisson 每租户令牌桶；配额码统一 429；**Redis 故障 fail-open（配额）/ fail-closed（审批账本）**；**间接注入扫描**：rerank 前 warn/exclude 双策略；§12.8
 - **词表工程（簇①）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV；外部 file: 源整文件覆盖内置基线）；REGEX 模式轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记，新词默认 FLAG 零误伤方转 BLOCK；§12.7。**热重载（簇⑥ F1）**：单一词表双 volatile 快照原子替换（fail-keep）+ 双触发（pub/sub + file: mtime 轮询回落）；**词表 DB 单轨**：`rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门；kb-eval 恒 file）；kb_guardrail_rule 唯一事实源 + CRUD 只收 valueB64 + POST /reload + 编码 YAML 存档；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填

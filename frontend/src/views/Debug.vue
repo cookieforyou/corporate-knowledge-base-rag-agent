@@ -95,7 +95,7 @@
     <!-- 空态 -->
     <div v-else-if="!running" class="empty-tip reveal" style="--d:.1s">
       <el-icon :size="38"><DataAnalysis /></el-icon>
-      <p>执行一次检索，查看 向量分 / BM25 分 / 融合分 / 重排分 的完整对比</p>
+      <p>执行一次检索，查看 向量分 / BM25 分 / 图谱分 / 融合分 / 重排分 的完整对比</p>
     </div>
   </div>
 </template>
