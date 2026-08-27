@@ -395,10 +395,11 @@ public class Neo4jGraphGateway implements GraphGateway {
         OPTIONAL MATCH (e)-[:RELATED_TO]-(n:Entity {tenant_id: $tenantId})
         WITH e, score, collect(DISTINCT n) AS neighbors
         UNWIND ([{ent: e, s: score, hop: 0}]
-                + [{ent: x, s: score * %f, hop: 1} | x IN neighbors]) AS cand
-        MATCH (c:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(cand.ent)
-        WITH c, max(cand.s) AS chunkScore, collect(DISTINCT cand.ent.name)[0..5] AS entityNames,
-             min(cand.hop) AS hop
+                + [x IN neighbors | {ent: x, s: score * %f, hop: 1}]) AS cand
+        WITH cand.ent AS ent, cand.s AS contrib, cand.hop AS hop
+        MATCH (c:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(ent)
+        WITH c, max(contrib) AS chunkScore, collect(DISTINCT ent.name)[0..5] AS entityNames,
+             min(hop) AS hop
         RETURN c.id AS chunkId, c.doc_id AS docId, chunkScore, entityNames, hop
         ORDER BY chunkScore DESC, hop ASC
         LIMIT $limit

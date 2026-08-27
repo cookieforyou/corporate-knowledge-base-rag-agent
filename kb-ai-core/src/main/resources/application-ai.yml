@@ -256,6 +256,8 @@ rag:
     # （图路超时/降级经 rag.retrieval.path-timeout-seconds 与双路统一口径，不设独立键）
     retrieval:
       entity-top-n: ${RAG_GRAPH_ENTITY_TOP_N:5}                          # 种子实体上限
+      # Neo4j 余弦得分为归一化形态（(1+cos)/2 ∈ [0,1]，0.5=正交，1=全同——IT 实证 +
+      # 官方口径），0.7 ≈ 原始余弦 ≥ 0.4；调参须按此语义，勿当原始余弦解读（v2.80）
       entity-similarity-threshold: ${RAG_GRAPH_ENTITY_SIMILARITY_THRESHOLD:0.7}
       expand-neighbors: ${RAG_GRAPH_EXPAND_NEIGHBORS:true}               # 1 跳邻域展开（衰减 0.5）
   # ── 语义缓存（Phase 5 簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
