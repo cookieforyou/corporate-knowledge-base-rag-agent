@@ -1,8 +1,6 @@
 # kb-eval 独立运行配置 —— 复用 kb-infrastructure / kb-ai-core 的配置片段
 spring:
   config:
-#   activate:
-#     on-profile: ci                      # CI 门禁：mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci
     import:
       - classpath:application-infra.yml   # PG/ES/Redis/MinIO/向量库（来自 kb-infrastructure jar）
       - classpath:application-ai.yml      # DeepSeek + Embedding（来自 kb-ai-core jar）

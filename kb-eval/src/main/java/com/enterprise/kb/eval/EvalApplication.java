@@ -14,7 +14,7 @@ import com.enterprise.kb.eval.config.EvalProperties;
  *
  * <p>运行模式：
  * <ul>
- *   <li>CI 门禁：{@code mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci}
+ *   <li>CI 门禁：{@code EVAL_CI_ENABLED=true mvn spring-boot:run -pl kb-eval}
  *       —— 评估低于阈值则进程非零退出（EvalFailedException）</li>
  *   <li>标注辅助：{@code --eval.annotate-query="你的问题"} 输出候选 chunkId 供人工标注</li>
  * </ul>

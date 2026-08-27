@@ -173,8 +173,8 @@ EVAL_PROBE=chain EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
 mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.concurrency=8
 
 # CI 门禁模式（低于阈值进程非零退出）
-mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci
+EVAL_CI_ENABLED=true mvn spring-boot:run -pl kb-eval
 
 # CI 快跑（每类抽样 10 条）
-mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci -Dspring-boot.run.arguments=--eval.sample-size=10
+EVAL_CI_ENABLED=true EVAL_SAMPLE_SIZE=10 mvn spring-boot:run -pl kb-eval
 ```
