@@ -7,6 +7,9 @@
     "expectedChunkIds": [
       "687d5bd8-48be-35f5-bc01-edcb7be9d6b5",
       "32fb4fcf-16d9-32c4-9ded-4498035b4a74"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -17,6 +20,9 @@
     "expectedChunkIds": [
       "53981f7a-4665-378f-a79e-4fcf16f31fcf",
       "687d5bd8-48be-35f5-bc01-edcb7be9d6b5"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -85,6 +91,9 @@
     "expectedChunkIds": [
       "5f2253ee-3270-39bf-a948-dc76e55ddbb2",
       "fbda1c70-8630-3c86-ba1a-14b5df7490b6"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -95,6 +104,9 @@
     "expectedChunkIds": [
       "f72a10bf-1969-3a98-b8af-4d8365b38082",
       "efe6b1f5-acb4-3895-a9c6-4a3fbf08cfd5"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -105,6 +117,9 @@
     "expectedChunkIds": [
       "49eed6de-a9ad-3177-8944-e085c276c848",
       "efe6b1f5-acb4-3895-a9c6-4a3fbf08cfd5"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -115,6 +130,9 @@
     "expectedChunkIds": [
       "53981f7a-4665-378f-a79e-4fcf16f31fcf",
       "8cb96b2f-c309-3a9f-b42d-45ab8726f6c0"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -125,6 +143,9 @@
     "expectedChunkIds": [
       "d9b1853a-a891-37a5-9293-44757c764630",
       "4336d669-7d39-3880-9016-1f7858305948"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -136,6 +157,9 @@
       "f4f964b8-8a24-3431-ab5c-9541ebcb2235",
       "aa152088-3e62-3da9-b5fa-92a221d79801",
       "687d5bd8-48be-35f5-bc01-edcb7be9d6b5"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -146,6 +170,9 @@
     "expectedChunkIds": [
       "3a729e71-980c-396a-9c63-49533b47a633",
       "8cb96b2f-c309-3a9f-b42d-45ab8726f6c0"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -157,6 +184,9 @@
       "3a729e71-980c-396a-9c63-49533b47a633",
       "aa152088-3e62-3da9-b5fa-92a221d79801",
       "8cb96b2f-c309-3a9f-b42d-45ab8726f6c0"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -168,6 +198,9 @@
       "8da33351-1068-3582-8376-402ca857eb1d",
       "1e80a7d7-1a7f-34a6-b686-69197978c61a",
       "4336d669-7d39-3880-9016-1f7858305948"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -178,6 +211,9 @@
     "expectedChunkIds": [
       "619ca1a9-20aa-337b-b1f4-35d21bff0cae",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -188,6 +224,9 @@
     "expectedChunkIds": [
       "6210bb15-4674-3c24-930c-84f9c65f2771",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -198,6 +237,9 @@
     "expectedChunkIds": [
       "20d73161-092b-30f3-8c11-107dd6de385f",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -208,6 +250,9 @@
     "expectedChunkIds": [
       "619ca1a9-20aa-337b-b1f4-35d21bff0cae",
       "f4f964b8-8a24-3431-ab5c-9541ebcb2235"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -219,6 +264,9 @@
       "94eed218-6599-3c39-b863-63716bf3e499",
       "56a7ef34-8c08-31bd-b784-04e8e7ef7519",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -230,6 +278,9 @@
       "76f0c2bc-3ac6-3d55-8a8f-80ae82284ab9",
       "f4f964b8-8a24-3431-ab5c-9541ebcb2235",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -241,6 +292,9 @@
       "3a729e71-980c-396a-9c63-49533b47a633",
       "f4f964b8-8a24-3431-ab5c-9541ebcb2235",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -251,6 +305,9 @@
     "expectedChunkIds": [
       "f72a10bf-1969-3a98-b8af-4d8365b38082",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -261,6 +318,9 @@
     "expectedChunkIds": [
       "6210bb15-4674-3c24-930c-84f9c65f2771",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -272,6 +332,9 @@
       "5db9c339-c471-385b-a222-ef63369c1bee",
       "3baabf82-606c-351d-99d2-a32a8503a03b",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -282,6 +345,9 @@
     "expectedChunkIds": [
       "6210bb15-4674-3c24-930c-84f9c65f2771",
       "f4f964b8-8a24-3431-ab5c-9541ebcb2235"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -292,6 +358,9 @@
     "expectedChunkIds": [
       "1e80a7d7-1a7f-34a6-b686-69197978c61a",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -302,6 +371,9 @@
     "expectedChunkIds": [
       "65f4d1c5-2239-397f-9803-2f9b9f1af875",
       "26526e63-dfbb-315f-a90b-88f09ba7fa36"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -312,6 +384,9 @@
     "expectedChunkIds": [
       "069f1857-e4cd-3270-a870-5e01b2cd0f39",
       "88c3f99c-280d-3edf-9347-c9fdceb6e64f"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   },
   {
@@ -322,6 +397,9 @@
     "expectedChunkIds": [
       "9b590567-183c-384a-84b3-b46002f175e7",
       "425ceb36-4c20-3474-ba59-7edcefc747b3"
+    ],
+    "expectedDocs": [
+      "领域驱动设计（DDD）全面深度解析.md"
     ]
   }
 ]

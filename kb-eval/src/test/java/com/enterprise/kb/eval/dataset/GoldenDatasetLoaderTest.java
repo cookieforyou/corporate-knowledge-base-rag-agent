@@ -33,9 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 加载 classpath:golden/*.json 在库文件并校验结构不变量：
  * <ul>
  *   <li>总量与负向占比达标（16.1：50+ 条、负向 ≥ 20%）</li>
- *   <li>正向用例必须携带 chunk 级检索锚点；文档级锚点同为必填，唯 MULTI_HOP 分区
- *       豁免（簇④-3 审定形态：材料表不含源文档文件名，文档级指标自动跳过——
- *       见 {@link #everyPositiveCaseCarriesBothAnchorLayers()} 内注）</li>
+ *   <li>正向用例必须携带 chunk 级与文档级双层检索锚点（MULTI_HOP 分区 2026-08-27
+ *       审定回写时同步补齐文档级锚点，豁免窗口期已结束）</li>
  *   <li>chunk 锚点为确定性 ID（UUID v3 形态，9.3 v2.22）——拦截误粘贴的随机 v4 ID</li>
  *   <li>用例 id 全局唯一</li>
  *   <li>INJECTION 用例携带合法 attackType、无检索锚点，且样本与 L1 词表防域
@@ -79,13 +78,6 @@ class GoldenDatasetLoaderTest {
             }
             assertTrue(pair.hasRetrievalExpectation(),
                 pair.id() + " 缺少 expectedChunkIds（chunk 级锚点必填）");
-            if (pair.category() == QACategory.MULTI_HOP) {
-                // MULTI_HOP 文档级锚点豁免（簇④-3 审定形态）：多跳语料经图谱实体链
-                // 材料表起草审定，材料面 = chunk 摘录不含源文档文件名；簇④新语料文件名
-                // 未入 Golden 引用面时 expectedDocs 留空 → 文档级兜底指标自动跳过该分区
-                // （GoldenQAPair 契约），文件名回填后此豁免可收紧
-                continue;
-            }
             assertTrue(pair.hasDocExpectation(),
                 pair.id() + " 缺少 expectedDocs（文档级兜底锚点必填）");
         }
