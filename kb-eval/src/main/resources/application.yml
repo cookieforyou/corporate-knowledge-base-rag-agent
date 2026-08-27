@@ -30,6 +30,7 @@ eval:
   # 与被测链路 rag.retrieval.top-k 同源绑定同一环境变量（簇① A3）——
   # 两处独立配置存在漂移风险：eval 度量 Recall@K 与链路实际产出 K 不一致时指标失真
   top-k: ${RAG_RETRIEVAL_TOP_K:5}
+  concurrency: ${EVAL_CONCURRENCY:8}
   sample-size: 0                          # CI 快跑可设 10（每类抽样）
   probe: ${EVAL_PROBE:auto}               # auto | vector | hybrid | chain（A/B 基线对比）
   run-label: ${EVAL_RUN_LABEL:}           # 运行标签（簇④ E1）：报告落盘 eval-report-{label}.txt，复跑快照防互覆

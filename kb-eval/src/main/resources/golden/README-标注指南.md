@@ -119,7 +119,8 @@ mvn spring-boot:run -pl kb-eval \
 （如「A 公司 CTO 曾任教的大学」= A 公司 →CTO→ 人名 →大学 二跳链）。
 语料 `golden/multihop-qa.json`（2026-08-27 审定回写 30 例 `multihop-01..30`，
 样本 ≥5 门禁阈值已达，门禁生效态；审定纪律 = 标准答案逐字锚定材料摘录可见
-内容、截断面不外推；伪桥草稿[桥接实体为跨文档泛化词]弃用）。
+内容、截断面不外推；伪桥草稿[桥接实体为跨文档泛化词]弃用；双层锚点齐备 =
+30 例全带 `expectedDocs`[DDD 系 26 + API 文档系 4]，文档级兜底指标该分区正常度量）。
 
 **产出工作流（机器侧草稿 + 人工审定，沿用 AC 草稿先例）**：
 
@@ -130,7 +131,8 @@ EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
   -Dspring-boot.run.arguments=--eval.draft-multihop
 # → target/multihop-drafts.json / .md（实体链 + chunk ID + 摘录材料表）
 # ③ 人工审定：基于材料编写 question + expectedAnswer（必填，门禁消费），
-#    expectedChunkIds 取材料表 chunk ID，回写 golden/multihop-qa.json
+#    expectedChunkIds 取材料表 chunk ID，expectedDocs 回填源文档 file_name
+#    （材料面不含文件名，经 kb_document 核实后回填），回写 golden/multihop-qa.json
 ```
 
 **门禁口径**：多跳准确率 = AC≥4.0（1-5 Judge）判通过的用例占比，≥80% 达标；
@@ -154,7 +156,7 @@ EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
 
 ```bash
 # 全量评估（需 ECS 基础设施 + DEEPSEEK_API_KEY + DASHSCOPE_API_KEY 环境变量）
-# 用例按 eval.concurrency（默认 5）虚拟线程并行，74 条约 10-15 分钟
+# 用例按 eval.concurrency（默认 8）虚拟线程并行，74 条约 10-15 分钟
 mvn spring-boot:run -pl kb-eval
 
 # 检索-only 快跑：只评 Recall/MRR/Context Precision，跳过生成与 Judge——
