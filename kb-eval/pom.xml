@@ -73,7 +73,6 @@
 
     <build>
         <plugins>
-            <!-- 可独立运行：mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

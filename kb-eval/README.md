@@ -187,14 +187,13 @@ Judge 模型可换：`EVAL_JUDGE_MODEL` 环境变量（如 qwen3.7-max 效果更
 
 ```bash
 # ① CI 门禁模式：低于阈值进程非零退出（CI 流水线用）
-mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci
+EVAL_CI_ENABLED=true mvn spring-boot:run -pl kb-eval
 
 # ② 手动全量评估：只出报告，不做门禁判定
 mvn spring-boot:run -pl kb-eval
 
 # ③ CI 快跑：每类抽样 10 条（控成本/冒烟用）
-mvn spring-boot:run -pl kb-eval -Dspring-boot.run.profiles=ci \
-  -Dspring-boot.run.arguments=--eval.sample-size=10
+EVAL_CI_ENABLED=true EVAL_SAMPLE_SIZE=10 mvn spring-boot:run -pl kb-eval
 
 # ④ 标注辅助：输出某问题的 Top-10 候选 Chunk（供人工判定 expectedChunkIds）
 mvn spring-boot:run -pl kb-eval \
