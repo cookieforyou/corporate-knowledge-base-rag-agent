@@ -32,7 +32,7 @@
       </div>
 
       <div class="brand-foot reveal" style="--d:.4s">
-        <span class="t-data">Spring AI 2.0 · DeepSeek V4 · Milvus · Elasticsearch</span>
+        <span class="t-data">Spring AI 2.0 · DeepSeek V4 · Milvus · Elasticsearch · Neo4j</span>
       </div>
     </aside>
 

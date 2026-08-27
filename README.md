@@ -14,7 +14,7 @@
 | Embedding | 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) |
 | Rerank / Judge | `qwen3-rerank`（百炼 DashScope 端点）/ `qwen3.7-plus`（评估裁判 + 注入二判） |
 | 向量库 | pgvector / Milvus 2.6（`KB_VECTOR_STORE_PROVIDER` 切换，默认 milvus） |
-| 数据库 | PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO |
+| 数据库 | PostgreSQL 18 + Elasticsearch 9.4.2 + Neo4j 5.26.29 + Redis 8 + MinIO |
 | 认证 | OAuth2 JWT（Casdoor，前端 PKCE 流程） |
 | 前端 | Vue3 + TypeScript + Element Plus + Pinia + Vite 6 |
 | 压测 | Gatling 3.15 Java DSL（kb-loadtest 独立模块，显式触发） |
