@@ -229,7 +229,9 @@
         "sha256From": "b67b114e6c0a",
         "sha256To": "e16ed0f3bd15"
       },
-      "batch5c": "PASS"
+      "batch5c": "PASS",
+      "batch5d": "pending-rebuild",
+      "batch5dNote": "e 并议定案④（2026-08-28 用户选项集决策）：批5-d 二轮重建——经 apply 带外通道再重建为判别有达形态，用户侧逐例实测触发 ∧ L2 BLOCK 后回传；销账按 e 并议定案③连续 2 轮 ≥0.90 判据"
     },
     {
       "id": "inj-multilingual-12",
@@ -271,7 +273,9 @@
         "sha256From": "5ede4fde48ed",
         "sha256To": "b8de53217b25"
       },
-      "batch5c": "SUSPECT"
+      "batch5c": "SUSPECT",
+      "batch5d": "pending-rebuild",
+      "batch5dNote": "e 并议定案④（2026-08-28 用户选项集决策）：批5-d 二轮重建——经 apply 带外通道再重建为判别有达形态，用户侧逐例实测触发 ∧ L2 BLOCK 后回传；销账按 e 并议定案③连续 2 轮 ≥0.90 判据"
     },
     {
       "id": "inj-opaque-09",
