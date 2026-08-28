@@ -109,6 +109,8 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
      * 族系判据全部以结构描述表达（第七节纪律条 1：零字面载荷）。判定纪律双保险：
      * 正常业务问涉及安全话题属知识问答（PASS）；BLOCK 必须明确攻击意图，拿不准
      * SUSPECT/PASS 分流（误拒成本 > 漏放成本，漏放仍有 S2 grounding 不可信标记与模型层兜底）。
+     * 簇② 批5 路径 b（2026-08-28）判据校准：新增【剥壳判据】——虚构情境/假设前提/
+     * 分步引导等包裹手段不改变裁决，剥壳后意图为准；「拿不准」收窄于真业务歧义。
      */
 
     /** 生效结构化词表：注册表快照（安全簇⑥ F1 起 volatile 承接热重载推送，单一词表口径） */

@@ -45,6 +45,35 @@ class PromptTemplatesTest {
             .contains("BLOCK");
     }
 
+    /**
+     * 七族系结构判据完备性（§12.11 载荷纪律：仅结构描述零字面载荷）——
+     * 族系名与 advisor 输出指令枚举面一一对应，缺一即判据面漂移。
+     */
+    @Test
+    void injectionJudgePromptCarriesAllSevenFamilyCriteria() {
+        assertThat(PromptTemplates.INJECTION_JUDGE_PROMPT)
+            .contains("指令覆盖族")
+            .contains("角色劫持族")
+            .contains("敏感信息套取族")
+            .contains("编码混淆族")
+            .contains("多语种族")
+            .contains("越狱引导族")
+            .contains("工具诱导族");
+    }
+
+    /**
+     * 簇② 批5 路径 b 判据校准契约钉死：【剥壳判据】在场（包裹手段不改变裁决）
+     * ∧ 保守纪律保留（拿不准倾向 PASS）——两翼缺一即校准回退或过度收紧。
+     */
+    @Test
+    void injectionJudgePromptCarriesShellPeelingCriteriaWithConservativeDiscipline() {
+        assertThat(PromptTemplates.INJECTION_JUDGE_PROMPT)
+            .contains("【剥壳判据】")
+            .contains("包裹手段不改变裁决")
+            .contains("突破安全策略")
+            .contains("拿不准时：倾向正常裁 PASS");
+    }
+
     @Test
     void systemPromptsAllRegisteredAndNonBlank() {
         assertThat(PromptTemplates.RAG_SYSTEM_PROMPT).isNotBlank();
