@@ -243,6 +243,17 @@ class EvalRunnerPhase5Test {
             .contains("Citation Attribution = SUPPORTED");
     }
 
+    /** 打分口径表携带 κ 调优轮边界条款（人审与 Judge 判据同源，防口径漂移） */
+    @Test
+    void agreementSheetCriteriaCarryTuningBoundaries() {
+        String md = runner().renderAgreementSheet(List.of(fullResult("t-01")));
+
+        assertThat(md)
+            .contains("编号标注偏差但内容有支撑不单独判负")      // CA 主判 = 内容支撑
+            .contains("单侧无依据内容不源自噪声证据时不计漂移")   // NRob 证据基结论边界
+            .contains("轻微外推不算编造");                       // F 低分锚点
+    }
+
     // ── 运行锚点头（簇② 5.9 批3） ──
 
     @Test

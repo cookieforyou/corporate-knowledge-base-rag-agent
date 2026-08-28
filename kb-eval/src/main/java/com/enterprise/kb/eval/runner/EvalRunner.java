@@ -300,11 +300,11 @@ public class EvalRunner {
         sb.append(System.lineSeparator());
         sb.append("| 维度（CSV dimension 列） | 人工填写 | 口径 |").append(System.lineSeparator());
         sb.append("|---|---|---|").append(System.lineSeparator());
-        sb.append("| faithfulness | 1-5 整数 | 回答对参考资料的忠实度（同 E1 口径） |").append(System.lineSeparator());
+        sb.append("| faithfulness | 1-5 整数 | 回答对参考资料的忠实度（同 E1 口径）；表格/枚举/转述语义一致即算有依据，轻微外推不算编造 |").append(System.lineSeparator());
         sb.append("| answer_correctness | 1-5 整数 | 对照理想回答的事实正确性（仅理想回答已标注用例） |").append(System.lineSeparator());
-        sb.append("| citation_attribution | SUPPORTED / NOT_SUPPORTED | 回答中每个 [ref-N] 标注是否被对应编号资料支撑；回答未发出任何引用 → NOT_SUPPORTED |").append(System.lineSeparator());
-        sb.append("| hallucination | YES / NO | 回答是否含参考资料无依据的事实声明（≥1 条即 YES） |").append(System.lineSeparator());
-        sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的事实结论是否一致（仅噪声抽样用例） |").append(System.lineSeparator());
+        sb.append("| citation_attribution | SUPPORTED / NOT_SUPPORTED | 主判 = 引用陈述内容是否被参考资料支撑：编号标注偏差但内容有支撑不单独判负；无支撑/与资料矛盾/归属误导才判 NOT_SUPPORTED；回答未发出任何引用 → NOT_SUPPORTED |").append(System.lineSeparator());
+        sb.append("| hallucination | YES / NO | 回答是否含参考资料无依据的事实声明（≥1 条即 YES）；表格/枚举/资料数值直接推算算有依据 |").append(System.lineSeparator());
+        sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的证据基事实结论是否一致（仅噪声抽样用例）；单侧无依据内容不源自噪声证据时不计漂移 |").append(System.lineSeparator());
         sb.append(System.lineSeparator()).append("---").append(System.lineSeparator());
         for (int i = 0; i < sampled.size(); i++) {
             EvalResult r = sampled.get(i);
