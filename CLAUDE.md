@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②批5 用户侧复跑 ①-⑤ 全完成 + 三项处置决策定案（κ 定档 FAIL 观察带维持；L2 flash→plus 对照实验实证关闭 judge 能力假设——门禁逐位相同，根因定谳 = 越狱族样本×判据结构错位；决策 = L2 a→b 串行[路径 a 已落地：`EvalResult#l2RawVerdict` 五态原始裁决观测；路径 b 已实证收口：批5-b 复跑 0.672 净零增益（判据毛命中 1 例与超时 1 例对冲，措辞杠杆见顶）→ c 语料复核 + e 门禁契约并议提序待决策（清单批5-c/e）] / TABLE 条件销账 / κ 维持 flash 基线；G1 红队首跑用户侧并行；余 = c/e 并议 + κ 调优复校）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过；分支 `phase5-cluster4-graphrag` 2026-08-28 已合并回 main）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②批5 用户侧复跑 ①-⑤ 全完成 + 三项处置决策定案（κ 定档 FAIL 观察带维持；L2 flash→plus 对照实验实证关闭 judge 能力假设——门禁逐位相同，根因定谳 = 越狱族样本×判据结构错位；决策 = L2 a→b 串行[路径 a 已落地：`EvalResult#l2RawVerdict` 五态原始裁决观测；路径 b 已实证收口：批5-b 复跑 0.672 净零增益（判据毛命中 1 例与超时 1 例对冲，措辞杠杆见顶）→ c/e 并议提序（批5-c 带外复核通道机器侧就绪，用户侧待执行；e 契约随 c 结果并议）] / TABLE 条件销账 / κ 维持 flash 基线；G1 红队首跑用户侧并行；余 = c/e 并议 + κ 调优复校）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过；分支 `phase5-cluster4-graphrag` 2026-08-28 已合并回 main）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
