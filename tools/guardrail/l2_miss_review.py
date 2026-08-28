@@ -33,7 +33,10 @@
   # 重建回写：新载荷明文写入仓库外文件后
   python3 tools/guardrail/l2_miss_review.py reencode --id inj-jailbreak-NN --from-file <明文文件>
 
-复核后必须运行 `mvn -q --no-transfer-progress -pl kb-eval -am test` 复跑
+  # 批量回写：用户侧复核改写后已编码 JSON（[{id, query(base64)}]）一次回写
+  python3 tools/guardrail/l2_miss_review.py apply --from-json <已编码 JSON 文件>
+
+复核/回写后必须运行 `mvn -q --no-transfer-progress -pl kb-eval -am test` 复跑
 GoldenDatasetLoaderTest（语料自洽契约单一事实源在测试侧）。
 """
 
@@ -179,6 +182,74 @@ def cmd_reencode(ledger, target_id: str, from_file: Path) -> int:
     return 0
 
 
+APPLY_DEFAULT_NOTE = ("批5-c 用户侧复核重写：原载荷不达 L2 触发前置条件"
+                      "（REGEX 轨命中 ∧ 无 KEYWORD 干词命中），生产链不达 L2 二判；"
+                      "重写为触发可达形态，用户侧逐例实测触发 ∧ L2 BLOCK")
+
+
+def cmd_apply(ledger, from_json: Path, note: str) -> int:
+    """C 处置重建样本批量回写：读用户侧复核回传的已编码 JSON
+    （[{"id", "query"(base64)}]），语料同 id 原地替换 + SHA-256 指纹更新，
+    台账记 C 处置与重建轨迹。内容仅解码计算指纹，全程零回显（纪律同 reencode）。"""
+    if not from_json.is_file():
+        print(f"回传文件不存在: {from_json}", file=sys.stderr)
+        return 1
+    payload = json.loads(from_json.read_text(encoding="utf-8"))
+    if not isinstance(payload, list) or not payload:
+        print("输入须为非空 JSON 数组：[{\"id\": ..., \"query\": <base64>}]", file=sys.stderr)
+        return 1
+    corpus = load_corpus()
+    by_id = {item["id"]: item for item in corpus}
+    ledger_by_id = {e["id"]: e for e in ledger["entries"]}
+    applied, skipped = [], []
+    for record in payload:
+        sid = record.get("id")
+        b64 = (record.get("query") or "").strip()
+        target = by_id.get(sid)
+        if target is None:
+            print(f"  跳过 {sid}：语料中不存在")
+            skipped.append(sid)
+            continue
+        try:
+            raw = base64.b64decode(b64, validate=True)
+            plaintext = raw.decode("utf-8")
+        except Exception:
+            print(f"  跳过 {sid}：编码解析失败")
+            skipped.append(sid)
+            continue
+        canonical_b64 = base64.b64encode(raw).decode("ascii")
+        new_sha = sha256_hex(plaintext)
+        if target.get("question") == canonical_b64 and target.get("questionSha256") == new_sha:
+            print(f"  跳过 {sid}：载荷与指纹均未变")
+            skipped.append(sid)
+            continue
+        old_sha = (target.get("questionSha256") or "")[:12]
+        target["question"] = canonical_b64
+        target["questionEncoding"] = "base64"
+        target["questionSha256"] = new_sha
+        entry = ledger_by_id.get(sid)
+        if entry is not None:
+            entry["disposition"] = "C"
+            if note:
+                entry["dispositionNote"] = note
+            entry["reencodedAt"] = now_iso()
+            entry["rebuildTrail"] = {"sha256From": old_sha, "sha256To": new_sha[:12]}
+        else:
+            print(f"  注意 {sid}：不在台账（语料已回写，台账未记）")
+        applied.append(f"{sid}（指纹 {old_sha} → {new_sha[:12]}）")
+    if applied:
+        CORPUS_FILE.write_text(
+            json.dumps(corpus, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        save_ledger(ledger)
+    print(f"回写完成：应用 {len(applied)} 例 / 跳过 {len(skipped)} 例")
+    for line in applied:
+        print(f"  {line}")
+    if applied:
+        print("下一步: mvn -q --no-transfer-progress -pl kb-eval -am test"
+              "（语料自洽契约校验——单一事实源）")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="L2 漏判语料带外复核（内容仅用户终端可见；台账纯元数据）")
@@ -188,6 +259,11 @@ def main() -> int:
     rp = sub.add_parser("reencode", help="重建样本回写（新载荷明文文件 → 原地编码替换）")
     rp.add_argument("--id", required=True, help="重建目标样本 ID")
     rp.add_argument("--from-file", required=True, help="新载荷明文文件（建议仓库外路径）")
+    yp = sub.add_parser("apply", help="C 处置重建样本批量回写（已编码 JSON → 原地替换 + 台账记账）")
+    yp.add_argument("--from-json", required=True,
+                    help="用户侧复核回传的已编码 JSON：[{\"id\": ..., \"query\": <base64>}]")
+    yp.add_argument("--note", default=APPLY_DEFAULT_NOTE,
+                    help="台账处置备注（只记结构性描述，勿含内容）")
     args = ap.parse_args()
 
     ledger = load_ledger()
@@ -195,6 +271,8 @@ def main() -> int:
         return cmd_list(ledger)
     if args.cmd == "review":
         return cmd_review(ledger)
+    if args.cmd == "apply":
+        return cmd_apply(ledger, Path(args.from_json).expanduser(), args.note)
     return cmd_reencode(ledger, args.id, Path(args.from_file).expanduser())
 
 
