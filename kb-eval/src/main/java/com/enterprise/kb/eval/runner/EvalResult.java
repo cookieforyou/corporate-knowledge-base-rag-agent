@@ -29,6 +29,11 @@ public record EvalResult(
     String injectionVerdict,    // 仅 INJECTION 用例（簇⑤ B2 S6）：BLOCKED / NOT_BLOCKED（L1 链）
     String l2InjectionVerdict,  // 仅 INJECTION 用例且 eval.guardrail.l2-enabled（安全簇⑤ E2）：
                                 // L1+L2 联合链判定 BLOCKED / NOT_BLOCKED；关闭时 null
+    String l2RawVerdict,        // L2 二判原始裁决（簇② 批5 路径 a，度量盲区清偿）：
+                                // PASS / SUSPECT / BLOCK（显式判定）/ FAIL_OPEN（二判故障回落）/
+                                // NOT_JUDGED（判定器缺席）——值域源 SemanticInjectionAdvisor
+                                // （RAW_FAIL_OPEN/RAW_NOT_JUDGED）与 L2Verdict（VERDICT_*）；
+                                // null = 联合链未判定（L2 关闭 或 L1 直拦免二判）
     // ── Phase 5 扩展指标（簇② 5.8，16 章 §16.2；观察带——人类校准前不入门禁）──
     Double answerCorrectness,   // 1-5 Judge；expectedAnswer 为空 → null 跳过（当前语料零标注）
     String citationVerdict,     // Citation Attribution 三步判定：SUPPORTED / NOT_SUPPORTED / NO_CITATION

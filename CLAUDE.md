@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②批5 用户侧复跑 ①-⑤ 全完成（κ 定档 FAIL 观察带维持；L2 flash→plus 对照实验实证关闭 judge 能力假设——门禁逐位相同，根因定谳 = 越狱族样本×判据结构错位；余决策项 = L2 校准路径 a/b/c 启动序 + TABLE 终裁 + κ 复校）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过；分支 `phase5-cluster4-graphrag` 2026-08-28 已合并回 main）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**簇①收官、簇②批5 用户侧复跑 ①-⑤ 全完成 + 三项处置决策定案（κ 定档 FAIL 观察带维持；L2 flash→plus 对照实验实证关闭 judge 能力假设——门禁逐位相同，根因定谳 = 越狱族样本×判据结构错位；决策 = L2 a→b 串行[路径 a 已落地：`EvalResult#l2RawVerdict` 五态原始裁决观测] / TABLE 条件销账 / κ 维持 flash 基线；余 = 路径 b 判据校准 + κ 调优复校）、簇③语义缓存收官（已合入 main）、簇④ GraphRAG 收官（2026-08-27，五批落地 + 用户侧 E2E 回传通过；分支 `phase5-cluster4-graphrag` 2026-08-28 已合并回 main）**。机器侧就绪、用户侧待跑的运维回传项**唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -84,7 +84,7 @@ kb-rag-agent/
 - **词表工程（簇①）**：词项模型（value 逐条编码加载层解码）+双源合并（结构化∪CSV；外部 file: 源整文件覆盖内置基线）；REGEX 模式轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**：命中只计数+审计标记，新词默认 FLAG 零误伤方转 BLOCK；§12.7。**热重载（簇⑥ F1）**：单一词表双 volatile 快照原子替换（fail-keep）+ 双触发（pub/sub + file: mtime 轮询回落）；**词表 DB 单轨**：`rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门；kb-eval 恒 file）；kb_guardrail_rule 唯一事实源 + CRUD 只收 valueB64 + POST /reload + 编码 YAML 存档；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（**REDIS_DB 必须 0**，坑位⑦）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；历史会话续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain（chain 须配 `eval.chain-probe.tenant-id`）；Golden 267（干净 110 + 注入 127 + 多跳 30）——`MULTI_HOP` 分区（簇④，`multihop-qa.json` 2026-08-27 审定回写 30 例，门禁 = AC≥4.0 通过率 ≥80%，样本 30≥5 生效态）；门禁三分区契约（16 章）——L1 防域（DIRECT+ENCODING_BYPASS）≥95% / L2 防域（JAILBREAK+MULTILINGUAL）≥90%（力判联合链默认关）/ 观察集只报告；干净集 BLOCK+FLAG 零命中门禁；**间接注入评估（D3）**：默认关；**Phase 5 四新指标观察带**（簇②）：AC/引用支撑/幻觉率/噪声对照 `eval.metrics.*`，κ≥0.80 前只报告不门禁；A/B = 快照 + eval-diff 内容盲；导出 = JSONL SFT/DPO（kb-admin，审计过滤+PII 掩码）
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain（chain 须配 `eval.chain-probe.tenant-id`）；Golden 267（干净 110 + 注入 127 + 多跳 30）——`MULTI_HOP` 分区（簇④，`multihop-qa.json` 2026-08-27 审定回写 30 例，门禁 = AC≥4.0 通过率 ≥80%，样本 30≥5 生效态）；门禁三分区契约（16 章）——L1 防域（DIRECT+ENCODING_BYPASS）≥95% / L2 防域（JAILBREAK+MULTILINGUAL）≥90%（力判联合链默认关）/ 观察集只报告；L2 原始裁决观测 = `EvalResult#l2RawVerdict` 五态（PASS/SUSPECT/BLOCK/FAIL_OPEN/NOT_JUDGED，经 `VERDICT_SINK_KEY` 回传，快照+报告分布行）；干净集 BLOCK+FLAG 零命中门禁；**间接注入评估（D3）**：默认关；**Phase 5 四新指标观察带**（簇②）：AC/引用支撑/幻觉率/噪声对照 `eval.metrics.*`，κ≥0.80 前只报告不门禁；A/B = 快照 + eval-diff 内容盲；导出 = JSONL SFT/DPO（kb-admin，审计过滤+PII 掩码）
 
 **压测资产（kb-loadtest，簇⑥ 批5）**：Gatling 3.15.1 Java DSL（gatling:test 显式触发）；四场景 = A 检索真压 / B 生成桩压（内置纯 JDK StubChatServer 零计费）/ C 真实 LLM TTFT·TPOT（计费敏感缺省关）/ D SSE 多轮会话；语料 = Golden 干净集按 ID 引用（注入集零接触）；执行步骤清单 LT1；方法论 15 §15.4 / 基线 18 §18.4
 

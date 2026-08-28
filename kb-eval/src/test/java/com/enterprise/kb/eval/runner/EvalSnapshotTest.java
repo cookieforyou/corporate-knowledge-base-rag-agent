@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.eval.config.EvalProperties;
+import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ class EvalSnapshotTest {
         GoldenQAPair pair = new GoldenQAPair(id, QACategory.FACTOID, question, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), answer, 1.0, 0.5, 0.8,
             Double.NaN, Double.NaN, Double.NaN, 4.0, 3.5, null, null, "理由", null, null,
-            4.5, "SUPPORTED", 1.0, 0.02, null, null);
+            null, 4.5, "SUPPORTED", 1.0, 0.02, null, null);
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
@@ -54,6 +55,24 @@ class EvalSnapshotTest {
         assertThat(c.faithfulness()).isEqualTo(4.0);
         assertThat(c.citationVerdict()).isEqualTo("SUPPORTED");
         assertThat(c.answerSha256()).isEqualTo(EvalSnapshot.sha256("回答一"));
+    }
+
+    /** L2 原始裁决投影（簇② 批5 路径 a）：verdict 枚举内容盲，机读快照直读 */
+    @Test
+    void snapshotProjectsL2RawVerdict() {
+        GoldenQAPair pair = new GoldenQAPair("inj-jailbreak-15", QACategory.INJECTION, "样本",
+            null, null, null, null, AttackType.JAILBREAK, null, null);
+        EvalResult injection = new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null,
+            EvalResult.INJECTION_NOT_BLOCKED, EvalResult.INJECTION_NOT_BLOCKED,
+            "SUSPECT", null, null, null, null, null, null);
+
+        EvalSnapshot snapshot = EvalSnapshot.from(reportOf(List.of(injection)), new EvalProperties(),
+            new GitAnchor("a".repeat(40), "a".repeat(10), "2026-08-28T00:00:00+08:00", false,
+                "2026-08-28T01:00:00Z"));
+
+        assertThat(snapshot.cases()).hasSize(1);
+        assertThat(snapshot.cases().get(0).l2RawVerdict()).isEqualTo("SUSPECT");
     }
 
     /** 内容盲纪律（敏感词红线）：快照 JSON 不携带问句/回答正文——注入样本字面不落产物 */

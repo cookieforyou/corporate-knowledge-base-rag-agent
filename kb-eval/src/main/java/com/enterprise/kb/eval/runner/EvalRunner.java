@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -485,7 +486,7 @@ public class EvalRunner {
         if (props.isRetrievalOnly()) {
             return new EvalResult(pair, hits, null, recall, mrr, precision,
                 docRecall, docMrr, docPrecision, null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         }
 
         // 3. 被测链路生成
@@ -497,7 +498,7 @@ public class EvalRunner {
                 JudgePrompts.NEGATIVE_REJECTION, pair.question(), answer));
             return new EvalResult(pair, hits, answer, recall, mrr, precision,
                 docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
         }
         String context = hits.stream()
             .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
@@ -543,8 +544,8 @@ public class EvalRunner {
         return new EvalResult(pair, hits, answer, recall, mrr, precision,
             docRecall, docMrr, docPrecision,
             scoreOf(faithfulness), scoreOf(relevancy), null, null, faithfulness.reason(), null, null,
-            answerCorrectness, citationVerdict, citationResolvableRate, hallucinationRate, noiseVerdict,
-            noiseAnswer);
+            null, answerCorrectness, citationVerdict, citationResolvableRate, hallucinationRate,
+            noiseVerdict, noiseAnswer);
     }
 
     /**
@@ -664,25 +665,42 @@ public class EvalRunner {
      * 联合判定恒 BLOCKED（L1 ⊂ 联合链），免重复 L2 LLM 调用。
      */
     private EvalResult evaluateInjection(GoldenQAPair pair) {
-        String l1Verdict = callGuardrailChain(guardrailChatClient, pair.question(), false);
+        String l1Verdict = callGuardrailChain(guardrailChatClient, pair.question(), false, null);
         String l2Verdict = null;
+        String l2RawVerdict = null;
         if (props.getGuardrail().isL2Enabled()) {
-            l2Verdict = EvalResult.INJECTION_BLOCKED.equals(l1Verdict)
-                ? EvalResult.INJECTION_BLOCKED
-                : callGuardrailChain(guardrailL2ChatClient, pair.question(), true);
+            if (EvalResult.INJECTION_BLOCKED.equals(l1Verdict)) {
+                // L1 ⊂ 联合链：直拦免二判，联合判定恒 BLOCKED（raw 保持 null = 未判定）
+                l2Verdict = EvalResult.INJECTION_BLOCKED;
+            } else {
+                // 原始裁决回传容器（簇② 批5 路径 a）：advisor 经 VERDICT_SINK_KEY
+                // 回写显式裁决（PASS/SUSPECT/BLOCK）或故障/缺席标记（FAIL_OPEN/
+                // NOT_JUDGED）——门禁读数外的判据校准定位面
+                AtomicReference<String> verdictSink = new AtomicReference<>();
+                l2Verdict = callGuardrailChain(guardrailL2ChatClient, pair.question(), true, verdictSink);
+                l2RawVerdict = verdictSink.get();
+            }
         }
-        return injectionResult(pair, l1Verdict, l2Verdict);
+        return injectionResult(pair, l1Verdict, l2Verdict, l2RawVerdict);
     }
 
     /** 护栏链判定：捕获 PROMPT_INJECTION → BLOCKED；正常返回 → NOT_BLOCKED；其他异常按用例失败上抛 */
-    private String callGuardrailChain(ChatClient chain, String question, boolean forceJudge) {
+    private String callGuardrailChain(ChatClient chain, String question, boolean forceJudge,
+                                      AtomicReference<String> l2VerdictSink) {
         try {
             ChatClient.ChatClientRequestSpec spec = chain.prompt().user(question);
             if (forceJudge) {
                 // 力判直通键（SemanticInjectionAdvisor.FORCE_JUDGE_KEY）：仅 eval 联合链
                 // 携带——无视触发启发式逐条进 L2 判定；生产链与 L1 读数链不携带。
-                // param 落 advisors spec（实证：与 RagChatService CONVERSATION_ID 同形态）
-                spec = spec.advisors(a -> a.param(SemanticInjectionAdvisor.FORCE_JUDGE_KEY, true));
+                // 原始裁决回传键（VERDICT_SINK_KEY，簇② 批5 路径 a）同批携带。
+                // param 落 advisors spec（实证：与 RagChatService CONVERSATION_ID 同形态）；
+                // 双键合单 advisors lambda——保持链调用形态单一（深桩测试兼容）
+                spec = spec.advisors(a -> {
+                    a.param(SemanticInjectionAdvisor.FORCE_JUDGE_KEY, true);
+                    if (l2VerdictSink != null) {
+                        a.param(SemanticInjectionAdvisor.VERDICT_SINK_KEY, l2VerdictSink);
+                    }
+                });
             }
             spec.call().content();
             return EvalResult.INJECTION_NOT_BLOCKED;
@@ -695,10 +713,11 @@ public class EvalRunner {
         }
     }
 
-    private static EvalResult injectionResult(GoldenQAPair pair, String l1Verdict, String l2Verdict) {
+    private static EvalResult injectionResult(GoldenQAPair pair, String l1Verdict, String l2Verdict,
+                                              String l2RawVerdict) {
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null, l1Verdict, l2Verdict,
-            null, null, null, null, null, null);
+            l2RawVerdict, null, null, null, null, null, null);
     }
 
     /** 异常链中提取 BusinessException（ChatClient 调用层可能包裹原因链） */

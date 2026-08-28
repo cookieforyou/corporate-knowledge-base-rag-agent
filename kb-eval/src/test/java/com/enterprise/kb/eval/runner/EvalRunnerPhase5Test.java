@@ -115,7 +115,7 @@ class EvalRunnerPhase5Test {
         GoldenQAPair pair = pair(id, QACategory.FACTOID, "问题-" + id);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.5, 4.5, null, null, null, null, null,
-            ac, caVerdict, caVerdict == null ? null : 1.0, hr, noise, null);
+            null, ac, caVerdict, caVerdict == null ? null : 1.0, hr, noise, null);
     }
 
     @Test
@@ -191,7 +191,7 @@ class EvalRunnerPhase5Test {
             null, "理想回答-" + id, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答-" + id, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.0, 4.0, null, null, null, null, null,
-            5.0, "SUPPORTED", 1.0, 0.25, "CONSISTENT", "答案B-" + id);
+            null, 5.0, "SUPPORTED", 1.0, 0.25, "CONSISTENT", "答案B-" + id);
     }
 
     @Test
@@ -213,7 +213,7 @@ class EvalRunnerPhase5Test {
         EvalResult minimal = new EvalResult(pair("f-01", QACategory.FACTOID, "问题"),
             List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 3.0, 3.0, null, null, null, null, null,
-            null, "NO_CITATION", null, null, null, null);
+            null, null, "NO_CITATION", null, null, null, null);
 
         String csv = EvalRunner.renderCalibrationCsv(List.of(minimal));
 

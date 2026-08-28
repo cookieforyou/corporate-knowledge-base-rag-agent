@@ -79,7 +79,7 @@ class EvalDiffRunnerTest {
         return new EvalSnapshot.CaseScores(id, "FACTOID", null,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
             faithfulness, 4.0, rejectionVerdict, null, null,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
     }
 
     @Test
@@ -123,10 +123,10 @@ class EvalDiffRunnerTest {
     void buildReportListsFlipsMovesAnswerChangesAndSetDrift() {
         EvalSnapshot.CaseScores a1 = new EvalSnapshot.CaseScores("f-01", "FACTOID", "hash-old",
             1.0, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-            4.0, 4.0, "REJECTED", null, null, null, "SUPPORTED", 1.0, 0.0, null);
+            4.0, 4.0, "REJECTED", null, null, null, null, "SUPPORTED", 1.0, 0.0, null);
         EvalSnapshot.CaseScores b1 = new EvalSnapshot.CaseScores("f-01", "FACTOID", "hash-new",
             1.0, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-            3.5, 4.0, "PARTIAL", null, null, null, "SUPPORTED", 1.0, 0.0, null);
+            3.5, 4.0, "PARTIAL", null, null, null, null, "SUPPORTED", 1.0, 0.0, null);
         EvalSnapshot.CaseScores aOnly = caseScores("f-02", 4.0, null);
         EvalSnapshot.CaseScores bOnly = caseScores("f-03", 4.0, null);
 

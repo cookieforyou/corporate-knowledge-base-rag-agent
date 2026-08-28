@@ -17,6 +17,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -312,5 +313,108 @@ class SemanticInjectionAdvisorTest {
         assertThat(target.before(original, chain)).isSameAs(original);
         assertThat(counter("rag.guardrail.l2.triggered")).isZero();
         verifyNoInteractions(chatClient);
+    }
+
+    // ── 原始判定回传（簇② 批5 路径 a：VERDICT_SINK_KEY 度量盲区清偿面）──
+
+    /** 力判 + sink 请求（eval 联合链形态：FORCE_JUDGE_KEY 与 VERDICT_SINK_KEY 同批携带） */
+    private ChatClientRequest forcedRequestWithSink(String userText, AtomicReference<String> sink) {
+        return request(userText, Map.of(
+            SemanticInjectionAdvisor.FORCE_JUDGE_KEY, true,
+            SemanticInjectionAdvisor.VERDICT_SINK_KEY, sink));
+    }
+
+    @Test
+    void sinkReceivesBlockBeforeReject() {
+        stubVerdict(new L2Verdict("BLOCK", "JAILBREAK"));
+        AtomicReference<String> sink = new AtomicReference<>();
+
+        assertThatThrownBy(() -> advisor(true).before(forcedRequestWithSink(REGEX_HIT_TEXT, sink), chain))
+            .isInstanceOf(BusinessException.class);
+        assertThat(sink.get()).isEqualTo("BLOCK");
+    }
+
+    @Test
+    void sinkReceivesSuspectAndPass() {
+        stubVerdict(new L2Verdict("SUSPECT", "JAILBREAK"));
+        AtomicReference<String> suspectSink = new AtomicReference<>();
+
+        advisor(true).before(forcedRequestWithSink(REGEX_HIT_TEXT, suspectSink), chain);
+
+        assertThat(suspectSink.get()).isEqualTo("SUSPECT");
+
+        stubVerdict(new L2Verdict("pass", null)); // 大小写容错 → 规范值 PASS
+        AtomicReference<String> passSink = new AtomicReference<>();
+
+        advisor(true).before(forcedRequestWithSink(REGEX_HIT_TEXT, passSink), chain);
+
+        assertThat(passSink.get()).isEqualTo("PASS");
+    }
+
+    @Test
+    void sinkReceivesFailOpenOnJudgeFailure() {
+        when(chatClient.prompt().user(anyString()).call()
+            .entity(eq(L2Verdict.class))).thenThrow(new RuntimeException("model down"));
+        AtomicReference<String> sink = new AtomicReference<>();
+
+        ChatClientRequest result = advisor(true).before(forcedRequestWithSink(REGEX_HIT_TEXT, sink), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(sink.get()).isEqualTo(SemanticInjectionAdvisor.RAW_FAIL_OPEN);
+        assertThat(counter("rag.guardrail.l2.error")).isEqualTo(1.0);
+    }
+
+    @Test
+    void sinkReceivesFailOpenOnUnrecognizedVerdict() {
+        // 提示词约束外的裁决串：无可执行裁决 → 放行行为不变，度量面记 FAIL_OPEN
+        stubVerdict(new L2Verdict("MAYBE", null));
+        AtomicReference<String> sink = new AtomicReference<>();
+
+        ChatClientRequest result = advisor(true).before(forcedRequestWithSink(REGEX_HIT_TEXT, sink), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(sink.get()).isEqualTo(SemanticInjectionAdvisor.RAW_FAIL_OPEN);
+        assertThat(counter("rag.guardrail.l2.blocked")).isZero();
+        assertThat(counter("rag.guardrail.l2.suspect")).isZero();
+    }
+
+    @Test
+    void sinkReceivesFailOpenOnTimeout() {
+        when(chatClient.prompt().user(anyString()).call()
+            .entity(eq(L2Verdict.class))).thenAnswer(inv -> {
+                Thread.sleep(2500);
+                return new L2Verdict("BLOCK", null);
+            });
+        AtomicReference<String> sink = new AtomicReference<>();
+
+        ChatClientRequest result = advisor(true, 1).before(forcedRequestWithSink(REGEX_HIT_TEXT, sink), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(sink.get()).isEqualTo(SemanticInjectionAdvisor.RAW_FAIL_OPEN);
+    }
+
+    @Test
+    void sinkReceivesNotJudgedWhenDisabledOrClientAbsent() {
+        AtomicReference<String> disabledSink = new AtomicReference<>();
+        advisor(false).before(forcedRequestWithSink(REGEX_HIT_TEXT, disabledSink), chain);
+        assertThat(disabledSink.get()).isEqualTo(SemanticInjectionAdvisor.RAW_NOT_JUDGED);
+
+        SemanticInjectionAdvisor noModel = new SemanticInjectionAdvisor(
+            GuardrailRulesLoader.loadInjectionRules(TEST_RULES, ""),
+            metrics, null, chatMemory, true, 3, 6);
+        AtomicReference<String> absentSink = new AtomicReference<>();
+        noModel.before(forcedRequestWithSink(REGEX_HIT_TEXT, absentSink), chain);
+        assertThat(absentSink.get()).isEqualTo(SemanticInjectionAdvisor.RAW_NOT_JUDGED);
+    }
+
+    @Test
+    void sinkAbsentLeavesVerdictPathUnchanged() {
+        // 生产链不携带 sink：三裁决分流行为与计数零变化（回归面）
+        stubVerdict(new L2Verdict("SUSPECT", "ROLE_HIJACK"));
+
+        ChatClientRequest result = advisor(true).before(request(REGEX_HIT_TEXT), chain);
+
+        assertThat(result).isNotNull();
+        assertThat(counter("rag.guardrail.l2.suspect")).isEqualTo(1.0);
     }
 }

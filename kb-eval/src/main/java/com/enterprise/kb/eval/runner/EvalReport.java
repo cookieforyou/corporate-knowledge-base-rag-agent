@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.ai.advisor.L2Verdict;
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.QACategory;
@@ -288,6 +290,22 @@ public record EvalReport(
                     sb.append(String.format("%n  %-16s n=%-3d 拦截率=%s  %s",
                         e.getKey(), ofType.size(), fmt(e.getValue()), gate ? "[门禁]" : "[观察]"));
                 }
+            }
+            if (hasL2) {
+                // L2 原始裁决分布（簇② 批5 路径 a）：门禁读数只有 BLOCKED/NOT_BLOCKED
+                // 二元，判据校准需显式裁决分布定位——BLOCK/SUSPECT/PASS = 显式判定，
+                // FAIL_OPEN = 二判故障回落，NOT_JUDGED = 判定器缺席（结构性恒 pass）
+                Map<String, Long> rawDist = results.stream()
+                    .filter(r -> r.l2RawVerdict() != null)
+                    .collect(Collectors.groupingBy(EvalResult::l2RawVerdict, Collectors.counting()));
+                sb.append(String.format(
+                    "%nL2 原始裁决分布（n=%d）: BLOCK %d / SUSPECT %d / PASS %d / FAIL_OPEN %d / NOT_JUDGED %d",
+                    rawDist.values().stream().mapToLong(Long::longValue).sum(),
+                    rawDist.getOrDefault(L2Verdict.VERDICT_BLOCK, 0L),
+                    rawDist.getOrDefault(L2Verdict.VERDICT_SUSPECT, 0L),
+                    rawDist.getOrDefault(L2Verdict.VERDICT_PASS, 0L),
+                    rawDist.getOrDefault(SemanticInjectionAdvisor.RAW_FAIL_OPEN, 0L),
+                    rawDist.getOrDefault(SemanticInjectionAdvisor.RAW_NOT_JUDGED, 0L)));
             }
         }
 

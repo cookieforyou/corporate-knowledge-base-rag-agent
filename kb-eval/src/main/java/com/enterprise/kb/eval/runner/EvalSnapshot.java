@@ -83,6 +83,7 @@ public record EvalSnapshot(
         String rejectionVerdict,
         String injectionVerdict,
         String l2InjectionVerdict,
+        String l2RawVerdict,
         Double answerCorrectness,
         String citationVerdict,
         Double citationResolvableRate,
@@ -136,7 +137,7 @@ public record EvalSnapshot(
             r.recall(), r.mrr(), r.contextPrecision(),
             r.docRecall(), r.docMrr(), r.docContextPrecision(),
             r.faithfulness(), r.responseRelevancy(),
-            r.rejectionVerdict(), r.injectionVerdict(), r.l2InjectionVerdict(),
+            r.rejectionVerdict(), r.injectionVerdict(), r.l2InjectionVerdict(), r.l2RawVerdict(),
             r.answerCorrectness(), r.citationVerdict(), r.citationResolvableRate(),
             r.hallucinationRate(), r.noiseVerdict());
     }

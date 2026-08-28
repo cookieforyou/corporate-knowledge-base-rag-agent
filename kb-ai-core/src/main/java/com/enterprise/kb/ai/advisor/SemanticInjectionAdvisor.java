@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * L2 语义判定护栏（安全簇⑤ E1，设计 12.1.1 三层防御第二层 / 12.4 S5 落地）—— Order 320
@@ -82,6 +83,23 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
      * 不携带，chain-probe 干净集不受污染。
      */
     public static final String FORCE_JUDGE_KEY = "kb.l2_force_judge";
+
+    /**
+     * 原始判定回传键（簇② 批5 路径 a，kb-eval 联合读数链专用）：context 携带
+     * {@link AtomicReference}&lt;String&gt; 时，advisor 将本次判定的规范裁决值回写其中——
+     * PASS/SUSPECT/BLOCK（显式判定）、{@link #RAW_FAIL_OPEN}（二判故障回落）、
+     * {@link #RAW_NOT_JUDGED}（判定器缺席）。度量盲区清偿面：门禁读数只记
+     * BLOCKED/NOT_BLOCKED 二元，判据校准需逐例原始裁决分布（2026-08-28 对照
+     * 实验取证靠日志挖掘，此键使下轮复跑机读快照直读）。生产链不携带本键，
+     * 零触达；只回传裁决枚举，不回显内容（第七节敏感词交付纪律）。
+     */
+    public static final String VERDICT_SINK_KEY = "kb.l2_verdict_sink";
+
+    /** 原始判定值——二判超时/失败/解析失败回落（增益层放行，无显式裁决可言） */
+    public static final String RAW_FAIL_OPEN = "FAIL_OPEN";
+
+    /** 原始判定值——判定器缺席：advisor 停用或备用模型未装配（结构性恒 pass） */
+    public static final String RAW_NOT_JUDGED = "NOT_JUDGED";
 
     /** 历史消息单条截断长度：判定只需语义轮廓，防长回答撑爆判定 prompt（QueryRoutingAdvisor 同款） */
     private static final int HISTORY_MESSAGE_MAX_CHARS = 300;
@@ -171,11 +189,15 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     @Override
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         if (!enabled || chatClient == null) {
+            // 判定器缺席（停用/备用模型未装配）：结构性恒 pass——sink 记 NOT_JUDGED，
+            // 使度量面可区分「显式放行」与「无人判定」（簇② 批5 路径 a）
+            writeVerdictSink(request, RAW_NOT_JUDGED);
             return request;
         }
         String userText = request.prompt().getUserMessage() != null
             ? request.prompt().getUserMessage().getText() : null;
         if (userText == null || userText.isEmpty()) {
+            writeVerdictSink(request, RAW_NOT_JUDGED);
             return request;
         }
 
@@ -188,6 +210,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
         boolean forced = request.context().containsKey(FORCE_JUDGE_KEY);
         boolean crossTurnSignal = !forced && !regexHit && !keywordHit && crossTurnRegexHit(request);
         if (!forced && !crossTurnSignal && !(regexHit && !keywordHit)) {
+            writeVerdictSink(request, RAW_NOT_JUDGED);
             return request;
         }
 
@@ -195,16 +218,27 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
         metrics.recordL2Triggered();
         L2Verdict verdict = judge(request, loadHistory(request), userText);
         if (verdict == null) {
+            writeVerdictSink(request, RAW_FAIL_OPEN);
             return request;
         }
 
-        // 3. 三裁决分流：BLOCK 拒答 / SUSPECT FLAG 计数放行 / PASS 放行
-        if (L2Verdict.VERDICT_BLOCK.equalsIgnoreCase(verdict.verdict())) {
+        // 3. 三裁决分流：BLOCK 拒答 / SUSPECT FLAG 计数放行 / PASS 放行。
+        //    规范裁决值先回写 sink 再分流——BLOCK 分支经异常中断，写序必须在先。
+        //    未知裁决串（提示词约束外的模型输出）归 FAIL_OPEN：无可执行裁决，
+        //    放行行为与既有语义一致，度量面如实记为故障回落而非显式 PASS。
+        String canonical = L2Verdict.VERDICT_BLOCK.equalsIgnoreCase(verdict.verdict())
+            ? L2Verdict.VERDICT_BLOCK
+            : L2Verdict.VERDICT_SUSPECT.equalsIgnoreCase(verdict.verdict())
+                ? L2Verdict.VERDICT_SUSPECT
+                : L2Verdict.VERDICT_PASS.equalsIgnoreCase(verdict.verdict())
+                    ? L2Verdict.VERDICT_PASS : RAW_FAIL_OPEN;
+        writeVerdictSink(request, canonical);
+        if (L2Verdict.VERDICT_BLOCK.equals(canonical)) {
             metrics.recordL2Blocked();
             log.warn("L2 语义判定拦截请求（族系 {}）", canonicalFamily(verdict.family()));
             throw new BusinessException("PROMPT_INJECTION", "检测到 Prompt 注入攻击，请求已被拦截");
         }
-        if (L2Verdict.VERDICT_SUSPECT.equalsIgnoreCase(verdict.verdict())) {
+        if (L2Verdict.VERDICT_SUSPECT.equals(canonical)) {
             metrics.recordL2Suspect();
             recordSuspectObservation(request, verdict.family());
         }
@@ -297,6 +331,20 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
             ctx.addGuardrailFlag(new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_INPUT, canonical));
         }
         log.info("L2 语义判定 SUSPECT 观察档（族系 {}），放行", canonical);
+    }
+
+    /**
+     * 原始判定回写（簇② 批5 路径 a）：context 携带 {@link #VERDICT_SINK_KEY}
+     * （{@link AtomicReference}&lt;String&gt;）时写入本次规范裁决值——仅
+     * kb-eval 联合读数链携带（与 {@link #FORCE_JUDGE_KEY} 同族纪律），生产链
+     * 零触达；只写裁决枚举不写内容（第七节敏感词交付纪律）。
+     */
+    private void writeVerdictSink(ChatClientRequest request, String verdict) {
+        if (request.context().get(VERDICT_SINK_KEY) instanceof AtomicReference<?> ref) {
+            @SuppressWarnings("unchecked")
+            AtomicReference<String> sink = (AtomicReference<String>) ref;
+            sink.set(verdict);
+        }
     }
 
     /**

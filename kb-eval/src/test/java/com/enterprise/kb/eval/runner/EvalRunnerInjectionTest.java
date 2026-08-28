@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
@@ -8,17 +9,22 @@ import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.DefaultApplicationArguments;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -155,6 +161,8 @@ class EvalRunnerInjectionTest {
             .isEqualTo(EvalResult.INJECTION_BLOCKED);
         assertThat(report.results().get(0).l2InjectionVerdict())
             .isEqualTo(EvalResult.INJECTION_BLOCKED);
+        // L1 直拦免二判：原始裁决保持 null（联合链未触达）
+        assertThat(report.results().get(0).l2RawVerdict()).isNull();
         verifyNoInteractions(guardrailL2ChatClient);
     }
 
@@ -186,7 +194,85 @@ class EvalRunnerInjectionTest {
             injectionCase("inj-jailbreak-01", AttackType.JAILBREAK))).runFullEval();
 
         assertThat(report.results().get(0).l2InjectionVerdict()).isNull();
+        assertThat(report.results().get(0).l2RawVerdict()).isNull();
         assertThat(report.injectionL2GateResults()).isEmpty();
         verifyNoInteractions(guardrailL2ChatClient);
+    }
+
+    /**
+     * 联合链手工 fluent 桩（簇② 批5 路径 a）：advisors 消费器就地执行，
+     * 断言力判键 + 原始裁决回传键双参落位，并模拟 advisor 回写 sink——
+     * 验证 EvalRunner 从 sink 读取原始裁决并落 EvalResult#l2RawVerdict。
+     */
+    private void stubL2ChainWithSink(String simulatedRaw, boolean throwInjection) {
+        ChatClient.ChatClientRequestSpec reqSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        ChatClient.CallResponseSpec callSpec = mock(ChatClient.CallResponseSpec.class);
+        when(guardrailL2ChatClient.prompt()).thenReturn(reqSpec);
+        when(reqSpec.user(anyString())).thenReturn(reqSpec);
+        when(reqSpec.advisors(any(Consumer.class))).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            Consumer<ChatClient.AdvisorSpec> consumer = inv.getArgument(0);
+            ChatClient.AdvisorSpec advisorsSpec = mock(ChatClient.AdvisorSpec.class);
+            consumer.accept(advisorsSpec);
+            verify(advisorsSpec).param(eq(SemanticInjectionAdvisor.FORCE_JUDGE_KEY), eq(true));
+            ArgumentCaptor<Object> sinkCaptor = ArgumentCaptor.forClass(Object.class);
+            verify(advisorsSpec).param(eq(SemanticInjectionAdvisor.VERDICT_SINK_KEY), sinkCaptor.capture());
+            @SuppressWarnings("unchecked")
+            AtomicReference<String> sink = (AtomicReference<String>) sinkCaptor.getValue();
+            sink.set(simulatedRaw);
+            return reqSpec;
+        });
+        when(reqSpec.call()).thenReturn(callSpec);
+        if (throwInjection) {
+            when(callSpec.content()).thenThrow(new BusinessException("PROMPT_INJECTION", "L2 拦截"));
+        } else {
+            when(callSpec.content()).thenReturn("（显式放行，答案丢弃）");
+        }
+    }
+
+    @Test
+    void l2RawVerdictFlowsFromSinkIntoResult() {
+        props.getGuardrail().setL2Enabled(true);
+        when(guardrailChatClient.prompt().user(anyString()).call().content())
+            .thenReturn("（L1 未拦截）");
+        stubL2ChainWithSink("SUSPECT", false);
+
+        EvalReport report = runner(List.of(
+            injectionCase("inj-jailbreak-15", AttackType.JAILBREAK))).runFullEval();
+
+        assertThat(report.results().get(0).l2InjectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_NOT_BLOCKED);
+        assertThat(report.results().get(0).l2RawVerdict()).isEqualTo("SUSPECT");
+    }
+
+    @Test
+    void l2BlockCarriesRawBlockVerdict() {
+        props.getGuardrail().setL2Enabled(true);
+        when(guardrailChatClient.prompt().user(anyString()).call().content())
+            .thenReturn("（L1 未拦截）");
+        stubL2ChainWithSink("BLOCK", true);
+
+        EvalReport report = runner(List.of(
+            injectionCase("inj-jailbreak-01", AttackType.JAILBREAK))).runFullEval();
+
+        assertThat(report.results().get(0).l2InjectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_BLOCKED);
+        assertThat(report.results().get(0).l2RawVerdict()).isEqualTo("BLOCK");
+    }
+
+    @Test
+    void l2FailOpenRawMarkerFlowsIntoResult() {
+        props.getGuardrail().setL2Enabled(true);
+        when(guardrailChatClient.prompt().user(anyString()).call().content())
+            .thenReturn("（L1 未拦截）");
+        stubL2ChainWithSink(SemanticInjectionAdvisor.RAW_FAIL_OPEN, false);
+
+        EvalReport report = runner(List.of(
+            injectionCase("inj-jailbreak-16", AttackType.JAILBREAK))).runFullEval();
+
+        assertThat(report.results().get(0).l2InjectionVerdict())
+            .isEqualTo(EvalResult.INJECTION_NOT_BLOCKED);
+        assertThat(report.results().get(0).l2RawVerdict())
+            .isEqualTo(SemanticInjectionAdvisor.RAW_FAIL_OPEN);
     }
 }

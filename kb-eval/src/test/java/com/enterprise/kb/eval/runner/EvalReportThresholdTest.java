@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.ai.advisor.L2Verdict;
+import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
@@ -27,7 +29,7 @@ class EvalReportThresholdTest {
         GoldenQAPair pair = new GoldenQAPair(id, category, "问题-" + id, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, faithfulness, 4.0, null, null, null, null, null,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null, null);
     }
 
     /** 多跳用例（簇④）：携 AC 读数，faithfulness 取过门禁值隔离变量 */
@@ -36,7 +38,7 @@ class EvalReportThresholdTest {
             null, "标准答案", null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.5, 4.0, null, null, null, null, null,
-            answerCorrectness, null, null, null, null, null);
+            null, answerCorrectness, null, null, null, null, null);
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
@@ -61,7 +63,7 @@ class EvalReportThresholdTest {
             blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED,
             l2Blocked == null ? null
                 : l2Blocked ? EvalResult.INJECTION_BLOCKED : EvalResult.INJECTION_NOT_BLOCKED,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null, null);
     }
 
     private static EvalReport injectionReport(List<EvalResult> results) {
@@ -327,7 +329,48 @@ class EvalReportThresholdTest {
         return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, null, null, verdict,
             "REJECTED".equals(verdict) ? 5.0 : "PARTIAL".equals(verdict) ? 3.0 : 1.0, null, null, null,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null, null);
+    }
+
+    // ── L2 原始裁决分布（簇② 批5 路径 a）──
+
+    private static EvalResult injectionWithRaw(String id, AttackType attackType,
+                                               String l2Verdict, String l2RawVerdict) {
+        GoldenQAPair pair = new GoldenQAPair(id, QACategory.INJECTION, "样本-" + id,
+            null, null, null, null, attackType, null, null);
+        return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN, Double.NaN, null, null, null, null, null,
+            EvalResult.INJECTION_NOT_BLOCKED, l2Verdict,
+            l2RawVerdict, null, null, null, null, null, null);
+    }
+
+    @Test
+    void summaryRendersL2RawVerdictDistributionWhenPresent() {
+        EvalReport report = injectionReport(List.of(
+            injectionWithRaw("inj-jailbreak-01", AttackType.JAILBREAK,
+                EvalResult.INJECTION_BLOCKED, L2Verdict.VERDICT_BLOCK),
+            injectionWithRaw("inj-jailbreak-02", AttackType.JAILBREAK,
+                EvalResult.INJECTION_NOT_BLOCKED, L2Verdict.VERDICT_SUSPECT),
+            injectionWithRaw("inj-jailbreak-03", AttackType.JAILBREAK,
+                EvalResult.INJECTION_NOT_BLOCKED, L2Verdict.VERDICT_PASS),
+            injectionWithRaw("inj-jailbreak-04", AttackType.JAILBREAK,
+                EvalResult.INJECTION_NOT_BLOCKED, SemanticInjectionAdvisor.RAW_FAIL_OPEN),
+            // L1 直拦免二判形态：l2Verdict 联合恒 BLOCKED 而 raw = null（不入分布分母）
+            injectionWithRaw("inj-jailbreak-05", AttackType.JAILBREAK,
+                EvalResult.INJECTION_BLOCKED, null)));
+
+        String summary = report.summary();
+
+        assertThat(summary).contains(
+            "L2 原始裁决分布（n=4）: BLOCK 1 / SUSPECT 1 / PASS 1 / FAIL_OPEN 1 / NOT_JUDGED 0");
+    }
+
+    @Test
+    void summaryOmitsDistributionWhenNoL2Verdicts() {
+        EvalReport report = injectionReport(List.of(
+            injectionWithRaw("inj-jailbreak-01", AttackType.JAILBREAK, null, null)));
+
+        assertThat(report.summary()).doesNotContain("L2 原始裁决分布");
     }
 
     private static EvalReport reportOfNegatives(List<EvalResult> results) {
