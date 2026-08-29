@@ -254,6 +254,26 @@ class EvalRunnerPhase5Test {
             .contains("轻微外推不算编造");                       // F 低分锚点
     }
 
+    /**
+     * Judge 理由换行折叠为单行（κ 复校-② 泄漏事故根因修复，16 章 v2.78）：
+     * 多行理由的续行会逃逸「按行剥离」式盲化，造成内容盲材料泄漏。
+     */
+    @Test
+    void agreementSheetCollapsesMultilineJudgeReason() {
+        GoldenQAPair pair = pair("f-01", QACategory.FACTOID, "问题");
+        EvalResult r = new EvalResult(pair,
+            List.of(new RetrievalProbe.ProbeHit("c1", "a.md", "原文一", 0.9)), "回答",
+            Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+            3.0, 5.0, null, null, "第一段忠于资料。\n2. 第二段存在编造。\n综上，判定为大量编造。",
+            null, null, null, null, null, null, null, null, null);
+
+        String md = runner().renderAgreementSheet(List.of(r));
+
+        assertThat(md)
+            .contains("- Faithfulness = 3（理由：第一段忠于资料。 2. 第二段存在编造。 综上，判定为大量编造。）")
+            .doesNotContain("编造。\n综上");                      // 续行不得逃逸到读数行之外
+    }
+
     // ── 运行锚点头（簇② 5.9 批3） ──
 
     @Test

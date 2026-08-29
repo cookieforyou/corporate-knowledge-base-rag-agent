@@ -320,9 +320,12 @@ public class EvalRunner {
             sb.append(System.lineSeparator()).append(r.answer() == null ? "（生成失败）" : r.answer())
                 .append(System.lineSeparator());
             sb.append(System.lineSeparator()).append("**Judge 读数**：").append(System.lineSeparator());
+            // 理由渲染为单行（换行折叠为空格）：多行理由的续行会逃逸「按行剥离」式盲化，
+            // 造成内容盲材料泄漏（2026-08-29 κ 复校-② 泄漏事故根因，16 章 v2.78）
             sb.append(System.lineSeparator())
                 .append(String.format("- Faithfulness = %.0f（理由：%s）%n",
-                    r.faithfulness(), r.judgeReason() == null ? "无" : r.judgeReason()));
+                    r.faithfulness(), r.judgeReason() == null ? "无"
+                        : r.judgeReason().replaceAll("[\\r\\n]+", " ").strip()));
             if (r.pair().expectedAnswer() != null && !r.pair().expectedAnswer().isBlank()) {
                 sb.append(System.lineSeparator()).append("**理想回答**（AC 打分对照）：")
                     .append(System.lineSeparator()).append(System.lineSeparator())
