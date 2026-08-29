@@ -160,11 +160,13 @@ class EvalRunnerPhase5Test {
             2, 4.0, 3, 1.0 / 3, 3, 0.05, 2, 0.5);
         String summary = reportWith(m).summary();
         assertThat(summary)
-            .contains("生成侧扩展（Phase 5 观察带）")
+            .contains("生成侧扩展（Phase 5）")
+            .doesNotContain("Phase 5 观察带")
             .contains("Answer Correctness")
             .contains("Citation Support Rate")
-            .contains("Hallucination Rate:    5.0%")
-            .contains("Noise Consistency");
+            .contains("Hallucination Rate:    5.0%（n=3）  [门禁]")
+            .contains("Noise Consistency")
+            .contains("[观察]");
     }
 
     @Test
@@ -173,13 +175,60 @@ class EvalRunnerPhase5Test {
             .doesNotContain("生成侧扩展");
     }
 
-    /** 观察带纪律回归钉死：扩展指标低分不触发门禁（校准前只报告） */
+    /**
+     * 接线落地（16 章 v2.82）：一致率主判「连续 2 轮」达成后三维门禁——
+     * AC/CA/HR 破线逐维抛门禁异常（翻转旧「观察带不门禁」回归钉）
+     */
     @Test
-    void phase5MetricsDoNotGateYet() {
+    void phase5MetricsGateAfterCalibration() {
         EvalReport.Phase5Metrics low = new EvalReport.Phase5Metrics(
             2, 1.0, 3, 0.0, 3, 0.9, 2, 0.0);
-        org.assertj.core.api.Assertions.assertThatCode(
+        org.assertj.core.api.Assertions.assertThatThrownBy(
                 () -> reportWith(low).assertThresholds(props))
+            .isInstanceOf(EvalFailedException.class)
+            .hasMessageContaining("Answer Correctness")
+            .hasMessageContaining("Citation Support Rate")
+            .hasMessageContaining("Hallucination Rate");
+    }
+
+    /** 门禁逐维独立：仅 CA 破线时只报 CA（AC/HR 达标不误伤） */
+    @Test
+    void phase5GateReportsOnlyBreachedDimension() {
+        EvalReport.Phase5Metrics caOnly = new EvalReport.Phase5Metrics(
+            2, 4.5, 3, 0.5, 3, 0.0, 2, 1.0);
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> reportWith(caOnly).assertThresholds(props))
+            .isInstanceOf(EvalFailedException.class)
+            .hasMessageContaining("Citation Support Rate")
+            .hasMessageNotContaining("Answer Correctness")
+            .hasMessageNotContaining("Hallucination Rate");
+    }
+
+    /** NRob 承 M3 裁决观察不门禁（16 章 v2.82）：一致率 0.0 而三维达标 → 放行 */
+    @Test
+    void noiseRobustnessStaysObservationAndDoesNotGate() {
+        EvalReport.Phase5Metrics noiseLow = new EvalReport.Phase5Metrics(
+            2, 4.5, 3, 0.9, 3, 0.0, 2, 0.0);
+        org.assertj.core.api.Assertions.assertThatCode(
+                () -> reportWith(noiseLow).assertThresholds(props))
+            .doesNotThrowAnyException();
+    }
+
+    /** 无样本跳过纪律承继：全维 NaN（EMPTY）不门禁 */
+    @Test
+    void emptyPhase5MetricsDoNotGate() {
+        org.assertj.core.api.Assertions.assertThatCode(
+                () -> reportWith(EvalReport.Phase5Metrics.EMPTY).assertThresholds(props))
+            .doesNotThrowAnyException();
+    }
+
+    /** 三维全达标（NRob 低分并存）→ 门禁放行 */
+    @Test
+    void phase5MetricsAllAboveThresholdsPass() {
+        EvalReport.Phase5Metrics good = new EvalReport.Phase5Metrics(
+            2, 4.5, 3, 0.9, 3, 0.02, 2, 0.5);
+        org.assertj.core.api.Assertions.assertThatCode(
+                () -> reportWith(good).assertThresholds(props))
             .doesNotThrowAnyException();
     }
 

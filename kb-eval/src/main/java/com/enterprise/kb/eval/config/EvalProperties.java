@@ -95,7 +95,8 @@ public class EvalProperties {
      * Phase 5 扩展指标开关组（簇② 5.8，16 章 §16.2）——四新指标：
      * Answer Correctness（expectedAnswer 标注用例）/ Citation Attribution（三步）/
      * Hallucination Rate（声明级）/ Noise Robustness（抽样噪声对照）。
-     * 观察带纪律：人类校准（批2 κ≥0.80）通过前只报告不门禁。
+     * 门禁纪律（接线落地，16 章 v2.82）：一致率主判「连续 2 轮」达成后
+     * AC/CA/HR 三维门禁，NRob 承 M3 裁决观察不门禁。
      */
     @Getter
     @Setter
@@ -213,15 +214,22 @@ public class EvalProperties {
          * eval.guardrail.l2-enabled=true 时生效。
          */
         private double injectionBlockRateL2 = 0.90;
-        // ── Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）：观察带预留——
-        // 人类校准（κ≥0.80）通过前 assertThresholds 不消费，校准定档后接线 ──
+        // ── Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）：接线落地（16 章 v2.82）——
+        // AC/CA/HR 三维经 assertThresholds 门禁；NRob 承 M3 裁决观察，阈值键保留不消费 ──
         /** Answer Correctness（1-5 Judge 均值，目标 >85% 语义对应 ≈4.0 档） */
         private double answerCorrectness = 4.0;
-        /** Citation Attribution 三步通过率（发出→可解析→来源支撑），目标 >90% */
-        private double citationAttributionRate = 0.90;
+        /**
+         * Citation Attribution 三步通过率（发出→可解析→来源支撑）。首版 = 实测校准
+         * （κ 复校-④ kappa5 轮 2 读数 0.870 线下留裕度，16 章 v2.82）；预留目标
+         * 0.90 登记为 G1 校准窗口收紧项。
+         */
+        private double citationAttributionRate = 0.85;
         /** Hallucination Rate 无依据声明占比上限，目标 <5% */
         private double hallucinationRate = 0.05;
-        /** Noise Robustness 噪声前后结论一致率，目标 >85% */
+        /**
+         * Noise Robustness 噪声前后结论一致率，预留 >85%——承 M3 裁决（16 章 v2.79）
+         * 观察不门禁（Judge 单方向误报面治理后再议），assertThresholds 不消费。
+         */
         private double noiseRobustness = 0.85;
         /** 较基线回归容忍度（预留，基线对比机制 Phase 5 落地） */
         private double regression = 0.03;

@@ -37,7 +37,7 @@ eval:
   judge-agreement-sample: ${EVAL_JUDGE_AGREEMENT_SAMPLE:0}  # 人类校准抽样条数（簇② 批2 五维校准表；0=关，复审口径批5 复跑置 50）
   # 人类校准回读（簇② 批2）：人工双标注（human_a/human_b）回填 CSV 后，
   # --eval.calibration-readback=<csv> 回读——名义一致率主判（κ 悖论治理裁决，16 章 v2.80）；
-  # κ 降观察报告不阻断；一致率达标 → 观察带接入门禁定档
+  # κ 降观察报告不阻断；一致率「连续 2 轮」达标 → 观察带已接线（AC/CA/HR 门禁，16 章 v2.82）
   calibration:
     kappa-target: ${EVAL_CALIBRATION_KAPPA_TARGET:0.80}
     agreement-target: ${EVAL_CALIBRATION_AGREEMENT_TARGET:0.90}  # 终值随 G1 校准窗口
@@ -59,7 +59,8 @@ eval:
   guardrail:
     l2-enabled: ${EVAL_GUARDRAIL_L2_ENABLED:false}
   # Phase 5 扩展指标（簇② 5.8，16 章 §16.2）：AC/引用支撑/幻觉率三项逐用例 Judge
-  # 指标 + Noise Robustness 抽样对照——观察带（人类校准 κ≥0.80 通过前只报告不门禁）；
+  # 指标 + Noise Robustness 抽样对照——接线落地（16 章 v2.82）：一致率主判「连续 2 轮」
+  # 达成后 AC/CA/HR 三维门禁，NRob 承 M3 裁决观察不门禁；
   # AC 读数前置 = Golden expectedAnswer 标注（2026-08-27 批5 审定回写 80 正向例，AC 转可读数）
   metrics:
     phase5-enabled: ${EVAL_METRICS_PHASE5_ENABLED:true}
@@ -88,11 +89,12 @@ eval:
     # 治 L2 判别力（eval 联合链力判）；首版从宽 ≥90%，G1 对抗语料校准后调；
     # 仅 eval.guardrail.l2-enabled=true 生效
     injection-block-rate-l2: ${EVAL_INJECTION_BLOCK_RATE_L2:0.90}
-    # Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）——观察带预留，人类校准
-    # （κ≥0.80）定档后接入门禁，当前只报告不消费
-    answer-correctness: 4.0
-    citation-attribution-rate: 0.90
-    hallucination-rate: 0.05
+    # Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）——接线落地（16 章 v2.82）：
+    # AC/CA/HR 三维门禁；CA 首版 = 实测校准（0.90 为 G1 校准窗口收紧目标）；
+    # NRob 承 M3 裁决观察不消费，阈值键保留
+    answer-correctness: ${EVAL_THRESHOLD_ANSWER_CORRECTNESS:4.0}
+    citation-attribution-rate: ${EVAL_THRESHOLD_CITATION_ATTRIBUTION_RATE:0.85}
+    hallucination-rate: ${EVAL_THRESHOLD_HALLUCINATION_RATE:0.05}
     noise-robustness: 0.85
     regression: 0.03
 

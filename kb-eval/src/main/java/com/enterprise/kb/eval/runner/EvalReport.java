@@ -49,11 +49,11 @@ public record EvalReport(
     private static final Logger log = LoggerFactory.getLogger(EvalReport.class);
 
     /**
-     * Phase 5 扩展指标聚合（簇② 5.8，16 章 §16.2）——四新指标观察带读数。
+     * Phase 5 扩展指标聚合（簇② 5.8，16 章 §16.2）——四新指标读数。
      * 均值类无样本为 NaN；比率类无样本为 NaN（报告渲染「无样本，跳过」）。
-     * **门禁纪律**：人类校准（5.8 批2，Cohen's κ ≥ 0.80）通过前只报告不门禁，
-     * 阈值已在 EvalProperties.Thresholds 预留（answerCorrectness / citationAttributionRate /
-     * hallucinationRate / noiseRobustness），校准定档后接入 assertThresholds。
+     * **门禁纪律**（接线落地，16 章 v2.82）：一致率主判「连续 2 轮」达成（κ 复校-④，
+     * 16 章 v2.81）后 AC/CA/HR 三维经 assertThresholds 门禁（阈值见
+     * EvalProperties.Thresholds）；Noise Robustness 承 M3 裁决观察不门禁。
      */
     public record Phase5Metrics(
         int answerCorrectnessEvaluated,   // expectedAnswer 非空且 Judge 产出
@@ -169,8 +169,34 @@ public record EvalReport(
             }
         }
 
-        // Phase 5 扩展指标（簇② 5.8）观察带纪律：人类校准（批2，Cohen's κ ≥ 0.80）
-        // 通过前只报告不门禁——阈值已在 Thresholds 预留，校准定档后于此接线
+        // Phase 5 扩展指标门禁（簇② 5.8 接线落地，16 章 v2.82）：一致率主判「连续 2 轮」
+        // 达成（κ 复校-④，16 章 v2.81）后三维接线——AC/CA/HR 有样本即判定（NaN 跳过
+        // 纪律承继）；Noise Robustness 承 M3 裁决（16 章 v2.79）观察不门禁，阈值键保留
+        // 不消费（Judge 单方向误报面治理后再议）
+        if (phase5 != null && !phase5.isEmpty()) {
+            if (phase5.answerCorrectnessEvaluated() > 0
+                    && phase5.avgAnswerCorrectness() < t.getAnswerCorrectness()) {
+                failures.append(String.format(
+                    "Answer Correctness %.3f < 阈值 %.2f（样本 %d）%n",
+                    phase5.avgAnswerCorrectness(), t.getAnswerCorrectness(),
+                    phase5.answerCorrectnessEvaluated()));
+            }
+            if (phase5.citationEvaluated() > 0
+                    && phase5.citationPassRate() < t.getCitationAttributionRate()) {
+                failures.append(String.format(
+                    "Citation Support Rate %.3f < 阈值 %.2f（样本 %d，三步：发出→可解析→来源支撑）%n",
+                    phase5.citationPassRate(), t.getCitationAttributionRate(),
+                    phase5.citationEvaluated()));
+            }
+            // Hallucination Rate 方向反转：越低越好，高于阈值即击穿
+            if (phase5.hallucinationEvaluated() > 0
+                    && phase5.avgHallucinationRate() > t.getHallucinationRate()) {
+                failures.append(String.format(
+                    "Hallucination Rate %.3f > 阈值 %.2f（样本 %d，无依据声明占比上限）%n",
+                    phase5.avgHallucinationRate(), t.getHallucinationRate(),
+                    phase5.hallucinationEvaluated()));
+            }
+        }
 
         if (!failures.isEmpty()) {
             throw new EvalFailedException("评估门禁未通过：\n" + failures);
@@ -224,20 +250,20 @@ public record EvalReport(
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
 
-        // 生成侧扩展（簇② 5.8，16 章 §16.2）：四新指标观察带读数——人类校准
-        // （κ≥0.80）通过前只报告不门禁；小节整体仅在有任一读数时渲染
+        // 生成侧扩展（簇② 5.8，16 章 §16.2）：四新指标读数——接线落地（16 章 v2.82）
+        // 后 AC/CA/HR 三维门禁、NRob 承 M3 观察；小节整体仅在有任一读数时渲染
         if (phase5 != null && !phase5.isEmpty()) {
-            sb.append(System.lineSeparator()).append("── 生成侧扩展（Phase 5 观察带）──");
-            sb.append(String.format("%nAnswer Correctness:    %s",
+            sb.append(System.lineSeparator()).append("── 生成侧扩展（Phase 5）──");
+            sb.append(String.format("%nAnswer Correctness:    %s  [门禁]",
                 fmtN(phase5.avgAnswerCorrectness(), phase5.answerCorrectnessEvaluated())));
-            sb.append(String.format("%nCitation Support Rate: %s   （三步：发出→可解析→来源支撑）",
+            sb.append(String.format("%nCitation Support Rate: %s  [门禁]  （三步：发出→可解析→来源支撑）",
                 fmtN(phase5.citationPassRate(), phase5.citationEvaluated())));
-            sb.append(String.format("%nHallucination Rate:    %s",
+            sb.append(String.format("%nHallucination Rate:    %s  [门禁]",
                 Double.isNaN(phase5.avgHallucinationRate())
                     ? "无样本，跳过"
                     : String.format("%.1f%%（n=%d）", phase5.avgHallucinationRate() * 100,
                         phase5.hallucinationEvaluated())));
-            sb.append(String.format("%nNoise Consistency:     %s",
+            sb.append(String.format("%nNoise Consistency:     %s  [观察]",
                 fmtN(phase5.noiseConsistencyRate(), phase5.noiseEvaluated())));
         }
 

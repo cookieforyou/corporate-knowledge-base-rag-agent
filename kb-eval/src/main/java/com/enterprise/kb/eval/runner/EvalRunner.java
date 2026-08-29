@@ -214,7 +214,8 @@ public class EvalRunner {
      *       理想回答按口径可见、无 Judge 读数——AC 标注面）；</li>
      *   <li>{@code target/judge-agreement-sheet.csv}：打分表（长表，每行 = 用例×维度，
      *       human_a/human_b 双标注列），人工填写后经 --eval.calibration-readback
-     *       回读计算 Cohen's κ（目标 ≥0.80，观察带接入门禁的前置判据）。</li>
+     *       回读——名义一致率主判（对照 agreement-target，「连续 2 轮」达标为
+     *       观察带接入门禁的前置判据；Cohen's κ 三对降观察报告，16 章 v2.80）。</li>
      * </ul>
      * 检索-only 模式无意义，跳过。
      */
@@ -596,7 +597,8 @@ public class EvalRunner {
         JudgePrompts.JudgeScore relevancy = judge(String.format(
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
 
-        // 5. Phase 5 扩展指标（簇② 5.8）——观察带；总开关关时全 null（聚合自动跳过）
+        // 5. Phase 5 扩展指标（簇② 5.8）——AC/CA/HR 门禁三维 + NRob 观察（16 章 v2.82）；
+        // 总开关关时全 null（聚合自动跳过）
         Double answerCorrectness = null;
         String citationVerdict = null;
         Double citationResolvableRate = null;
@@ -639,7 +641,7 @@ public class EvalRunner {
     /**
      * Citation Attribution 三步判定（簇② 5.8，16 章 §16.2）。
      * ① 未发出引用 → NO_CITATION（免 Judge）；② 存在编号越界/失配 → NOT_SUPPORTED（确定性，
-     * 免 Judge）；③ 前两步通过才进 Judge 判来源支撑。省 Judge 调用 = 观察带成本控制。
+     * 免 Judge）；③ 前两步通过才进 Judge 判来源支撑。省 Judge 调用 = 扩展指标成本控制。
      */
     private CitationOutcome judgeCitationAttribution(String question, String context, String answer, int contextSize) {
         List<Integer> refs = CitationMetrics.extractRefs(answer);
