@@ -274,6 +274,120 @@ class EvalRunnerPhase5Test {
             .doesNotContain("编造。\n综上");                      // 续行不得逃逸到读数行之外
     }
 
+    // ── 素材呈现面裁决（M1 核验视图 / M2 理想回答隔离，16 章 v2.79） ──
+
+    /**
+     * M2：理想回答物理隔离——仅出现于 AC 判读块；判定块（F/CA/HR/NRob 共用）
+     * 内不得可见。v2.78 勘误轮实证：书面限定归属不足以阻锚定（A2 六值作废），
+     * 物理隔离为测量正确性要件。
+     */
+    @Test
+    void agreementSheetIsolatesIdealAnswerToAcBlock() {
+        String md = runner().renderAgreementSheet(List.of(fullResult("t-01")));
+
+        int judgeBlock = md.indexOf("### 判定块");
+        int acBlock = md.indexOf("### AC 判读块");
+        int readingsBlock = md.indexOf("### Judge 读数块");
+        assertThat(judgeBlock).isPositive();
+        assertThat(acBlock).isGreaterThan(judgeBlock);
+        assertThat(readingsBlock).isGreaterThan(acBlock);
+
+        assertThat(md.substring(judgeBlock, acBlock))
+            .doesNotContain("理想回答-t-01")                     // 判定块物理不见理想回答
+            .doesNotContain("理想回答");                          // 连标记词也不出现（防锚定）
+        assertThat(md.substring(acBlock, readingsBlock))
+            .contains("理想回答-t-01")                            // AC 判读块唯一可见处
+            .contains("回答-t-01");
+    }
+
+    /** M2 配套：证据维盲材 = 仅判定块（理想回答与 Judge 读数物理不在场，手工剥离层退役） */
+    @Test
+    void evidenceBlindSheetCarriesOnlyJudgmentBlock() {
+        String md = runner().renderEvidenceBlindSheet(List.of(fullResult("t-01")));
+
+        assertThat(md)
+            .contains("### 判定块（F/CA/HR/NRob 共用）")
+            .contains("答案B-t-01")                              // NRob 仍须见答案 B
+            .doesNotContain("理想回答-t-01")                      // 理想回答物理隔离
+            .doesNotContain("### AC 判读块")
+            .doesNotContain("### Judge 读数块")
+            .doesNotContain("Faithfulness =");                   // Judge 读数不在场
+    }
+
+    /** M2 配套：AC 盲材 = 仅 AC 判读块（理想回答按口径可见，读数与证据维材料不在场） */
+    @Test
+    void acBlindSheetCarriesOnlyAcBlock() {
+        String md = runner().renderAcBlindSheet(List.of(fullResult("t-01")));
+
+        assertThat(md)
+            .contains("### AC 判读块（AC 专用）")
+            .contains("理想回答-t-01")
+            .doesNotContain("### 判定块")
+            .doesNotContain("### Judge 读数块")
+            .doesNotContain("答案 B（混噪生成");                  // 答案 B 属判定块
+    }
+
+    /** M1：判定块参考资料 = 全块视图（超旧 800 截断线的块整块可见） */
+    @Test
+    void agreementSheetCarriesFullChunkViewBeyondLegacyTruncation() {
+        String longChunk = "表" + "格".repeat(1200) + "尾";     // 1202 字符 > 旧 800 截断线
+        GoldenQAPair pair = pair("t-02", QACategory.TABLE, "问题");
+        EvalResult r = new EvalResult(pair,
+            List.of(new RetrievalProbe.ProbeHit("c1", "a.md", longChunk, 0.9)), "回答",
+            Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+            4.0, null, null, null, null, null, null, null,
+            null, null, null, null, null, null);
+
+        String md = runner().renderAgreementSheet(List.of(r));
+
+        assertThat(md).contains(longChunk);                      // 全块呈现，无 800 截断
+    }
+
+    // ── 核验视图构建器（M1：全块 + 确定性总长上限） ──
+
+    @Test
+    void verificationViewKeepsFullChunksWithinBudget() {
+        var view = EvalRunner.verificationView(List.of(
+            new RetrievalProbe.ProbeHit("c1", "a.md", "甲".repeat(500), 0.9),
+            new RetrievalProbe.ProbeHit("c2", "a.md", "乙".repeat(500), 0.8)), 16000);
+
+        assertThat(view.includedChunks()).isEqualTo(2);
+        assertThat(view.capped()).isFalse();
+        assertThat(view.context()).contains("甲".repeat(500)).contains("乙".repeat(500));
+    }
+
+    @Test
+    void verificationViewDropsTrailingChunksOverBudget() {
+        var view = EvalRunner.verificationView(List.of(
+            new RetrievalProbe.ProbeHit("c1", "a.md", "甲".repeat(500), 0.9),
+            new RetrievalProbe.ProbeHit("c2", "a.md", "乙".repeat(500), 0.8),
+            new RetrievalProbe.ProbeHit("c3", "a.md", "丙".repeat(500), 0.7)), 1100);
+
+        // 首块 + 分隔 + 次块 = 1004 ≤ 1100；第三块不入视图（尾部低相关整块弃）
+        assertThat(view.includedChunks()).isEqualTo(2);
+        assertThat(view.capped()).isTrue();
+        assertThat(view.context()).contains("甲".repeat(500)).contains("乙".repeat(500))
+            .doesNotContain("丙")
+            .contains("核验视图总长上限 1100 字符");
+    }
+
+    @Test
+    void verificationViewTruncatesSingleOversizedFirstChunk() {
+        var view = EvalRunner.verificationView(List.of(
+            new RetrievalProbe.ProbeHit("c1", "a.md", "甲".repeat(5000), 0.9)), 1000);
+
+        assertThat(view.includedChunks()).isEqualTo(1);
+        assertThat(view.capped()).isTrue();
+        assertThat(view.context()).contains("…（总长上限截断）")
+            .doesNotContain("甲".repeat(5000));
+    }
+
+    @Test
+    void verificationViewOfEmptyHitsIsEmpty() {
+        assertThat(EvalRunner.verificationView(List.of(), 16000).context()).isEmpty();
+        assertThat(EvalRunner.verificationView(null, 16000).includedChunks()).isZero();
+    }
+
     // ── 运行锚点头（簇② 5.9 批3） ──
 
     @Test

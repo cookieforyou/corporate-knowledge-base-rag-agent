@@ -112,6 +112,40 @@ class CalibrationReadbackRunnerTest {
         assertThat(report).contains("2/0");
     }
 
+    // ── M3 裁决（16 章 v2.79）：NRob 降级观察带——κ 照算报告，不计总体成败 ──
+
+    @Test
+    void observationDimensionReportsWithoutGating() {
+        String report = CalibrationReadbackRunner.buildReport(
+            CalibrationReadbackRunner.parseCsv(HEADER
+                // F 全一致 → PASS
+                + "f-01,FACTOID,faithfulness,4,4,4\n"
+                + "f-02,FACTOID,faithfulness,5,5,5\n"
+                // NRob 系统性分歧（Judge 单方向误报面）→ κ 不达而观察带不计成败
+                + "f-01,FACTOID,noise_robustness,CONSISTENT,DRIFTED,DRIFTED\n"
+                + "f-02,FACTOID,noise_robustness,CONSISTENT,DRIFTED,DRIFTED\n"),
+            0.8);
+
+        assertThat(report)
+            .containsPattern("noise_robustness\\s+2/2.*观察")   // 该维行 verdict = 观察
+            .contains("总体判定：PASS")                          // NRob 不再拖累总体
+            .doesNotContain("总体判定：FAIL");
+    }
+
+    @Test
+    void emptyObservationSetRestoresNRobGating() {
+        // 复启门禁 = 观察集清空（eval.calibration.observation-dimensions）
+        String report = CalibrationReadbackRunner.buildReport(
+            CalibrationReadbackRunner.parseCsv(HEADER
+                + "f-01,FACTOID,faithfulness,4,4,4\n"
+                + "f-02,FACTOID,faithfulness,5,5,5\n"
+                + "f-01,FACTOID,noise_robustness,CONSISTENT,DRIFTED,DRIFTED\n"
+                + "f-02,FACTOID,noise_robustness,CONSISTENT,DRIFTED,DRIFTED\n"),
+            0.8, List.of());
+
+        assertThat(report).contains("总体判定：FAIL");
+    }
+
     // ── 归一化语义 ──
 
     @Test

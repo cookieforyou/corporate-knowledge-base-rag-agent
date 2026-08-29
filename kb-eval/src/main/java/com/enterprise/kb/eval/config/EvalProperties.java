@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.List;
+
 /**
  * 评估配置 —— 前缀 eval，阈值表对应设计文档第十六章 16.4 CI 门禁阈值表
  *
@@ -74,6 +76,12 @@ public class EvalProperties {
     public static class Calibration {
         /** κ 校准目标（逐维；名义 κ 与二次加权 κ 同目标线） */
         private double kappaTarget = 0.80;
+        /**
+         * 观察带维度（素材呈现面并议 M3 裁决，16 章 v2.79）：κ 照算报告但不计总体
+         * 成败（verdict = 观察）。缺省降级 noise_robustness——n=33 患病率偏差 +
+         * Judge 单方向误报面（κ 复校-② 定谳）；复启门禁 = 清空本列表。
+         */
+        private List<String> observationDimensions = new java.util.ArrayList<>(List.of("noise_robustness"));
     }
 
     /**
@@ -146,6 +154,14 @@ public class EvalProperties {
          * 切换复跑，run-label 各留快照），基线口径定档前不得跨形态对比分数。
          */
         private boolean enableThinking = false;
+        /**
+         * 核验视图总长上限（字符；素材呈现面并议 M1 裁决，16 章 v2.79）：
+         * 判定证据 = 全块视图（每块不再 800 截断），总长超本预算时整块丢弃
+         * 尾部低相关块（重排后序），Judge prompt 与校准材料同源消费同一视图。
+         * 定值依据：切分块基线 800 字符 × topK 5 ≈ 4000 常态 + 表格/图保护块
+         * （HtmlProtectingSplitter 整块保护可远超基线）长尾，16000 = 4× 常态预算。
+         */
+        private int contextBudgetChars = 16000;
     }
 
     @Getter

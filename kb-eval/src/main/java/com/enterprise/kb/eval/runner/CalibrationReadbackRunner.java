@@ -59,7 +59,8 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
         } catch (Exception e) {
             throw new IllegalStateException("校准打分表读取失败：" + path, e);
         }
-        String report = buildReport(parseCsv(content), props.getCalibration().getKappaTarget());
+        String report = buildReport(parseCsv(content), props.getCalibration().getKappaTarget(),
+            props.getCalibration().getObservationDimensions());
         System.out.println(report);
         log.info("\n{}", report);
         try {
@@ -108,11 +109,24 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
         return rows;
     }
 
+    /** 观察带维度缺省集（与 {@code eval.calibration.observation-dimensions} 默认值一致） */
+    static final List<String> DEFAULT_OBSERVATION_DIMENSIONS = List.of("noise_robustness");
+
+    /** 兼容入口：观察带维度取缺省集（noise_robustness，M3 裁决，16 章 v2.79） */
+    static String buildReport(List<Row> rows, double kappaTarget) {
+        return buildReport(rows, kappaTarget, DEFAULT_OBSERVATION_DIMENSIONS);
+    }
+
     /**
      * κ 报告构建：逐维三对 κ + 评分类维度的 |差|≤1 一致率；无样本维度标注
-     * 「待样本」不计成败。总体判定 = 有样本维度全部双 κ 达标。
+     * 「待样本」不计成败。总体判定 = 观察带外的有样本维度全部双 κ 达标。
+     *
+     * <p>观察带维度（素材呈现面并议 M3 裁决，16 章 v2.79）：κ 照算报告，
+     * verdict 记「观察」，不计总体成败——n=33 患病率偏差 + Judge 单方向误报面
+     * 使 NRob κ 不构成可信门禁信号；复启门禁 = 配置清空观察集。
      */
-    static String buildReport(List<Row> rows, double kappaTarget) {
+    static String buildReport(List<Row> rows, double kappaTarget, List<String> observationDimensions) {
+        List<String> observation = observationDimensions == null ? List.of() : observationDimensions;
         Map<String, List<Row>> byDimension = new LinkedHashMap<>();
         for (String dim : DIMENSIONS) {
             byDimension.put(dim, new ArrayList<>());
@@ -139,19 +153,23 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
             }
             sampledDimensions++;
             boolean pass = pass(stat.kappaJudgeA(), kappaTarget) && pass(stat.kappaJudgeB(), kappaTarget);
-            allPass &= pass;
+            boolean observed = observation.contains(dim);
+            if (!observed) {
+                allPass &= pass;
+            }
             sb.append(String.format(Locale.ROOT, "%-22s %3d/%-3d %12s %12s %10s %14s  %s%n",
                 dim, stat.nA(), stat.nB(),
                 fmtKappa(stat.kappaJudgeA()), fmtKappa(stat.kappaJudgeB()), fmtKappa(stat.kappaAB()),
                 stat.withinOneA() == null || stat.withinOneB() == null ? "—"
                     : String.format(Locale.ROOT, "%.0f%%/%.0f%%",
                         stat.withinOneA() * 100, stat.withinOneB() * 100),
-                pass ? "PASS" : "FAIL"));
+                observed ? "观察" : pass ? "PASS" : "FAIL"));
         }
         sb.append(System.lineSeparator());
         sb.append("总体判定：").append(sampledDimensions == 0 ? "无已标注维度" : allPass ? "PASS" : "FAIL")
             .append(System.lineSeparator());
-        sb.append("（PASS 语义 = 全部有样本维度的 Judge×A 与 Judge×B κ 均 ≥ 目标；")
+        sb.append("（PASS 语义 = 观察带外全部有样本维度的 Judge×A 与 Judge×B κ 均 ≥ 目标；")
+            .append("观察带维度只报告不计成败（M3 裁决，16 章 v2.79）；")
             .append("κ(A,B) 为标注人间一致性，人审失配时优先复核标注口径）").append(System.lineSeparator());
         return sb.toString();
     }

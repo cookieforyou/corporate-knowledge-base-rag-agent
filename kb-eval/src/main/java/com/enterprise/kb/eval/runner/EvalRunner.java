@@ -204,10 +204,14 @@ public class EvalRunner {
     /**
      * 人类校准抽样表（簇④ E1 建基，簇② 批2 扩为五维校准通道；
      * judge-agreement-sample > 0 时启用）：全量评估后按分类分层抽 N 条正向用例，
-     * 落盘双通道——
+     * 落盘四通道——
      * <ul>
-     *   <li>{@code target/judge-agreement-sheet.md}：打分材料（问题/参考资料/回答/
-     *       各维 Judge 值与理由；NRob 含答案 B），供标注人阅读；</li>
+     *   <li>{@code target/judge-agreement-sheet.md}：全量材料（三块俱全，机器侧
+     *       参照母版；标注人勿直用——含 Judge 读数）；</li>
+     *   <li>{@code target/judge-agreement-sheet.ev.md}：证据维盲审材料（仅判定块：
+     *       无理想回答、无 Judge 读数——F/CA/HR/NRob 标注面，16 章 v2.79 M2）；</li>
+     *   <li>{@code target/judge-agreement-sheet.ac.md}：AC 盲审材料（仅 AC 判读块：
+     *       理想回答按口径可见、无 Judge 读数——AC 标注面）；</li>
      *   <li>{@code target/judge-agreement-sheet.csv}：打分表（长表，每行 = 用例×维度，
      *       human_a/human_b 双标注列），人工填写后经 --eval.calibration-readback
      *       回读计算 Cohen's κ（目标 ≥0.80，观察带接入门禁的前置判据）。</li>
@@ -231,9 +235,13 @@ public class EvalRunner {
             java.nio.file.Files.createDirectories(outDir);
             java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.md"),
                 renderAgreementSheet(sampled));
+            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.ev.md"),
+                renderEvidenceBlindSheet(sampled));
+            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.ac.md"),
+                renderAcBlindSheet(sampled));
             java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.csv"),
                 renderCalibrationCsv(sampled));
-            log.info("人类校准抽样表（{} 条，MD 材料 + CSV 打分表）已写入: {}",
+            log.info("人类校准抽样表（{} 条，全量母版 + 双盲材 + CSV 打分表）已写入: {}",
                 sampled.size(), outDir.toAbsolutePath());
         } catch (Exception e) {
             log.warn("校准抽样表落盘失败（不影响评估）: {}", e.getMessage());
@@ -282,11 +290,48 @@ public class EvalRunner {
     /**
      * 校准表材料渲染（阅读面）。五维打分口径随头部说明下发；分数填写在配套
      * CSV（human_a/human_b 双列），本文件只提供判定所需材料。
+     *
+     * <p><b>块结构</b>（素材呈现面并议 M1/M2 裁决，16 章 v2.79）——每用例三块：
+     * <ul>
+     *   <li><b>判定块</b>（F/CA/HR/NRob 共用）：核验视图（全块 + 总长上限，与
+     *       Judge prompt 同源）+ 答案 A（NRob 用例附答案 B）；理想回答物理不呈现；</li>
+     *   <li><b>AC 判读块</b>（仅理想回答已标注用例）：理想回答仅于此块出现——
+     *       v2.78 勘误轮实证理想回答在书面限定归属下仍污染证据维判定（A2 六值
+     *       作废），物理隔离为测量正确性要件（M2）；</li>
+     *   <li><b>Judge 读数块</b>（尾置集中）：盲化时整块剥离即完成内容盲
+     *       （取代逐行剥离，泄漏面收敛为单块边界）。</li>
+     * </ul>
      */
     String renderAgreementSheet(List<EvalResult> sampled) {
+        return renderSheet(sampled, "人类校准打分材料（簇② 5.8 批2）", true, true, true);
+    }
+
+    /**
+     * 证据维盲审材料（F/CA/HR/NRob 标注面，16 章 v2.79 M2 配套）：仅判定块——
+     * 理想回答与 Judge 读数物理不呈现。产品层直出盲材，取代手工 awk/sed 剥离
+     * （v2.78 泄漏事故面根治：手工剥离层整体退役）。
+     */
+    String renderEvidenceBlindSheet(List<EvalResult> sampled) {
+        return renderSheet(sampled,
+            "人类校准盲审材料——证据维（F/CA/HR/NRob；无理想回答、无 Judge 读数）",
+            true, false, false);
+    }
+
+    /**
+     * AC 盲审材料（AC 标注面，16 章 v2.79 M2 配套）：仅 AC 判读块——
+     * 理想回答按口径于此可见，Judge 读数物理不呈现。
+     */
+    String renderAcBlindSheet(List<EvalResult> sampled) {
+        return renderSheet(sampled,
+            "人类校准盲审材料——AC（理想回答仅此处；无 Judge 读数）",
+            false, true, false);
+    }
+
+    private String renderSheet(List<EvalResult> sampled, String title,
+                               boolean evidenceBlock, boolean acBlock, boolean readingsBlock) {
         EvalProperties.Judge j = props.getJudge();
         StringBuilder sb = new StringBuilder();
-        sb.append("# 人类校准打分材料（簇② 5.8 批2）").append(System.lineSeparator());
+        sb.append("# ").append(title).append(System.lineSeparator());
         sb.append(System.lineSeparator());
         sb.append(String.format("- Judge: %s（temperature=%.1f, enable_thinking=%s）%n",
             j.getModel(), j.getTemperature(), j.isEnableThinking()));
@@ -296,59 +341,93 @@ public class EvalRunner {
             .append("（两位标注人独立填写，互不参照）").append(System.lineSeparator());
         sb.append("- 校准判据：逐维 Cohen's κ ≥ 0.80（回读命令 `--eval.calibration-readback=<csv>`）")
             .append(System.lineSeparator());
-        sb.append(System.lineSeparator()).append("## 五维打分口径").append(System.lineSeparator());
+        if (evidenceBlock) {
+            sb.append(String.format("- 核验视图：全块视图 + 总长上限 %d 字符（超限整块丢弃尾部低相关块，"
+                    + "视图内同形标记；Judge prompt 与本材料同源，16 章 v2.79 M1）%n",
+                j.getContextBudgetChars()));
+        }
+        sb.append("- 材料块结构：判定块（F/CA/HR/NRob 共用，理想回答物理不呈现）/ AC 判读块")
+            .append("（理想回答仅此处，M2 隔离）/ Judge 读数块（尾置集中，盲化整块剥离）")
+            .append(System.lineSeparator());
+        sb.append(System.lineSeparator()).append("## 打分口径").append(System.lineSeparator());
         sb.append(System.lineSeparator());
         sb.append("| 维度（CSV dimension 列） | 人工填写 | 口径 |").append(System.lineSeparator());
         sb.append("|---|---|---|").append(System.lineSeparator());
-        sb.append("| faithfulness | 1-5 整数 | 回答对参考资料的忠实度（同 E1 口径）；表格/枚举/转述语义一致即算有依据，轻微外推不算编造 |").append(System.lineSeparator());
-        sb.append("| answer_correctness | 1-5 整数 | 对照理想回答的事实正确性（仅理想回答已标注用例） |").append(System.lineSeparator());
-        sb.append("| citation_attribution | SUPPORTED / NOT_SUPPORTED | 主判 = 引用陈述内容是否被参考资料支撑：编号标注偏差但内容有支撑不单独判负；无支撑/与资料矛盾/归属误导才判 NOT_SUPPORTED；回答未发出任何引用 → NOT_SUPPORTED |").append(System.lineSeparator());
-        sb.append("| hallucination | YES / NO | 回答是否含参考资料无依据的事实声明（≥1 条即 YES）；表格/枚举/资料数值直接推算算有依据 |").append(System.lineSeparator());
-        sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的证据基事实结论是否一致（仅噪声抽样用例）；单侧无依据内容不源自噪声证据时不计漂移 |").append(System.lineSeparator());
+        if (evidenceBlock) {
+            sb.append("| faithfulness | 1-5 整数 | 回答对参考资料的忠实度（同 E1 口径）；表格/枚举/转述语义一致即算有依据，轻微外推不算编造 |").append(System.lineSeparator());
+            sb.append("| citation_attribution | SUPPORTED / NOT_SUPPORTED | 主判 = 引用陈述内容是否被参考资料支撑：编号标注偏差但内容有支撑不单独判负；无支撑/与资料矛盾/归属误导才判 NOT_SUPPORTED；回答未发出任何引用 → NOT_SUPPORTED |").append(System.lineSeparator());
+            sb.append("| hallucination | YES / NO | 回答是否含参考资料无依据的事实声明（≥1 条即 YES）；表格/枚举/资料数值直接推算算有依据 |").append(System.lineSeparator());
+            sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的证据基事实结论是否一致（仅噪声抽样用例）；单侧无依据内容不源自噪声证据时不计漂移 |").append(System.lineSeparator());
+        }
+        if (acBlock) {
+            sb.append("| answer_correctness | 1-5 整数 | 对照理想回答的事实正确性（仅理想回答已标注用例；理想回答只用于本维，不得作为其余维度的证据） |").append(System.lineSeparator());
+        }
         sb.append(System.lineSeparator()).append("---").append(System.lineSeparator());
         for (int i = 0; i < sampled.size(); i++) {
             EvalResult r = sampled.get(i);
-            String context = r.hits() == null ? "" : r.hits().stream()
-                .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
-                .collect(Collectors.joining("\n\n"));
+            String answer = r.answer() == null ? "（生成失败）" : r.answer();
             sb.append(String.format("%n## %d. %s（%s）%n%n", i + 1, r.pair().id(), r.pair().category()));
-            sb.append("**问题**：").append(r.pair().question()).append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append("**参考资料**（Judge 所见，[ref-N] 对应编号）：")
-                .append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append(context).append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append("**模型回答（答案 A）**：").append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append(r.answer() == null ? "（生成失败）" : r.answer())
-                .append(System.lineSeparator());
-            sb.append(System.lineSeparator()).append("**Judge 读数**：").append(System.lineSeparator());
-            // 理由渲染为单行（换行折叠为空格）：多行理由的续行会逃逸「按行剥离」式盲化，
-            // 造成内容盲材料泄漏（2026-08-29 κ 复校-② 泄漏事故根因，16 章 v2.78）
-            sb.append(System.lineSeparator())
-                .append(String.format("- Faithfulness = %.0f（理由：%s）%n",
-                    r.faithfulness(), r.judgeReason() == null ? "无"
-                        : r.judgeReason().replaceAll("[\\r\\n]+", " ").strip()));
-            if (r.pair().expectedAnswer() != null && !r.pair().expectedAnswer().isBlank()) {
-                sb.append(System.lineSeparator()).append("**理想回答**（AC 打分对照）：")
+
+            // ── 判定块：F/CA/HR/NRob 共用（理想回答物理不呈现，M2） ──
+            if (evidenceBlock) {
+                VerificationView view = verificationView(r.hits(), j.getContextBudgetChars());
+                sb.append("### 判定块（F/CA/HR/NRob 共用）").append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append("**问题**：").append(r.pair().question())
+                    .append(System.lineSeparator());
+                sb.append(System.lineSeparator())
+                    .append("**参考资料**（核验视图，与 Judge 所见同形，[ref-N] 对应编号）：")
+                    .append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append(view.context()).append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append("**模型回答（答案 A）**：")
+                    .append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append(answer).append(System.lineSeparator());
+                if (r.noiseVerdict() != null) {
+                    sb.append(System.lineSeparator()).append("**答案 B（混噪生成，NRob 对照）**：")
+                        .append(System.lineSeparator()).append(System.lineSeparator())
+                        .append(r.noiseAnswer() == null ? "（无）" : r.noiseAnswer())
+                        .append(System.lineSeparator());
+                }
+            }
+
+            // ── AC 判读块：理想回答仅于此块出现（M2 物理隔离） ──
+            if (acBlock && r.pair().expectedAnswer() != null && !r.pair().expectedAnswer().isBlank()) {
+                sb.append(System.lineSeparator()).append("### AC 判读块（AC 专用）")
+                    .append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append("**问题**：").append(r.pair().question())
+                    .append(System.lineSeparator());
+                sb.append(System.lineSeparator()).append("**理想回答**：")
                     .append(System.lineSeparator()).append(System.lineSeparator())
                     .append(r.pair().expectedAnswer()).append(System.lineSeparator());
-                sb.append(System.lineSeparator()).append(String.format("- Answer Correctness = %.0f%n",
-                    r.answerCorrectness() == null ? Double.NaN : r.answerCorrectness()));
-            }
-            if (r.citationVerdict() != null) {
-                sb.append(String.format("- Citation Attribution = %s（可解析率 %s）%n",
-                    r.citationVerdict(),
-                    r.citationResolvableRate() == null ? "—"
-                        : String.format(java.util.Locale.ROOT, "%.2f", r.citationResolvableRate())));
-            }
-            if (r.hallucinationRate() != null) {
-                sb.append(String.format(java.util.Locale.ROOT, "- Hallucination Rate = %.1f%%%n",
-                    r.hallucinationRate() * 100));
-            }
-            if (r.noiseVerdict() != null) {
-                sb.append(String.format("- Noise Robustness = %s%n", r.noiseVerdict()));
-                sb.append(System.lineSeparator()).append("**答案 B（混噪生成，NRob 对照）**：")
+                sb.append(System.lineSeparator()).append("**模型回答（答案 A）**：")
                     .append(System.lineSeparator()).append(System.lineSeparator())
-                    .append(r.noiseAnswer() == null ? "（无）" : r.noiseAnswer())
+                    .append(answer).append(System.lineSeparator());
+            }
+
+            // ── Judge 读数块：尾置集中（盲化整块剥离，M2 配套；理由换行折叠 v2.78） ──
+            if (readingsBlock) {
+                sb.append(System.lineSeparator()).append("### Judge 读数块（盲化时整块剥离）")
                     .append(System.lineSeparator());
+                sb.append(System.lineSeparator())
+                    .append(String.format("- Faithfulness = %.0f（理由：%s）%n",
+                        r.faithfulness(), r.judgeReason() == null ? "无"
+                            : r.judgeReason().replaceAll("[\\r\\n]+", " ").strip()));
+                if (r.pair().expectedAnswer() != null && !r.pair().expectedAnswer().isBlank()) {
+                    sb.append(String.format("- Answer Correctness = %.0f%n",
+                        r.answerCorrectness() == null ? Double.NaN : r.answerCorrectness()));
+                }
+                if (r.citationVerdict() != null) {
+                    sb.append(String.format("- Citation Attribution = %s（可解析率 %s）%n",
+                        r.citationVerdict(),
+                        r.citationResolvableRate() == null ? "—"
+                            : String.format(java.util.Locale.ROOT, "%.2f", r.citationResolvableRate())));
+                }
+                if (r.hallucinationRate() != null) {
+                    sb.append(String.format(java.util.Locale.ROOT, "- Hallucination Rate = %.1f%%%n",
+                        r.hallucinationRate() * 100));
+                }
+                if (r.noiseVerdict() != null) {
+                    sb.append(String.format("- Noise Robustness = %s%n", r.noiseVerdict()));
+                }
             }
         }
         return sb.toString();
@@ -503,9 +582,14 @@ public class EvalRunner {
                 docRecall, docMrr, docPrecision, null, null, js.verdict(), scoreOf(js), js.reason(), null, null,
                 null, null, null, null, null, null, null);
         }
-        String context = hits.stream()
-            .map(h -> "[%s] %s".formatted(h.chunkId(), truncate(h.content(), 800)))
-            .collect(Collectors.joining("\n\n"));
+        // 核验视图（M1）：全块 + 总长上限，Judge 与校准材料同源；CA 可解析基数 =
+        // 视图内块数（超上限被弃的块不可被引用支撑——判定面所见即所得）
+        VerificationView view = verificationView(hits, props.getJudge().getContextBudgetChars());
+        String context = view.context();
+        if (view.capped()) {
+            log.warn("用例 {} 核验视图触发总长上限：判定面仅见前 {} 块（登记，16 章 v2.79）",
+                pair.id(), view.includedChunks());
+        }
         JudgePrompts.JudgeScore faithfulness = judge(String.format(
             JudgePrompts.FAITHFULNESS, pair.question(), context, answer));
         JudgePrompts.JudgeScore relevancy = judge(String.format(
@@ -525,7 +609,7 @@ public class EvalRunner {
                 answerCorrectness = scoreOf(ac);
             }
             // Citation Attribution：①发出 ②可解析（确定性）③来源支撑（Judge）
-            var citation = judgeCitationAttribution(pair.question(), context, answer, hits.size());
+            var citation = judgeCitationAttribution(pair.question(), context, answer, view.includedChunks());
             citationVerdict = citation.verdict();
             citationResolvableRate = citation.resolvableRate();
             // Hallucination Rate：声明级核查（score 0-100 → 0-1 比率）
@@ -874,7 +958,51 @@ public class EvalRunner {
             .toList();
     }
 
-    private static String truncate(String s, int max) {
-        return s == null ? "" : (s.length() <= max ? s : s.substring(0, max) + "…");
+    /**
+     * 核验视图（素材呈现面并议 M1 裁决，16 章 v2.79）：全块视图 + 确定性总长上限。
+     *
+     * <p>历史形态 = 每块 800 字符截断——判定面（Judge/人审）与生成链（全块）结构
+     * 信息不对称，超截断内容本质不可核验（κ 复校-② 定谳根因之一，dm-* 长表格族
+     * 首当其冲）。本构建器 = Judge prompt 与校准材料 md 的唯一视图源：
+     * <ul>
+     *   <li>块内不截断（表格/图保护块整块可见）；</li>
+     *   <li>总长超预算 → 整块丢弃尾部块（重排后序 = 低相关优先弃），视图尾注标记；</li>
+     *   <li>首块即超预算 → 单块截断带标记（兜底，防单块击穿）。</li>
+     * </ul>
+     * 标记入视图（Judge 与人审同形），截断视图不被误读为全量。
+     *
+     * @param budgetChars 总长上限（字符；{@code eval.judge.context-budget-chars}）
+     */
+    record VerificationView(String context, int includedChunks, boolean capped) {}
+
+    static VerificationView verificationView(List<RetrievalProbe.ProbeHit> hits, int budgetChars) {
+        if (hits == null || hits.isEmpty()) {
+            return new VerificationView("", 0, false);
+        }
+        StringBuilder sb = new StringBuilder();
+        int included = 0;
+        boolean capped = false;
+        for (RetrievalProbe.ProbeHit h : hits) {
+            String block = "[%s] %s".formatted(h.chunkId(), h.content() == null ? "" : h.content());
+            int sep = included == 0 ? 0 : 2;
+            if (included > 0 && sb.length() + sep + block.length() > budgetChars) {
+                capped = true;
+                break;
+            }
+            if (included == 0 && block.length() > budgetChars) {
+                block = block.substring(0, budgetChars) + "…（总长上限截断）";
+                capped = true;
+            }
+            if (included > 0) {
+                sb.append("\n\n");
+            }
+            sb.append(block);
+            included++;
+        }
+        if (capped) {
+            sb.append("\n\n（核验视图总长上限 ").append(budgetChars)
+                .append(" 字符：后续低相关块未呈现，判定以视图为准）");
+        }
+        return new VerificationView(sb.toString(), included, capped);
     }
 }
