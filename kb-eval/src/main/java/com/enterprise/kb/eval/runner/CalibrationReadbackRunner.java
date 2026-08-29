@@ -22,10 +22,13 @@ import java.util.Map;
  * human_a / human_b 列后——
  * {@code mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.calibration-readback=target/judge-agreement-sheet.csv}
  *
- * <p>逐维计算 Cohen's κ 三对（Judge×A / Judge×B / A×B——A×B 为标注人间一致性，
- * 校准质量的先行信号：人审都不一致则 Judge 无从校准），对照
- * {@code eval.calibration.kappa-target}（缺省 0.80）逐维判 PASS/FAIL，
- * 报告落 {@code target/calibration-kappa-report{-label}.txt}。
+ * <p>逐维计算名义一致率（主判）与 Cohen's κ 三对（观察）。判定契约
+ * （κ 悖论治理裁决，16 章 v2.80）：**verdict 主判 = 名义一致率**——
+ * F/AC 取 |差|≤1，CA/HR/NRob 取全一致——Judge×A 与 Judge×B 各对照
+ * {@code eval.calibration.agreement-target}（缺省 0.90，终值随 G1 校准窗口）；
+ * κ（对照 {@code eval.calibration.kappa-target} 0.80）降为观察带只报告不阻断——
+ * κ 复校-③ 实证小分歧集 × 极端基率将 κ 压至失真（κ 悖论），|差|≤1 一致率
+ * 才是真实一致面。报告落 {@code target/calibration-kappa-report{-label}.txt}。
  *
  * <p>维度标度：faithfulness / answer_correctness 为 1-5 序数（二次加权 κ +
  * E1 口径 |差|≤1 一致率并行报告）；citation_attribution（NO_CITATION 归并
@@ -60,7 +63,7 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
             throw new IllegalStateException("校准打分表读取失败：" + path, e);
         }
         String report = buildReport(parseCsv(content), props.getCalibration().getKappaTarget(),
-            props.getCalibration().getObservationDimensions());
+            props.getCalibration().getObservationDimensions(), props.getCalibration().getAgreementTarget());
         System.out.println(report);
         log.info("\n{}", report);
         try {
@@ -112,20 +115,31 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
     /** 观察带维度缺省集（与 {@code eval.calibration.observation-dimensions} 默认值一致） */
     static final List<String> DEFAULT_OBSERVATION_DIMENSIONS = List.of("noise_robustness");
 
+    /** 名义一致率主判目标缺省（κ 悖论治理裁决，16 章 v2.80；终值随 G1 校准窗口） */
+    static final double DEFAULT_AGREEMENT_TARGET = 0.90;
+
     /** 兼容入口：观察带维度取缺省集（noise_robustness，M3 裁决，16 章 v2.79） */
     static String buildReport(List<Row> rows, double kappaTarget) {
-        return buildReport(rows, kappaTarget, DEFAULT_OBSERVATION_DIMENSIONS);
+        return buildReport(rows, kappaTarget, DEFAULT_OBSERVATION_DIMENSIONS, DEFAULT_AGREEMENT_TARGET);
+    }
+
+    /** 兼容入口：一致率主判目标取缺省 0.90（16 章 v2.80） */
+    static String buildReport(List<Row> rows, double kappaTarget, List<String> observationDimensions) {
+        return buildReport(rows, kappaTarget, observationDimensions, DEFAULT_AGREEMENT_TARGET);
     }
 
     /**
-     * κ 报告构建：逐维三对 κ + 评分类维度的 |差|≤1 一致率；无样本维度标注
-     * 「待样本」不计成败。总体判定 = 观察带外的有样本维度全部双 κ 达标。
+     * 校准报告构建：逐维名义一致率（主判）+ 三对 κ（观察）；无样本维度标注
+     * 「待样本」不计成败。总体判定 = 观察带外的有样本维度全部双一致率达标
+     * （κ 悖论治理裁决，16 章 v2.80：verdict 由名义一致率主判——F/AC |差|≤1、
+     * CA/HR/NRob 全一致；κ 只报告不阻断，保留趋势对照）。
      *
-     * <p>观察带维度（素材呈现面并议 M3 裁决，16 章 v2.79）：κ 照算报告，
+     * <p>观察带维度（素材呈现面并议 M3 裁决，16 章 v2.79）：κ 与一致率照算报告，
      * verdict 记「观察」，不计总体成败——n=33 患病率偏差 + Judge 单方向误报面
      * 使 NRob κ 不构成可信门禁信号；复启门禁 = 配置清空观察集。
      */
-    static String buildReport(List<Row> rows, double kappaTarget, List<String> observationDimensions) {
+    static String buildReport(List<Row> rows, double kappaTarget, List<String> observationDimensions,
+                              double agreementTarget) {
         List<String> observation = observationDimensions == null ? List.of() : observationDimensions;
         Map<String, List<Row>> byDimension = new LinkedHashMap<>();
         for (String dim : DIMENSIONS) {
@@ -139,10 +153,14 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
             bucket.add(r);
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("═══ 人类校准 κ 报告（簇② 批2） ═══").append(System.lineSeparator());
-        sb.append(String.format(Locale.ROOT, "κ 目标：%.2f（观察带接入门禁前置判据）%n", kappaTarget));
+        sb.append("═══ 人类校准报告（簇② 批2） ═══").append(System.lineSeparator());
+        sb.append(String.format(Locale.ROOT,
+            "名义一致率目标：%.2f（主判；F/AC=|差|≤1，CA/HR/NRob=全一致；观察带接入门禁前置判据）%n",
+            agreementTarget));
+        sb.append(String.format(Locale.ROOT, "κ 目标：%.2f（观察报告不阻断——κ 悖论治理裁决，16 章 v2.80）%n",
+            kappaTarget));
         sb.append(String.format("%-22s %7s %12s %12s %10s %14s  %s%n",
-            "dimension", "n(A/B)", "κ(Judge,A)", "κ(Judge,B)", "κ(A,B)", "|diff|≤1(A/B)", "verdict"));
+            "dimension", "n(A/B)", "κ(Judge,A)", "κ(Judge,B)", "κ(A,B)", "一致率(A/B)", "verdict"));
         boolean allPass = true;
         int sampledDimensions = 0;
         for (String dim : DIMENSIONS) {
@@ -152,7 +170,7 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
                 continue;
             }
             sampledDimensions++;
-            boolean pass = pass(stat.kappaJudgeA(), kappaTarget) && pass(stat.kappaJudgeB(), kappaTarget);
+            boolean pass = pass(stat.agreementA(), agreementTarget) && pass(stat.agreementB(), agreementTarget);
             boolean observed = observation.contains(dim);
             if (!observed) {
                 allPass &= pass;
@@ -160,32 +178,37 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
             sb.append(String.format(Locale.ROOT, "%-22s %3d/%-3d %12s %12s %10s %14s  %s%n",
                 dim, stat.nA(), stat.nB(),
                 fmtKappa(stat.kappaJudgeA()), fmtKappa(stat.kappaJudgeB()), fmtKappa(stat.kappaAB()),
-                stat.withinOneA() == null || stat.withinOneB() == null ? "—"
+                stat.agreementA() == null || stat.agreementB() == null ? "—"
                     : String.format(Locale.ROOT, "%.0f%%/%.0f%%",
-                        stat.withinOneA() * 100, stat.withinOneB() * 100),
+                        stat.agreementA() * 100, stat.agreementB() * 100),
                 observed ? "观察" : pass ? "PASS" : "FAIL"));
         }
         sb.append(System.lineSeparator());
         sb.append("总体判定：").append(sampledDimensions == 0 ? "无已标注维度" : allPass ? "PASS" : "FAIL")
             .append(System.lineSeparator());
-        sb.append("（PASS 语义 = 观察带外全部有样本维度的 Judge×A 与 Judge×B κ 均 ≥ 目标；")
+        sb.append("（PASS 语义 = 观察带外全部有样本维度的 Judge×A 与 Judge×B 名义一致率均 ≥ 目标")
+            .append("（F/AC=|差|≤1，CA/HR/NRob=全一致）；κ 只报告不阻断（κ 悖论治理裁决，16 章 v2.80）；")
             .append("观察带维度只报告不计成败（M3 裁决，16 章 v2.79）；")
             .append("κ(A,B) 为标注人间一致性，人审失配时优先复核标注口径）").append(System.lineSeparator());
         return sb.toString();
     }
 
-    private static boolean pass(Double kappa, double target) {
-        return kappa != null && !kappa.isNaN() && kappa >= target;
+    private static boolean pass(Double value, double target) {
+        return value != null && !value.isNaN() && value >= target;
     }
 
     private static String fmtKappa(Double kappa) {
         return kappa == null || kappa.isNaN() ? "未定" : String.format(Locale.ROOT, "%.3f", kappa);
     }
 
-    /** 单维统计：Judge×A / Judge×B 各按有效标注对独立配对（单边标注亦计入其对） */
+    /**
+     * 单维统计：Judge×A / Judge×B 各按有效标注对独立配对（单边标注亦计入其对）。
+     * agreementA/B = 名义一致率（主判量，16 章 v2.80）：评分类为 |差|≤1 一致率，
+     * 名义类为全一致率。
+     */
     record DimensionStat(int nA, int nB,
                          Double kappaJudgeA, Double kappaJudgeB, Double kappaAB,
-                         Double withinOneA, Double withinOneB) {}
+                         Double agreementA, Double agreementB) {}
 
     private static DimensionStat dimensionStat(String dimension, List<Row> rows) {
         boolean rating = "faithfulness".equals(dimension) || "answer_correctness".equals(dimension);
@@ -253,7 +276,21 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
             judgeA.isEmpty() ? null : CohensKappa.nominal(judgeA, humanA),
             judgeB.isEmpty() ? null : CohensKappa.nominal(judgeB, humanB),
             aOnly.isEmpty() ? null : CohensKappa.nominal(aOnly, bOnly),
-            null, null);
+            exactAgreement(judgeA, humanA), exactAgreement(judgeB, humanB));
+    }
+
+    /** 名义类全一致率（主判量）；无配对返回 null */
+    private static Double exactAgreement(List<String> judge, List<String> human) {
+        if (judge.isEmpty()) {
+            return null;
+        }
+        long agree = 0;
+        for (int i = 0; i < judge.size(); i++) {
+            if (judge.get(i).equals(human.get(i))) {
+                agree++;
+            }
+        }
+        return (double) agree / judge.size();
     }
 
     private static List<String> intStrings(List<Integer> values) {

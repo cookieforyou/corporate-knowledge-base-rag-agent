@@ -250,7 +250,7 @@ class EvalRunnerPhase5Test {
 
         assertThat(md)
             .contains("编号标注偏差但内容有支撑不单独判负")      // CA 主判 = 内容支撑
-            .contains("单侧无依据内容不源自噪声证据时不计漂移")   // NRob 证据基结论边界
+            .contains("语义可映射任一资料条目")                  // NRob 漂移边界（口径澄清，16 章 v2.80）
             .contains("轻微外推不算编造");                       // F 低分锚点
     }
 

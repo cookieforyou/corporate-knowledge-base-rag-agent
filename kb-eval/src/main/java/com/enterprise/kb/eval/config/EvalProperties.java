@@ -67,15 +67,22 @@ public class EvalProperties {
     private final Calibration calibration = new Calibration();
 
     /**
-     * 人类校准（簇② 批2）：打分表回读（--eval.calibration-readback）后逐维计算
-     * Cohen's κ（Judge×标注人A / Judge×标注人B / A×B 三对），对照本目标判
-     * PASS/FAIL。κ≥0.80 为观察带四新指标接入门禁的前置判据（复审方案定案）。
+     * 人类校准（簇② 批2）：打分表回读（--eval.calibration-readback）后，逐维以
+     * 名义一致率主判（F/AC |差|≤1、CA/HR/NRob 全一致，对照 {@code agreementTarget}），
+     * Cohen's κ 三对（Judge×A / Judge×B / A×B）降为观察报告不阻断（κ 悖论治理
+     * 裁决，16 章 v2.80）。一致率达标为观察带四新指标接入门禁的前置判据。
      */
     @Getter
     @Setter
     public static class Calibration {
-        /** κ 校准目标（逐维；名义 κ 与二次加权 κ 同目标线） */
+        /** κ 观察目标（κ 悖论治理裁决后仅观察报告不阻断，16 章 v2.80） */
         private double kappaTarget = 0.80;
+        /**
+         * 名义一致率主判目标（κ 悖论治理裁决，16 章 v2.80）：F/AC 取 |差|≤1、
+         * CA/HR/NRob 取全一致，Judge×A 与 Judge×B 均须达标。缺省 0.90 与
+         * 门禁 0.90 族同线，终值随 G1 回传校准窗口定。
+         */
+        private double agreementTarget = 0.90;
         /**
          * 观察带维度（素材呈现面并议 M3 裁决，16 章 v2.79）：κ 照算报告但不计总体
          * 成败（verdict = 观察）。缺省降级 noise_robustness——n=33 患病率偏差 +

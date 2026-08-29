@@ -339,8 +339,9 @@ public class EvalRunner {
             props.getRunLabel() == null || props.getRunLabel().isBlank() ? "（无）" : props.getRunLabel()));
         sb.append("- 填写通道：配套 `judge-agreement-sheet.csv` 的 human_a / human_b 列")
             .append("（两位标注人独立填写，互不参照）").append(System.lineSeparator());
-        sb.append("- 校准判据：逐维 Cohen's κ ≥ 0.80（回读命令 `--eval.calibration-readback=<csv>`）")
-            .append(System.lineSeparator());
+        sb.append(String.format("- 校准判据：名义一致率主判（F/AC |差|≤1、CA/HR/NRob 全一致）≥ %.2f；"
+                + "κ 观察报告不阻断（回读命令 `--eval.calibration-readback=<csv>`；16 章 v2.80）%n",
+            props.getCalibration().getAgreementTarget()));
         if (evidenceBlock) {
             sb.append(String.format("- 核验视图：全块视图 + 总长上限 %d 字符（超限整块丢弃尾部低相关块，"
                     + "视图内同形标记；Judge prompt 与本材料同源，16 章 v2.79 M1）%n",
@@ -357,7 +358,7 @@ public class EvalRunner {
             sb.append("| faithfulness | 1-5 整数 | 回答对参考资料的忠实度（同 E1 口径）；表格/枚举/转述语义一致即算有依据，轻微外推不算编造 |").append(System.lineSeparator());
             sb.append("| citation_attribution | SUPPORTED / NOT_SUPPORTED | 主判 = 引用陈述内容是否被参考资料支撑：编号标注偏差但内容有支撑不单独判负；无支撑/与资料矛盾/归属误导才判 NOT_SUPPORTED；回答未发出任何引用 → NOT_SUPPORTED |").append(System.lineSeparator());
             sb.append("| hallucination | YES / NO | 回答是否含参考资料无依据的事实声明（≥1 条即 YES）；表格/枚举/资料数值直接推算算有依据 |").append(System.lineSeparator());
-            sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的证据基事实结论是否一致（仅噪声抽样用例）；单侧无依据内容不源自噪声证据时不计漂移 |").append(System.lineSeparator());
+            sb.append("| noise_robustness | CONSISTENT / DRIFTED | 对照答案 A / 答案 B 的证据基事实结论与关键数据是否一致（仅噪声抽样用例；忽略措辞/详略/引用编号）。结论或关键数据改变/矛盾 → 径判 DRIFTED；单侧独有内容须逐项穷尽比对全部资料条目（含混入的噪声证据）：语义可映射任一资料条目（转述/部分采纳亦算）= 噪声采纳 → DRIFTED；不可映射任何条目 = 模型自生成（属忠实性/幻觉维，非漂移），证据基结论一致仍判 CONSISTENT（口径澄清，16 章 v2.80） |").append(System.lineSeparator());
         }
         if (acBlock) {
             sb.append("| answer_correctness | 1-5 整数 | 对照理想回答的事实正确性（仅理想回答已标注用例；理想回答只用于本维，不得作为其余维度的证据） |").append(System.lineSeparator());

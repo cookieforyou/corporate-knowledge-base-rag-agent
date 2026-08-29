@@ -146,6 +146,61 @@ class CalibrationReadbackRunnerTest {
         assertThat(report).contains("总体判定：FAIL");
     }
 
+    // ── κ 悖论治理裁决（16 章 v2.80）：名义一致率主判，κ 降观察报告不阻断 ──
+
+    @Test
+    void kappaParadoxSkewedMarginsPassByAgreementRate() {
+        // κ 悖论实证形态：分歧集极小（1/20）× 边际极端偏斜 → κ≈0.000 失真，
+        // 一致率 95% 才是真实一致面 → 主判 PASS，κ 只报告不阻断
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int i = 1; i <= 19; i++) {
+            csv.append("f-").append(i).append(",FACTOID,citation_attribution,SUPPORTED,SUPPORTED,SUPPORTED\n");
+        }
+        csv.append("f-20,FACTOID,citation_attribution,SUPPORTED,NOT_SUPPORTED,NOT_SUPPORTED\n");
+
+        String report = CalibrationReadbackRunner.buildReport(
+            CalibrationReadbackRunner.parseCsv(csv.toString()), 0.8);
+
+        assertThat(report)
+            .contains("95%/95%")             // 一致率主判量
+            .contains("0.000")               // κ 失真读数（观察报告，不阻断）
+            .contains("总体判定：PASS");
+    }
+
+    @Test
+    void ratingWithinOneCountsAsAgreement() {
+        // 评分类主判量 = |差|≤1：±1 分歧计入一致率（κ 另行观察）
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int i = 1; i <= 9; i++) {
+            csv.append("f-").append(i).append(",FACTOID,faithfulness,5,5,5\n");
+        }
+        csv.append("f-10,FACTOID,faithfulness,5,4,4\n");
+
+        String report = CalibrationReadbackRunner.buildReport(
+            CalibrationReadbackRunner.parseCsv(csv.toString()), 0.8);
+
+        assertThat(report)
+            .containsPattern("faithfulness\\s+10/10\\s.*100%/100%\\s+PASS")
+            .contains("总体判定：PASS");
+    }
+
+    @Test
+    void agreementBelowTargetFailsDimension() {
+        // 一致率 85% < 缺省目标 0.90 → FAIL；放宽目标至 0.80 → PASS（目标可配）
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int i = 1; i <= 17; i++) {
+            csv.append("f-").append(i).append(",FACTOID,citation_attribution,SUPPORTED,SUPPORTED,SUPPORTED\n");
+        }
+        for (int i = 18; i <= 20; i++) {
+            csv.append("f-").append(i).append(",FACTOID,citation_attribution,SUPPORTED,NOT_SUPPORTED,NOT_SUPPORTED\n");
+        }
+        List<CalibrationReadbackRunner.Row> rows = CalibrationReadbackRunner.parseCsv(csv.toString());
+
+        assertThat(CalibrationReadbackRunner.buildReport(rows, 0.8)).contains("总体判定：FAIL");
+        assertThat(CalibrationReadbackRunner.buildReport(rows, 0.8, List.of(), 0.80))
+            .contains("总体判定：PASS");
+    }
+
     // ── 归一化语义 ──
 
     @Test
