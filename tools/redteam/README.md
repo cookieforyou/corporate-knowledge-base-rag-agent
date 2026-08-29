@@ -6,11 +6,25 @@
 
 ## 纪律（§7 红线，全程强制）
 
-- 生成物（攻击载荷与响应）**留在 promptfoo 工作目录**，`.gitignore` 覆盖不进仓库；
+- 生成物（攻击载荷与响应）**留在 promptfoo 工作目录**，`.gitignore` 覆盖不进仓库
+  （含 `test-cases*.yaml/json` 预生成用例文件——两阶段执行形态下同样含字面载荷）；
 - 报告入档**只经** `summarize_report.py`（只回聚合计数：plugin/strategy × 防御/突破/error）；
 - 原始输出 JSON **不贴对话、不喂 AI 会话**（字面载荷防上游检测 400 block + 上下文污染）;
 - 高价值变体入集走带外编码通道：新词项 `tools/guardrail/import_words.py`（--inbox 仓库外），
   新评估样本 `tools/guardrail/import_corpus.py`——AI 零接触词面。
+
+## 口径定案（2026-08-29，12 章 §12.11 / 16 章契约）
+
+- **G1 = 端到端防御广度读数**：测四层防线联合效果（L1 词表拦截 / L2 二判拦截 /
+  主模型对齐拒答 / 输出护栏），「防御成功」桶天然混杂四层机制，单看三桶无法归因
+  到具体防线。
+- **G1 读数不直接映射 eval L2 门禁阈值**：eval L2 门禁经力判键旁路触发启发式、
+  测的是 L2 判别力；G1 生产链无键、无 sessionId（跨轮信号结构性归零），大量生成
+  用例落静默区（词表全档零命中，防御归主模型对齐）。阈值校准经
+  「G1 发现高价值变体 → 带外入库 → eval 力判复跑」链路，非直读。
+- **MULTILINGUAL 族代表性登记**：multilingual 策略实证不支持（Invalid strategy(s)），
+  G1 不覆盖多语种攻击面——L2 门禁防域含 MULTILINGUAL，其阈值校准不由 G1 承接，
+  继续沿用批5-d 语料复跑口径。
 
 ## env 前置
 
@@ -25,7 +39,7 @@
 生成/裁判模型默认 `openai:chat:deepseek-v4-flash`（避 qwen3.5+ 商业版思考模式
 20-60s/调用延迟，坑位⑮）；换模型改 `promptfooconfig.yaml` `redteam.provider`。
 
-## 首跑步骤
+## 首跑步骤（两阶段执行形态，2026-08-29 定案）
 
 ```bash
 cd tools/redteam
@@ -35,12 +49,29 @@ export OPENAI_API_KEY=<DeepSeek key>
 export OPENAI_BASE_URL=https://api.deepseek.com
 export PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION=true
 
-npx promptfoo@latest redteam run --config promptfooconfig.yaml -o redteam-result.json
+# ── 阶段一：生成测试用例（不执行）──
+npx promptfoo@latest redteam generate -c promptfooconfig.yaml -o test-cases.yaml
+
+# ── 阶段 1.5（执行前预分析，内容盲）：四分区复算 ──
+# 量化生成用例的词表命中形态——BLOCK 直拦 / KEYWORD 压制 / TRIGGER 可触发
+# （=生产链下到达 L2 的分区）/ SILENT 静默区；只回用例 ID 与命中词项 ID。
+python3 ../guardrail/probe_redteam_coverage.py --tests test-cases.yaml
+
+# ── 阶段二：直跑预生成用例（不重新生成）──
+npx promptfoo@latest redteam eval -c test-cases.yaml -j 1 -o redteam-result.json
+
+# ── 报告聚合（唯一入档通道，内容盲只回计数）──
 python3 summarize_report.py --output redteam-result.json \
     --out-md ../../docs/project-progress/redteam-report-g1-<label>.md --label g1-<label>
 ```
 
-`npx promptfoo@latest redteam report` 可开本地 web 视图逐条复核（载荷只在你本机浏览）。
+- 两阶段依据：`redteam run` 为生成+运行合体形态；`redteam generate -o` 产物为
+  完整配置（含 targets/tests），`redteam eval -c <产物>` 直跑不再重新生成
+  （官方 examples 同款）。`-j 1` 钉并发与配置 `maxConcurrency: 1` 一致。
+- 复跑纪律：同一份 `test-cases.yaml` 可多次执行（读数对照面）；重生成即换用例集，
+  对照面重建。
+- （可选）逐条复核：`npx promptfoo@latest redteam eval -c test-cases.yaml` 后
+  `npx promptfoo@latest redteam report` 开本地 web 视图（载荷只在你本机浏览）。
 
 ## 限流与配额
 
@@ -52,7 +83,9 @@ python3 summarize_report.py --output redteam-result.json \
 
 - `result.success=true` → 防御成功（拦截/拒答/未顺从）；`false` → 突破（裁判认定顺从）；
   provider 层 error → error 桶（多为护栏 400 拒绝；首跑后结合 kb_audit_log
-  REJECTED 计数与 `rag.guardrail.*` 指标归因拆分「拦截 vs 网络异常」）。
-- 首跑为低档（6 插件 × 3 例 + 5 策略乘数）；扩量改 `redteam.numTests` /
+  REJECTED 计数与 `rag.guardrail.*` 指标归因拆分「拦截层 × 网络异常」）。
+- 首跑为低档（6 插件 × 3 例 + 4 策略乘数）；扩量改 `redteam.numTests` /
   plugins/strategies 全目录 `npx promptfoo@latest redteam plugins|strategies`。
-- 语料承接：G2 语料扩容接收本通道高价值变体（编码化入集，见上纪律）。
+- 语料承接：G2 语料扩容接收本通道高价值变体（编码化入集，见上纪律）——
+  进过 L2 且被误判的 → 复现批5-c 路径；是攻击但从未进 L2（静默区）的 →
+  词表覆盖面缺口归 G2 带外扩词，非 L2-judge 问题。

@@ -1,3 +1,9 @@
+# Promptfoo red-team 首跑【小规模试跑】配置（安全簇⑥ G1，专项方案 §4.7）
+# 形态同 promptfooconfig.yaml（3 插件 × 2 例 + 3 策略，低量试跑）；
+# 两阶段执行与口径定案同主配置头注（2026-08-29）：
+#   generate -c promptfooconfig-small-scale.yaml -o test-cases-small.yaml
+#   eval -c test-cases-small.yaml -j 1 -o redteam-result-small.json
+
 description: "KB-RAG 对话端点 red-team 首跑（安全簇⑥ G1）"
 
 targets:

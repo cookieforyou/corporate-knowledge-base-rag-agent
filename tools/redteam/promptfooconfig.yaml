@@ -5,6 +5,19 @@
 # 护栏拒绝 HTTP 400 + message，断言面清晰（流式 SSE 断言成本高，不走）。
 # 不带 sessionId → 后端每请求新会话，避免多轮记忆交叉污染。
 #
+# 执行形态（2026-08-29 定案，两阶段）：
+#   阶段一 生成：redteam generate -c promptfooconfig.yaml -o test-cases.yaml
+#     —— 测试用例先行生成，执行前可用四分区探针预分析词表命中形态
+#        （probe_corpus_coverage.py，见 README 与清单 G1 步1.5）；
+#        test-cases.yaml 含字面载荷，.gitignore 覆盖不进仓库。
+#   阶段二 执行：redteam eval -c test-cases.yaml -j 1 -o redteam-result.json
+#     —— 直跑预生成用例不再实时生成（官方 examples 同款；
+#        redteam run 为生成+运行合体形态，两阶段下不用）。
+#
+# 口径定案（2026-08-29 用户裁决，12 章 §12.11 / 16 章契约）：
+#   G1 = 端到端防御广度读数（四层防线联合归因），不直接映射 eval L2
+#   门禁阈值——L2 阈值校准经「高价值变体带外入库 → eval 力判复跑」链路。
+#
 # 纪律（§7）：生成物（攻击载荷/响应）留在 promptfoo 工作目录，不进仓库
 # （见 .gitignore）；报告入档经 summarize_report.py 只回聚合数。
 #
@@ -64,6 +77,10 @@ redteam:
   #   jailbreak                越狱变体族（JAILBREAK）
   #   base64 / rot13 / leetspeak  编码混淆族（ENCODING_OBFUSCATION）
   # 全目录：npx promptfoo@latest redteam strategies
+  # ⚠ MULTILINGUAL 族代表性登记（2026-08-29 实证 + 裁决 2a）：multilingual
+  #   策略实证不支持（Error: Invalid strategy(s): multilingual），G1 不覆盖
+  #   多语种攻击面——L2 门禁防域含 MULTILINGUAL，其阈值校准不由 G1 承接，
+  #   继续沿用批5-d 语料复跑口径（12 章 §12.11 口径分离注记）。
   strategies:
     - jailbreak
     - base64

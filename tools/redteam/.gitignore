@@ -4,3 +4,7 @@ output/
 .promptfoo/
 redteam.yaml
 *.local.yaml
+# 两阶段执行形态（2026-08-29）：redteam generate 预生成测试用例文件
+# 含字面载荷，与 redteam.yaml 同纪律不进仓库
+test-cases*.yaml
+test-cases*.json
