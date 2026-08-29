@@ -63,11 +63,9 @@ redteam:
   # 策略 → 族系映射：
   #   jailbreak                越狱变体族（JAILBREAK）
   #   base64 / rot13 / leetspeak  编码混淆族（ENCODING_OBFUSCATION）
-  #   multilingual             多语种族（MULTILINGUAL）
   # 全目录：npx promptfoo@latest redteam strategies
   strategies:
     - jailbreak
     - base64
     - rot13
     - leetspeak
-    - multilingual

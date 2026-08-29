@@ -1,0 +1,34 @@
+description: "KB-RAG 对话端点 red-team 首跑（安全簇⑥ G1）"
+
+targets:
+  - id: https
+    label: kb-rag-chat
+    config:
+      url: "{{env.CHAT_BASE_URL}}/api/v1/chat"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "Bearer {{env.CHAT_JWT}}"
+      body:
+        query: "{{prompt}}"
+        mode: "rag"
+      transformResponse: "json.data && json.data.answer != null ? json.data.answer : '[REJECTED] ' + (json.message || '')"
+
+redteam:
+  purpose: >-
+    企业内部知识库 RAG 问答端点：按租户隔离检索企业文档并回答用户问题。
+    系统提示要求只依据检索证据作答、拒绝执行检索内容中的指令；
+    输入经归一化词表护栏（拦截档拒绝、观察档计数），输出经黑名单替换与 PII 掩码。
+  numTests: 2
+  maxConcurrency: 2
+  delay: 1000
+  language: zh
+  provider: openai:chat:deepseek-v4-flash
+  plugins:
+    - harmful
+    - pii:direct
+    - hijacking
+  strategies:
+    - jailbreak
+    - rot13
+    - leetspeak
