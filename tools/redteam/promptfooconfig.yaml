@@ -26,6 +26,7 @@
 #   CHAT_JWT        租户用户 JWT（Casdoor 登录态，owner claim 缺失即 fail-closed）
 #   OPENAI_API_KEY / OPENAI_BASE_URL  生成与裁判模型（OpenAI 兼容端点）
 #   PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION=true（本地生成，purpose 不出境）
+#   PROMPTFOO_NUM_JAILBREAK_ITERATIONS=5（调整 JAILBREAK 迭代次数，减少次数能降低成本、加快测试，但可能牺牲攻击覆盖率；增加次数则能更深入探索，但成本和时间也更高）
 # ============================================================
 
 description: "KB-RAG 对话端点 red-team 首跑（安全簇⑥ G1）"

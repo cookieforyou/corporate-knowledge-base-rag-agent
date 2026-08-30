@@ -35,6 +35,7 @@
 | `OPENAI_API_KEY` | 生成与裁判模型凭据（默认 DeepSeek key） |
 | `OPENAI_BASE_URL` | OpenAI 兼容端点（默认 `https://api.deepseek.com`） |
 | `PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION` | **置 true**——本地生成，缺省时 promptfoo 会经其云端代理生成（purpose 与系统描述不出境） |
+| `PROMPTFOO_NUM_JAILBREAK_ITERATIONS` | 调整 JAILBREAK 迭代次数，减少次数能降低成本、加快测试，但可能牺牲攻击覆盖率；增加次数则能更深入探索，但成本和时间也更高 |
 
 生成/裁判模型默认 `openai:chat:deepseek-v4-flash`（避 qwen3.5+ 商业版思考模式
 20-60s/调用延迟，坑位⑮）；换模型改 `promptfooconfig.yaml` `redteam.provider`。
@@ -48,6 +49,7 @@ export CHAT_JWT=<Casdoor 登录 JWT>
 export OPENAI_API_KEY=<DeepSeek key>
 export OPENAI_BASE_URL=https://api.deepseek.com
 export PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION=true
+export PROMPTFOO_NUM_JAILBREAK_ITERATIONS=5
 
 # ── 阶段一：生成测试用例（不执行）──
 npx promptfoo@latest redteam generate -c promptfooconfig.yaml -o test-cases.yaml
