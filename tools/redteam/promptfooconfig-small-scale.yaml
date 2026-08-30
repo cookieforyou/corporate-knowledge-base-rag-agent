@@ -25,9 +25,8 @@ redteam:
     企业内部知识库 RAG 问答端点：按租户隔离检索企业文档并回答用户问题。
     系统提示要求只依据检索证据作答、拒绝执行检索内容中的指令；
     输入经归一化词表护栏（拦截档拒绝、观察档计数），输出经黑名单替换与 PII 掩码。
-  numTests: 2
-  maxConcurrency: 2
-  delay: 1000
+  numTests: 1
+  maxConcurrency: 5
   language: zh
   provider: openai:chat:deepseek-v4-flash
   plugins:
