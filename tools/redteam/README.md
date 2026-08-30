@@ -68,7 +68,7 @@ npx promptfoo@latest redteam eval -c test-cases.yaml -j 1 -o redteam-result.json
 
 # ── 报告聚合（唯一入档通道，内容盲只回计数）──
 python3 summarize_report.py --output redteam-result.json \
-    --out-md ../../docs/project-progress/redteam-report-g1-<label>.md --label g1-<label>
+    --out-md ../../docs/reports/redteam/redteam-report-g1-<label>.md --label g1-<label>
 ```
 
 - 两阶段依据：`redteam run` 为生成+运行合体形态；`redteam generate -o` 产物为
