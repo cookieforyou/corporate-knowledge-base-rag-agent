@@ -55,9 +55,10 @@ npx promptfoo@latest redteam generate -c promptfooconfig.yaml -o test-cases.yaml
 # ── 阶段 1.5（执行前预分析，内容盲）：四分区复算 ──
 # 量化生成用例的词表命中形态——BLOCK 直拦 / KEYWORD 压制 / TRIGGER 可触发
 # （=生产链下到达 L2 的分区）/ SILENT 静默区；只回用例 ID 与命中词项 ID。
-# 若有用例缺 prompt 变量，自动追加内容盲结构诊断（顶层键名/vars 键名/
-# strategy×plugin 分布——零内容回显），定位「生成物本无 prompt」（迭代式
-# 策略种子态等）还是「解析器形态盲区」（回传处置）。
+# 读数口径（2026-08-30 形态定谳后）：四分区仅计「确定性载荷」用例（base 与
+# 逐字编码策略）；迭代式策略（jailbreak:meta / provider
+# promptfoo:redteam:iterative:*）载荷运行时构造，探针单列「迭代式种子态」
+# 计数不入四分区，其防御归因走阶段二运行时（审计 + rag.guardrail.l2.triggered）。
 python3 ../guardrail/probe_redteam_coverage.py --tests test-cases.yaml
 
 # ── 阶段二：直跑预生成用例（不重新生成）──

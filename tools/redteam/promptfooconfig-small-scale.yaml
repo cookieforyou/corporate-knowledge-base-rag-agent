@@ -38,3 +38,5 @@ redteam:
     - jailbreak
     - rot13
     - leetspeak
+  # 实证形态注记同主配置尾注（2026-08-30）：jailbreak 生成 jailbreak:meta
+  # 迭代式用例（载荷运行时构造，步1.5 探针单列「迭代式种子态」）。

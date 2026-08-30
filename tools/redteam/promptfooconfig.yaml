@@ -86,3 +86,11 @@ redteam:
     - base64
     - rot13
     - leetspeak
+  # 实证形态定谳（2026-08-30，G1 步1.5 轮 2 回传 + 脱敏样本核验）：
+  #   jailbreak 策略生成 jailbreak:meta 用例（provider
+  #   promptfoo:redteam:iterative:meta，multi-attempt 元代理生成）——攻击载荷
+  #   由迭代 provider 在评估运行时围绕种子目标构造，生成物仅携种子（vars 经
+  #   YAML 别名复用基线用例），步1.5 预执行四分区对该批结构性不适用（探针
+  #   单列「迭代式种子态」），其防御归因走运行时（审计日志 REJECTED 三态 +
+  #   rag.guardrail.l2.triggered 指标）。另实证：生成物基线用例以 `vars: &ref`
+  #   锚点定义、变体以 `*ref` 别名复用——探针已含锚点/别名最小解析支持。
