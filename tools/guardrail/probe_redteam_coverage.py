@@ -28,7 +28,9 @@
   - JSON 形态（*.json，含 {"tests":[...]} / 裸数组）：json 标准库直解。
   用例 ID 合成（纯元数据）：test-{序号}-{plugin}-{strategy}——promptfoo
   生成用例无原生 ID，序号×维度合成与 summarize_report 分桶维度同源。
-  用例缺 prompt 变量（多变量生成形态）单列计数不参分区（该形态另议）。
+  用例缺 prompt 变量（多变量生成形态）单列计数不参分区，并自动输出内容盲
+  结构诊断（只回该批用例的顶层键名/vars 键名/strategy 分布——零内容回显），
+  供定位「生成物本无 vars.prompt」还是「解析器形态盲区」。
 
 输出纪律（§7 条 1/4）：只回显用例 ID / 命中词项 ID / 族系 / 计数——
 绝不回显问句原文与词项值。
@@ -44,6 +46,7 @@ import argparse
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 import probe_match as pm  # 同源管线复用（同目录装载）
@@ -114,7 +117,8 @@ def parse_tests_yaml(text: str):
             if item_indent is None:
                 item_indent = indent
             if indent == item_indent:
-                cur = {"prompt": None, "plugin": "?", "strategy": "(base)"}
+                cur = {"prompt": None, "plugin": "?", "strategy": "(base)",
+                       "_topkeys": set(), "_varskeys": set()}
                 cases.append(cur)
                 section = None
                 rest = stripped[2:].strip()
@@ -139,17 +143,22 @@ def parse_tests_yaml(text: str):
         key, value = key.strip(), value.strip()
         if key in ("vars", "metadata"):
             section = key if not value else section
+            cur.setdefault("_topkeys", set()).add(key)
             i += 1
             continue
-        if section == "vars" and key == "prompt":
-            if value in ("|", "|-", "|+", ">", ">-", ">+"):
-                block = (cur, "prompt", indent, value.startswith(">"))
-            elif value:
-                cur["prompt"] = _strip_quotes(value)
+        if section == "vars":
+            cur.setdefault("_varskeys", set()).add(key)
+            if key == "prompt":
+                if value in ("|", "|-", "|+", ">", ">-", ">+"):
+                    block = (cur, "prompt", indent, value.startswith(">"))
+                elif value:
+                    cur["prompt"] = _strip_quotes(value)
         elif section == "metadata" and key in ("pluginId", "plugin"):
             cur["plugin"] = _strip_quotes(value)
         elif section == "metadata" and key in ("strategyId", "strategy"):
             cur["strategy"] = _strip_quotes(value)
+        else:
+            cur.setdefault("_topkeys", set()).add(key)
         i += 1
 
     close_block()
@@ -173,6 +182,8 @@ def load_cases(path: Path):
                     "prompt": (item.get("vars") or {}).get("prompt"),
                     "plugin": meta.get("pluginId") or meta.get("plugin") or "?",
                     "strategy": meta.get("strategyId") or meta.get("strategy") or "(base)",
+                    "_topkeys": set(item.keys()),
+                    "_varskeys": set((item.get("vars") or {}).keys()),
                 })
         return cases
     return parse_tests_yaml(text)
@@ -223,12 +234,12 @@ def main() -> int:
     totals = {"BLOCK": 0, "KEYWORD": 0, "TRIGGER": 0, "SILENT": 0}
     by_plugin = {}
     by_strategy = {}
-    no_prompt = 0
+    missing = []
     for seq, item in enumerate(cases, 1):
         case_id = f"test-{seq:03d}-{item['plugin']}-{item['strategy']}"
         prompt = item.get("prompt")
         if not prompt:
-            no_prompt += 1
+            missing.append(item)
             continue
         view = pm.normalize(prompt)
         hits = [r for r in rules if pm.match(r, view)]
@@ -246,8 +257,24 @@ def main() -> int:
     print("── 四分区汇总 ──")
     print(f"BLOCK 直拦 {totals['BLOCK']} / KEYWORD 压制 {totals['KEYWORD']} / "
           f"TRIGGER 可触发 {totals['TRIGGER']} / SILENT 静默 {totals['SILENT']}（合计 {counted}）")
-    if no_prompt:
-        print(f"（另 {no_prompt} 条用例缺 prompt 变量，未参分区——多变量生成形态另议）")
+    if missing:
+        # 内容盲结构诊断：只回键名/分布/计数，零内容回显——定位「生成物本无
+        # vars.prompt」（多变量形态）还是「解析器形态盲区」（如 flow 映射）
+        topkeys = Counter(k for m in missing for k in m.get("_topkeys", set()))
+        varskeys = Counter(k for m in missing for k in m.get("_varskeys", set()))
+        strategies = Counter(m["strategy"] for m in missing)
+        plugins = Counter(m["plugin"] for m in missing)
+        print(f"── 缺 prompt 用例结构诊断（{len(missing)} 条，内容盲：只回键名/分布）──")
+        print("  顶层键名: " + ", ".join(f"{k}×{c}" for k, c in sorted(topkeys.items()))
+              if topkeys else "  顶层键名: （零键记录——列表项内容形态未被解析器识别，回传处置）")
+        print("  vars 键名: " + (", ".join(f"{k}×{c}" for k, c in sorted(varskeys.items()))
+                                if varskeys else "（该批无展开 vars 段——flow 映射或 vars 缺席）"))
+        print("  strategy 分布: " + ", ".join(f"{k}×{c}" for k, c in sorted(strategies.items())))
+        print("  plugin 分布: " + ", ".join(f"{k}×{c}" for k, c in sorted(plugins.items())))
+        print("  判读提示: ① 顶层键名含 vars 但 vars 键名为空 → flow 映射内联形态（解析盲区，回传处置）")
+        print("           ② 顶层键名无 vars → 生成物本无 prompt 变量（多变体形态，看替代键名）")
+        print("           ③ vars 键名非 prompt → 多变量生成形态，记替代变量名另议")
+        print("           ④ vars 键名含 prompt 但未录内容 → prompt 空值/空块标量形态")
     print("── 逐 plugin 分解 ──")
     for name in sorted(by_plugin):
         b = by_plugin[name]
