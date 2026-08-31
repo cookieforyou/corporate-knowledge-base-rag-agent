@@ -146,6 +146,39 @@ class EvalReportThresholdTest {
             .doesNotThrowAnyException();
     }
 
+    // ── 分类地板覆写（MD1 口径面 B2，16 章 v2.85）──
+
+    @Test
+    void multiDocFloorOverrideAppliesWhileOthersKeepGlobal() {
+        // MULTI_DOC 覆写地板 3.0：均值 3.1 ≥ 3.0 放行（旧全局 3.5 下会 FAIL）
+        List<EvalResult> results = new ArrayList<>();
+        results.addAll(cases(QACategory.FACTOID, 5, 4.5));
+        results.addAll(cases(QACategory.MULTI_DOC, 3, 3.1));
+        assertThatCode(() -> reportOf(results).assertThresholds(props))
+            .doesNotThrowAnyException();
+
+        // 未列分类沿用全局 3.5：TABLE 同均值 3.1 仍单维崩盘（覆写不越权外溢）
+        List<EvalResult> withTable = new ArrayList<>();
+        withTable.addAll(cases(QACategory.FACTOID, 5, 4.5));
+        withTable.addAll(cases(QACategory.TABLE, 3, 3.1));
+        assertThatThrownBy(() -> reportOf(withTable).assertThresholds(props))
+            .isInstanceOf(EvalFailedException.class)
+            .hasMessageContaining("TABLE")
+            .hasMessageContaining("3.5");
+    }
+
+    @Test
+    void multiDocBelowOverriddenFloorStillFails() {
+        // 覆写地板 3.0 下均值 2.9 —— 回归检测语义保留（重审≠退役）
+        List<EvalResult> results = new ArrayList<>();
+        results.addAll(cases(QACategory.FACTOID, 5, 4.5));
+        results.addAll(cases(QACategory.MULTI_DOC, 3, 2.9));
+        assertThatThrownBy(() -> reportOf(results).assertThresholds(props))
+            .isInstanceOf(EvalFailedException.class)
+            .hasMessageContaining("MULTI_DOC")
+            .hasMessageContaining("3.0");
+    }
+
     // ── 多跳准确率门禁（簇④ 5.2）──
 
     @Test

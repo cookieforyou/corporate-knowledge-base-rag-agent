@@ -83,7 +83,8 @@ public record EvalReport(
      *   <li>**噪声带**：均值 ∈ [阈值−tolerance, 阈值) → WARN 不 FAIL（Judge 分数噪声，
      *       单次抖动不杀门禁）；低于 阈值−tolerance 才判真实击穿；</li>
      *   <li>**单维不崩**：整体均值可能被大类拉高掩盖分类崩盘——任一正向分类均值低于
-     *       categoryFloor（样本数 ≥ categoryMinSamples 才检查）即 FAIL。</li>
+     *       categoryFloor（样本数 ≥ categoryMinSamples 才检查）即 FAIL；地板可按分类
+     *       覆写（MD1 B2，16 章 v2.85）：所列分类用覆写值，其余沿用全局。</li>
      * </ol>
      */
     public void assertThresholds(EvalProperties props) {
@@ -112,14 +113,15 @@ public record EvalReport(
                     "⚠️ Faithfulness %.3f 落入噪声带 [%.3f, %.1f)——门禁放行但需关注趋势",
                     avgFaithfulness, hardFloor, t.getFaithfulness()));
             }
-            // 单维不崩：分类均值地板
+            // 单维不崩：分类均值地板（MD1 B2：分类覆写优先，未列出分类沿用全局）
             for (Map.Entry<QACategory, DoubleSummaryStatistics> e : faithfulnessByCategory().entrySet()) {
                 DoubleSummaryStatistics stat = e.getValue();
+                double floor = t.faithfulnessFloorFor(e.getKey());
                 if (stat.getCount() >= t.getFaithfulnessCategoryMinSamples()
-                        && stat.getAverage() < t.getFaithfulnessCategoryFloor()) {
+                        && stat.getAverage() < floor) {
                     failures.append(String.format(
                         "分类 %s Faithfulness 均值 %.3f < 地板 %.1f（样本 %d，单维崩盘）%n",
-                        e.getKey(), stat.getAverage(), t.getFaithfulnessCategoryFloor(), stat.getCount()));
+                        e.getKey(), stat.getAverage(), floor, stat.getCount()));
                 }
             }
         }

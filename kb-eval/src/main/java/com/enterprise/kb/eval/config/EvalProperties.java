@@ -1,10 +1,13 @@
 package com.enterprise.kb.eval.config;
 
+import com.enterprise.kb.eval.dataset.QACategory;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 评估配置 —— 前缀 eval，阈值表对应设计文档第十六章 16.4 CI 门禁阈值表
@@ -192,6 +195,17 @@ public class EvalProperties {
         /** 地板生效的最小样本数：分类样本不足时跳过地板检查（小样本均值噪声过大） */
         private int faithfulnessCategoryMinSamples = 3;
         /**
+         * 分类地板按分类覆写（MD1 口径面 B2，16 章 v2.85）：键 = QACategory 名，
+         * 所列分类以覆写值为地板，未列出分类沿用全局 {@link #faithfulnessCategoryFloor}。
+         * 重审依据仅覆盖所列分类——MULTI_DOC 语料为全库横向枚举形态，锚点 3-5/例 vs
+         * topK=5 物理零边际，F 均值上限被检索面钉死（MD1 三臂实证检索开关面无杠杆：
+         * expansion 九例逐位零变化、graph 反现挤出劣化；7 轮实测 3.000-3.444 < 旧地板 3.5），
+         * 簇④ 预留口「届时地板基线随结构面重审」的承接。覆写 3.0 = 实测下界取整
+         * （全部 7 轮 ≥3.000，单维崩盘回归检测语义保留）。
+         */
+        private Map<String, Double> faithfulnessCategoryFloorOverrides =
+            new HashMap<>(Map.of(QACategory.MULTI_DOC.name(), 3.0));
+        /**
          * 多跳准确率门禁（簇④ 5.2，「多跳推理准确率 >80%」验收的度量承接）：
          * MULTI_HOP 分类以 Answer Correctness 达 {@code multiHopAcPassScore}
          * 判通过，通过率低于此阈值门禁失败；样本不足 {@code multiHopMinSamples}
@@ -234,5 +248,11 @@ public class EvalProperties {
         private double noiseRobustness = 0.85;
         /** 较基线回归容忍度（预留，基线对比机制 Phase 5 落地） */
         private double regression = 0.03;
+
+        /** 分类生效地板：覆写表优先，未列出分类回落全局 {@link #faithfulnessCategoryFloor}（MD1 B2） */
+        public double faithfulnessFloorFor(QACategory category) {
+            return faithfulnessCategoryFloorOverrides
+                .getOrDefault(category.name(), faithfulnessCategoryFloor);
+        }
     }
 }
