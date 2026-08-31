@@ -179,6 +179,44 @@ class EvalReportThresholdTest {
             .hasMessageContaining("3.0");
     }
 
+    // ── MULTI_DOC 文档级召回观察带（MD1 B1，16 章 v2.86）──
+
+    /** MULTI_DOC 用例（B1 观察带测试用）：携文档级召回读数，chunk 级 NaN，生成侧过线隔离变量 */
+    private static EvalResult multiDoc(String id, double docRecall) {
+        GoldenQAPair pair = new GoldenQAPair(id, QACategory.MULTI_DOC, "跨文档-" + id,
+            null, null, null, null, null, null, null);
+        return new EvalResult(pair, List.of(), null, Double.NaN, Double.NaN, Double.NaN,
+            docRecall, Double.NaN, Double.NaN,
+            4.5, 4.0, null, null, null, null, null,
+            null, null, null, null, null, null, null);
+    }
+
+    @Test
+    void summaryRendersMultiDocDocRecallObservationLine() {
+        List<EvalResult> results = new ArrayList<>();
+        results.addAll(cases(QACategory.FACTOID, 3, 4.5));
+        results.add(multiDoc("cross-02", 1.0));
+        results.add(multiDoc("cross-08", 1.0));
+        results.add(multiDoc("cross-07", 0.33));
+        assertThat(reportOf(results).summary())
+            .contains("MULTI_DOC 文档级召回（观察带）")
+            .contains("通过率 0.667（2/3")
+            .contains("转正线 0.80")
+            .contains("cross-07");
+    }
+
+    @Test
+    void multiDocDocRecallObservationDoesNotGate() {
+        // 观察带纪律：低通过率只报告不阻断（转正判据 = 连续 2 轮 ≥0.80 后接线）
+        List<EvalResult> results = new ArrayList<>();
+        results.addAll(cases(QACategory.FACTOID, 3, 4.5));
+        results.add(multiDoc("cross-02", 0.2));
+        results.add(multiDoc("cross-08", 0.2));
+        results.add(multiDoc("cross-07", 0.33));
+        assertThatCode(() -> reportOf(results).assertThresholds(props))
+            .doesNotThrowAnyException();
+    }
+
     // ── 多跳准确率门禁（簇④ 5.2）──
 
     @Test

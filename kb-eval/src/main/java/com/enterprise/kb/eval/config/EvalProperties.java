@@ -246,6 +246,18 @@ public class EvalProperties {
          * 观察不门禁（Judge 单方向误报面治理后再议），assertThresholds 不消费。
          */
         private double noiseRobustness = 0.85;
+        // ── MULTI_DOC 文档级召回（MD1 B1，16 章 v2.86）：观察带首版——计算与报告读数
+        // 落地，门禁经转正判据接线（连续 2 轮通过率 ≥multiDocDocRecallMinAccuracy 后
+        // 消费，与 CA 0.90 收紧转正同构）；n=9 小样本 1 例 = 11% 抖动，首版直接门禁易误报。
+        // 口径定案依据（md1-b3 实证「文档对、块错」）：领域限定后 docRecall/docMrr 双
+        // 1.00 而锚点 chunk 全灭（topK 被同文档非锚点块占据）——跨文档聚合的业务本位 =
+        // 文档找齐，chunk R 降观察（报告逐用例行保留）。摘要读数行的判读线与此处缺省同源 ──
+        /** MULTI_DOC 单例文档级召回通过线（docRecall ≥ 此值判通过） */
+        private double multiDocDocRecallPassScore = 0.5;
+        /** MULTI_DOC 文档级召回通过率门禁线（观察带期不消费——转正判据登记） */
+        private double multiDocDocRecallMinAccuracy = 0.80;
+        /** 门禁生效最小样本数（转正时消费；同 multiHopMinSamples 纪律） */
+        private int multiDocMinSamples = 5;
         /** 较基线回归容忍度（预留，基线对比机制 Phase 5 落地） */
         private double regression = 0.03;
 

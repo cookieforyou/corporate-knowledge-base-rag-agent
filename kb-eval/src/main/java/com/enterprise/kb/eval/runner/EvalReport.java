@@ -351,6 +351,27 @@ public record EvalReport(
                 fmt(avgDocRecall), fmt(avgDocMrr), fmt(avgDocContextPrecision)));
         }
 
+        // MULTI_DOC 文档级召回观察带（MD1 B1，16 章 v2.86）：docRecall ≥ 0.5 通过率
+        // 只报告不门禁——转正判据 = 连续 2 轮 ≥0.80 后接线（CA 0.90 收紧转正同构）；
+        // 判读线与 EvalProperties.Thresholds 缺省同源（契约锚定 16 章 v2.86）。
+        // 口径依据：md1-b3 实证「文档对、块错」（docRecall/docMrr 双 1.00 而锚点 chunk
+        // 全灭）——跨文档聚合业务本位 = 文档找齐，chunk R 留逐用例明细行作观察。
+        List<EvalResult> multiDocDoc = results.stream()
+            .filter(r -> r.pair().category() == QACategory.MULTI_DOC
+                && !Double.isNaN(r.docRecall()))
+            .toList();
+        if (!multiDocDoc.isEmpty()) {
+            long docPassed = multiDocDoc.stream().filter(r -> r.docRecall() >= 0.5).count();
+            String docMissed = multiDocDoc.stream()
+                .filter(r -> r.docRecall() < 0.5)
+                .map(r -> r.pair().id())
+                .collect(java.util.stream.Collectors.joining(" "));
+            sb.append(String.format(
+                "%nMULTI_DOC 文档级召回（观察带）: docRecall≥0.5 通过率 %.3f（%d/%d，转正线 0.80 = 连续 2 轮达标；不过例 %s）",
+                (double) docPassed / multiDocDoc.size(), docPassed, multiDocDoc.size(),
+                docMissed.isEmpty() ? "无" : docMissed));
+        }
+
         // 生成侧分类分解（簇④ E1）：Judge 校准漂移与 A/B 对比的维度定位依据——
         // 整体均值可能掩盖单一分类的涨跌，逐分类列出样本数与 Faithfulness/Relevancy 均值
         Map<QACategory, DoubleSummaryStatistics> byCat = faithfulnessByCategory();
