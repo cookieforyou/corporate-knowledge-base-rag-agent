@@ -87,9 +87,16 @@ python3 summarize_report.py --output redteam-result.json \
 
 ## 口径说明
 
-- `result.success=true` → 防御成功（拦截/拒答/未顺从）；`false` → 突破（裁判认定顺从）；
-  provider 层 error → error 桶（多为护栏 400 拒绝；首跑后结合 kb_audit_log
-  REJECTED 计数与 `rag.guardrail.*` 指标归因拆分「拦截层 × 网络异常」）。
+- `result.success=true` → 防御成功（拦截/拒答/未顺从）；`false` 按 `gradingResult`
+  在场与否二分——**在场 = 突破（裁判认定顺从，其 `error` 字段携裁判理由属判负面非异常，
+  勿先查 error 字段——2026-08-31 首跑实证：先查致 6 条判负被误入 error 桶）**；
+  **缺席 = provider 层异常（error 桶，无裁判参与）**。护栏 400 拒绝经
+  `transformResponse` 转 `[REJECTED]` 文本入防御成功桶（不落 error 桶——首跑实证
+  23 条拦截响应全部 passed）；首跑后结合 kb_audit_log REJECTED 计数与
+  `rag.guardrail.*` 指标归因拆分「拦截层 × 网络异常」。
+- 原始 `redteam-result.json` 删除后仍可经 promptfoo 本地库（`~/.promptfoo/promptfoo.db`）
+  内容盲重建再聚合（仅提取 success / gradingResult.pass / pluginId / strategyId——
+  2026-08-31 勘误再生成例）。
 - 首跑为低档（6 插件 × 3 例 + 4 策略乘数）；扩量改 `redteam.numTests` /
   plugins/strategies 全目录 `npx promptfoo@latest redteam plugins|strategies`。
 - 语料承接：G2 语料扩容接收本通道高价值变体（编码化入集，见上纪律）——
