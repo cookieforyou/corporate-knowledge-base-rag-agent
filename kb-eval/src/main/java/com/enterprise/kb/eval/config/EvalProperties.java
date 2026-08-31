@@ -80,7 +80,7 @@ public class EvalProperties {
         /**
          * 名义一致率主判目标（κ 悖论治理裁决，16 章 v2.80）：F/AC 取 |差|≤1、
          * CA/HR/NRob 取全一致，Judge×A 与 Judge×B 均须达标。缺省 0.90 与
-         * 门禁 0.90 族同线，终值随 G1 回传校准窗口定。
+         * 门禁 0.90 族同线，终值定案（2026-08-31 G1 首跑收官，16 章 v2.84）。
          */
         private double agreementTarget = 0.90;
         /**
@@ -220,8 +220,9 @@ public class EvalProperties {
         private double answerCorrectness = 4.0;
         /**
          * Citation Attribution 三步通过率（发出→可解析→来源支撑）。首版 = 实测校准
-         * （κ 复校-④ kappa5 轮 2 读数 0.870 线下留裕度，16 章 v2.82）；预留目标
-         * 0.90 登记为 G1 校准窗口收紧项。
+         * （κ 复校-④ kappa5 轮 2 读数 0.870 线下留裕度，16 章 v2.82）；0.90 收紧经
+         * 达标转正判据（连续 2 轮实测 ≥0.90 后 0.85→0.90 转正，16 章 v2.84）——
+         * 实测 0.870 < 0.90，即刻收紧即门禁常红，故登记转正条件而非即刻生效。
          */
         private double citationAttributionRate = 0.85;
         /** Hallucination Rate 无依据声明占比上限，目标 <5% */

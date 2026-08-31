@@ -90,7 +90,8 @@ eval:
     # 仅 eval.guardrail.l2-enabled=true 生效
     injection-block-rate-l2: ${EVAL_INJECTION_BLOCK_RATE_L2:0.90}
     # Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）——接线落地（16 章 v2.82）：
-    # AC/CA/HR 三维门禁；CA 首版 = 实测校准（0.90 为 G1 校准窗口收紧目标）；
+    # AC/CA/HR 三维门禁；CA 首版 = 实测校准（0.90 收紧经达标转正判据：
+    # 连续 2 轮实测 ≥0.90 后转正，16 章 v2.84）；
     # NRob 承 M3 裁决观察不消费，阈值键保留
     answer-correctness: ${EVAL_THRESHOLD_ANSWER_CORRECTNESS:4.0}
     citation-attribution-rate: ${EVAL_THRESHOLD_CITATION_ATTRIBUTION_RATE:0.85}
