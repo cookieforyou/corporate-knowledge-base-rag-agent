@@ -150,6 +150,28 @@ public record EvalReport(
             log.warn("多跳样本 {} < 最小样本 {}——准确率只报告不门禁",
                 multiHop.size(), t.getMultiHopMinSamples());
         }
+        // MULTI_DOC 文档级召回门禁（MD1 B1 转正接线，16 章 v2.89：md1-final 0.889 +
+        // md1-final-2 1.000 连续 2 轮 ≥0.80 达成转正判据）；样本不足最小样本数只报告
+        // 不门禁（同多跳纪律）
+        List<EvalResult> multiDocDocGate = results.stream()
+            .filter(r -> r.pair().category() == QACategory.MULTI_DOC
+                && !Double.isNaN(r.docRecall()))
+            .toList();
+        if (multiDocDocGate.size() >= t.getMultiDocMinSamples()) {
+            long docPassed = multiDocDocGate.stream()
+                .filter(r -> r.docRecall() >= t.getMultiDocDocRecallPassScore())
+                .count();
+            double docAccuracy = (double) docPassed / multiDocDocGate.size();
+            if (docAccuracy < t.getMultiDocDocRecallMinAccuracy()) {
+                failures.append(String.format(
+                    "MULTI_DOC 文档级召回通过率 %.2f < 阈值 %.2f（样本 %d，docRecall≥%.1f 判通过）%n",
+                    docAccuracy, t.getMultiDocDocRecallMinAccuracy(), multiDocDocGate.size(),
+                    t.getMultiDocDocRecallPassScore()));
+            }
+        } else if (!multiDocDocGate.isEmpty()) {
+            log.warn("MULTI_DOC 文档级样本 {} < 最小样本 {}——docRecall 只报告不门禁",
+                multiDocDocGate.size(), t.getMultiDocMinSamples());
+        }
         // 注入拦截门禁（簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
         // JAILBREAK / MULTILINGUAL 属 L2 防域（安全簇⑤ E2 升格，见下条）、
         // ENCODING_OPAQUE 为观察集——L1 不拦截属设计行为，只报告不门禁
@@ -367,7 +389,7 @@ public record EvalReport(
                 .map(r -> r.pair().id())
                 .collect(java.util.stream.Collectors.joining(" "));
             sb.append(String.format(
-                "%nMULTI_DOC 文档级召回（观察带）: docRecall≥0.5 通过率 %.3f（%d/%d，转正线 0.80 = 连续 2 轮达标；不过例 %s）",
+                "%nMULTI_DOC 文档级召回: docRecall≥0.5 通过率 %.3f（%d/%d，门禁 ≥0.80[v2.89 转正]；不过例 %s）",
                 (double) docPassed / multiDocDoc.size(), docPassed, multiDocDoc.size(),
                 docMissed.isEmpty() ? "无" : docMissed));
         }

@@ -192,27 +192,56 @@ class EvalReportThresholdTest {
     }
 
     @Test
-    void summaryRendersMultiDocDocRecallObservationLine() {
+    void summaryRendersMultiDocDocRecallGateLine() {
         List<EvalResult> results = new ArrayList<>();
         results.addAll(cases(QACategory.FACTOID, 3, 4.5));
         results.add(multiDoc("cross-02", 1.0));
         results.add(multiDoc("cross-08", 1.0));
         results.add(multiDoc("cross-07", 0.33));
         assertThat(reportOf(results).summary())
-            .contains("MULTI_DOC 文档级召回（观察带）")
+            .contains("MULTI_DOC 文档级召回")
             .contains("通过率 0.667（2/3")
-            .contains("转正线 0.80")
+            .contains("门禁 ≥0.80")
             .contains("cross-07");
     }
 
     @Test
-    void multiDocDocRecallObservationDoesNotGate() {
-        // 观察带纪律：低通过率只报告不阻断（转正判据 = 连续 2 轮 ≥0.80 后接线）
+    void multiDocDocRecallBelowMinSamplesDoesNotGate() {
+        // 样本不足纪律（同多跳）：n=3 < multiDocMinSamples=5 只报告不门禁
         List<EvalResult> results = new ArrayList<>();
         results.addAll(cases(QACategory.FACTOID, 3, 4.5));
         results.add(multiDoc("cross-02", 0.2));
         results.add(multiDoc("cross-08", 0.2));
         results.add(multiDoc("cross-07", 0.33));
+        assertThatCode(() -> reportOf(results).assertThresholds(props))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void multiDocDocRecallGateFailsBelowThreshold() {
+        // 转正后门禁（16 章 v2.89）：n=5 通过率 0.6 < 0.80 → 失败
+        List<EvalResult> results = new ArrayList<>();
+        results.addAll(cases(QACategory.FACTOID, 3, 4.5));
+        results.add(multiDoc("cross-01", 1.0));
+        results.add(multiDoc("cross-02", 1.0));
+        results.add(multiDoc("cross-03", 1.0));
+        results.add(multiDoc("cross-07", 0.33));
+        results.add(multiDoc("cross-09", 0.4));
+        assertThatThrownBy(() -> reportOf(results).assertThresholds(props))
+            .isInstanceOf(EvalFailedException.class)
+            .hasMessageContaining("MULTI_DOC 文档级召回通过率");
+    }
+
+    @Test
+    void multiDocDocRecallGatePassesAtThreshold() {
+        // n=5 通过率 1.0 → 门禁通过不抛
+        List<EvalResult> results = new ArrayList<>();
+        results.addAll(cases(QACategory.FACTOID, 3, 4.5));
+        results.add(multiDoc("cross-01", 1.0));
+        results.add(multiDoc("cross-02", 1.0));
+        results.add(multiDoc("cross-03", 0.6));
+        results.add(multiDoc("cross-07", 1.0));
+        results.add(multiDoc("cross-09", 0.5));
         assertThatCode(() -> reportOf(results).assertThresholds(props))
             .doesNotThrowAnyException();
     }

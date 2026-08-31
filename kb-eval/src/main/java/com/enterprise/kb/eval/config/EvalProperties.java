@@ -246,9 +246,9 @@ public class EvalProperties {
          * 观察不门禁（Judge 单方向误报面治理后再议），assertThresholds 不消费。
          */
         private double noiseRobustness = 0.85;
-        // ── MULTI_DOC 文档级召回（MD1 B1，16 章 v2.86）：观察带首版——计算与报告读数
-        // 落地，门禁经转正判据接线（连续 2 轮通过率 ≥multiDocDocRecallMinAccuracy 后
-        // 消费，与 CA 0.90 收紧转正同构）；n=9 小样本 1 例 = 11% 抖动，首版直接门禁易误报。
+        // ── MULTI_DOC 文档级召回（MD1 B1，16 章 v2.86 观察带 → v2.89 转正接线）：
+        // 转正判据达成（md1-final 0.889 + md1-final-2 1.000 连续 2 轮 ≥0.80），
+        // assertThresholds 自 v2.89 起消费本组键（与 CA 0.90 收紧转正同构）。
         // 口径定案依据（md1-b3 实证「文档对、块错」）：领域限定后 docRecall/docMrr 双
         // 1.00 而锚点 chunk 全灭（topK 被同文档非锚点块占据）——跨文档聚合的业务本位 =
         // 文档找齐，chunk R 降观察（报告逐用例行保留）。摘要读数行的判读线与此处缺省同源 ──
