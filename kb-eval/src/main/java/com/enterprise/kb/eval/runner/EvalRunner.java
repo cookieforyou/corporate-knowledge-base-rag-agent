@@ -10,6 +10,7 @@ import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.QACategory;
 import com.enterprise.kb.eval.metric.CitationMetrics;
 import com.enterprise.kb.eval.metric.JudgePrompts;
+import com.enterprise.kb.eval.metric.TolerantJudgeScoreConverter;
 import com.enterprise.kb.eval.metric.RetrievalMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -48,6 +49,8 @@ public class EvalRunner {
     private final ChatClient chatClient;        // 被测链路
     private final ChatModel chatModel;          // 被测基座（Noise Robustness 评估侧生成，簇② 5.8）
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
+    private final TolerantJudgeScoreConverter judgeScoreConverter = new TolerantJudgeScoreConverter(); // judge 畸形输出剥壳容错（簇② md1-final，16 章 v2.87）
+
     private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（簇⑤ B2 S6）
     private final ChatClient guardrailL2ChatClient; // INJECTION L1+L2 联合护栏链（安全簇⑤ E2）
     private final IndirectInjectionRunner indirectInjectionRunner; // 间接注入评估（簇④ D3）
@@ -844,7 +847,7 @@ public class EvalRunner {
 
     private JudgePrompts.JudgeScore judge(String prompt) {
         return judgeChatClient.prompt().user(prompt)
-            .call().entity(JudgePrompts.JudgeScore.class);
+            .call().entity(judgeScoreConverter);
     }
 
     private Double scoreOf(JudgePrompts.JudgeScore js) {
