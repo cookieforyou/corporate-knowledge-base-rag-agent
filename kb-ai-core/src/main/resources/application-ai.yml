@@ -77,16 +77,19 @@ rag:
     primary:
       provider: ${RAG_ROUTING_PRIMARY_PROVIDER:glm}
       # GLM-5.3-Flash（缺省主答）：强制思考不可关（官方：thinking.type 仅支持
-      # enabled，传 disabled 报错）；reasoning-effort 支持 low/high/max（缺省空=
-      # 不传=服务端 max，生产档位经冒烟定档；其余值报错）；temperature 按官方推荐
-      # 1.0（思考模式下采样参数生效性未证——DeepSeek 思考形态同静默，无退化基线）
+      # enabled，传 disabled 报错）；reasoning-effort 支持 low/high/max（其余值报错）；
+      # temperature 按官方推荐 1.0（思考模式下采样参数生效性未证——DeepSeek 思考
+      # 形态同静默，无退化基线）。effort 生产档 low（2026-09-01 冒烟定案，v2.78）：
+      # 服务端 max 档思维链致 20-31s 级延迟（completion 900-1050 含思维链，
+      # ~35-45 tok/s；DeepSeek 思考开 high 时代基线 5-8s），low 档召回 RAG 主答
+      # 语境足用，TTFT 优先
       glm:
         base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
         api-key: ${ZHIPU_API_KEY:}
         model: ${ZHIPU_MODEL:glm-5.3-flash}
         temperature: ${ZHIPU_TEMPERATURE:1.0}
         max-tokens: ${ZHIPU_MAX_TOKENS:4096}
-        reasoning-effort: ${ZHIPU_REASONING_EFFORT:}
+        reasoning-effort: ${ZHIPU_REASONING_EFFORT:low}
       # DeepSeek V4 Flash（回落形态）：官方实证「思考模式默认开 + effort 默认
       # high」「思考模式下 temperature 等采样参数静默忽略」——历史形态主路一直
       # 思考开 high 运行（temperature 0.1 从未生效）。回落缺省显式关思考（快答
