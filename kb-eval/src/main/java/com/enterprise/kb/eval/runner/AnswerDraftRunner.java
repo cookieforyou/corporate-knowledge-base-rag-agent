@@ -30,7 +30,7 @@ import java.util.List;
  * 标注真值独立于被度量的检索链路）；标注缺失/全部失效时回落探针 Top-8 候选
  * （审定表显式标记 {@code RETRIEVAL_FALLBACK}，人工重点复核）。
  *
- * <p>起草走 Judge 模型（qwen3.7-plus，temperature 0 / 思考关）——与被测模型
+ * <p>起草走 Judge 模型（qwen3.8-flash，temperature 0 / 思考关）——与被测模型
  * 跨厂商隔离，草稿独立性同 Judge 独立性（16.3 纪律）。产出双通道：
  * {@code target/expected-answer-drafts.json}（机读，回灌工具可消费）+
  * {@code target/expected-answer-drafts.md}（审定表）。人工审定修订后按

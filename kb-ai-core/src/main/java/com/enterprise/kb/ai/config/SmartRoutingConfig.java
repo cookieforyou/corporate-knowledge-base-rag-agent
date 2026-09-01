@@ -22,7 +22,7 @@ import org.springframework.lang.Nullable;
  * 多模型路由装配（设计文档 11.2.2，任务 3.2）
  *
  * <p>主模型为手工装配的 {@code deepSeekChatModel}（DeepSeek OpenAI 兼容端点）；
- * 备用模型为百炼 qwen3.7-plus（OpenAI 兼容端点，跨厂商容灾，复用 DASHSCOPE_API_KEY）——
+ * 备用模型为百炼 qwen3.8-flash（OpenAI 兼容端点，跨厂商容灾，复用 DASHSCOPE_API_KEY）——
  * 装配形态与 kb-eval JudgeModelConfig 同款实证先例：baseUrl/apiKey 必须经
  * {@link OpenAiChatOptions} 传入（异步 client 不继承预建同步 client 凭证，
  * 见 CLAUDE.md 坑位①）。
@@ -89,7 +89,7 @@ public class SmartRoutingConfig {
     }
 
     /**
-     * 备用模型（qwen3.7-plus，百炼 OpenAI 兼容端点）。
+     * 备用模型（qwen3.8-flash，百炼 OpenAI 兼容端点）。
      * 密钥缺失快失败：与 JudgeModelConfig 同策，避免落入 OpenAI SDK 晦涩凭证异常。
      */
     @Bean
@@ -99,7 +99,7 @@ public class SmartRoutingConfig {
             ObjectProvider<ChatModelObservationConvention> observationConventionProvider,
             @Value("${rag.routing.fallback.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}") String baseUrl,
             @Value("${rag.routing.fallback.api-key:}") String apiKey,
-            @Value("${rag.routing.fallback.model:qwen3.7-plus}") String model,
+            @Value("${rag.routing.fallback.model:qwen3.8-flash}") String model,
             @Value("${rag.routing.fallback.temperature:0.1}") Double temperature,
             @Value("${rag.routing.fallback.enable-thinking:false}") boolean enableThinking) {
         if (apiKey == null || apiKey.isBlank()) {
@@ -112,7 +112,7 @@ public class SmartRoutingConfig {
                 .apiKey(apiKey)
                 .model(model)
                 .temperature(temperature)
-                // qwen3.5/3.6/3.7 商业版默认开思考模式（enable_thinking=true，官方文档实证）：
+                // qwen 商业版（3.5+ 各代）默认开思考模式（enable_thinking=true，官方文档实证）：
                 // 每次调用先生成大量思维链——E2E 实测单调用 20-60s，故障接管场景不可接受。
                 // 默认显式关闭；extraBody 经 createRequest 透传至请求体顶层（源码核验）
                 .extraBody(Map.of("enable_thinking", enableThinking))

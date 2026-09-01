@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>L1 词表快筛（InputSanitizeAdvisor 300）对语义化载荷（越狱引导 / 多语种 /
  * 角色扮演类指令覆盖）不设防——设计内的阶段定位。本 Advisor 在其后、记忆
- * Advisor(400) 之前执行：**仅对可疑触发请求**调用备用模型（qwen3.7-plus 百炼
+ * Advisor(400) 之前执行：**仅对可疑触发请求**调用备用模型（qwen3.8-flash 百炼
  * 端点）做结构化二判（PASS/SUSPECT/BLOCK），非全量（成本口径：预计触发
  * &lt;5% 请求，指标跟踪）；被拒内容不入多轮记忆仓储（位序语义）。
  *

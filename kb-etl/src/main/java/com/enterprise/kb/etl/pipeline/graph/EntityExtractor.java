@@ -17,7 +17,7 @@ import java.util.Map;
  * 实体关系抽取器（簇④ 5.1）：单 chunk（窗口语境）→ 结构化实体/关系。
  *
  * <p>模型手工装配（同 {@code ContextualEnrichmentTransformer#buildContextModel} 先例，
- * kb-etl 不依赖 kb-ai-core）——百炼 qwen3.7-plus 低价档结构化调用，
+ * kb-etl 不依赖 kb-ai-core）——百炼 qwen3.8-flash 低价档结构化调用，
  * <b>enable_thinking=false 显式钉死</b>（坑位⑮：qwen 商业版默认开思考，
  * 单调用 20-60s 不可接受）；温度 0 求结构稳定。
  *

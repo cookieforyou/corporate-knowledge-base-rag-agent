@@ -5,8 +5,8 @@ import org.springframework.ai.converter.BeanOutputConverter;
 /**
  * Judge 结构化输出容错转换器（簇② md1-final 判读落地，16 章 v2.87）。
  *
- * <p>背景：qwen3.7-plus 结构化输出偶发畸形（md1-final 实测 4/267 ≈ 1.5%，
- * κ3 轮同款）——两种形态：① 键值错位（字符串误入对象位，Jackson 绑定异常）；
+ * <p>背景：Judge 模型结构化输出偶发畸形（md1-final 实测 4/267 ≈ 1.5%，
+ * judgeModel=qwen3.8-flash；qwen3.7-plus κ3 轮同款 2 例）——两种形态：① 键值错位（字符串误入对象位，Jackson 绑定异常）；
  * ② 裸 token 前缀（如以 reason: 开头的非 JSON 文本）。既有路径经
  * {@code .entity(Class)} 直接剔除该用例，致分区分母逐轮漂移、门禁读数不可复现
  * （MULTI_HOP 30→27 等）。

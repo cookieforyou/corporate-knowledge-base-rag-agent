@@ -9,7 +9,7 @@
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · Judge: `qwen3.7-plus`
+- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · 辅助族（备用/L2 二判/Judge/图抽取）: `qwen3.8-flash`
 - 向量库: pgvector / Milvus 2.6（`kb.vector-store.provider` 切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO（版本指 ECS 服务端，pom 客户端独立）
 - 认证: OAuth2 Resource Server (JWT) · Casdoor（前端 PKCE）
@@ -55,7 +55,7 @@ kb-rag-agent/
 
 **语义缓存（Phase 5 簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索引擎经 Redisson RSearch 零新增依赖（租户域隔离 + KNN 余弦 0.95 + docIds TAG 失效反查，失效频道接四处写路径）；指标 `rag.retrieval.cache.*`；N1 = DeepSeek 前缀缓存默认开零代码；§11.9/11.10
 
-**GraphRAG（Phase 5 簇④）**：`rag.graph.enabled` 缺省关，关闭态全族条件装配缺位（双路形态逐字节零变化）。图 = Neo4j Community（第二台 ECS 独占，原生驱动手工装配 `spring.neo4j.*`，不引 SDN）：Entity 节点（确定性 ID = 租户×名×类型 + 描述嵌入 1024 维同源向量索引 + doc/chunk 溯源引用）+ Chunk 锚点（不存内容，PG 事实源）+ MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 终态帧异步派发（旁路不阻断入库，`graph_status` 独立状态机；qwen3.7-plus 结构化 + 令牌桶双档分桶[增量 20/回填 60 次/分/租户，`RateProfile`] + 信号量 3 + 实体嵌入 10 条/批 + 幂等重写 + 孤儿清扫）。图路检索**零 LLM**：查询嵌入 → 向量索引实体匹配 → 1 跳展开（衰减 0.5）→ chunk 反查 + 租户纵深校验；`RrfFusion` N 路泛化三路融合（双路签名委派兼容）；单路容错/超时降级矩阵三路扩展。生命周期：删除清引用/软删翻标记/编辑重抽取；存量回填 `POST /api/v1/admin/graph/backfill`；备份 `neo4j-backup.sh`（停备窗口 + dump 双副本）；多跳验收 = `MULTI_HOP` 分类 AC 通过率 ≥80%（`--eval.draft-multihop` 机器草稿 + 用户审定）；场景 A 阈值 500→600。§10.9/13.3/17.5-17.6/18.5
+**GraphRAG（Phase 5 簇④）**：`rag.graph.enabled` 缺省关，关闭态全族条件装配缺位（双路形态逐字节零变化）。图 = Neo4j Community（第二台 ECS 独占，原生驱动手工装配 `spring.neo4j.*`，不引 SDN）：Entity 节点（确定性 ID = 租户×名×类型 + 描述嵌入 1024 维同源向量索引 + doc/chunk 溯源引用）+ Chunk 锚点（不存内容，PG 事实源）+ MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 终态帧异步派发（旁路不阻断入库，`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档分桶[增量 20/回填 60 次/分/租户，`RateProfile`] + 信号量 3 + 实体嵌入 10 条/批 + 幂等重写 + 孤儿清扫）。图路检索**零 LLM**：查询嵌入 → 向量索引实体匹配 → 1 跳展开（衰减 0.5）→ chunk 反查 + 租户纵深校验；`RrfFusion` N 路泛化三路融合（双路签名委派兼容）；单路容错/超时降级矩阵三路扩展。生命周期：删除清引用/软删翻标记/编辑重抽取；存量回填 `POST /api/v1/admin/graph/backfill`；备份 `neo4j-backup.sh`（停备窗口 + dump 双副本）；多跳验收 = `MULTI_HOP` 分类 AC 通过率 ≥80%（`--eval.draft-multihop` 机器草稿 + 用户审定）；场景 A 阈值 500→600。§10.9/13.3/17.5-17.6/18.5
 
 **Chunk 运维与重建（簇③）**：kb-admin 首建，kb-api fat jar 聚合（禁反向依赖）；租户守卫 @AuthenticationPrincipal Jwt 直消费（不复用 JwtUtils 防成环）。Chunk CRUD：编辑 = 同源消毒 → PG → 异步重嵌入（**delete→add 两步**——Milvus add 非 upsert）+ ES 覆写（簇④ 联动：编辑触发文档图重抽取、软删/恢复翻转图锚点标记）；软删委派 C1；恢复经重嵌入；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
@@ -71,7 +71,7 @@ kb-rag-agent/
 
 **工具链与 HITL（kb-ai-agent）**：`EnterpriseMockTools` 契约对齐真实 OA/ERP；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + tenant/user 绑定，故障 fail-closed；**ToolCallingAdvisor 自建 order 1000**
 
-**多模型路由**：`SmartRoutingChatModel`（@Primary）包装主模型 DeepSeek V4（starter 经 `spring.ai.model.chat=none` 让位；include_usage 流式计账）+ 备用 `fallbackChatModel`（qwen3.7-plus 百炼）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传
+**多模型路由**：`SmartRoutingChatModel`（@Primary）包装主模型 DeepSeek V4（starter 经 `spring.ai.model.chat=none` 让位；include_usage 流式计账）+ 备用 `fallbackChatModel`（qwen3.8-flash 百炼）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传
 
 **检索与对话链路**
 

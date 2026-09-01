@@ -101,7 +101,7 @@ class SmartRoutingConfigTest {
     void fallbackModelOpensStreamUsageAndKeepsThinkingOff() {
         ChatModel model = config.fallbackChatModel(registryProvider(), noConventionProvider(),
             "https://dashscope.aliyuncs.com/compatible-mode/v1", "sk-test",
-            "qwen3.7-plus", 0.1, false);
+            "qwen3.8-flash", 0.1, false);
 
         OpenAiChatOptions options = optionsOf(model);
         assertThat(options.getStreamOptions()).isNotNull();
@@ -114,7 +114,7 @@ class SmartRoutingConfigTest {
     void fallbackModelFailsFastOnMissingApiKey() {
         assertThatThrownBy(() -> config.fallbackChatModel(registryProvider(), noConventionProvider(),
             "https://dashscope.aliyuncs.com/compatible-mode/v1", "",
-            "qwen3.7-plus", 0.1, false))
+            "qwen3.8-flash", 0.1, false))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("DASHSCOPE_API_KEY");
     }
@@ -129,7 +129,7 @@ class SmartRoutingConfigTest {
 
         ChatModel fallback = config.fallbackChatModel(registryProvider(), conventionProvider(),
             "https://dashscope.aliyuncs.com/compatible-mode/v1", "sk-test",
-            "qwen3.7-plus", 0.1, false);
+            "qwen3.8-flash", 0.1, false);
         assertThat(conventionOf(fallback)).isInstanceOf(ContentCapturingChatModelObservationConvention.class);
     }
 }

@@ -24,14 +24,14 @@ Phase 4 全阶段收官（2026-08-22，v2.62）后，Phase 5 立项输入齐备�
 
 | # | 原任务 | 裁决 | 依据与调整形态 |
 |---|---|---|---|
-| 5.1 | 部署 Neo4j + 知识图谱构建管道 | **调整（部署位置）** | 图数据库维持 Neo4j（2026 年 GraphRAG 生态事实标准：官方 Java 驱动 / Cypher 完整 / Spring Data Neo4j 成熟），**部署位置改为新购第二台 ECS**——Neo4j Community 内存基线 4G+，与业务全家桶（PG/ES/Redis/Milvus/MinIO/监控）同机争资源；独占新机 2C8G 可承载（企业级知识图谱 <100 万节点为极轻负载）。轻量备选已调研登记（FalkorDB Redis 基座 ~1/5 内存但 Java 生态弱；AuraDB Pro 托管 ~$65/GB/月预算敏感；Apache AGE 成熟度不足），均不选。**实体关系抽取走现有 qwen3.7-plus / DeepSeek API 结构化输出**，零本地算力，异步管道限流复用 ETL 进度模式 |
+| 5.1 | 部署 Neo4j + 知识图谱构建管道 | **调整（部署位置）** | 图数据库维持 Neo4j（2026 年 GraphRAG 生态事实标准：官方 Java 驱动 / Cypher 完整 / Spring Data Neo4j 成熟），**部署位置改为新购第二台 ECS**——Neo4j Community 内存基线 4G+，与业务全家桶（PG/ES/Redis/Milvus/MinIO/监控）同机争资源；独占新机 2C8G 可承载（企业级知识图谱 <100 万节点为极轻负载）。轻量备选已调研登记（FalkorDB Redis 基座 ~1/5 内存但 Java 生态弱；AuraDB Pro 托管 ~$65/GB/月预算敏感；Apache AGE 成熟度不足），均不选。**实体关系抽取走现有 qwen3.8-flash / DeepSeek API 结构化输出**，零本地算力，异步管道限流复用 ETL 进度模式 |
 | 5.2 | GraphRAG 混合检索（Vector + Graph 双引擎） | **保留** | 与 5.1 合簇。融合形态 = 现有双路（向量+BM25）+ Graph 路经 **RRF 三路融合**（复用 `kb-ai-core/retriever/RrfFusion`，K=60 同口径）；`rag.graph.enabled` 降级开关，关即回落双路零回归；租户隔离沿用 RetrievalContext 参数链（图查询注入租户过滤，fail-closed 同现有两层纪律）。验收口径不变：多跳推理准确率 >80%（08 章 v2 注「2026 仍为专项增强非标配、索引成本 10-100x」判断经本轮调研复核仍成立——故抽取管道限流异步 + 仅对入库语料建图，不做全量重建常态化） |
 | 5.3 | Multi-Agent Orchestrator（主+子 Agent） | **收窄** | **现状裁决前提**：工具层仍是 Mock（读×2 自动 + 写×1 HITL，无真实端点），原验收「任务完成率 >85%」无真实工具不可度量。2026 调研结论：企业 KB 主场景是**单 Agent 强溯源**，Multi-Agent 分解在工具集真实落地后才有价值拐点；Spring AI 2.0 GA 无原生 Agent 抽象，官方路径 = 组合式（Building Effective Agents 五模式 + Agentic Patterns 子代理编排）。**收窄形态**：Orchestrator-Workers 骨架（主 Agent + TaskTool 子代理委派）+ 3 个 Mock 子代理演示（知识检索/数据查询/报告生成）+ **真实工具挂接契约文档**；落 `kb-ai-agent`（模块 pom 已登记「Multi-Agent 5.3 落此」）；复用双 ChatClient/Advisor order/toolContext/SmartRoutingChatModel 装饰器模式。**不引** spring-ai-agent-utils（成熟度一般、与 Advisor 体系重叠）与 Spring AI Alibaba graph 编排（另一套框架栈，与现有基线不兼容）。真实工具立项后自动升级回原验收。工时 5d→3d |
 | 5.4 | 意图识别 + 自适应路由 | **调整归档** | 收窄版已完成（2026-08-08，用户拍板当日 E2E 通过，07 卷留痕完整）。**剩余两项正面处理**：A 跨链 mode=auto 的价值前提 = 真实工具落地 + 跨链混合流量，当前工具仍 Mock、双链分工清晰（请求体 `mode: rag|tool` 显式分流），**无触发条件** → 设计稿归档（锚点 11 章 §11.4），本阶段不推进；B 复杂度三级路由依赖轻量模型档位引入（3.2 定案「双模型下形同虚设」），继续挂起，显式登记为不启动项。两项工时归零 |
 | 5.5 | 多知识库动态路由 | **降级登记** | 2026 业界多 KB 路由的触发条件 = 多业务线/多语言/多模态切分；本项目单租户企业库场景无真实需求。**不做预迁移**（不预建空列空表），仅设计稿登记：触发条件 = 第二个真实知识库接入需求提出，届时按「领域独立 VectorStore + 路由选择」原设计复活。工时 3d→0 |
 | 5.6 | Semantic Cache（Redis RediSearch + 语义相似度） | **保留（复用落点已勘察）** | 调研实证：语义缓存是 2026 agentic RAG 延迟/成本的标配缓解手段（业界命中率 30-68%、命中延迟 50-100ms vs 全链 1-3s）。实现路径：**现有 Redis 8 自建**（Redis 8 已内置 Query Engine，KNN 向量检索 + 余弦相似），零新增基建与月费；复用 `EmbeddingModel` Bean（qwen3.7-text-embedding，检索同源保证相似性口径一致）、Redisson 已装配、`AiBusinessMetrics` 已预留 `rag.retrieval.cache.hit` 指标位。插入点 = 新增 CacheCheckAdvisor，候选位序在护栏簇（320）之后、记忆/路由（400/440）之前——**记忆一致性是设计关键点**（命中短路不得跳过会话记忆写入与审计），具体 order 与短路语义落码前源码级核验并回写 11.2 链序表。失效策略 = TTL + 知识库变更按 document_id 关联失效。商业备选登记：阿里云 Tair 语义缓存网关（精确+语义双策略、全托管回写，命中率高 5-10 点，新增月费，待流量规模化再重估）。验收扩为双口径：命中率 >30% + 命中延迟 P95 降 >40%，基线对照 = 簇① LT1 压测数据 |
 | 5.7 | 扩充 Golden Dataset 至 200+ | **销项** | ✅ 已达成：现 237 条（干净 110 + 注入 127），三分区门禁全绿（16 章）。登记为提前收官项 |
-| 5.8 | 扩充 LLM-as-Judge 评估管道 | **保留 + 扩充** | 16 章 v2 已定案的四项 Phase 5 阈值指标（Answer Correctness / Citation Attribution / Noise Robustness / Hallucination）扩管道保留，Judge 跨厂商基座复用（qwen3.7-plus）；**扩充「人类校准集」子项**：与 Golden 正交的 50 例双标注（封顶控制计费），Cohen's κ ≥ 0.80 一致率，落实原验收「人类校准 85-90%」口径；顺带消化簇④遗留的 TABLE 分类 Faithfulness 观察项读数。工时 3d→4d |
+| 5.8 | 扩充 LLM-as-Judge 评估管道 | **保留 + 扩充** | 16 章 v2 已定案的四项 Phase 5 阈值指标（Answer Correctness / Citation Attribution / Noise Robustness / Hallucination）扩管道保留，Judge 跨厂商基座复用（qwen3.8-flash）；**扩充「人类校准集」子项**：与 Golden 正交的 50 例双标注（封顶控制计费），Cohen's κ ≥ 0.80 一致率，落实原验收「人类校准 85-90%」口径；顺带消化簇④遗留的 TABLE 分类 Faithfulness 观察项读数。工时 3d→4d |
 | 5.9 | A/B 测试框架（Prompt 效果对比） | **调整（轻量化）** | Prompt Git Ops 已就绪（4.8，v2.61，11 条全覆盖）——无需再建模板管理类抽象。形态 = kb-eval Judge **双跑对比**（同 Golden 集、双 Prompt 版本、差异报表自动产出），与 5.8 扩管道共享 Judge 基座。工时 3d→2d |
 | 5.10 | 反馈闭环导出管道 | **保留** | 对齐 16.6 既有设计：JSONL 双格式（SFT 单轮 + DPO chosen/rejected 偏好对），数据源 = kb_feedback + 审计凭 trace_id 关联。**只导出不绑定平台**：首选微调方法 KTO 不在百炼微调服务支持清单，百炼 SFT/DPO 通道登记为可选接续（门槛达标：SFT ≥100 例 / DPO ≥50 对）；自训练否决（无 GPU）。工时 2d 不变 |
 | 5.11 | MCP Server 宿主 | **销项** | ✅ 已在 Phase 4 4.10 提前交付（v2.60）：spring-ai-starter-mcp-server-webmvc Streamable HTTP + 三件套 + 身份守卫 + 独立限流审计，标准 Client 兼容与隔离验证通过（§11.8）。登记为提前收官项 |
@@ -61,7 +61,7 @@ Phase 4 全阶段收官（2026-08-22，v2.62）后，Phase 5 立项输入齐备�
 与 5.6 语义缓存**正交**（语义缓存省延迟，前缀缓存省 token）：system prompt + grounding 模板等固定前缀在供应商侧缓存，业界读数省 token 30-50%。
 
 - **主链**：DeepSeek 上下文缓存（主模型 deepseek-v4-flash 承载主流量）；
-- **备用/评估链**：百炼显式缓存（qwen3.7-plus 备用与 Judge/意图分类链路），百炼另有隐式缓存自动生效；
+- **备用/评估链**：百炼显式缓存（qwen3.8-flash 备用与 Judge/意图分类链路），百炼另有隐式缓存自动生效；
 - **落码纪律**：两家缓存 API 形态、最小前缀门槛、计费口径落码前源码级核验（DeepSeek 与百炼契约不同，不可互推）；
 - **成本**：~1d（装配层改造 + 命中计数指标 + 面板读数）。
 
@@ -107,7 +107,7 @@ Phase 4 全阶段收官（2026-08-22，v2.62）后，Phase 5 立项输入齐备�
 | ① | 收尾清零 | N2 全量：用户侧 7 项回传验收登记 + rerank observation 补齐 + 告警 14 条校准（伴生 M1）+ B5 CRITICAL 11 治理 + 5.7/5.11 销项登记 | 前置欠账一次清零；**LT1 压测基线是簇③硬前置** | 机器侧 ~2d + 用户侧执行（窗口 1-2w） | LT1 四场景断言全绿 + P95 基线回填 18 §18.4；告警 7 天误报率 <5%；B5 CRITICAL 清零 |
 | ② | 评估进化 | 5.8 Judge 4 指标扩管道 + 人类校准集 50 例（κ ≥ 0.80）+ 5.9 Prompt Git Ops 双跑差异报表 + 5.10 反馈 JSONL 双格式导出 | 评估尺子先升级，为簇③④⑤验收提供度量；共享 Judge 基座 | 8d | 4 指标上线 + 校准报告 + A/B 报表自动产出 + 导出 E2E ≥200 例 |
 | ③ | 语义缓存 | 5.6 RediSearch 自建（CacheCheckAdvisor + TTL/document_id 失效）+ N1 Context Cache（DeepSeek 主链 + 百炼备用/评估链） | 两种缓存正交（省延迟 + 省 token），同簇推进 | 4d | 命中率 >30% + 命中延迟 P95 降 >40%（对照 LT1）+ 失效 5min E2E + token 节省面板可读 |
-| ④ | GraphRAG | 5.1 新 ECS Neo4j Community 部署 + 实体关系抽取管道（qwen3.7-plus 结构化输出、限流异步）+ 5.2 三路 RRF 融合（复用 `RrfFusion`）+ `rag.graph.enabled` 降级 + 多跳专项测试集 ≥30 例 | 图数据库 → 抽取管道 → 融合检索同域串行 | 10d | 多跳准确率 >80% + 抽取抽检 >85% + 三路融合 P95 <600ms + 开关关闭零回归 |
+| ④ | GraphRAG | 5.1 新 ECS Neo4j Community 部署 + 实体关系抽取管道（qwen3.8-flash 结构化输出、限流异步）+ 5.2 三路 RRF 融合（复用 `RrfFusion`）+ `rag.graph.enabled` 降级 + 多跳专项测试集 ≥30 例 | 图数据库 → 抽取管道 → 融合检索同域串行 | 10d | 多跳准确率 >80% + 抽取抽检 >85% + 三路融合 P95 <600ms + 开关关闭零回归 |
 | ⑤ | Agent 编排 | 5.3 收窄版：Orchestrator-Workers 骨架 + TaskTool 子代理委派 + 3 Mock 子代理演示 + 真实工具挂接契约文档 | 复用双链/Advisor/toolContext 基座；簇② Judge 扩管道做质量验收 | 3d | Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审 |
 | ⑥ | 产品化收尾 | 5.12 钉钉群机器人（Stream 模式优先）+ N3 A2A 最小形态 + 5.4/5.5 设计稿归档登记 + 文档三件套增量更新 + 全阶段验收复盘 | 对外触达 + 前瞻协议 + **全项目收口判据**统一收口 | ~4.5d | 机器人 @触发问答 E2E + 标准 A2A Client 调用通过（或降级论证入档）+ 文档评审通过（全项目收官） |
 
@@ -178,5 +178,5 @@ Phase 4 全阶段收官（2026-08-22，v2.62）后，Phase 5 立项输入齐备�
 | GraphRAG 融合 | `RrfFusion`（K=60）；`HybridDocumentRetriever` 双路并行 + `Future.get(timeout)` 降级模板；`hybridRetrievalExecutor` 虚拟线程执行器 Bean | kb-ai-core/retriever/ |
 | Multi-Agent | 双 ChatClient（rag/tool）+ @Qualifier 纪律；`toolContext` 通道（`ToolContextKeys`）；`SmartRoutingChatModel` ChatModel 装饰器先例；`kb-ai-agent` 模块定位已登记 | kb-ai-core / kb-ai-agent |
 | A2A / 钉钉触达 | `McpIdentityGuard` 身份物化 + `McpAuditRecorder` 轻量审计 + `McpRateLimiter` 独立配额桶模式；`/chat` 对话端点含全护栏链 | kb-ai-agent/mcp/ |
-| 评估进化 | `RetrievalProbe` 接口（Ordered 自动选择）；Judge 跨厂商基座（qwen3.7-plus）；三分区门禁 + `eval.ci.enabled`；`eval.retrieval-only` 秒级通道 | kb-eval |
+| 评估进化 | `RetrievalProbe` 接口（Ordered 自动选择）；Judge 跨厂商基座（qwen3.8-flash）；三分区门禁 + `eval.ci.enabled`；`eval.retrieval-only` 秒级通道 | kb-eval |
 | 性能度量 | `rag.retrieval.latency` / `rag.ttft` Timer（p50/p95/p99）；OTLP + Langfuse 生产化；kb-loadtest Gatling 四场景（LT1 基线产出方） | kb-ai-core/metrics/ / kb-loadtest |

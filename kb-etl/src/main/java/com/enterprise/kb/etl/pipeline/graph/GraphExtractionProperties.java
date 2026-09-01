@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>与图谱域全族同条件装配（{@code rag.graph.enabled=true}）——关闭态 Bean 缺位，
  * 链形态零变化。缺省经 YAML 占位消费 {@code DASHSCOPE_API_KEY}（备用/评估链同源密钥，
- * 见 application-ai.yml），模型 = 百炼 qwen3.7-plus（抽取是低价档结构化调用，
+ * 见 application-ai.yml），模型 = 百炼 qwen3.8-flash（抽取是低价档结构化调用，
  * 不经主对话链熔断——坑位⑭ 异构隔离同纪律）。
  */
 @Data
@@ -26,7 +26,7 @@ public class GraphExtractionProperties {
     private String apiKey = "";
 
     /** 抽取模型（低价档结构化输出） */
-    private String model = "qwen3.7-plus";
+    private String model = "qwen3.8-flash";
 
     /** 结构化抽取求稳：零温度 */
     private double temperature = 0.0;

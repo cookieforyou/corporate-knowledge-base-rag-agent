@@ -61,7 +61,7 @@ class EvalDiffRunnerTest {
         return new EvalSnapshot(
             new GitAnchor(commit.repeat(4), commit.repeat(1) + "abcdef123", "2026-08-24T00:00:00+08:00",
                 false, "2026-08-24T01:00:00Z"),
-            new EvalSnapshot.RunConfig(probe, 0, 5, false, "qwen3.7-plus", 0.0, false, true, 0, false),
+            new EvalSnapshot.RunConfig(probe, 0, 5, false, "qwen3.8-flash", 0.0, false, true, 0, false),
             aggregates,
             cases);
     }

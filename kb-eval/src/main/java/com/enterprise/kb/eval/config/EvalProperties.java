@@ -155,11 +155,11 @@ public class EvalProperties {
         /** Judge 模型端点（默认百炼 OpenAI 兼容端点，与被测 DeepSeek 形成跨厂商评判） */
         private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
         private String apiKey;
-        /** 16.3：Judge 模型须与被测模型隔离（被测 DeepSeek V4，Judge 默认 qwen3.7-plus） */
-        private String model = "qwen3.7-plus";
+        /** 16.3：Judge 模型须与被测模型隔离（被测 DeepSeek V4，Judge 默认 qwen3.8-flash） */
+        private String model = "qwen3.8-flash";
         private Double temperature = 0.0;
         /**
-         * qwen3.5/3.6/3.7 商业版默认开思考模式（enable_thinking=true，官方文档实证）——
+         * qwen 商业版（3.5+ 各代）默认开思考模式（enable_thinking=true，官方文档实证）——
          * 评估期每条用例多次 Judge 调用，思维链大幅拉长耗时与 token，默认显式关闭。
          * 簇④ E1 校准口径：thinking 开/关两形态漂移须经复跑定档（EVAL_JUDGE_ENABLE_THINKING
          * 切换复跑，run-label 各留快照），基线口径定档前不得跨形态对比分数。

@@ -45,7 +45,7 @@ class EvalSnapshotTest {
 
         assertThat(snapshot.anchor()).isEqualTo(anchor);
         assertThat(snapshot.runConfig().probe()).isEqualTo("hybrid");
-        assertThat(snapshot.runConfig().judgeModel()).isEqualTo("qwen3.7-plus");
+        assertThat(snapshot.runConfig().judgeModel()).isEqualTo("qwen3.8-flash");
         assertThat(snapshot.aggregates().avgFaithfulness()).isEqualTo(4.2);
         assertThat(snapshot.aggregates().phase5()).isEqualTo(EvalReport.Phase5Metrics.EMPTY);
         assertThat(snapshot.cases()).hasSize(1);

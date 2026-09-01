@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-26 · v2.75（Phase 5 簇③ 5.6 E2E 热修二：TAG 反查查询转义缺失——坑位㉟）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-01 · v2.76（辅助模型换代：备用模型 qwen3.7-plus→qwen3.8-flash）
+>
+> **v2.76（2026-09-01，辅助模型换代）**：备用模型 qwen3.7-plus → qwen3.8-flash（§11.2.2）——百炼 OpenAI 兼容端点 / DASHSCOPE_API_KEY / enable_thinking=false 机制不变，仅模型名切换；`rag.routing.fallback.model` 缺省与 L2 二判载体（§12.11）、Judge 基座（16 章 v2.90）同批换代。接管质量从 plus 档降为 flash 档属成本/质量取舍（故障接管瞬态场景可接受）；门禁基线 md1-final-2 的 L2 力判即经 qwen3.8-flash 备用链（快照实证），读数连续。
 >
 > **v2.75（2026-08-26，Phase 5 簇③ 5.6 E2E 热修二）**：用户侧失效演练实证暴露
 > **坑位㉟**——`invalidateByDocument` 的 TAG 反查 `@docIds:{…}` 直接嵌入原始值，
