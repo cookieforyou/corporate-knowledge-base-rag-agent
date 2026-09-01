@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-01 · v2.78（GLM effort 生产档 low 定案 + 智谱 429 事件注记）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.78（GLM effort 生产档 low 定案，复验 7-8.5s 回归基线带）
 >
 > **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发 chain 门禁复跑（E1）。
 >
@@ -507,19 +507,15 @@ ToolCallingAdvisor.builder()
 > （批A 已对齐 qwen3.8-flash）。
 
 > **v2.78 补充（2026-09-01，MB1 冒烟回传：GLM effort 生产档 low 定案）**：
-> 五验冒烟功能全过，但**延迟体感不合格**——3 问实测 8.1s（备用接管）/ 30.6s /
-> 20.5s（GLM 生成），对照 DeepSeek 思考开 high 时代基线 5-8s。**归因（audit CSV +
-> prometheus 实证）**：GLM 服务端 max effort 档思维链过长——completion 1048/921
-> tokens（含思维链，吞吐 ~35-45 tok/s），prompt 侧正常（1573-1855），检索仅
+> 五验冒烟功能全过，但**延迟体感不合格**——GLM 生成两问实测 30.6s / 20.5s，
+> 对照 DeepSeek 思考开 high 时代基线 5-8s。**归因（audit CSV + prometheus
+> 实证）**：GLM 服务端 max effort 档思维链过长——completion 1048/921 tokens
+> （含思维链，吞吐 ~35-45 tok/s），prompt 侧正常（1573-1855），检索仅
 > 400-677ms 非瓶颈，轻任务挂备正常（改写未触发，routing knowledge 3/3）。
 > **定案**：`ZHIPU_REASONING_EFFORT` 缺省空 → **`low`**（application-ai.yml 回写
 > 生产档；high/max 仍可显式调回）——RAG 主答有检索证据锚定，low 档推理深度
-> 足用，TTFT 优先。**伴生发现①（智谱账户 429）**：首问 GLM 即
-> `RateLimitException: 429 余额不足或无可用资源包` → 熔断计数 1/5 本次切备用
-> （qwen3.7-flash 生成 8.1s，后续 HALF_OPEN 试探成功闭合）——智谱账户需充值/
-> 开资源包，否则 low 档亦会被 429 打到接管；**伴生发现②（fallback env 显式
-> 旧值）**：ECS `.env` 显式 `RAG_ROUTING_FALLBACK_MODEL=qwen3.7-flash` 盖过批A
-> 缺省（qwen3.8-flash）——批A 只改缺省值，存量显式配置优先，建议改回缺省。
+> 足用，TTFT 优先。**low 复验（2026-09-02 回传）**：同题重问 7185ms / 8506ms，
+> 回归 5-8s 基线带，token 同步回落（无长思维链）——生产档定案闭环。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 
