@@ -45,6 +45,15 @@ class ContextualEnrichmentTransformerTest {
     }
 
     @Test
+    void blankApiKey_failsFastWithDashScopeHint() {
+        // v2.78：语境增强挂辅助族，密钥缺失快失败报 DASHSCOPE_API_KEY（经 public 主构造器触发）
+        assertThatCode(() -> new ContextualEnrichmentTransformer(
+                "  ", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen3.8-flash", 2000, 8))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("DASHSCOPE_API_KEY");
+    }
+
+    @Test
     void enrichesChunk_withPrefixAndOriginalTextMetadata() {
         var transformer = new ContextualEnrichmentTransformer(stubModel(CONTEXT), 2000);
         String original = "企业版定价为每年十万元，包含全部功能模块。".repeat(3);

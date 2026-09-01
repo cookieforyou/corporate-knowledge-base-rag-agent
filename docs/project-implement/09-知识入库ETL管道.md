@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-08-13（v2.27 簇⑥ C1 收尾）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-01（v2.28 语境增强挂辅助族）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -535,6 +535,17 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 > **结论**：检索三指标全维度改善、生成侧中性，`kb.etl.contextual.enabled` 默认
 > 转 `true`（回退：`KB_ETL_CONTEXTUAL_ENABLED=false`）。入库侧代价：每 chunk 一次
 > 经济模型调用（并发化后墙钟 ≈ 原 1/8）+ 增强前缀略增 embedding token。
+
+> **v2.28 语境增强挂辅助族（2026-09-01，批B 追随修复）**：主模型双形态批B 退役
+> `spring.ai.deepseek.*` 配置族后，v2.21 装配的 `spring.ai.deepseek.*` @Value 取值
+> 落空 → 空密钥快失败（启动报 `DEEPSEEK_API_KEY 未配置`）。定案迁辅助族：模型
+> **deepseek-v4-flash → qwen3.8-flash**（与备用/路由改写/图抽取同族，DashScope
+> compatible-mode），配置改自持三键 `kb.etl.contextual.{api-key,base-url,model}`
+> （key 缺省回落 `DASHSCOPE_API_KEY`——项目必有 key，不再依赖可选 DEEPSEEK key），
+> 并按坑位⑮显式 `enable_thinking=false`（摘要类轻任务防每 chunk 思维链税）。
+> temperature 0 / maxTokens 300 / 并发闸门不变。**注**：增强模型变更即
+> chunk `content` 增强前缀形态变更——存量语料经重入库窗口复现后 chain 探针基线
+> 需复测对档（与 v2.23 A/B 同法）。
 
 ---
 

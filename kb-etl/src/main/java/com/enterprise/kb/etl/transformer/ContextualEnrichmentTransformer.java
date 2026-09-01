@@ -57,9 +57,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 改虚拟线程有界并发（{@code kb.etl.contextual.concurrency} 默认 8，信号量限流
  * 防供应商侧 429），保序返回、单 chunk 失败隔离语义不变。
  *
- * <p>装配：经济模型 deepseek-v4-flash 手工装配 OpenAI 兼容形态
- * （同 SmartRoutingConfig 形态；kb-etl 不依赖 kb-ai-core，避免拖入对话链路
- * Advisor 栈——引 spring-ai-openai 实现模块而非 starter，免自动装配面）。
+ * <p>装配：辅助族经济模型 qwen3.8-flash 手工装配 OpenAI 兼容形态
+ * （与备用/路由改写/图抽取同族，配置族 {@code kb.etl.contextual.{api-key,
+ * base-url,model}} 自持三键，key 缺省回落 DASHSCOPE_API_KEY；kb-etl 不依赖
+ * kb-ai-core，避免拖入对话链路 Advisor 栈——引 spring-ai-openai 实现模块
+ * 而非 starter，免自动装配面。v2.78：deepseek 配置族随主模型双形态批B 退役，
+ * 语境增强自 deepseek-v4-flash 迁至辅助族，显式关思考防 ETL 侧思维链税）。
  */
 @Slf4j
 @Component
@@ -91,9 +94,9 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 
     @Autowired
     public ContextualEnrichmentTransformer(
-            @Value("${spring.ai.deepseek.api-key:}") String apiKey,
-            @Value("${spring.ai.deepseek.base-url:https://api.deepseek.com}") String baseUrl,
-            @Value("${spring.ai.deepseek.chat.model:deepseek-v4-flash}") String model,
+            @Value("${kb.etl.contextual.api-key:}") String apiKey,
+            @Value("${kb.etl.contextual.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}") String baseUrl,
+            @Value("${kb.etl.contextual.model:qwen3.8-flash}") String model,
             @Value("${kb.etl.contextual.chunk-max-chars:2000}") int chunkMaxChars,
             @Value("${kb.etl.contextual.concurrency:8}") int concurrency) {
         this(buildContextModel(apiKey, baseUrl, model), chunkMaxChars, concurrency);
@@ -118,13 +121,13 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
     }
 
     /**
-     * 语境生成模型手工装配（经济模型 + 低温度求稳定 + maxTokens 封顶成本）。
+     * 语境生成模型手工装配（辅助族经济模型 + 低温度求稳定 + maxTokens 封顶成本）。
      * 显式启用增强但密钥缺失 → 快失败（与 SmartRoutingConfig 主模型同纪律）。
      */
     private static ChatModel buildContextModel(String apiKey, String baseUrl, String model) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException(
-                "kb.etl.contextual.enabled=true 但 DEEPSEEK_API_KEY 未配置——语境增强不可用");
+                "kb.etl.contextual.enabled=true 但 DASHSCOPE_API_KEY 未配置——语境增强不可用");
         }
         log.info("语境增强模型装配: model={}, baseUrl={}", model, baseUrl);
         return OpenAiChatModel.builder()
@@ -134,6 +137,9 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
                 .model(model)
                 .temperature(0.0)
                 .maxTokens(300)
+                // qwen 商业版默认开思考模式（坑位⑮，与 fallbackChatModel 同治）：
+                // 语境增强是摘要类轻任务，显式关闭防每 chunk 调用先烧思维链
+                .extraBody(Map.of("enable_thinking", false))
                 .build())
             .build();
     }

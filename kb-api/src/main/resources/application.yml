@@ -126,6 +126,11 @@ kb:
     # 靶点 dm-13（跨 3 chunk 拆分表）0.000→0.667；回退置 false
     contextual:
       enabled: ${KB_ETL_CONTEXTUAL_ENABLED:true}
+      # 模型三键（v2.78 批B 追随：deepseek 配置族退役，语境增强挂辅助族 qwen3.8-flash；
+      # key 缺省回落 DASHSCOPE_API_KEY——项目必有 key，不再依赖可选 DEEPSEEK key）
+      api-key: ${KB_ETL_CONTEXTUAL_API_KEY:${DASHSCOPE_API_KEY:}}
+      base-url: ${KB_ETL_CONTEXTUAL_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      model: ${KB_ETL_CONTEXTUAL_MODEL:qwen3.8-flash}
       excerpt-chars: ${KB_ETL_CONTEXTUAL_EXCERPT_CHARS:2000}      # 语境 prompt 的文档概要取前字符数
       chunk-max-chars: ${KB_ETL_CONTEXTUAL_CHUNK_MAX_CHARS:2000}  # 语境 prompt 的 chunk 文本截断长度
       concurrency: ${KB_ETL_CONTEXTUAL_CONCURRENCY:8}             # 语境 LLM 调用并发上限（API 限流时下调）

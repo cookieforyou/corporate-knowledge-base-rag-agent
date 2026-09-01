@@ -9,7 +9,7 @@
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: 主答双形态（GLM-5.3-Flash 缺省 / DeepSeek V4 回落，`rag.routing.primary.provider` 一切即切）· Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · 辅助族（备用/路由改写/L2 二判/Judge/图抽取）: `qwen3.8-flash`
+- LLM: 主答双形态（GLM-5.3-Flash 缺省 / DeepSeek V4 回落，`rag.routing.primary.provider` 一切即切）· Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · 辅助族（备用/路由改写/L2 二判/Judge/图抽取/ETL 语境增强）: `qwen3.8-flash`
 - 向量库: pgvector / Milvus 2.6（`kb.vector-store.provider` 切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO（版本指 ECS 服务端，pom 客户端独立）
 - 认证: OAuth2 Resource Server (JWT) · Casdoor（前端 PKCE）
@@ -88,7 +88,7 @@ kb-rag-agent/
 
 **压测资产（kb-loadtest，簇⑥ 批5）**：Gatling 3.15.1 Java DSL（gatling:test 显式触发）；四场景 = A 检索真压 / B 生成桩压（内置纯 JDK StubChatServer 零计费）/ C 真实 LLM TTFT·TPOT（计费敏感缺省关）/ D SSE 多轮会话；语料 = Golden 干净集按 ID 引用（注入集零接触）；执行步骤清单 LT1；方法论 15 §15.4 / 基线 18 §18.4
 
-**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika（PPTX/XLSX 亦走此路）/ 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落，显式失败上抛）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img + heading_path；**Contextual 语境增强默认开**；chunk 确定性 ID；向量化 10 条/批
+**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika（PPTX/XLSX 亦走此路）/ 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落，显式失败上抛）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img + heading_path；**Contextual 语境增强默认开**（辅助族 qwen3.8-flash 自持键 `kb.etl.contextual.*`，key 回落 DASHSCOPE_API_KEY）；chunk 确定性 ID；向量化 10 条/批
 
 **基础设施**
 
