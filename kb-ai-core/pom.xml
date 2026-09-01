@@ -43,10 +43,8 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-deepseek</artifactId>
-        </dependency>
+        <!-- v2.77（模型层批B）：deepseek starter 退役——主模型双形态（GLM/DeepSeek）
+             均手工装配 OpenAI 兼容形态，starter 无装配面且阻塞 stream_usage 计账 -->
 
         <!-- MCP -->
         <dependency>

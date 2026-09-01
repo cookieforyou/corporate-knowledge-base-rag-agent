@@ -9,21 +9,11 @@ spring:
     # ── Model Provider 选择 ──
     # v2.19（簇③ D1）：chat 置 none——主模型改由 SmartRoutingConfig 手工装配为
     # OpenAI 兼容形态（开 stream_options.include_usage 修复流式配额漏算）。
-    # deepseek starter 自动装配的 @ConditionalOnProperty havingValue=deepseek，
-    # 此处若回写 deepseek 会与手工 Bean 同名冲突致启动失败（DeepSeekModelOverrideWiringTest 钉死）
+    # v2.77（模型层批B）：deepseek starter 依赖已移除，本键不再有让位对象，
+    # 保留为防御位——防未来误引 chat starter 自动装配与手工主模型冲突
     model:
       chat: none                             # 主模型手工装配（见上注）
       embedding: openai                      # OpenAI 兼容（实际指向百炼）
-
-    # ── DeepSeek V4 Chat ──
-    # v2.19（簇③ D1）起消费方变更：下列键经 SmartRoutingConfig @Value 读取，
-    # 不再被 starter 自动装配消费（chat=none 已令其让位）。
-    deepseek:
-      api-key: ${DEEPSEEK_API_KEY:}
-      chat:
-        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-        temperature: 0.1
-        max-tokens: 4096
 
     # ── 阿里云百炼 Embedding（OpenAI 兼容 API） ──
     openai:
@@ -77,10 +67,38 @@ rag:
   tool:
     approval:
       ttl-minutes: ${RAG_TOOL_APPROVAL_TTL_MINUTES:10}
-  # 多模型路由（3.2，设计文档 11.2.2）—— 主模型 DeepSeek V4 + 备用 qwen3.8-flash
-  # 熔断切换（连续失败 failure-threshold 次 → OPEN open-seconds 秒直发备用，
-  # 窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，复用 DASHSCOPE_API_KEY
+  # 多模型路由（3.2，设计文档 11.2.2）—— 主模型双形态开关（v2.77 模型层批B）+
+  # 备用 qwen3.8-flash 熔断切换（连续失败 failure-threshold 次 → OPEN
+  # open-seconds 秒直发备用，窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，
+  # 复用 DASHSCOPE_API_KEY。意图路由(440)/查询改写经 RetrievalConfig 轻任务
+  # Builder 挂备用模型（v2.77，防主模型思维链拖垮 TTFT）
   routing:
+    # ── 主模型双形态（GLM 缺省 / DeepSeek 回落，环境变量一切即切）──
+    primary:
+      provider: ${RAG_ROUTING_PRIMARY_PROVIDER:glm}
+      # GLM-5.3-Flash（缺省主答）：强制思考不可关（官方：thinking.type 仅支持
+      # enabled，传 disabled 报错）；reasoning-effort 支持 low/high/max（缺省空=
+      # 不传=服务端 max，生产档位经冒烟定档；其余值报错）；temperature 按官方推荐
+      # 1.0（思考模式下采样参数生效性未证——DeepSeek 思考形态同静默，无退化基线）
+      glm:
+        base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+        api-key: ${ZHIPU_API_KEY:}
+        model: ${ZHIPU_MODEL:glm-5.3-flash}
+        temperature: ${ZHIPU_TEMPERATURE:1.0}
+        max-tokens: ${ZHIPU_MAX_TOKENS:4096}
+        reasoning-effort: ${ZHIPU_REASONING_EFFORT:}
+      # DeepSeek V4 Flash（回落形态）：官方实证「思考模式默认开 + effort 默认
+      # high」「思考模式下 temperature 等采样参数静默忽略」——历史形态主路一直
+      # 思考开 high 运行（temperature 0.1 从未生效）。回落缺省显式关思考（快答
+      # 定位，关思考后采样参数恢复支持）；如需保留思考置 enabled + effort 调档
+      deepseek:
+        base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        api-key: ${DEEPSEEK_API_KEY:}
+        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        temperature: ${DEEPSEEK_TEMPERATURE:0.1}
+        max-tokens: ${DEEPSEEK_MAX_TOKENS:4096}
+        thinking-type: ${DEEPSEEK_THINKING_TYPE:disabled}    # enabled | disabled
+        reasoning-effort: ${DEEPSEEK_REASONING_EFFORT:}      # low|high|max，仅 enabled 时透传
     fallback:
       enabled: ${RAG_ROUTING_FALLBACK_ENABLED:true}
       model: ${RAG_ROUTING_FALLBACK_MODEL:qwen3.8-flash}

@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-01 · v2.76（辅助模型换代：备用模型 qwen3.7-plus→qwen3.8-flash）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-01 · v2.77（模型层批B：主模型双形态开关 + GLM-5.3-Flash 缺省 + 轻任务挂备）
+>
+> **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发 chain 门禁复跑（E1）。
 >
 > **v2.76（2026-09-01，辅助模型换代）**：备用模型 qwen3.7-plus → qwen3.8-flash（§11.2.2）——百炼 OpenAI 兼容端点 / DASHSCOPE_API_KEY / enable_thinking=false 机制不变，仅模型名切换；`rag.routing.fallback.model` 缺省与 L2 二判载体（§12.11）、Judge 基座（16 章 v2.90）同批换代。接管质量从 plus 档降为 flash 档属成本/质量取舍（故障接管瞬态场景可接受）；门禁基线 md1-final-2 的 L2 力判即经 qwen3.8-flash 备用链（快照实证），读数连续。
 >
@@ -451,6 +453,58 @@ ToolCallingAdvisor.builder()
 > 末块 usage 回写逻辑不变，include_usage 开启即生效（末块 usage 缺失仍按 0
 > 降级）；maxTokens 经官方 SDK 映射 wire 字段 `max_tokens`（字节码核验），
 > 与 starter 时代请求形态一致。
+
+> **v2.77 定稿（2026-09-01，模型层批B：主模型双形态开关 + GLM-5.3-Flash 缺省）**：
+> ① **缘由双线**——DeepSeek 0731 版涨价（输出空闲/高峰 ¥4.5/¥9.0 每 M token，
+> GLM-5.3-Flash 输出 ¥2.8，有效成本差 1.6×~3.2×）；官方文档实证发现 DeepSeek
+> 「思考模式默认打开且 effort 默认 high」（v4-flash 同 pro 映射）且「思考模式
+> 静默忽略 temperature/top_p 等采样参数（设值不报错不生效）」——**历史形态主路
+> 一直以思考开 high 运行**（主链配置从未显式干预），temperature 0.1 从未生效，
+> 现状 TTFT/输出计费本就含思维链（completion_tokens 含 reasoning token）；
+> ② **双主模型开关（用户定案：避免暴力替换）**——`rag.routing.primary.provider`
+> = `glm`（缺省）| `deepseek`（回落），两载体 Bean 互斥条件装配
+> （`deepSeekChatModel`/`glmChatModel`，Bean 名沿用），经 `primaryChatModel`
+> 桥 Bean 透传给 smartRoutingChatModel（路由层对开关零感知）；provider 非法值
+> 双空桥启动即失败并给出合法值域；配置族 `rag.routing.primary.{glm,deepseek}.*`
+> （供应商 env 前缀：ZHIPU_*/DEEPSEEK_*，与 DASHSCOPE_* 同风格）；切回 DeepSeek
+> 只动 `RAG_ROUTING_PRIMARY_PROVIDER` 一个环境变量；
+> ③ **GLM 形态（缺省主答）**——智谱 OpenAI 兼容端点
+> `https://open.bigmodel.cn/api/paas/v4`（openai-java ClientOptions baseUrl
+> 逐字拼接 + `/chat/completions` 后缀，字节码核验）；**强制思考不可关**（官方
+> 文档二次确认：`thinking.type` 仅支持 `enabled`，传 `disabled` 直接报错）——
+> 装配零 thinking 配置即唯一合法默认；`reasoning_effort` 支持 low/high/max
+> （缺省 max，其余值报错）经 `OpenAiChatOptions.reasoningEffort` 原生字段透传
+> （Builder 自定型签名源码核验），配置缺省空=不传=服务端 max，生产档位经冒烟
+> 定档；temperature 缺省 1.0（官方推荐；思考模式采样参数生效性未证，无退化
+> 基线——DeepSeek 思考形态同静默）；`stream_options.include_usage` 保持
+> （思维链 token 计入 completion_tokens，计量口径与 DeepSeek 思考形态连续）；
+> ④ **DeepSeek 思考治理（回落形态）**——`thinking-type` 缺省 `disabled`：官方
+> 默认（开 + high）是成本/延迟双高的隐藏负担，回落定位 = 快答形态；关思考后
+> 采样参数恢复支持（官方限制条款明确绑定思考模式，DeepSeek V3 非思考形态
+> 历来支持 temperature）；如需保留思考置 `enabled` + `reasoning-effort`
+> （low/high/max）——thinking 经 extraBody 嵌套透传（OpenAI SDK 无此标准字段），
+> effort 走原生字段；
+> ⑤ **轻任务挂备（切换必要配套）**——意图路由(440)/查询改写/多查询扩展的
+> LLM 调用统一切到 `fallbackChatModel`（qwen3.8-flash 思考关，L2 二判同载体）：
+> GLM 强制思考（缺省 max effort）下路由/改写走主模型 = 每问先烧一段思维链，
+> TTFT 不可接受；实现为 RetrievalConfig 私有辅助构造局部 `ChatClient.Builder`
+> （**不注册 Bean**——自动配置 Builder 挂 `@ConditionalOnMissingBean`，注册
+> 自定义会顶掉全局默认致 rag/tool 链断供，ChatClientAutoConfiguration 源码
+> 核验），观测四参对齐（registry + 双 convention，`@Nullable` 容忍——
+> DefaultChatClientBuilder 源码核验，轻调用 span 保持入树）；备用缺席（单模型
+> 形态）回落按类型注入的主链 ChatModel——kb-eval IT 桩上下文按 @Primary 解析
+> 自动正确（消费点类零改动）；**正效应**：改写模型恒定后主模型切换不再引起
+> 检索形态漂移；熔断计数从此只反映生成调用（路由/改写失败不再污染主模型
+> 熔断样本）；qwen 故障时路由 fail-open 回落完整检索（既有纪律）、改写故障
+> 上抛——等价于旧形态「主备俱损」场景，无韧性回退；
+> ⑥ **deepseek starter 退役**——主模型双形态均手工装配，starter 依赖自
+> kb-ai-core pom 移除；`DeepSeekModelOverrideWiringTest`（v2.19 让位机制双向
+> 钉死）随让位对象消失而删除，实证记录留档上方 v2.19 注记；`chat: none` 保留
+> 为防御位（防未来误引 chat starter）；接棒测试 `ProviderSwitchWiringTest`
+> 三态钉死（缺省 glm / 显式 deepseek / 非法值启动失败）；
+> ⑦ **门禁复跑（E1 纪律）**——主答模型切换属跨模型漂移，chain 探针门禁须
+> 复跑定档（用户侧项，见用户侧待执行项清单）；L2/Judge/图抽取不受影响
+> （批A 已对齐 qwen3.8-flash）。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 

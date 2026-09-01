@@ -22,9 +22,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  *   <li>{@code EvalApplication}——防嵌套 @ComponentScan 重复装配</li>
  *   <li>{@code EvalRunner / AnnotationRunner}——避免 ApplicationReady 触发全量评估</li>
  *   <li>{@code JudgeModelConfig}——judge api-key 空时 Bean 创建阶段即抛异常</li>
- *   <li>{@code SmartRoutingConfig}——其 deepSeekChatModel 手工装配校验真实 api-key；
- *       排除后由 {@link com.enterprise.kb.eval.it.config.ItModelConfig} 以桩重建
- *       smartRoutingChatModel（保留真实路由包装器，仅替换底层模型）</li>
+ *   <li>{@code SmartRoutingConfig}——其主模型装配（v2.77 双形态：glm/deepseek）
+ *       校验真实 api-key；排除后由 {@link com.enterprise.kb.eval.it.config.ItModelConfig}
+ *       以桩重建 smartRoutingChatModel（保留真实路由包装器，仅替换底层模型）</li>
  * </ul>
  *
  * <p>模型自动装配经属性门让位：{@code spring.ai.model.chat=none}（生产既有）+

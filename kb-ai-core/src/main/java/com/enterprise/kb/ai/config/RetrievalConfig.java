@@ -13,7 +13,10 @@ import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.observation.AdvisorObservationConvention;
+import org.springframework.ai.chat.client.observation.ChatClientObservationConvention;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -37,6 +40,7 @@ import org.springframework.core.task.TaskDecorator;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
 import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
+import org.springframework.lang.Nullable;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -125,18 +129,31 @@ public class RetrievalConfig {
      * 显式消解。与 440 预写机制零冲突：rewrittenQuery 已预写时
      * RewriteCapturingQueryTransformer 直接复用，本 Bean 不被调用（零重复 LLM）。
      * Bean 返回接口类型（调试台经 default apply() 调用不受影响）。
+     *
+     * <p><b>轻任务模型挂备（v2.77 模型层批B）</b>：改写 LLM 调用切换到备用模型
+     * （qwen3.8-flash 思考关）——见 {@link #lightweightChatClientBuilder}。
      */
     @Bean
-    public QueryTransformer rewriteQueryTransformer(ChatClient.Builder chatClientBuilder) {
+    public QueryTransformer rewriteQueryTransformer(
+            ChatModel smartRoutingChatModel,
+            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
+            ObjectProvider<AdvisorObservationConvention> advisorConventionProvider) {
         return CompressionQueryTransformer.builder()
-            .chatClientBuilder(chatClientBuilder)
+            .chatClientBuilder(lightweightChatClientBuilder(smartRoutingChatModel, fallbackChatModel,
+                observationRegistryProvider, clientConventionProvider, advisorConventionProvider))
             .promptTemplate(new PromptTemplate(PromptTemplates.HISTORY_REWRITE_PROMPT))
             .build();
     }
 
     @Bean
     public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
-            ChatClient.Builder chatClientBuilder,
+            ChatModel smartRoutingChatModel,
+            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
+            ObjectProvider<AdvisorObservationConvention> advisorConventionProvider,
             HybridDocumentRetriever hybridRetriever,
             IndirectInjectionScanPostProcessor indirectInjectionScanPostProcessor,
             RerankDocumentPostProcessor rerankPostProcessor,
@@ -168,11 +185,39 @@ public class RetrievalConfig {
         }
         if (expansion.isEnabled()) {
             builder.queryExpander(MultiQueryExpander.builder()
-                .chatClientBuilder(chatClientBuilder)
+                .chatClientBuilder(lightweightChatClientBuilder(smartRoutingChatModel, fallbackChatModel,
+                    observationRegistryProvider, clientConventionProvider, advisorConventionProvider))
                 .numberOfQueries(expansion.getNumQueries())
                 .build());
         }
         return builder.build();
+    }
+
+    /**
+     * 轻任务 ChatClient.Builder（v2.77 模型层批B）：意图路由(440)/查询改写/多查询
+     * 扩展的 LLM 调用统一挂备用模型（qwen3.8-flash 思考关，L2 二判同款载体）——
+     * GLM-5.3-Flash 主答强制思考（effort 缺省 max），路由/改写是每请求检索前的
+     * 硬前置，走主模型等于每问先烧一段思维链，TTFT 不可接受；改写模型恒定后
+     * 主模型切换（provider 开关）不再引起检索形态漂移。备用缺席（单模型形态）
+     * 回落主链 ChatModel；kb-eval IT 桩上下文按 @Primary 解析到桩——形态自动正确。
+     *
+     * <p>局部构造不注册 Bean：自动配置 ChatClient.Builder 挂
+     * {@code @ConditionalOnMissingBean}，注册自定义 Builder Bean 会顶掉全局默认，
+     * rag/tool 链全部断供（ChatClientAutoConfiguration 源码核验）。观测四参对齐：
+     * registry + 双 convention（@Nullable——DefaultChatClientBuilder 源码核验容忍
+     * null），轻调用 span 保持入 Langfuse trace 树（簇① 合树形态不回退）。
+     */
+    private static ChatClient.Builder lightweightChatClientBuilder(
+            ChatModel smartRoutingChatModel,
+            @Nullable ChatModel fallbackChatModel,
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
+            ObjectProvider<AdvisorObservationConvention> advisorConventionProvider) {
+        ChatModel target = fallbackChatModel != null ? fallbackChatModel : smartRoutingChatModel;
+        return ChatClient.builder(target,
+            observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP),
+            clientConventionProvider.getIfAvailable(),
+            advisorConventionProvider.getIfAvailable());
     }
 
     /**
@@ -249,15 +294,24 @@ public class RetrievalConfig {
      * 闲聊/对话元问题置 skipRetrieval 免检索直答；知识问把分类+指代消解合并
      * 产出的改写文本预写入 RetrievalContext（下游改写装饰器跳过二次 LLM 调用）。
      * fail-open：分类故障回落完整检索，{@code enabled=false} 整体回退现状。
+     * 分类器经轻任务 Builder 构建（v2.77 挂备用模型，见
+     * {@link #lightweightChatClientBuilder}）。
      */
     @Bean
     public QueryRoutingAdvisor queryRoutingAdvisor(
-            ChatClient.Builder chatClientBuilder,
+            ChatModel smartRoutingChatModel,
+            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            ObjectProvider<ObservationRegistry> observationRegistryProvider,
+            ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
+            ObjectProvider<AdvisorObservationConvention> advisorConventionProvider,
             ChatMemory agentChatMemory,
             AiBusinessMetrics metrics,
             @Value("${rag.routing.intent.enabled:true}") boolean enabled,
             @Value("${rag.routing.intent.history-size:6}") int historySize) {
-        return new QueryRoutingAdvisor(chatClientBuilder, agentChatMemory, metrics, enabled, historySize);
+        return new QueryRoutingAdvisor(
+            lightweightChatClientBuilder(smartRoutingChatModel, fallbackChatModel,
+                observationRegistryProvider, clientConventionProvider, advisorConventionProvider),
+            agentChatMemory, metrics, enabled, historySize);
     }
 
     /**

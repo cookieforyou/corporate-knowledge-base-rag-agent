@@ -9,7 +9,7 @@
 ## 技术栈
 
 - Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
-- LLM: DeepSeek V4 (`deepseek-v4-flash`) · Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · 辅助族（备用/L2 二判/Judge/图抽取）: `qwen3.8-flash`
+- LLM: 主答双形态（GLM-5.3-Flash 缺省 / DeepSeek V4 回落，`rag.routing.primary.provider` 一切即切）· Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · 辅助族（备用/路由改写/L2 二判/Judge/图抽取）: `qwen3.8-flash`
 - 向量库: pgvector / Milvus 2.6（`kb.vector-store.provider` 切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO（版本指 ECS 服务端，pom 客户端独立）
 - 认证: OAuth2 Resource Server (JWT) · Casdoor（前端 PKCE）
@@ -67,11 +67,11 @@ kb-rag-agent/
 
 **PII 识别器注册表（安全簇③）**：kb-commons `security/pii`——每类型独立识别器，七类（手机/身份证/邮箱/银行卡 Luhn/座机/车牌/IPv4）；**TextSanitizer.maskPii 退役**——单一实现源迁 Spring 单 Bean，对话链/ETL/审计/MCP/入口日志同实例；配置族 `rag.guardrail.pii.{type}.enabled` 缺省全开；NAME/ADDRESS 默认关；输出回显只计数不替换；kb-eval 干净集零命中门禁；§12.10
 
-**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用预写）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链——skip 旁路携记忆直答，fail-open 回落；可关
+**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用预写）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链——skip 旁路携记忆直答，fail-open 回落；可关；路由/改写轻任务经 RetrievalConfig 局部 Builder 挂 fallbackChatModel（GLM 强制思考防 TTFT 爆；改写模型恒定防主模型切换漂移；不注册 Bean 防 @ConditionalOnMissingBean 顶掉全局 Builder）
 
 **工具链与 HITL（kb-ai-agent）**：`EnterpriseMockTools` 契约对齐真实 OA/ERP；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + tenant/user 绑定，故障 fail-closed；**ToolCallingAdvisor 自建 order 1000**
 
-**多模型路由**：`SmartRoutingChatModel`（@Primary）包装主模型 DeepSeek V4（starter 经 `spring.ai.model.chat=none` 让位；include_usage 流式计账）+ 备用 `fallbackChatModel`（qwen3.8-flash 百炼）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传
+**多模型路由**：主模型双形态 `rag.routing.primary.provider`=glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 经原生字段透传缺省空=服务端 max）|deepseek（思考缺省显式关——官方默认开+high 且思考模式静默忽略采样参数）——互斥条件装配 + `primaryChatModel` 桥（非法值启动失败）；`SmartRoutingChatModel`（@Primary）包 primary + 备用 `fallbackChatModel`（qwen3.8-flash 百炼）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发备用流；异构备用须重建 Prompt（坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传；deepseek starter 已退役（chat=none 存为防御位）
 
 **检索与对话链路**
 

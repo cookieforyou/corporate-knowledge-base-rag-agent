@@ -10,7 +10,7 @@
 |---|------|
 | 语言 | Java 21（虚拟线程，`--enable-preview`） |
 | 框架 | Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4 |
-| LLM | DeepSeek V4 (`deepseek-v4-flash`)，备用 qwen3.8-flash（主备熔断路由 + 双供应商 SLA 指标） |
+| LLM | 主答双形态：GLM-5.3-Flash（缺省）/ DeepSeek V4（回落），`rag.routing.primary.provider` 一切即切；备用 qwen3.8-flash（主备熔断路由 + 双供应商 SLA 指标；路由/改写轻任务同载体） |
 | Embedding | 阿里云百炼 DashScope (`qwen3.7-text-embedding`，OpenAI 兼容 API) |
 | Rerank / Judge | `qwen3-rerank`（百炼 DashScope 端点）/ `qwen3.8-flash`（评估裁判 + 注入二判 + 图抽取） |
 | 向量库 | pgvector / Milvus 2.6（`KB_VECTOR_STORE_PROVIDER` 切换，默认 milvus） |
