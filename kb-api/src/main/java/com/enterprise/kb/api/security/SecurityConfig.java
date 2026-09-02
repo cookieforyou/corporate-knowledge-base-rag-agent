@@ -44,6 +44,9 @@ public class SecurityConfig {
     /** HSTS max-age（一年，含子域；仅 HTTPS 响应生效，dev HTTP 下浏览器自动忽略） */
     private static final long HSTS_MAX_AGE_SECONDS = 31536000L;
 
+    /** 系统超管判据（12 §12.12 二轮）：Casdoor 全局管理组织名（owner claim 值） */
+    private static final String SUPER_ADMIN_OWNER = "built-in";
+
     /**
      * 允许的前端来源（安全簇② B1；默认 Vite dev server 5173，
      * 生产经 APP_CORS_ALLOWED_ORIGINS 注入——与 WS 侧 WS_ALLOWED_ORIGINS 同款 env 通道，
@@ -69,9 +72,14 @@ public class SecurityConfig {
                 // WebSocket 端点放行 filter chain：鉴权在握手层经 JwtHandshakeInterceptor
                 // 复用同一 JwtDecoder 完成（2.13；浏览器 WS API 无法携带 Authorization 头）
                 .requestMatchers("/ws/**").permitAll()
-                // 运维面端点提级（前端鉴权批，2026-09-02）：kb-admin 六 Controller 统一
-                // 收口于 /api/v1/admin/**（chunks/rebuild/audit-logs/badcase/guardrail/
-                // graph/feedback-export）——isAdmin claim 映射 ROLE_ADMIN 后此处单点守卫，
+                // 系统级运维域提级（12 §12.12 二轮，2026-09-02）：护栏词表 CRUD/演练/重载
+                // 直接改写运行时拦截行为，属跨租户系统资产——owner=built-in 系统超管
+                // （ROLE_SUPER_ADMIN）独占；置于 /api/v1/admin/** 通用收口之前
+                // （specific 先于 general）
+                .requestMatchers("/api/v1/admin/guardrail/**").hasRole("SUPER_ADMIN")
+                // 租户级运维面端点提级（12 §12.12）：kb-admin Controller 统一收口于
+                // /api/v1/admin/**（chunks/rebuild/audit-logs/badcase/graph/
+                // feedback-export）——isAdmin claim 映射 ROLE_ADMIN 后此处单点守卫；
                 // 统计 /api/v1/stats 保持租户全员；语义 = 租户内运维权限分级，租户隔离
                 // fail-closed 基线不动（owner 单租户锚点，无跨租户视图）
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
@@ -107,11 +115,16 @@ public class SecurityConfig {
     }
 
     /**
-     * JWT → GrantedAuthorities 映射（前端鉴权批，2026-09-02）：Casdoor 把用户对象字段
-     * 直入 JWT payload，{@code isAdmin} 布尔即超管标记（租户 org 内管理员；
-     * built-in 全局 admin 的 owner=built-in 落空租户，无业务数据面）——映射为
-     * {@code ROLE_ADMIN} 供 {@code /api/v1/admin/**} filter-chain 与方法级
-     * {@code @PreAuthorize} 消费；claim 缺失/false 走缺省空权限（纯租户用户）。
+     * JWT → GrantedAuthorities 映射（12 §12.12，二轮升三层）：
+     * Casdoor 把用户对象字段直入 JWT payload——
+     * <ul>
+     *   <li>{@code isAdmin}=false → 空权限（普通租户用户，fail-safe 同 claim 缺失）；</li>
+     *   <li>{@code isAdmin}=true ∧ owner=租户 org → {@code ROLE_ADMIN}（租户管理员：
+     *       运维中心前四 Tab / Documents 治理写）；</li>
+     *   <li>{@code isAdmin}=true ∧ owner=built-in → 双权限
+     *       {@code ROLE_ADMIN + ROLE_SUPER_ADMIN}（系统超管：Casdoor 全局管理组织
+     *       built-in 用户；独占系统级运维域——护栏词表。超管 ⊇ 租户管理员权限面）。</li>
+     * </ul>
      *
      * <p>标准 SCOPE_/authorities 通道不适用：Casdoor access token 无标准 scope claim，
      * 自定义 claim 映射是 Resource Server 唯一权威形态。</p>
@@ -120,10 +133,14 @@ public class SecurityConfig {
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            Boolean isAdmin = jwt.getClaimAsBoolean("isAdmin");
-            return Boolean.TRUE.equals(isAdmin)
-                ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
-                : List.of();
+            if (!Boolean.TRUE.equals(jwt.getClaimAsBoolean("isAdmin"))) {
+                return List.of();
+            }
+            boolean superAdmin = SUPER_ADMIN_OWNER.equals(jwt.getClaimAsString("owner"));
+            return superAdmin
+                ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))
+                : List.of(new SimpleGrantedAuthority("ROLE_ADMIN"));
         });
         return converter;
     }

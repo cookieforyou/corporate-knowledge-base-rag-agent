@@ -4,10 +4,12 @@ import com.enterprise.kb.api.dto.DocumentProcessingView;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.model.KbDocument;
+import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,11 +30,12 @@ class StatsServiceTest {
 
     private final KbDocumentRepository documentRepository = mock(KbDocumentRepository.class);
     private final KbChunkRepository chunkRepository = mock(KbChunkRepository.class);
+    private final KbAuditLogRepository auditLogRepository = mock(KbAuditLogRepository.class);
     private StatsService statsService;
 
     @BeforeEach
     void setUp() {
-        statsService = new StatsService(documentRepository, chunkRepository);
+        statsService = new StatsService(documentRepository, chunkRepository, auditLogRepository);
     }
 
     @Test
@@ -46,11 +49,16 @@ class StatsServiceTest {
             new Object[]{null, 2L}));
         when(chunkRepository.countAliveByTenantId("t1")).thenReturn(42L);
         when(documentRepository.dailyIngestion(eq("t1"), any(LocalDateTime.class))).thenReturn(List.of());
+        // Bad Case 双计数（12 §12.12 二轮聚合口径）：连续 stub 按调用序
+        // = badCaseTotal（点踩全量）→ unannotatedTotal（点踩未标注）
+        when(auditLogRepository.count(any(Specification.class))).thenReturn(7L, 3L);
 
         StatsOverview overview = statsService.overview("t1");
 
         assertThat(overview.documentTotal()).isEqualTo(5);
         assertThat(overview.chunkTotal()).isEqualTo(42);
+        assertThat(overview.badCaseTotal()).isEqualTo(7);
+        assertThat(overview.unannotatedTotal()).isEqualTo(3);
         assertThat(overview.documentsByStatus())
             .containsEntry("SUCCESS", 3L)
             .containsEntry("FAILED", 2L)

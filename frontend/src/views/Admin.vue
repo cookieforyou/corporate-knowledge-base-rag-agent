@@ -21,11 +21,11 @@
               <span class="t-label">存活 Chunks</span>
             </div>
             <div class="stat-item panel">
-              <span class="stat-num t-data">{{ auth.isAdmin ? badCaseTotal : '—' }}</span>
+              <span class="stat-num t-data">{{ badCaseTotal }}</span>
               <span class="t-label">Bad Case（点踩）</span>
             </div>
             <div class="stat-item panel">
-              <span class="stat-num t-data">{{ auth.isAdmin ? unannotatedTotal : '—' }}</span>
+              <span class="stat-num t-data">{{ unannotatedTotal }}</span>
               <span class="t-label">待标注</span>
             </div>
           </div>
@@ -396,8 +396,8 @@
         </el-dialog>
       </el-tab-pane>
 
-      <!-- ════ 护栏词表（安全簇⑥ F2 运营面 + CRUD；仅超管） ════ -->
-      <el-tab-pane v-if="auth.isAdmin" label="护栏词表" name="guardrail">
+      <!-- ════ 护栏词表（系统级安全资产运营面 + CRUD；仅系统超管——跨租户影响运行时拦截，12 §12.12 二轮） ════ -->
+      <el-tab-pane v-if="auth.isSuperAdmin" label="护栏词表" name="guardrail">
         <div class="filter-bar panel">
           <el-select v-model="grFilter.side" placeholder="侧别" clearable style="width: 120px">
             <el-option label="注入侧" value="injection" />
@@ -632,18 +632,16 @@ const barH = (v: number, max: number) => Math.max((v / max) * 60, v > 0 ? 4 : 1)
 async function loadDashboard() {
   dashLoading.value = true
   try {
-    // Bad Case 双计数走审计查询（后端 /api/v1/admin/** 已限超管）——
-    // 非超管跳过请求，卡片显示 —
-    const [ov, proc, bc, un] = await Promise.all([
+    // Bad Case 双计数已聚合进 stats overview（12 §12.12 二轮：仪表盘与 admin 域
+    // 解耦——初始进入仅 2 条 stats 请求，聚合数字全员可读）
+    const [ov, proc] = await Promise.all([
       getStatsOverview(),
-      getProcessingStats(),
-      auth.isAdmin ? searchAuditLogs({ feedback: 'NEGATIVE', size: 1 }) : Promise.resolve(null),
-      auth.isAdmin ? searchAuditLogs({ feedback: 'NEGATIVE', annotated: false, size: 1 }) : Promise.resolve(null)
+      getProcessingStats()
     ])
     overview.value = ov
     processing.value = proc
-    badCaseTotal.value = bc?.total ?? 0
-    unannotatedTotal.value = un?.total ?? 0
+    badCaseTotal.value = ov.badCaseTotal
+    unannotatedTotal.value = ov.unannotatedTotal
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '统计加载失败')
   } finally {

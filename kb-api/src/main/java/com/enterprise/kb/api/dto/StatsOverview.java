@@ -14,13 +14,18 @@ import java.util.Map;
  * @param chunkTotal          存活 chunk 总数（SUCCESS 文档 chunk_count 求和）
  * @param documentsByParseRoute 解析路由分布（NATIVE/DEEP/OCR；未解析文档归 UNKNOWN）
  * @param dailyIngestion      近 14 天入库趋势（无数据日补 0，供前端连续绘图）
+ * @param badCaseTotal        点踩反馈总数（12 §12.12 二轮：仪表盘计数聚合进 stats 域，
+ *                            与 admin 域审计查询解耦——聚合数字全员可读）
+ * @param unannotatedTotal    待标注根因数（点踩 ∧ root_cause 空）
  */
 public record StatsOverview(
     long documentTotal,
     Map<String, Long> documentsByStatus,
     long chunkTotal,
     Map<String, Long> documentsByParseRoute,
-    List<DailyIngestion> dailyIngestion) {
+    List<DailyIngestion> dailyIngestion,
+    long badCaseTotal,
+    long unannotatedTotal) {
 
     /**
      * 单日入库量

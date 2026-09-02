@@ -204,6 +204,8 @@ export interface StatsOverview {
   chunkTotal: number
   documentsByParseRoute: Record<string, number>
   dailyIngestion: { date: string; documents: number; chunks: number }[]
+  badCaseTotal: number
+  unannotatedTotal: number
 }
 
 export interface ProcessingDocument {

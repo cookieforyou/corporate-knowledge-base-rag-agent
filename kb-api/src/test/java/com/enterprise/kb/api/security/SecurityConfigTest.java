@@ -74,19 +74,37 @@ class SecurityConfigTest {
         assertThat(cors.getMaxAge()).isEqualTo(3600L);
     }
 
-    // ── isAdmin claim → ROLE_ADMIN 映射（前端鉴权批，2026-09-02）──
+    // ── isAdmin/owner claim → ROLE_ADMIN / ROLE_SUPER_ADMIN 映射（12 §12.12）──
     // Spring Security 7 的 JwtAuthenticationConverter 会自动叠加 FACTOR_BEARER
     // authority（认证因子机制，追加而非替换）——断言按 getAuthority() 精确匹配，
-    // 只钉 ROLE_ADMIN 在场/缺席，不锁全集。
+    // 只钉两角色在场/缺席，不锁全集。
 
     @Test
     void isAdminClaimMapsToAdminAuthority() {
         JwtAuthenticationConverter converter = new SecurityConfig(
             new String[]{"http://localhost:5173"}).jwtAuthenticationConverter();
 
-        assertThat(converter.convert(jwt(true)).getAuthorities())
+        // 租户管理员（isAdmin ∧ owner=租户 org）：有 ROLE_ADMIN，无 SUPER_ADMIN
+        assertThat(converter.convert(jwt("tenant_001", true)).getAuthorities())
             .extracting(GrantedAuthority::getAuthority)
-            .contains("ROLE_ADMIN");
+            .contains("ROLE_ADMIN")
+            .doesNotContain("ROLE_SUPER_ADMIN");
+    }
+
+    @Test
+    void systemSuperAdminGetsBothRoles() {
+        JwtAuthenticationConverter converter = new SecurityConfig(
+            new String[]{"http://localhost:5173"}).jwtAuthenticationConverter();
+
+        // 系统超管（Casdoor 全局管理组织 built-in）：双权限——SUPER_ADMIN 独占系统级
+        // 运维域（护栏词表），ADMIN 全程保有（超管 ⊇ 租户管理员权限面）
+        assertThat(converter.convert(jwt("built-in", true)).getAuthorities())
+            .extracting(GrantedAuthority::getAuthority)
+            .contains("ROLE_ADMIN", "ROLE_SUPER_ADMIN");
+        // built-in 组织非管理员用户：不越级（系统组织成员 ≠ 系统超管）
+        assertThat(converter.convert(jwt("built-in", false)).getAuthorities())
+            .extracting(GrantedAuthority::getAuthority)
+            .doesNotContain("ROLE_SUPER_ADMIN", "ROLE_ADMIN");
     }
 
     @Test
@@ -95,7 +113,7 @@ class SecurityConfigTest {
             new String[]{"http://localhost:5173"}).jwtAuthenticationConverter();
 
         // isAdmin=false：纯租户用户（租户隔离语义不变，仅无 ROLE_ADMIN）
-        assertThat(converter.convert(jwt(false)).getAuthorities())
+        assertThat(converter.convert(jwt("tenant_001", false)).getAuthorities())
             .extracting(GrantedAuthority::getAuthority)
             .doesNotContain("ROLE_ADMIN");
         // claim 缺失（旧 token / 其他 IdP）：fail-safe 不授
@@ -106,10 +124,10 @@ class SecurityConfigTest {
             .doesNotContain("ROLE_ADMIN");
     }
 
-    private static Jwt jwt(boolean isAdmin) {
+    private static Jwt jwt(String owner, boolean isAdmin) {
         return Jwt.withTokenValue("t")
             .header("alg", "none")
-            .claim("owner", "tenant_001")
+            .claim("owner", owner)
             .claim("isAdmin", isAdmin)
             .build();
     }

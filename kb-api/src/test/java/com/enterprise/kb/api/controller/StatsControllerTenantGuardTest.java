@@ -55,7 +55,7 @@ class StatsControllerTenantGuardTest {
     void overviewDelegatesWithTenant() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(statsService.overview("tenant-a")).thenReturn(new StatsOverview(
-            1, Map.of(), 2, Map.of(), List.of()));
+            1, Map.of(), 2, Map.of(), List.of(), 0, 0));
 
         assertThat(controller.overview().data().documentTotal()).isEqualTo(1);
     }

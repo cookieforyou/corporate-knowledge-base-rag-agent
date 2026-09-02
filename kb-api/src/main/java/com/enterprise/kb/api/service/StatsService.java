@@ -5,8 +5,10 @@ import com.enterprise.kb.api.dto.DocumentProcessingView.ProcessingDocument;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.api.dto.StatsOverview.DailyIngestion;
 import com.enterprise.kb.domain.enums.DocumentStatus;
+import com.enterprise.kb.domain.repository.KbAuditLogRepository;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
+import com.enterprise.kb.domain.spec.AuditLogSpecs;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,12 +39,16 @@ public class StatsService {
     /** 未解析文档（parse_route 为 null）在路由分布中的归组键 */
     static final String ROUTE_UNKNOWN = "UNKNOWN";
 
+    /** Bad Case 计数口径：点踩反馈（与 BadCaseAdminController 运营查询同值域） */
+    private static final String FEEDBACK_NEGATIVE = "NEGATIVE";
+
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final KbDocumentRepository documentRepository;
     private final KbChunkRepository chunkRepository;
+    private final KbAuditLogRepository auditLogRepository;
 
-    /** 知识库统计总览：文档/状态分布/chunk 规模/路由分布/入库趋势 */
+    /** 知识库统计总览：文档/状态分布/chunk 规模/路由分布/入库趋势 + Bad Case 双计数 */
     public StatsOverview overview(String tenantId) {
         Map<String, Long> byStatus = zeroFilledStatusCounts();
         for (Object[] row : documentRepository.countGroupByStatus(tenantId)) {
@@ -55,12 +61,22 @@ public class StatsService {
             byRoute.merge(route, (Long) row[1], Long::sum);
         }
 
+        // Bad Case 双计数（12 §12.12 二轮）：仪表盘计数聚合进 stats 域——前端不再
+        // 直调 /api/v1/admin/audit-logs（admin 域限权后非超管 403；聚合数字全员可读，
+        // 与审计明细查询分域）。谓词复用 AuditLogSpecs 运营查询同源口径
+        long badCaseTotal = auditLogRepository.count(AuditLogSpecs.search(
+            tenantId, null, null, null, null, FEEDBACK_NEGATIVE, null, null, null));
+        long unannotatedTotal = auditLogRepository.count(AuditLogSpecs.search(
+            tenantId, null, null, null, null, FEEDBACK_NEGATIVE, null, null, Boolean.FALSE));
+
         return new StatsOverview(
             documentRepository.countByTenantId(tenantId),
             byStatus,
             chunkRepository.countAliveByTenantId(tenantId),
             byRoute,
-            dailyIngestion(tenantId));
+            dailyIngestion(tenantId),
+            badCaseTotal,
+            unannotatedTotal);
     }
 
     /** 文档解析状态视图：处理中三态计数 + 处理中文档清单 */

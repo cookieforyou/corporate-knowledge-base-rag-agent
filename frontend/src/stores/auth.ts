@@ -31,6 +31,12 @@ export const useAuthStore = defineStore('auth', () => {
   /** 超管标记（租户 org 内管理员；与后端 isAdmin claim → ROLE_ADMIN 同键） */
   const isAdmin = computed(() => payload.value?.isAdmin === true)
 
+  /**
+   * 系统超管（Casdoor 全局管理组织，owner claim = built-in；与后端
+   * ROLE_SUPER_ADMIN 判据同源）——独占系统级运维域（护栏词表）。
+   */
+  const isSuperAdmin = computed(() => isAdmin.value && payload.value?.owner === 'built-in')
+
   function saveToken(jwt: string) {
     token.value = jwt
     localStorage.setItem('access_token', jwt)
@@ -102,5 +108,5 @@ export const useAuthStore = defineStore('auth', () => {
     saveToken(data.access_token)
   }
 
-  return { token, isAuthenticated, isAdmin, payload, saveToken, logout, redirectToCasdoor, exchangeCode }
+  return { token, isAuthenticated, isAdmin, isSuperAdmin, payload, saveToken, logout, redirectToCasdoor, exchangeCode }
 })
