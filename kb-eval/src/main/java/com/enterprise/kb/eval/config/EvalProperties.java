@@ -61,6 +61,15 @@ public class EvalProperties {
     /** 检索探针选择：auto（min order，混合探针就位后默认 hybrid）| vector | hybrid，A/B 基线对比用 */
     private String probe = "auto";
 
+    /**
+     * 答案人审表落盘（缺省关）：正向干净生成例（非负向/非注入，内容盲纪律——注入
+     * 样本字面与负向拒答形态不外泄）逐例写 target/eval-answers{-label}.md——
+     * id/分类/F/AC/CA verdict/HR + 答案原文。用于 CA/HR 破线归因的人审材料
+     *（判定面 vs 答案侧裁决，16 章 v2.94），与 judge-agreement-sheet 同族
+     * 显式 opt-in 人审文件；机读快照（eval-results.json）保持内容盲不变。
+     */
+    private boolean dumpAnswers = false;
+
     private final Ci ci = new Ci();
     private final Judge judge = new Judge();
     private final Thresholds thresholds = new Thresholds();

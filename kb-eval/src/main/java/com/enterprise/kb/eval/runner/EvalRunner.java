@@ -202,6 +202,63 @@ public class EvalRunner {
         } catch (Exception e) {
             log.warn("评估机读快照落盘失败（不影响评估）: {}", e.getMessage());
         }
+        writeAnswerSheet(report);
+    }
+
+    /**
+     * 答案人审表落盘（缺省关 {@code eval.dump-answers}，16 章 v2.94）：正向干净
+     * 生成例逐例写 target/eval-answers{-label}.md——CA/HR 破线归因的人审材料
+     *（逐例裁决「答案侧真不支撑 vs 判定面过严」，如 md1-final→GLM 切换后 CA 例级
+     * 一票否决通过率下降的复核面）；与 judge-agreement-sheet 同族显式 opt-in
+     * 人审文件。机读快照（eval-results.json）保持内容盲纪律不变。
+     * 落盘失败不阻断评估（与报告/快照同容错等级）。
+     */
+    private void writeAnswerSheet(EvalReport report) {
+        if (!props.isDumpAnswers()) {
+            return;
+        }
+        try {
+            String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
+            String fileName = label.isEmpty() ? "eval-answers.md" : "eval-answers-" + label + ".md";
+            java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
+            java.nio.file.Files.createDirectories(out.getParent());
+            java.nio.file.Files.writeString(out, renderAnswerSheet(report) + System.lineSeparator());
+            log.info("答案人审表已写入: {}（人审材料，勿入 git）", out.toAbsolutePath());
+        } catch (Exception e) {
+            log.warn("答案人审表落盘失败（不影响评估）: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 人审表渲染（纯函数可测）：NOT_SUPPORTED 例索引置顶（抽审入口）+ 正向干净
+     * 域逐例块（id/分类/F/AC/CA verdict/HR + 答案原文）。过滤面 = 内容盲纪律
+     * 补充形态：负向例（拒答形态）与注入例（攻击域字面）不落表。
+     */
+    static String renderAnswerSheet(EvalReport report) {
+        String ls = System.lineSeparator();
+        List<EvalResult> clean = report.results().stream()
+            .filter(r -> !r.pair().isNegative() && !r.pair().isInjection() && r.answer() != null)
+            .toList();
+        StringBuilder sb = new StringBuilder();
+        sb.append("# 答案人审表（eval.dump-answers）").append(ls).append(ls);
+        sb.append("> CA/HR 破线归因人审材料：逐例裁决「答案侧真不支撑 vs 判定面过严」；")
+            .append("人审文件（同 judge-agreement-sheet 族），勿入 git。").append(ls);
+        String notSupported = clean.stream()
+            .filter(r -> CitationMetrics.VERDICT_NOT_SUPPORTED.equals(r.citationVerdict()))
+            .map(r -> r.pair().id())
+            .collect(Collectors.joining(", "));
+        sb.append(ls).append("## NOT_SUPPORTED 索引").append(ls)
+            .append(notSupported.isEmpty() ? "（无）" : notSupported).append(ls);
+        for (EvalResult r : clean) {
+            sb.append(ls).append("## ").append(r.pair().id())
+                .append(" · ").append(r.pair().category())
+                .append(" · F=").append(r.faithfulness())
+                .append(" · AC=").append(r.answerCorrectness())
+                .append(" · CA=").append(r.citationVerdict())
+                .append(" · HR=").append(r.hallucinationRate()).append(ls)
+                .append(ls).append(r.answer()).append(ls);
+        }
+        return sb.toString();
     }
 
     /**
