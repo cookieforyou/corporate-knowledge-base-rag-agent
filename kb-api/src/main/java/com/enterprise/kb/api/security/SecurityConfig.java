@@ -6,10 +6,13 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -32,6 +35,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     /** CORS 预检缓存秒数（浏览器侧 OPTIONS 结果缓存窗口） */
@@ -65,6 +69,12 @@ public class SecurityConfig {
                 // WebSocket 端点放行 filter chain：鉴权在握手层经 JwtHandshakeInterceptor
                 // 复用同一 JwtDecoder 完成（2.13；浏览器 WS API 无法携带 Authorization 头）
                 .requestMatchers("/ws/**").permitAll()
+                // 运维面端点提级（前端鉴权批，2026-09-02）：kb-admin 六 Controller 统一
+                // 收口于 /api/v1/admin/**（chunks/rebuild/audit-logs/badcase/guardrail/
+                // graph/feedback-export）——isAdmin claim 映射 ROLE_ADMIN 后此处单点守卫，
+                // 统计 /api/v1/stats 保持租户全员；语义 = 租户内运维权限分级，租户隔离
+                // fail-closed 基线不动（owner 单租户锚点，无跨租户视图）
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/**").authenticated()
                 // MCP Server 端点（簇⑤ 4.10，Streamable HTTP）：JWT bearer 鉴权同 /api/**；
                 // 租户/scope 治理在工具调用层经 McpIdentityGuard fail-closed 二次收敛
@@ -86,7 +96,7 @@ public class SecurityConfig {
                     .includeSubDomains(true))
             )
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> {})
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -94,6 +104,28 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable);
 
         return http.build();
+    }
+
+    /**
+     * JWT → GrantedAuthorities 映射（前端鉴权批，2026-09-02）：Casdoor 把用户对象字段
+     * 直入 JWT payload，{@code isAdmin} 布尔即超管标记（租户 org 内管理员；
+     * built-in 全局 admin 的 owner=built-in 落空租户，无业务数据面）——映射为
+     * {@code ROLE_ADMIN} 供 {@code /api/v1/admin/**} filter-chain 与方法级
+     * {@code @PreAuthorize} 消费；claim 缺失/false 走缺省空权限（纯租户用户）。
+     *
+     * <p>标准 SCOPE_/authorities 通道不适用：Casdoor access token 无标准 scope claim，
+     * 自定义 claim 映射是 Resource Server 唯一权威形态。</p>
+     */
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            Boolean isAdmin = jwt.getClaimAsBoolean("isAdmin");
+            return Boolean.TRUE.equals(isAdmin)
+                ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                : List.of();
+        });
+        return converter;
     }
 
     /**

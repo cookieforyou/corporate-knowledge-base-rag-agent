@@ -10,6 +10,27 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
 
+  /**
+   * 解码 JWT payload 段（base64url → UTF-8 JSON）；畸形 token fail-safe 返回 null。
+   * Casdoor 把用户对象字段直入 payload（owner/name/isAdmin/tag…）。
+   */
+  function parseJwtPayload(jwt: string): Record<string, unknown> | null {
+    try {
+      const seg = jwt.split('.')[1]
+      if (!seg) return null
+      const bin = atob(seg.replace(/-/g, '+').replace(/_/g, '/'))
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+      return JSON.parse(new TextDecoder().decode(bytes))
+    } catch {
+      return null
+    }
+  }
+
+  const payload = computed(() => (token.value ? parseJwtPayload(token.value) : null))
+
+  /** 超管标记（租户 org 内管理员；与后端 isAdmin claim → ROLE_ADMIN 同键） */
+  const isAdmin = computed(() => payload.value?.isAdmin === true)
+
   function saveToken(jwt: string) {
     token.value = jwt
     localStorage.setItem('access_token', jwt)
@@ -81,5 +102,5 @@ export const useAuthStore = defineStore('auth', () => {
     saveToken(data.access_token)
   }
 
-  return { token, isAuthenticated, saveToken, logout, redirectToCasdoor, exchangeCode }
+  return { token, isAuthenticated, isAdmin, payload, saveToken, logout, redirectToCasdoor, exchangeCode }
 })

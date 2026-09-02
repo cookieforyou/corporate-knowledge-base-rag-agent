@@ -3,6 +3,9 @@ package com.enterprise.kb.api.security;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -13,7 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * SecurityConfig CORS 策略测试（安全簇② B1）：白名单语义钉死
  *
  * <p>filterChain 装配（headers/cors 集成位点）经 E2E 通道验证
- * （跨域请求拒止 + 响应头断言），本单测覆盖策略源确定性行为。</p>
+ * （跨域请求拒止 + 响应头断言），本单测覆盖策略源确定性行为；
+ * isAdmin → ROLE_ADMIN 映射（前端鉴权批，2026-09-02）同理——
+ * converter 确定性语义单测，/api/v1/admin/** 拒止经 E2E 通道验证。</p>
  */
 class SecurityConfigTest {
 
@@ -67,5 +72,45 @@ class SecurityConfigTest {
         // 全链 JWT bearer 头鉴权、无 Cookie 会话——凭证跨域保持关闭
         assertThat(cors.getAllowCredentials()).isFalse();
         assertThat(cors.getMaxAge()).isEqualTo(3600L);
+    }
+
+    // ── isAdmin claim → ROLE_ADMIN 映射（前端鉴权批，2026-09-02）──
+    // Spring Security 7 的 JwtAuthenticationConverter 会自动叠加 FACTOR_BEARER
+    // authority（认证因子机制，追加而非替换）——断言按 getAuthority() 精确匹配，
+    // 只钉 ROLE_ADMIN 在场/缺席，不锁全集。
+
+    @Test
+    void isAdminClaimMapsToAdminAuthority() {
+        JwtAuthenticationConverter converter = new SecurityConfig(
+            new String[]{"http://localhost:5173"}).jwtAuthenticationConverter();
+
+        assertThat(converter.convert(jwt(true)).getAuthorities())
+            .extracting(GrantedAuthority::getAuthority)
+            .contains("ROLE_ADMIN");
+    }
+
+    @Test
+    void nonAdminAndMissingClaimYieldNoAdminAuthority() {
+        JwtAuthenticationConverter converter = new SecurityConfig(
+            new String[]{"http://localhost:5173"}).jwtAuthenticationConverter();
+
+        // isAdmin=false：纯租户用户（租户隔离语义不变，仅无 ROLE_ADMIN）
+        assertThat(converter.convert(jwt(false)).getAuthorities())
+            .extracting(GrantedAuthority::getAuthority)
+            .doesNotContain("ROLE_ADMIN");
+        // claim 缺失（旧 token / 其他 IdP）：fail-safe 不授
+        Jwt noClaim = Jwt.withTokenValue("t").header("alg", "none")
+            .claim("owner", "tenant_001").build();
+        assertThat(converter.convert(noClaim).getAuthorities())
+            .extracting(GrantedAuthority::getAuthority)
+            .doesNotContain("ROLE_ADMIN");
+    }
+
+    private static Jwt jwt(boolean isAdmin) {
+        return Jwt.withTokenValue("t")
+            .header("alg", "none")
+            .claim("owner", "tenant_001")
+            .claim("isAdmin", isAdmin)
+            .build();
     }
 }

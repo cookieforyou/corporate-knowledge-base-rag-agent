@@ -59,7 +59,7 @@ kb-rag-agent/
 
 **Chunk 运维与重建（簇③）**：kb-admin 首建，kb-api fat jar 聚合（禁反向依赖）；租户守卫 @AuthenticationPrincipal Jwt 直消费（不复用 JwtUtils 防成环）。Chunk CRUD：编辑 = 同源消毒 → PG → 异步重嵌入（**delete→add 两步**——Milvus add 非 upsert）+ ES 覆写（簇④ 联动：编辑触发文档图重抽取、软删/恢复翻转图锚点标记）；软删委派 C1；恢复经重嵌入；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
-**Bad Case 运营闭环（簇④）**：kb-admin 四端点——审计日志多条件查询联查 / 根因四分类标注 / Golden 回灌 Git Ops 通道（bc-{auditLogId} upsert 幂等）/ 反馈处理态。守卫：跨租户/不存在一律 AUDIT_LOG_NOT_FOUND。前端 /admin 运维中心**五 Tab**（末位护栏词表面板）
+**Bad Case 运营闭环（簇④）**：kb-admin 四端点——审计日志多条件查询联查 / 根因四分类标注 / Golden 回灌 Git Ops 通道（bc-{auditLogId} upsert 幂等）/ 反馈处理态。守卫：跨租户/不存在一律 AUDIT_LOG_NOT_FOUND。前端 /admin 运维中心**五 Tab**（末位护栏词表面板；isAdmin 分级——仪表盘全员 + 四 Tab 仅超管 + Tab 懒加载，§12.12）
 
 **MCP Server（簇⑤ 4.10）**：`spring-ai-starter-mcp-server-webmvc` 落 kb-api（Streamable HTTP `/mcp`，authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent（search/get_document 直调 / ask 全链复用；独立 `mcp-` 会话）；`McpIdentityGuard` 物化 RetrievalContext（IDENTITY_INCOMPLETE / MCP_SCOPE_DENIED 治理）；容器无 ToolCallback Bean（HITL 不漏进 MCP）；独立限流桶 120/60s fail-open + 轻量审计；§11.8
 
@@ -93,7 +93,7 @@ kb-rag-agent/
 **基础设施**
 
 - 上传/ETL：`DocumentService`（PDF/DOCX/PPTX/XLSX/MD/TXT/HTML 白名单，仅收 OOXML 新格式，ContentType 校验唯一拦截面 → MinIO → kb_document）；`DocumentEtlService`（解析→切分→**SanitizingTransformer**（S4+PII 入库消毒：`injection_hit` 打标不阻断，MinIO 原件保留）→kb_chunk→向量化→ES 双写）；**增量重入库**：reparse/replace + version + REINDEXING 占用 + CLEANUP 蓝绿 diff
-- 认证：`SecurityConfig`（actuator health/info/prometheus/metrics permitAll，/api/** authenticated，其余 denyAll，无状态）；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
+- 认证：`SecurityConfig`（actuator health/info/prometheus/metrics permitAll，/api/** authenticated，其余 denyAll，无状态）；**运维面权限分级（12 §12.12）**：isAdmin claim → ROLE_ADMIN（JwtAuthenticationConverter），`/api/v1/admin/**` hasRole 单点收口 + Documents 删/reparse/replace @PreAuthorize（超管），统计/上传/列表全员，跨租户视图定案不做；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
 - 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 连接单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆 Jedis 共消费，**不可移除**；**Neo4j 连接**（簇④）：application-infra.yml `spring.neo4j.*`（NEO4J_* env），手工装配 Driver 受 `rag.graph.enabled` 门控；生产 `bolt+s://<域>:7687` 经 nginx `stream` 块 L4 TLS 终结（坑位㊱）+ 闲置连接出借前探活（坑位㊴）
 - **多 ChatClient Bean 纪律**：注入点必须显式 `@Qualifier`（chatClient/ragAgent/toolAgent/evalGuardrail 四 Bean）；新增 Advisor 核对 order 与 11.2 链序表一致

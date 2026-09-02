@@ -21,11 +21,11 @@
               <span class="t-label">存活 Chunks</span>
             </div>
             <div class="stat-item panel">
-              <span class="stat-num t-data">{{ badCaseTotal }}</span>
+              <span class="stat-num t-data">{{ auth.isAdmin ? badCaseTotal : '—' }}</span>
               <span class="t-label">Bad Case（点踩）</span>
             </div>
             <div class="stat-item panel">
-              <span class="stat-num t-data">{{ unannotatedTotal }}</span>
+              <span class="stat-num t-data">{{ auth.isAdmin ? unannotatedTotal : '—' }}</span>
               <span class="t-label">待标注</span>
             </div>
           </div>
@@ -74,8 +74,8 @@
         </div>
       </el-tab-pane>
 
-      <!-- ════ Chunk 运维（簇③ 4.4/4.5 前端面） ════ -->
-      <el-tab-pane label="Chunk 运维" name="chunks">
+      <!-- ════ Chunk 运维（簇③ 4.4/4.5 前端面；仅超管） ════ -->
+      <el-tab-pane v-if="auth.isAdmin" label="Chunk 运维" name="chunks">
         <div class="filter-bar panel">
           <el-select v-model="chunkDocId" placeholder="选择文档" filterable style="width: 320px"
             @change="loadAdminChunks">
@@ -197,8 +197,8 @@
         </el-dialog>
       </el-tab-pane>
 
-      <!-- ════ 日志查询 ════ -->
-      <el-tab-pane label="日志查询" name="logs">
+      <!-- ════ 日志查询（跨用户审计明细；仅超管） ════ -->
+      <el-tab-pane v-if="auth.isAdmin" label="日志查询" name="logs">
         <div class="filter-bar panel">
           <el-date-picker v-model="logFilter.range" type="datetimerange" size="default"
             range-separator="→" start-placeholder="起始时间" end-placeholder="结束时间"
@@ -295,8 +295,8 @@
         </el-drawer>
       </el-tab-pane>
 
-      <!-- ════ Bad Case 处置 ════ -->
-      <el-tab-pane label="Bad Case 处置" name="badcase">
+      <!-- ════ Bad Case 处置（审计明细 + 评估治理写；仅超管） ════ -->
+      <el-tab-pane v-if="auth.isAdmin" label="Bad Case 处置" name="badcase">
         <div class="filter-bar panel">
           <el-select v-model="bcFilter.annotated" placeholder="标注态" clearable style="width: 130px">
             <el-option label="未标注" :value="false" />
@@ -396,8 +396,8 @@
         </el-dialog>
       </el-tab-pane>
 
-      <!-- ════ 护栏词表（安全簇⑥ F2 只读运营面） ════ -->
-      <el-tab-pane label="护栏词表" name="guardrail">
+      <!-- ════ 护栏词表（安全簇⑥ F2 运营面 + CRUD；仅超管） ════ -->
+      <el-tab-pane v-if="auth.isAdmin" label="护栏词表" name="guardrail">
         <div class="filter-bar panel">
           <el-select v-model="grFilter.side" placeholder="侧别" clearable style="width: 120px">
             <el-option label="注入侧" value="injection" />
@@ -597,8 +597,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 import {
   getStatsOverview, getProcessingStats, searchAuditLogs, annotateRootCause, reingestGolden,
   listDocuments, getChunks, editChunk, softDeleteChunk, restoreChunk,
@@ -613,6 +614,8 @@ import type {
 } from '@/api'
 
 const tab = ref('dashboard')
+
+const auth = useAuthStore()
 
 // ── 仪表盘 ──
 
@@ -629,16 +632,18 @@ const barH = (v: number, max: number) => Math.max((v / max) * 60, v > 0 ? 4 : 1)
 async function loadDashboard() {
   dashLoading.value = true
   try {
+    // Bad Case 双计数走审计查询（后端 /api/v1/admin/** 已限超管）——
+    // 非超管跳过请求，卡片显示 —
     const [ov, proc, bc, un] = await Promise.all([
       getStatsOverview(),
       getProcessingStats(),
-      searchAuditLogs({ feedback: 'NEGATIVE', size: 1 }),
-      searchAuditLogs({ feedback: 'NEGATIVE', annotated: false, size: 1 })
+      auth.isAdmin ? searchAuditLogs({ feedback: 'NEGATIVE', size: 1 }) : Promise.resolve(null),
+      auth.isAdmin ? searchAuditLogs({ feedback: 'NEGATIVE', annotated: false, size: 1 }) : Promise.resolve(null)
     ])
     overview.value = ov
     processing.value = proc
-    badCaseTotal.value = bc.total
-    unannotatedTotal.value = un.total
+    badCaseTotal.value = bc?.total ?? 0
+    unannotatedTotal.value = un?.total ?? 0
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '统计加载失败')
   } finally {
@@ -1181,14 +1186,23 @@ const pretty = (json?: string) => {
   }
 }
 
-onMounted(() => {
-  loadDashboard()
-  loadDocs()
-  loadRebuildTasks()
-  loadLogs()
-  loadBadCases()
-  loadGuardrailRules()
-})
+// ── Tab 懒加载（前端鉴权批，2026-09-02）：首次进入对应 tab 才拉数据，切回不重复
+// （各 tab 内刷新经查询/刷新按钮；受限 tab 非超管不渲染，天然不触达）──
+const loadedTabs = new Set<string>()
+
+function ensureTabLoaded(name: string) {
+  if (loadedTabs.has(name)) return
+  loadedTabs.add(name)
+  switch (name) {
+    case 'dashboard': loadDashboard(); break
+    case 'chunks': loadDocs(); loadRebuildTasks(); break
+    case 'logs': loadLogs(); break
+    case 'badcase': loadBadCases(); break
+    case 'guardrail': loadGuardrailRules(); break
+  }
+}
+
+watch(tab, ensureTabLoaded, { immediate: true })
 
 onUnmounted(() => {
   if (rebuildTimer) {

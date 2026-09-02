@@ -11,7 +11,7 @@
         <p class="page-desc">基于企业知识库的溯源式对话——回答附 <b>[ref-N]</b> 证据引用，点击可查原文</p>
       </div>
       <div class="head-badges">
-        <span class="chip chip-pine">DeepSeek V4</span>
+        <span class="chip chip-pine">GLM-5.3-Flash</span>
         <span class="chip chip-gold">多路混合检索</span>
         <span class="chip chip-rerank">qwen3-rerank 精排</span>
         <el-button size="small" round :disabled="streaming" @click="newChat">

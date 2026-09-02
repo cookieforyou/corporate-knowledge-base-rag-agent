@@ -73,22 +73,23 @@
             <span class="t-data chunk-num">{{ row.chunkCount ?? '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="252" align="right">
+        <el-table-column label="操作" :width="auth.isAdmin ? 252 : 110" align="right">
           <template #default="{ row }">
             <el-button size="small" text type="primary" :disabled="row.status !== 'SUCCESS'"
               @click="openChunks(row)">
               <el-icon><Grid /></el-icon>&nbsp;Chunks
             </el-button>
-            <el-button size="small" text type="warning" :disabled="!canReindex(row.status)"
+            <!-- 治理写（重解析/替换/删除）仅超管（与后端 @PreAuthorize 同口径，前端鉴权批） -->
+            <el-button v-if="auth.isAdmin" size="small" text type="warning" :disabled="!canReindex(row.status)"
               @click="confirmReparse(row)">
               <el-icon><RefreshRight /></el-icon>&nbsp;重解析
             </el-button>
-            <el-button size="small" text type="warning" :disabled="!canReindex(row.status)"
+            <el-button v-if="auth.isAdmin" size="small" text type="warning" :disabled="!canReindex(row.status)"
               @click="confirmReplace(row)">
               <el-icon><UploadFilled /></el-icon>&nbsp;替换
             </el-button>
             <!-- 处理期禁删（与后端 DOC_NOT_READY 守卫同状态集，簇⑥ C1 收尾） -->
-            <el-button size="small" text type="danger" :disabled="isLiveDocStatus(row.status)"
+            <el-button v-if="auth.isAdmin" size="small" text type="danger" :disabled="isLiveDocStatus(row.status)"
               @click="confirmDelete(row)">
               <el-icon><Delete /></el-icon>&nbsp;删除
             </el-button>
@@ -149,6 +150,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { listDocuments, getChunks, deleteDocument, uploadDocument, reparseDocument, replaceDocument, etlProgressWsUrl } from '@/api'
 import type { KbDoc, KbChunk, EtlProgress } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -158,6 +160,8 @@ const docs = ref<KbDoc[]>([])
 const loading = ref(false)
 const uploadOpen = ref(false)
 const parseRouteChoice = ref('')
+
+const auth = useAuthStore()
 
 const totalChunks = computed(() =>
   docs.value.reduce((sum, d) => sum + (d.chunkCount ?? 0), 0))
