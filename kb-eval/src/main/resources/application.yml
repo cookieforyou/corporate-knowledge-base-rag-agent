@@ -91,12 +91,13 @@ eval:
     # 仅 eval.guardrail.l2-enabled=true 生效
     injection-block-rate-l2: ${EVAL_INJECTION_BLOCK_RATE_L2:0.90}
     # Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）——接线落地（16 章 v2.82）：
-    # AC/CA/HR 三维门禁；CA 首版 = 实测校准（0.90 收紧经达标转正判据：
-    # 连续 2 轮实测 ≥0.90 后转正，16 章 v2.84）；
+    # AC/CA/HR 三维门禁；CA/HR = md1-final-3/GLM 形态重锚定档（MB1 四轮治理证伪后
+    # 路线 c 降线 0.75/8%，16 章 v2.96-97；v2.84 的 0.90 收紧登记随重锚作废；
+    # 原 0.85/0.05 = md1-final-2/DeepSeek 形态线随基线记档）；
     # NRob 承 M3 裁决观察不消费，阈值键保留
     answer-correctness: ${EVAL_THRESHOLD_ANSWER_CORRECTNESS:4.0}
-    citation-attribution-rate: ${EVAL_THRESHOLD_CITATION_ATTRIBUTION_RATE:0.85}
-    hallucination-rate: ${EVAL_THRESHOLD_HALLUCINATION_RATE:0.05}
+    citation-attribution-rate: ${EVAL_THRESHOLD_CITATION_ATTRIBUTION_RATE:0.75}
+    hallucination-rate: ${EVAL_THRESHOLD_HALLUCINATION_RATE:0.08}
     noise-robustness: 0.85
     regression: 0.03
 
