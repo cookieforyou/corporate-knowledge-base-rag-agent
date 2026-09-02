@@ -4,7 +4,7 @@
 >
 > [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.78（GLM effort 生产档 low 定案，复验 7-8.5s 回归基线带）
 >
-> **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发 chain 门禁复跑（E1）。
+> **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发全量门禁复跑（E1；基线形态 = 默认 hybrid 探针，v2.92 措辞勘误）。
 >
 > **v2.76（2026-09-01，辅助模型换代）**：备用模型 qwen3.7-plus → qwen3.8-flash（§11.2.2）——百炼 OpenAI 兼容端点 / DASHSCOPE_API_KEY / enable_thinking=false 机制不变，仅模型名切换；`rag.routing.fallback.model` 缺省与 L2 二判载体（§12.11）、Judge 基座（16 章 v2.90）同批换代。接管质量从 plus 档降为 flash 档属成本/质量取舍（故障接管瞬态场景可接受）；门禁基线 md1-final-2 的 L2 力判即经 qwen3.8-flash 备用链（快照实证），读数连续。
 >
