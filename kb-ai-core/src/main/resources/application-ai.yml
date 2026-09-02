@@ -77,17 +77,21 @@ rag:
     primary:
       provider: ${RAG_ROUTING_PRIMARY_PROVIDER:glm}
       # GLM-5.3-Flash（缺省主答）：强制思考不可关（官方：thinking.type 仅支持
-      # enabled，传 disabled 报错）；reasoning-effort 支持 low/high/max（其余值报错）；
-      # temperature 按官方推荐 1.0（思考模式下采样参数生效性未证——DeepSeek 思考
-      # 形态同静默，无退化基线）。effort 生产档 low（2026-09-01 冒烟定案，v2.78）：
-      # 服务端 max 档思维链致 20-31s 级延迟（completion 900-1050 含思维链，
-      # ~35-45 tok/s；DeepSeek 思考开 high 时代基线 5-8s），low 档召回 RAG 主答
-      # 语境足用，TTFT 优先
+      # enabled，传 disabled 报错）；reasoning-effort 支持 low/high/max（其余值报错）。
+      # effort 生产档 low（2026-09-01 冒烟定案，v2.78）：服务端 max 档思维链致
+      # 20-31s 级延迟（completion 900-1050 含思维链，~35-45 tok/s；DeepSeek 思考开
+      # high 时代基线 5-8s），low 档召回 RAG 主答语境足用，TTFT 优先。
+      # temperature 生产档 0.2（2026-09-02 门禁消融定案，16 章 v2.95）：GLM 思考态
+      # 采样参数生效（与 DeepSeek 思考态静默忽略不同），官方推荐 1.0；0.2 全面小胜
+      # 1.0（CA 0.764→0.782 / AC 4.682→4.755 / F 4.209→4.364 / MULTI_DOC F
+      # 2.111→3.333，HR 持平），温度为次要变量（HR 6.2% 不动——细节保真度归因
+      # effort 档，人审定谳见 16 章 v2.95）。温度不跨模型对齐：DeepSeek/qwen
+      # 备用 0.1 为各自保守档，量纲不可比
       glm:
         base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
         api-key: ${ZHIPU_API_KEY:}
         model: ${ZHIPU_MODEL:glm-5.3-flash}
-        temperature: ${ZHIPU_TEMPERATURE:1.0}
+        temperature: ${ZHIPU_TEMPERATURE:0.2}
         max-tokens: ${ZHIPU_MAX_TOKENS:4096}
         reasoning-effort: ${ZHIPU_REASONING_EFFORT:low}
       # DeepSeek V4 Flash（回落形态）：官方实证「思考模式默认开 + effort 默认

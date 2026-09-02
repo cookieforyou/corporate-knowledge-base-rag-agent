@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.79（GROUNDING_PROMPT 规则 3 引用纪律细化——MB1 CA/HR 双破线第一轮治理）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.95（GLM temperature 生产档 0.2 定案——MB1 第二轮消融实证，§11.2.2）
 >
 > **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发全量门禁复跑（E1；基线形态 = 默认 hybrid 探针，v2.92 措辞勘误）。
 >
@@ -518,6 +518,14 @@ ToolCallingAdvisor.builder()
 > 生产档；high/max 仍可显式调回）——RAG 主答有检索证据锚定，low 档推理深度
 > 足用，TTFT 优先。**low 复验（2026-09-02 回传）**：同题重问 7185ms / 8506ms，
 > 回归 5-8s 基线带，token 同步回落（无长思维链）——生产档定案闭环。
+>
+> **v2.95 补充（2026-09-02，MB1 第二轮温度消融：GLM temperature 生产档 0.2 定案）**：
+> GLM 思考态采样参数**生效**（与 DeepSeek 思考态静默忽略不同，16 章 v2.93 裁决），
+> 缺省自官方推荐 1.0 → **0.2**（门禁消融实证：CA 0.764→0.782 / AC 4.682→4.755 /
+> F 4.209→4.364 / MULTI_DOC F 2.111→3.333，HR 持平——全面小胜无负面维度）。
+> 温度为次要变量（HR 6.2% 不动，细节保真度归因 effort 档，人审定谳 16 章
+> v2.95）。**温度不跨模型对齐**：DeepSeek/qwen 备用 0.1 为各自保守档，量纲
+> 不可比。effort high 对照轮（十字路口选项 a）待定案。
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 
