@@ -22,6 +22,20 @@ class PromptTemplatesTest {
             .contains("[ref-N]");
     }
 
+    /**
+     * 规则 3 引用纪律细化契约钉死（11 章 v2.79，MB1 批6）：三锚点缺一即回退为
+     * 弱措辞「附标注」——effort low 档下实测退化形态（先答后引/裸断言）复发。
+     */
+    @Test
+    void groundingPromptPinsCitationDiscipline() {
+        assertThat(PromptTemplates.GROUNDING_PROMPT)
+            .contains("引用纪律")
+            .contains("句末紧跟")
+            .contains("不得答完后在末尾集中补标")
+            .contains("逐句分别标注")
+            .contains("无依据支撑的内容不得作为事实陈述");
+    }
+
     @Test
     void historyRewritePromptCarriesHistoryAndQueryPlaceholders() {
         assertThat(PromptTemplates.HISTORY_REWRITE_PROMPT)

@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.78（GLM effort 生产档 low 定案，复验 7-8.5s 回归基线带）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.79（GROUNDING_PROMPT 规则 3 引用纪律细化——MB1 CA/HR 双破线第一轮治理）
 >
 > **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发全量门禁复跑（E1；基线形态 = 默认 hybrid 探针，v2.92 措辞勘误）。
 >
@@ -155,6 +155,8 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > 教训：**「模型输出格式约定」必须有确定性锚点支撑**——prompt 里的编号契约若无注入侧编号配合，等于让模型自由发挥。
 >
 > **v2.16 修正（2026-08-09，3.17 E2E 后续验证发现的展示缺陷）**：前端旧版 `renderAnswer` 按 `[ref-N]` 切段、每段独立渲染 markdown——每段被 marked 包成块级 `<p>`，内联徽标夹在块级元素之间**独占一行**，ref 邻接的句号、含 ref 的表格行被切成孤儿行（截图实锤：孤立的「。」与「|」）。改为**占位符单次渲染管线**：`[ref-N]` → `@@REFN@@` token（`@` 非 markdown 元字符，对 marked 与 DOMPurify 均透明，含表格单元格/列表项内联存活经无头验证）→ 全文单次渲染 + sanitize → sanitize 后换回徽标。徽标保证内联于段落、表格/列表不再被切断；「防 markdown 吞括号、防消毒器剥徽标」原意图同持（markdown 见不到方括号语法、消毒器见不到徽标）。纯展示修复：[ref-N] 契约、data-ref 对齐与点击行为不变。
+>
+> **v2.79 修正（2026-09-02，MB1 全量门禁 CA/HR 双破线第一轮治理）**：主模型切 GLM-5.3-Flash effort low 后，规则 3 弱措辞「每个事实性陈述附 [ref-N] 标注」实测退化——`citationResolvableRate` 两轮均 1.000（编号格式契约完好，v2.15 治理仍有效），但**来源支撑**崩塌：CA 0.890→0.761（<0.85 破线）、HR 4.2%→6.8%（>5% 破线），NOT_SUPPORTED 恶化 16 例与 HR 恶化例完全同批；退化集中于 REASONING/MULTI_DOC 断言高密分类，FACTOID/TABLE 稳，AC 反升 4.642→4.725——**非内容质量与格式问题，是引用行为纪律问题**（effort low 思维链短 → 先答后引/末尾集中补标 → 编号错挂，与裸断言漏标）。规则 3 细化为三条行为契约：① **时机与位置**——事实性陈述句末紧跟依据资料的 [ref-N]，写完一句即标，不得答完后末尾集中补标；② **归属**——陈述源自哪条就标哪个，多资料综合逐句分别标注；③ **支撑**——无依据支撑的内容不得作为事实陈述写入（与 Judge 来源支撑口径「内容被任一条目支撑即可」对齐）。三锚点由 `PromptTemplatesTest.groundingPromptPinsCitationDiscipline` 契约钉死防回退。生效面：`chatClient`（eval 被测链 hybrid/chain 探针）与 `ragAgentChatClient`（生产）同挂 `RetrievalAugmentationAdvisor` 同源消费，NRob 对照路径同模板——单点改动三处生效，eval 读数与生产行为同步迁移。归因边界：temperature 1.0（GLM 思考态官方推荐值且生效，与 DeepSeek 思考态静默忽略不同）为次要变量非主因——若本轮 CA/HR 仍破线，第二轮消融 `ZHIPU_TEMPERATURE=0.6` 单变量归因（治理路线 16 章 v2.93）。另：模板静态头部变更触发的 N1 前缀缓存重建一次为预期内代价（§11.10 前缀稳定性纪律）。
 
 ---
 
