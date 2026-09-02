@@ -242,14 +242,20 @@ public class EvalProperties {
         /** Answer Correctness（1-5 Judge 均值，目标 >85% 语义对应 ≈4.0 档） */
         private double answerCorrectness = 4.0;
         /**
-         * Citation Attribution 三步通过率（发出→可解析→来源支撑）。首版 = 实测校准
-         * （κ 复校-④ kappa5 轮 2 读数 0.870 线下留裕度，16 章 v2.82）；0.90 收紧经
-         * 达标转正判据（连续 2 轮实测 ≥0.90 后 0.85→0.90 转正，16 章 v2.84）——
-         * 实测 0.870 < 0.90，即刻收紧即门禁常红，故登记转正条件而非即刻生效。
+         * Citation Attribution 三步通过率（发出→可解析→来源支撑）。**md1-final-3 重锚
+         * 定档 0.75**（MB1 四轮治理证伪：GLM CA 0.761~0.782 带宽稳定，0.85 线不可达，
+         * 根因 = 模型面轻度幻觉带经例级一票否决放大，16 章 v2.96；降线 = 用户路线 c
+         * 定案——接受较 DeepSeek 多 ~12-14 例轻度幻觉细节，换 flash 成本与 low 档
+         * TTFT）；原 **0.85 = md1-final-2/DeepSeek 形态线**随基线记档，回落复跑
+         * （E1 重定档纪律）时对照 md1-final-2 执行。v2.84 的 0.90 收紧转正登记随
+         * 重锚作废——收紧判据须待 md1-final-3 连续 2 轮读数重登记。
          */
-        private double citationAttributionRate = 0.85;
-        /** Hallucination Rate 无依据声明占比上限，目标 <5% */
-        private double hallucinationRate = 0.05;
+        private double citationAttributionRate = 0.75;
+        /**
+         * Hallucination Rate 无依据声明占比上限。**md1-final-3 重锚 8%**（MB1 四轮
+         * 实测 6.2~6.8%，16 章 v2.96）；原 5% = md1-final-2/DeepSeek 形态线随基线记档。
+         */
+        private double hallucinationRate = 0.08;
         /**
          * Noise Robustness 噪声前后结论一致率，预留 >85%——承 M3 裁决（16 章 v2.79）
          * 观察不门禁（Judge 单方向误报面治理后再议），assertThresholds 不消费。
