@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-03 · v2.96（Spring AI 2.0.0 → 2.0.1 升级适配——Redis 记忆 autoconfigure 三迁移，§11.2）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-03 · v2.97（jedisClient 手工装配退役——2.0.1 自动装配收编，占位符桥接保单一来源，§11.2）
+>
+> **v2.97（2026-09-03，依赖升级批二段：jedisClient 退役为框架自动装配）**：v2.96「覆盖 Bean 保留」进一步收敛——**手工 jedisClient Bean 删除，改用 2.0.1 自动装配**。可行性字节码级定谳：Jedis 7.4.1 `DefaultJedisClientConfig$Builder` 构造器 `iconst_0 → putfield database`（database 缺省 = 0），且自动装配密码/无密码两分支均不显式设置——**RediSearch db0 硬约束天然满足**（原覆盖动机的 database 透传不再必要；password 缺口 2.0.1 已由上游补齐）。**单一来源纪律保持**：自动装配消费 `spring.ai.chat.memory.repository.redis.{host,port,password}`，application-ai.yml 以占位符引用 `spring.data.redis.*`（与 Redisson 同源，env 入口不变）。**行为差异记注**：REDIS_DB 误配非 0 时，记忆侧从「启动期 FT.CREATE 报错暴露」（原 fail-fast 保险丝）变为「静默连 db0」——RediSearch db0 为硬约束下静默 db0 反而更安全，配置错仅波及 Redisson 域。**坑位⑦ 半条退役半条存续**：让位陷阱半条（三类型 @ConditionalOnMissingBean，2.0.1 未变）仍活——`redisChatMemoryRepository` 显式装配与 `ChatMemoryRedisWiringTest` 回归**必须保留**；db0 半条经自动装配天然满足。`ChatMemoryRedisClientConfigTest`（手工 Bean 密码分支构建测试）随 Bean 退役删除，kb-ai-core 310 测试绿。
 >
 > **v2.96（2026-09-03，依赖升级批：Spring AI 2.0.1）**：Redis 会话记忆 autoconfigure 模块重组，**三迁移**——① 包路径 `org.springframework.ai.model.chat.memory.redis.autoconfigure` → `…model.chat.memory.repository.redis.autoconfigure`（插 `repository` 层）；② 类名 `RedisChatMemoryProperties` → `RedisChatMemoryRepositoryProperties`、`RedisChatMemoryAutoConfiguration` → `RedisChatMemoryRepositoryAutoConfiguration`；③ **配置前缀** `spring.ai.chat.memory.redis.*` → `spring.ai.chat.memory.repository.redis.*`（自动配置 Properties Bean 含旧前缀 Binder 回落，属过渡机制——新前缀任一属性命中即不回落，勿混用；application-ai.yml / kb-eval application.yml / ChatMemoryRedisWiringTest 同批迁新，不留过渡依赖）。**机制不变**：redisChatMemoryRepository 的 @ConditionalOnMissingBean 三类型让位（显式装配策略与 ChatMemoryRedisWiringTest 回归继续有效，312 测试绿）；Builder API（jedisClient/indexName/keyPrefix/timeToLive/initializeSchema）签名未变。**jedisClient 覆盖理由更新**：2.0.1 Properties 补 username/password（自动配置已支持密码认证），但 database 仍缺（REDIS_DB 必须 0 坑位⑦ 语义不变）+ 连接参数单一来源纪律——覆盖 Bean 保留。新增可选字段 maxConversationIds / maxMessagesPerConversation / metadataFields 未消费（缺省即原行为）。全模块编译零破坏面（仅此一处包迁移）。
 >
@@ -196,6 +198,9 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > （插 repository 层），Properties/AutoConfiguration 类随包重组更名；旧前缀仅
 > 自动配置 Binder 过渡回落。jedisClient 覆盖理由收窄为 database 缺失 +
 > 单一来源纪律（2.0.1 起自动配置已支持 username/password）。
+> **v2.97 收敛**：手工 jedisClient Bean 退役——Jedis Builder database 缺省即 0
+> （db0 硬约束天然满足），自动装配经占位符桥接 spring.data.redis.* 保单一来源；
+> redisChatMemoryRepository 显式装配保留（让位陷阱未修，见下段）。
 > 依赖 Redis JSON + Query Engine（Redis 8 内置，首跑 E2E 核验）。
 > ② **Bean 拆分定稿**——记忆 Advisor **不挂**共享 `chatClient` Bean：
 > `BaseChatMemoryAdvisor.getConversationId()` 对缺失 CONVERSATION_ID 是 Assert 硬断言

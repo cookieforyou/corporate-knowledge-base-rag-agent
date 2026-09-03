@@ -44,15 +44,20 @@ spring:
       observations:
         include-content: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
       # ── 会话记忆（3.1）—— Redis 热存储（设计文档 11.2，v2.3 实证修正）──
-      # 连接信息（host/port/password/database）统一取自 spring.data.redis.*
-      # （见 ChatMemoryRedisClientConfig 覆盖自动配置 jedisClient，支持密码认证）；
-      # 此处仅记忆专属配置。initialize-schema 首建 FT.CREATE 索引；读/写故障由
+      # 连接桥接：2.0.1 起自动装配 jedisClient 消费本前缀的 host/port/password，
+      # 占位符引用 spring.data.redis.*（与 Redisson 单一来源同源）；database 无
+      # 字段，Jedis Builder 缺省 0 即 RediSearch db0 硬约束（REDIS_DB 须为 0，
+      # 配置非 0 时记忆侧静默 db0、Redisson 侧分库——配置错仅波及 Redisson 域）。
+      # 记忆专属配置：initialize-schema 首建 FT.CREATE 索引；读/写故障由
       # FaultTolerantChatMemory 降级为空记忆，不击穿核心问答链路。
       # 前缀 2.0.1 迁移：chat.memory.redis → chat.memory.repository.redis（旧前缀
       # 仅自动配置过渡回落，勿再使用）
       memory:
         repository:
           redis:
+            host: ${spring.data.redis.host}
+            port: ${spring.data.redis.port}
+            password: ${spring.data.redis.password:}
             index-name: ${CHAT_MEMORY_INDEX:kb-chat-memory-idx}
             key-prefix: ${CHAT_MEMORY_KEY_PREFIX:kb:chat-memory:}
             time-to-live: ${CHAT_MEMORY_TTL:24h}
