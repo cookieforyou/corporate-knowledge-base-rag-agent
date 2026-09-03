@@ -48,12 +48,15 @@ spring:
       # （见 ChatMemoryRedisClientConfig 覆盖自动配置 jedisClient，支持密码认证）；
       # 此处仅记忆专属配置。initialize-schema 首建 FT.CREATE 索引；读/写故障由
       # FaultTolerantChatMemory 降级为空记忆，不击穿核心问答链路。
+      # 前缀 2.0.1 迁移：chat.memory.redis → chat.memory.repository.redis（旧前缀
+      # 仅自动配置过渡回落，勿再使用）
       memory:
-        redis:
-          index-name: ${CHAT_MEMORY_INDEX:kb-chat-memory-idx}
-          key-prefix: ${CHAT_MEMORY_KEY_PREFIX:kb:chat-memory:}
-          time-to-live: ${CHAT_MEMORY_TTL:24h}
-          initialize-schema: true
+        repository:
+          redis:
+            index-name: ${CHAT_MEMORY_INDEX:kb-chat-memory-idx}
+            key-prefix: ${CHAT_MEMORY_KEY_PREFIX:kb:chat-memory:}
+            time-to-live: ${CHAT_MEMORY_TTL:24h}
+            initialize-schema: true
 
 # ============================================================
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断

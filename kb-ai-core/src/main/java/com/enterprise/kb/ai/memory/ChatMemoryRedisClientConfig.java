@@ -1,7 +1,7 @@
 package com.enterprise.kb.ai.memory;
 
 import org.springframework.ai.chat.memory.repository.redis.RedisChatMemoryRepository;
-import org.springframework.ai.model.chat.memory.redis.autoconfigure.RedisChatMemoryProperties;
+import org.springframework.ai.model.chat.memory.repository.redis.autoconfigure.RedisChatMemoryRepositoryProperties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,9 +14,10 @@ import java.time.Duration;
 /**
  * 会话记忆 Redis 侧装配（3.1：Jedis 客户端 + Redis 记忆仓储）
  *
- * <p><b>jedisClient 覆盖</b>：spring-ai 自动配置的 jedisClient 仅支持 host/port
- * （RedisChatMemoryProperties 无 password/database），ECS Redis 带密码必连失败。
- * 自动配置为 @ConditionalOnMissingBean，本 Bean 覆盖之。
+ * <p><b>jedisClient 覆盖</b>：spring-ai 自动配置的 jedisClient 不支持 database
+ * （2.0.1 起补 username/password，database 仍缺——REDIS_DB 必须 0 见坑位⑦），
+ * 且连接参数须与 Redisson 共用 spring.data.redis.* 单一来源。自动配置为
+ * @ConditionalOnMissingBean，本 Bean 覆盖之。
  *
  * <p><b>连接信息单一来源</b>：host/port/password/database 统一取自
  * {@code spring.data.redis.*}（REDIS_HOST / REDIS_PORT / REDIS_PASSWORD /
@@ -24,7 +25,8 @@ import java.time.Duration;
  * Jedis 7 客户端惰性建连，Bean 创建不触网。
  *
  * <p><b>redisChatMemoryRepository 显式装配（2026-08-05 E2E 缺陷修复）</b>：
- * RedisChatMemoryAutoConfiguration#redisChatMemory 的 @ConditionalOnMissingBean
+ * RedisChatMemoryRepositoryAutoConfiguration#redisChatMemoryRepository 的
+ * @ConditionalOnMissingBean
  * 同时检查 {RedisChatMemoryRepository, <b>ChatMemory</b>, ChatMemoryRepository}
  * 三类型——RagAgentChatClientConfig 的用户定义 agentChatMemory（ChatMemory 型）
  * 先于自动配置注册，条件命中 → Redis 仓储 Bean 静默让位 →
@@ -58,13 +60,14 @@ public class ChatMemoryRedisClientConfig {
 
     /**
      * Redis 记忆仓储显式装配：属性桥接与自动配置等价
-     * （indexName/keyPrefix/timeToLive/initializeSchema，前缀 spring.ai.chat.memory.redis.*）。
+     * （indexName/keyPrefix/timeToLive/initializeSchema，前缀
+     * spring.ai.chat.memory.repository.redis.*——2.0.1 迁移，旧前缀仅过渡回落）。
      * initializeSchema 缺省视为 true——仓储构造期即 FT.CREATE（失败抛异常阻断启动，
      * 宁可启动期暴露也不静默降级）；kb-eval 侧以 initialize-schema: false 覆盖。
      */
     @Bean
     public RedisChatMemoryRepository redisChatMemoryRepository(RedisClient jedisClient,
-                                                               RedisChatMemoryProperties properties) {
+                                                               RedisChatMemoryRepositoryProperties properties) {
         RedisChatMemoryRepository.Builder builder = RedisChatMemoryRepository.builder()
             .jedisClient(jedisClient);
         if (StringUtils.hasText(properties.getIndexName())) {

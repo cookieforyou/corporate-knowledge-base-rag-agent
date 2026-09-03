@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-02 · v2.95（GLM temperature 生产档 0.2 定案——MB1 第二轮消融实证，§11.2.2）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-03 · v2.96（Spring AI 2.0.0 → 2.0.1 升级适配——Redis 记忆 autoconfigure 三迁移，§11.2）
+>
+> **v2.96（2026-09-03，依赖升级批：Spring AI 2.0.1）**：Redis 会话记忆 autoconfigure 模块重组，**三迁移**——① 包路径 `org.springframework.ai.model.chat.memory.redis.autoconfigure` → `…model.chat.memory.repository.redis.autoconfigure`（插 `repository` 层）；② 类名 `RedisChatMemoryProperties` → `RedisChatMemoryRepositoryProperties`、`RedisChatMemoryAutoConfiguration` → `RedisChatMemoryRepositoryAutoConfiguration`；③ **配置前缀** `spring.ai.chat.memory.redis.*` → `spring.ai.chat.memory.repository.redis.*`（自动配置 Properties Bean 含旧前缀 Binder 回落，属过渡机制——新前缀任一属性命中即不回落，勿混用；application-ai.yml / kb-eval application.yml / ChatMemoryRedisWiringTest 同批迁新，不留过渡依赖）。**机制不变**：redisChatMemoryRepository 的 @ConditionalOnMissingBean 三类型让位（显式装配策略与 ChatMemoryRedisWiringTest 回归继续有效，312 测试绿）；Builder API（jedisClient/indexName/keyPrefix/timeToLive/initializeSchema）签名未变。**jedisClient 覆盖理由更新**：2.0.1 Properties 补 username/password（自动配置已支持密码认证），但 database 仍缺（REDIS_DB 必须 0 坑位⑦ 语义不变）+ 连接参数单一来源纪律——覆盖 Bean 保留。新增可选字段 maxConversationIds / maxMessagesPerConversation / metadataFields 未消费（缺省即原行为）。全模块编译零破坏面（仅此一处包迁移）。
 >
 > **v2.77（2026-09-01，模型层批B）**：主模型双形态开关（§11.2.2）——`rag.routing.primary.provider` = glm（缺省，GLM-5.3-Flash 强制思考不可关，reasoning_effort low/high/max 透传）| deepseek（回落，思考缺省显式关闭——官方实证默认开 + effort high 且思考模式静默忽略采样参数，历史形态 temperature 0.1 从未生效）；互斥条件装配 + `primaryChatModel` 桥 + 非法值启动失败，切回只动一个环境变量。**轻任务挂备**：意图路由(440)/查询改写挂 fallbackChatModel（局部 Builder 不注册 Bean，观测四参对齐；改写模型恒定 → 主模型切换不再引起检索形态漂移）。deepseek starter 退役（让位测试删除，`ProviderSwitchWiringTest` 三态接棒）。主答切换触发全量门禁复跑（E1；基线形态 = 默认 hybrid 探针，v2.92 措辞勘误）。
 >
@@ -190,6 +192,10 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > （@ConditionalOnMissingBean 让位），连接信息（host/port/password/database）统一取自
 > `spring.data.redis.*`，与 Redisson（ETL 进度通道）单一来源；`spring.ai.chat.memory.redis.*`
 > 仅保留记忆专属配置（index/prefix/TTL/initialize-schema）。
+> **2.0.1 迁移（v2.96）**：前缀改为 `spring.ai.chat.memory.repository.redis.*`
+> （插 repository 层），Properties/AutoConfiguration 类随包重组更名；旧前缀仅
+> 自动配置 Binder 过渡回落。jedisClient 覆盖理由收窄为 database 缺失 +
+> 单一来源纪律（2.0.1 起自动配置已支持 username/password）。
 > 依赖 Redis JSON + Query Engine（Redis 8 内置，首跑 E2E 核验）。
 > ② **Bean 拆分定稿**——记忆 Advisor **不挂**共享 `chatClient` Bean：
 > `BaseChatMemoryAdvisor.getConversationId()` 对缺失 CONVERSATION_ID 是 Assert 硬断言
