@@ -25,8 +25,8 @@
 
 - **双链路架构**：`ragAgentChatClient`（纯检索零工具）+ `toolAgentChatClient`（纯工具零检索），请求体 `mode: rag|tool` 显式分流；意图路由（闲聊旁路直答 / 知识问答走全链）
 - **混合检索**：向量 + BM25[+Graph] 多路并行召回 → RRF 融合 → qwen3-rerank 精排（故障降级截断）；多轮追问消解改写；编号化 [ref-N] 溯源锚定 + 空证据拒答；**间接注入扫描**（召回证据入生成前同源词表逐条扫描，warn/exclude 双策略）
-- **GraphRAG（Phase 5 簇④）**：实体/关系抽取（ETL 终态帧异步派发、旁路不阻断入库、幂等重写 + 令牌桶双档分桶）→ 图路检索**零 LLM**（查询嵌入 → 实体向量匹配 → 1 跳展开 → chunk 反查）入多路 RRF；`rag.graph.enabled` 缺省关、关闭态零回归；多跳问答专项集 30 例 + 准确率门禁（≥80%）
-- **语义缓存（Phase 5 簇③）**：`CacheCheckAdvisor` 路由后门控前——命中短路重放 + 溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索引擎经 Redisson RSearch 零新增依赖（租户域隔离 + KNN 余弦 0.95 + 文档失效反查），事件驱动失效；`rag.cache.enabled` 缺省关
+- **GraphRAG**：实体/关系抽取（ETL 终态帧异步派发、旁路不阻断入库、幂等重写 + 令牌桶双档分桶）→ 图路检索**零 LLM**（查询嵌入 → 实体向量匹配 → 1 跳展开 → chunk 反查）入多路 RRF；`rag.graph.enabled` 缺省关、关闭态零回归；多跳问答专项集 30 例 + 准确率门禁（≥80%）
+- **语义缓存**：`CacheCheckAdvisor` 路由后门控前——命中短路重放 + 溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索引擎经 Redisson RSearch 零新增依赖（租户域隔离 + KNN 余弦 0.95 + 文档失效反查），事件驱动失效；`rag.cache.enabled` 缺省关
 - **带溯源的 Agent 对话**：SSE 无名 TOKEN/ERROR/DONE + 命名 TRACE（三路溯源、chunk 级「查看原文」）+ TOOL_CALL（HITL 审批卡片）
 - **MCP Server**：Streamable HTTP `/mcp` 三工具（search / get_document / ask），JWT 身份守卫 + scope 治理 + 独立限流桶与轻量审计
 - **工具链与 HITL**：企业 Mock 工具（对齐真实 OA/ERP 契约），读工具自动执行、写工具三段式人工审批（Redis 账本 fail-closed，TTL + 一次性消费 + 租户绑定）
@@ -50,7 +50,7 @@
 ├── kb-etl/            # ETL：解析路由 → 保护性切分 → 消毒 → PG → 向量化 → ES 双写；增量重入库
 ├── kb-ai-core/        # 纯 RAG 核心：多路检索（向量+BM25[+图谱]）+RRF+重排、Advisor 链（审计/护栏/配额/路由/门控/缓存）、记忆、指标
 ├── kb-ai-agent/       # Agent 事务域：Mock 工具 + HITL 审批账本 + MCP 三件套（search/get_document/ask）
-├── kb-api/            # REST + SSE + MCP 端点 + SecurityConfig + JWT（启动入口，端口 8090）
+├── kb-api/            # REST + SSE + MCP 端点 + SecurityConfig + JWT（启动入口）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环 + 护栏词表管理）
 ├── kb-eval/           # 评估：EvalRunner + 探针 + Golden Dataset 267 + CI 门禁
 ├── kb-loadtest/       # Gatling 压测四场景 + 生成桩（显式触发）
@@ -61,7 +61,7 @@
 
 ## 运行环境
 
-PG / Milvus / ES / Redis / MinIO 统一部署在 ECS 服务器，**本地无需搭建**，启动时通过环境变量指向服务器即可。本地 8080 端口被占用，API 服务固定运行在 **8090**（前端 `frontend/.env` BACKEND_URL 配套，Vite 代理 `/api`）。
+PG / Milvus / ES / Redis / MinIO 统一部署在 ECS 服务器，**本地无需搭建**，启动时通过环境变量指向服务器即可。前端 `frontend/.env` BACKEND_URL 配套，Vite 代理 `/api`。
 
 生产部署采用容器化形态：根 Dockerfile + `infra/docker-compose.app.yml`（healthcheck / 自动重启 / 日志轮转 / AppCDS 训练服务）+ `infra/docker-compose.monitoring.yml`（Prometheus/Grafana/Jaeger/node-exporter）。详见 `docs/delivery/运维手册`。
 
@@ -72,7 +72,6 @@ PG / Milvus / ES / Redis / MinIO 统一部署在 ECS 服务器，**本地无需�
 mvn -q --no-transfer-progress clean install -DskipTests
 
 # 启动环境变量（最小集，默认值见 application-infra.yml / application-ai.yml）
-export SERVER_PORT=8090
 export DB_URL=jdbc:postgresql://<ecs-host>:5432/kb_rag_agent
 export DB_USERNAME=<user>
 export DB_PASSWORD=<password>
@@ -85,7 +84,7 @@ export DASHSCOPE_API_KEY=sk-xxx
 # 观测：TRACING_OTLP_ENABLED=true + LANGFUSE_OTLP_AUTH=Basic <base64(pk:sk)>（缺省零导出零噪音）
 # GraphRAG（簇④，缺省关）：RAG_GRAPH_ENABLED=true + NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD
 
-# 启动后端（端口 8090；spring-boot:run fork JVM 必须带 --enable-preview，与 surefire 同理）
+# 启动后端（spring-boot:run fork JVM 必须带 --enable-preview，与 surefire 同理）
 mvn spring-boot:run -pl kb-api -Dspring-boot.run.jvmArguments="--enable-preview"
 
 # 启动前端（5173）
