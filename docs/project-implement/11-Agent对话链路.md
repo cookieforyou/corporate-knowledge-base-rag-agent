@@ -529,10 +529,10 @@ ToolCallingAdvisor.builder()
 
 ### 11.2.3 MCP 工具集成（v2 修订）
 
-> **v2 修正**：① SSE 传输自 Spring AI 2.0.0 起**已废弃**，新接入使用 **Streamable HTTP**；② `ToolRegistry.merge(...)` 不存在——合并多来源工具经 `ChatClient.Builder.defaultTools(provider1, provider2, ...)`。
+> **v2 修正**：① SSE 传输自 Spring AI 2.0.1 起**已废弃**，新接入使用 **Streamable HTTP**；② `ToolRegistry.merge(...)` 不存在——合并多来源工具经 `ChatClient.Builder.defaultTools(provider1, provider2, ...)`。
 
 ```yaml
-# application.yml - MCP Client 配置（Spring AI 2.0.0 GA）
+# application.yml - MCP Client 配置（Spring AI 2.0.1 GA）
 spring:
   ai:
     mcp:

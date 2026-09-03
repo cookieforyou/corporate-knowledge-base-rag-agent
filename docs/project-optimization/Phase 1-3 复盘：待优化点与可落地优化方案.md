@@ -21,7 +21,7 @@ Phase 1-3 已实质收尾：基础设施与 ETL（Phase 1）、混合检索引�
 | 模型供给 | 全 SaaS API（DeepSeek V4 主 + 百炼系 embedding/rerank/judge/备用） | 优化成本按 API 调用计费；供应商能力边界即方案边界（如 Late Chunking） |
 | 基础设施 | PG/ES/Milvus/Redis/MinIO 单机部署于同一 ECS | 分布式方案（Kafka/CDC/Milvus 集群）当前规模不成立 |
 | 语料规模 | 4 份文档 / 44 chunk；Golden 74 条 | 全量重入库成本可控（分钟级），但统计显著性受限（小样本） |
-| 技术栈 | Spring AI 2.0.0 GA + Boot 4.1 + Java 21 虚拟线程 | 优先复用框架内置组件（MultiQueryExpander/CompressionQueryTransformer 等），少自研 |
+| 技术栈 | Spring AI 2.0.1 GA + Boot 4.1 + Java 21 虚拟线程 | 优先复用框架内置组件（MultiQueryExpander/CompressionQueryTransformer 等），少自研 |
 | 人力 | 单开发者 + AI 辅助工作流 | 方案必须可拆小、可验证（每项挂 kb-eval 或 E2E 步骤）、避免大爆炸式重构 |
 
 ### 1.3 方法论

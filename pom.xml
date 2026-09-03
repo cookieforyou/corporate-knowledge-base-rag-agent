@@ -33,7 +33,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <spring-ai.version>2.0.0</spring-ai.version>
+        <spring-ai.version>2.0.1</spring-ai.version>
         <!-- Gatling 压测（簇⑥ 批5 v2.59）：独立模块 kb-loadtest，gatling:test 显式触发，
              Simulation 类命名 *Simulation 避开 surefire，默认 mvn test 只编译不跑压测 -->
         <gatling.version>3.15.1</gatling.version>

@@ -8,7 +8,7 @@
 
 ## 技术栈
 
-- Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.0 GA + Maven 4
+- Java 21（虚拟线程，父 POM 启用 `--enable-preview`）+ Spring Boot 4.1.0 + Spring AI 2.0.1 GA + Maven 4
 - LLM: 主答双形态（GLM-5.3-Flash 缺省 / DeepSeek V4 回落，`rag.routing.primary.provider` 一切即切）· Embedding: 百炼 (`qwen3.7-text-embedding`，OpenAI 兼容) · Rerank: `qwen3-rerank` · 辅助族（备用/路由改写/L2 二判/Judge/图抽取/ETL 语境增强）: `qwen3.8-flash`
 - 向量库: pgvector / Milvus 2.6（`kb.vector-store.provider` 切换，默认 milvus）
 - PostgreSQL 18 + Elasticsearch 9.4.2 + Redis 8 + MinIO（版本指 ECS 服务端，pom 客户端独立）

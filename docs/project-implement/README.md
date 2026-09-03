@@ -130,7 +130,7 @@
 
 ### 核心决策：检索架构「方案甲+」（2026-07-31 源码级核验后裁决）
 
-v1 设计为「ES BM25 + Milvus 向量 + 手搓并行管道 + 自研 RRF」。经对 Spring AI 2.0.0 GA 源码与 Milvus 2.6 能力的双路核验，裁决如下：
+v1 设计为「ES BM25 + Milvus 向量 + 手搓并行管道 + 自研 RRF」。经对 Spring AI 2.0.1 GA 源码与 Milvus 2.6 能力的双路核验，裁决如下：
 
 - ❌ **Milvus 原生单引擎方案否决**：`MilvusVectorStore` 源码锁死 4 字段 schema（无 sparse/BM25 Function）、单路 dense 搜索、零扩展点；Spring AI 全仓无 sparse embedding 抽象；且 Milvus jieba 中文分词存在已知质量问题（milvus-io/milvus#36743），对"中文专有名词命中"核心痛点是致命风险。12 个月后可重估。
 - ✅ **采纳方案甲+**：保留 ES ik BM25（中文质量 + 已部署 + 高亮/DSL），但构建于 Spring AI 2.0 **模块化 RAG** 之上而非手搓：`RetrievalAugmentationAdvisor` + 自定义 `HybridDocumentRetriever`（双路虚拟线程并行 + `RrfFusion`）+ 框架内置查询改写/扩展 + `qwen3-rerank` 重排序 + `ContextualQueryAugmenter` 证据注入。详见[第十章](./10-混合检索引擎.md)。

@@ -9,7 +9,7 @@
 | #    | 任务 | 负责模块 | 工时估算 | 验收标准 | 完成情况 |
 |------|------|---------|---------|---------|---------|
 | 1.1  | 搭建 Maven 多模块工程骨架（8 个模块） | 工程基础 | 2d | `mvn clean compile` 通过 | ✅ 已完成 (2026-07-27) |
-| 1.2  | 配置 Spring Boot 4.1 + Spring AI 2.0.0 GA BOM | kb-commons | 0.5d | 依赖解析无冲突 | ✅ 已完成 (2026-07-27) |
+| 1.2  | 配置 Spring Boot 4.1 + Spring AI 2.0.1 GA BOM | kb-commons | 0.5d | 依赖解析无冲突 | ✅ 已完成 (2026-07-27) |
 | 1.3  | 实现 PostgreSQL 核心表（DDL + JPA Entity） | kb-domain | 1.5d | 表创建 + Repository CRUD 验证 | ✅ 已完成 (2026-07-28) |
 | 1.4  | 实现基础文档上传 API（MultipartFile → MinIO） | kb-api | 1d | Postman 上传成功 | ✅ 已完成 (2026-07-29) |
 | 1.5  | 实现 TikaDocumentReader + TokenTextSplitter 基础 ETL | kb-etl | 2d | PDF/Docx 解析 + 切分验证 | ✅ 已完成 (2026-07-29)；2026-08-01 修复：maxNumChunks=5 误用作「切片大小」实为「切片数上限」，长文档尾部剩余并入超大尾块超 embedding 输入上限（8192×0.9）致 ETL 失败，改回官方默认 10000 并加切分分布回归测试 |

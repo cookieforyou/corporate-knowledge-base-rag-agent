@@ -2,7 +2,7 @@
 
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
-> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.0 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 9.4.2 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
+> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.1 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 9.4.2 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
 >
 > **报告性质**：从 0 到 1 的全生命周期落地指南，覆盖战略定位、需求分析、架构设计、分阶段实施、代码实现、测试部署与运维
 >
@@ -1135,7 +1135,7 @@ Phase 1 (W1-W3)     Phase 2 (W4-W7)      Phase 3 (W8-W12)     Phase 4 (W13-W16) 
 | #    | 任务 | 负责模块 | 工时估算 | 验收标准 |
 |------|------|---------|---------|---------|
 | 1.1  | 搭建 Maven 多模块工程骨架（8 个模块） | 工程基础 | 2d | `mvn clean compile` 通过 |
-| 1.2  | 配置 Spring Boot 4.1 + Spring AI 2.0.0 GA BOM | kb-commons | 0.5d | 依赖解析无冲突 |
+| 1.2  | 配置 Spring Boot 4.1 + Spring AI 2.0.1 GA BOM | kb-commons | 0.5d | 依赖解析无冲突 |
 | 1.3  | 实现 PostgreSQL 核心表（DDL + JPA Entity） | kb-domain | 1.5d | 表创建 + Repository CRUD 验证 |
 | 1.4  | 实现基础文档上传 API（MultipartFile → MinIO） | kb-api | 1d | Postman 上传成功 |
 | 1.5  | 实现 TikaDocumentReader + TokenTextSplitter 基础 ETL | kb-etl | 2d | PDF/Docx 解析 + 切分验证 |
@@ -2514,7 +2514,7 @@ public class SmartRoutingChatModel implements ChatModel {
 Spring AI 2.0 原生支持 MCP SDK 2.0 协议，通过 YAML 配置即可对接外部 MCP Server：
 
 ```yaml
-# application.yml - MCP Client 配置 (Spring AI 2.0.0 GA)
+# application.yml - MCP Client 配置 (Spring AI 2.0.1 GA)
 spring:
   ai:
     mcp:
@@ -3590,7 +3590,7 @@ spec:
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-bom</artifactId>
-            <version>2.0.0</version>
+            <version>2.0.1</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -3776,7 +3776,7 @@ spring:
 
 > **报告结语**
 >
-> 本报告基于 Spring AI 2.0.0 GA 的最新特性与最佳实践，结合 2026 年企业级知识库 RAG Agent 市场的真实需求，提供了一套完整的、分阶段、可操作的全景落地实现方案。
+> 本报告基于 Spring AI 2.0.1 GA 的最新特性与最佳实践，结合 2026 年企业级知识库 RAG Agent 市场的真实需求，提供了一套完整的、分阶段、可操作的全景落地实现方案。
 >
 > 按照五阶段路线图（24 周）稳步推进，你将交付一个：
 > - **答得准**：混合检索 Top-5 命中率 > 85%
@@ -3787,7 +3787,7 @@ spring:
 >
 > 的**企业级 AI 知识中枢**。
 >
-> **技术栈检查清单**：Java 21 ✓ | Spring Boot 4.1 ✓ | Spring AI 2.0.0 GA ✓ | Milvus ✓ | Elasticsearch ✓ | PostgreSQL 18 ✓ | Redis 8 ✓ | OpenTelemetry ✓ | Vue3 ✓
+> **技术栈检查清单**：Java 21 ✓ | Spring Boot 4.1 ✓ | Spring AI 2.0.1 GA ✓ | Milvus ✓ | Elasticsearch ✓ | PostgreSQL 18 ✓ | Redis 8 ✓ | OpenTelemetry ✓ | Vue3 ✓
 >
 > ---
 >

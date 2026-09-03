@@ -63,13 +63,13 @@
 四路条件同时成立，构成提前落地的充分依据：
 
 1. **生态成熟**：MCP 是 2026 年 Agent ↔ 工具互操作事实标准（OpenAI/Google/Microsoft/Anthropic 全采纳）；2026-07-28 规范完成 stateless core 重构（Streamable HTTP + OAuth 2.1 + elicitation），进入生产级成熟期；
-2. **框架就绪**：Spring AI 2.0.0 GA 原生 `spring-ai-starter-mcp-server-webmvc`，`@McpTool` 注解已毕业入 core——与项目栈完全匹配，与 `EnterpriseMockTools` 的 `@Tool` 风格同源，迁移成本低；
+2. **框架就绪**：Spring AI 2.0.1 GA 原生 `spring-ai-starter-mcp-server-webmvc`，`@McpTool` 注解已毕业入 core——与项目栈完全匹配，与 `EnterpriseMockTools` 的 `@Tool` 风格同源，迁移成本低；
 3. **模式验证**：「知识库即 MCP Server」商业先例充分（Vectara/Notion/Confluence/Oracle OIC），工具粒度共识为 `search(query, topK)` + `get_document(docId)` + `ask(question)` 三件套；
 4. **战略契合**：项目定位「企业知识底座」——暴露为 MCP Server 后，Claude/Cursor/内部 Agent 多入口共享同一知识底座，这正是产品化的核心价值点；同时为真实 OA/ERP 工具接入（`@Tool` + `@McpTool` 双注解）与 5.4-A 跨链路由铺好地基。
 
 **成本**：接入 ~1-2d + OAuth 鉴权治理 ~2-3d + 审计/限流复用 ~1d ≈ **1 周**。
 **前置安全要求（不可省）**：美国 DoD 2026-06 报告定性 MCP 工具投毒/语义注入为系统性威胁——Server 必须做输入 schema 校验、工具可见性 scope 控制、调用审计（项目审计链现成复用）、Casdoor JWT → tenantId 映射复用 JwtUtils。
-**已知坑位（调研登记）**：Spring AI 2.0.0 starter 传递拉取 Boot 4.1.0 依赖需显式 pin（spring-ai#6465）；MCP SDK 对齐 2025-11-25 规范（未跟进 2026-07-28 stateless，影响有限）；`validateToolInputs=true` 默认强校验。
+**已知坑位（调研登记）**：Spring AI 2.0.1 starter 传递拉取 Boot 4.1.0 依赖需显式 pin（spring-ai#6465）；MCP SDK 对齐 2025-11-25 规范（未跟进 2026-07-28 stateless，影响有限）；`validateToolInputs=true` 默认强校验。
 
 ### N2. Bad Case 运营闭环（见 4.8 升级项）
 
