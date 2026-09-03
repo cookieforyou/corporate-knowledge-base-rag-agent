@@ -33,7 +33,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -237,7 +236,7 @@ public class GraphExtractionService {
             RRateLimiter limiter = redissonClient.getRateLimiter(bucketKey(tenantId, profile));
             limiter.setRate(RateLimiterArgs.of(RateType.OVERALL,
                 rateFor(profile), Duration.ofSeconds(properties.getRateIntervalSeconds())));
-            return limiter.tryAcquire(1, RATE_ACQUIRE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return limiter.tryAcquire(1L, Duration.ofSeconds(RATE_ACQUIRE_TIMEOUT_SECONDS));
         } catch (Exception e) {
             // Redis 故障 fail-open（抽取是旁路管道，限流是成本管控非安全边界）
             log.warn("图谱抽取限流器故障，fail-open 放行: {}", e.getMessage());

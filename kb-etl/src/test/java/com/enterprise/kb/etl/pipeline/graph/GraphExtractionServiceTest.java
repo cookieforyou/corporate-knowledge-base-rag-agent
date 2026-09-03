@@ -18,16 +18,15 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -87,7 +86,7 @@ class GraphExtractionServiceTest {
 
         RRateLimiter limiter = mock(RRateLimiter.class);
         // 签名实证（redisson 4.6.1 javap）：tryAcquire(long permits, long timeout, TimeUnit)
-        when(limiter.tryAcquire(anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(true);
+        when(limiter.tryAcquire(anyLong(), any(Duration.class))).thenReturn(true);
         lenient().when(redissonClient.getRateLimiter(anyString())).thenReturn(limiter);
         // 批量化缺省桩（v2.78）：批量请求按输入序回 1024 维向量（带 index 归位材料）
         lenient().when(embeddingModel.embedForResponse(any())).thenAnswer(inv ->
