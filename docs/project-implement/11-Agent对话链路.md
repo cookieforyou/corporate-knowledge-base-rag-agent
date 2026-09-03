@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-03 · v2.97（jedisClient 手工装配退役——2.0.1 自动装配收编，占位符桥接保单一来源，§11.2）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-03 · v2.98（坑位㊹：记忆配置段误挂 tools 节点从未生效——纠偏挂载 + 行为变化记档，§11.2）
+>
+> **v2.98（2026-09-03，依赖升级批三段：坑位㊹ 纠偏——记忆配置段误挂从未生效）**：用户审阅 yml 目击发现——会话记忆配置段（application-ai.yml）自 **3.1 落地起误挂 `spring.ai.tools:` 节点下**（实际路径 `spring.ai.tools.memory.*`，正确为 `spring.ai.chat.memory.*`；`chat:` 与 `tools:` 平级、当年插段锚错父节点），Binder 从未命中且无任何报错；运行实态一直是框架缺省值（索引 `chat-memory-idx` / 键前缀 `chat-memory:` / **无 TTL**——`time-to-live: 24h` 意图从未生效），`initialize-schema` 缺省 true 恰与配置意图一致故长期未暴露。kb-eval 侧独立成段挂载正确（其 `initialize-schema: false` 一直生效，kb-eval 零 Redis 依赖不受影响）。v2.96 前缀迁移时只沿错误位置插 `repository` 层未纠挂载点。**纠偏**：移段至 `chat:` 节点下。**配置首次生效的行为变化**：① 首建新索引 `kb-chat-memory-idx` + 新键前缀 `kb:chat-memory:`——历史热记忆留在旧索引不迁移（多轮上下文经 PG 归档 + 续聊回填机制自然接住，影响≈0；热记忆本为 TTL 易失语义）；② TTL 24h 首次生效（旧键永不过期）；③ 旧索引 `chat-memory-idx` 与无 TTL 旧键成孤儿（建议 `FT.DROPINDEX` + 键清理，运维可选）。教训入坑位㊹：多节点平级的 yml 插段必须核父级链缩进，「配置写了」≠「配置生效」。kb-ai-core 310 测试绿。
 >
 > **v2.97（2026-09-03，依赖升级批二段：jedisClient 退役为框架自动装配）**：v2.96「覆盖 Bean 保留」进一步收敛——**手工 jedisClient Bean 删除，改用 2.0.1 自动装配**。可行性字节码级定谳：Jedis 7.4.1 `DefaultJedisClientConfig$Builder` 构造器 `iconst_0 → putfield database`（database 缺省 = 0），且自动装配密码/无密码两分支均不显式设置——**RediSearch db0 硬约束天然满足**（原覆盖动机的 database 透传不再必要；password 缺口 2.0.1 已由上游补齐）。**单一来源纪律保持**：自动装配消费 `spring.ai.chat.memory.repository.redis.{host,port,password}`，application-ai.yml 以占位符引用 `spring.data.redis.*`（与 Redisson 同源，env 入口不变）。**行为差异记注**：REDIS_DB 误配非 0 时，记忆侧从「启动期 FT.CREATE 报错暴露」（原 fail-fast 保险丝）变为「静默连 db0」——RediSearch db0 为硬约束下静默 db0 反而更安全，配置错仅波及 Redisson 域。**坑位⑦ 半条退役半条存续**：让位陷阱半条（三类型 @ConditionalOnMissingBean，2.0.1 未变）仍活——`redisChatMemoryRepository` 显式装配与 `ChatMemoryRedisWiringTest` 回归**必须保留**；db0 半条经自动装配天然满足。`ChatMemoryRedisClientConfigTest`（手工 Bean 密码分支构建测试）随 Bean 退役删除，kb-ai-core 310 测试绿。
 >

@@ -40,10 +40,13 @@ spring:
         observations:
           log-prompt: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
           log-completion: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
-    tools:
-      observations:
-        include-content: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
       # ── 会话记忆（3.1）—— Redis 热存储（设计文档 11.2，v2.3 实证修正）──
+      # 【坑位㊹ 纠偏（2026-09-03）】本段自 3.1 起误挂 tools: 节点下——实际路径
+      # spring.ai.tools.memory.*，Binder 从未命中，运行实态一直是框架缺省值
+      # （索引 chat-memory-idx / 键前缀 chat-memory: / 无 TTL；initialize-schema
+      # 缺省 true 恰与配置意图一致故未暴露）。修正挂载至 chat: 节点后配置首次
+      # 生效：首建新索引 kb-chat-memory-idx，历史热记忆不迁移（续聊由 PG 归档
+      # 回填机制自然接住），旧索引 chat-memory-idx 与无 TTL 旧键建议清理。
       # 连接桥接：2.0.1 起自动装配 jedisClient 消费本前缀的 host/port/password，
       # 占位符引用 spring.data.redis.*（与 Redisson 单一来源同源）；database 无
       # 字段，Jedis Builder 缺省 0 即 RediSearch db0 硬约束（REDIS_DB 须为 0，
@@ -62,6 +65,9 @@ spring:
             key-prefix: ${CHAT_MEMORY_KEY_PREFIX:kb:chat-memory:}
             time-to-live: ${CHAT_MEMORY_TTL:24h}
             initialize-schema: true
+    tools:
+      observations:
+        include-content: ${RAG_OBSERVABILITY_LOG_CONTENT:true}
 
 # ============================================================
 # 检索重排序（2.9）—— DashScope rerank API，故障自动降级为 fusion_score 截断
