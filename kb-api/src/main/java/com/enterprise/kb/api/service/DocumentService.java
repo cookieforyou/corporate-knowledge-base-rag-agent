@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.service;
 
 import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
+import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.exception.BusinessException;
@@ -14,6 +15,7 @@ import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
 import com.enterprise.kb.etl.pipeline.EtlStage;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
+import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -51,7 +53,7 @@ public class DocumentService {
     /** 图谱抽取派发器（簇④ 5.1 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
     /** 图谱网关（簇④ 批3）：文档删除时尽力清理图引用；缺省关时 Bean 缺位 */
-    private final ObjectProvider<com.enterprise.kb.infrastructure.graph.GraphGateway> graphGateway;
+    private final ObjectProvider<GraphGateway> graphGateway;
     /** 图清理异步执行器（簇④ 批3 生命周期补强）：removeDocument 含孤儿清扫可达数十秒，异步旁路不占删除响应 */
     private final TaskExecutor graphCleanupExecutor;
 
@@ -66,7 +68,7 @@ public class DocumentService {
                            AiBusinessMetrics metrics,
                            ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher,
                            ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher,
-                           ObjectProvider<com.enterprise.kb.infrastructure.graph.GraphGateway> graphGateway,
+                           ObjectProvider<GraphGateway> graphGateway,
                            @Qualifier("graphCleanupExecutor") TaskExecutor graphCleanupExecutor) {
         this.minioClient = minioClient;
         this.documentRepository = documentRepository;
@@ -344,7 +346,7 @@ public class DocumentService {
      * 故重建侧不再单独接线（避免双发）；首次入库在 {@link #upload} 侧独立接线同语义旁路
      * （簇④ 5.1 热修：首接误以为首入亦经本回调，实为独立回调漏接——实证回写）。
      */
-    private Consumer<com.enterprise.kb.etl.pipeline.EtlProgress> reindexProgressCallback(
+    private Consumer<EtlProgress> reindexProgressCallback(
             String docName, String tenantId, CompletableFuture<Boolean> outcome) {
         return progressWriter.andThen(p -> {
             if (p.getStage() == EtlStage.COMPLETED) {
