@@ -17,10 +17,11 @@ import com.enterprise.kb.etl.service.DocumentEtlService;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,7 +37,6 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DocumentService {
 
     private final MinioClient minioClient;
@@ -52,6 +52,34 @@ public class DocumentService {
     private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
     /** 图谱网关（簇④ 批3）：文档删除时尽力清理图引用；缺省关时 Bean 缺位 */
     private final ObjectProvider<com.enterprise.kb.infrastructure.graph.GraphGateway> graphGateway;
+    /** 图清理异步执行器（簇④ 批3 生命周期补强）：removeDocument 含孤儿清扫可达数十秒，异步旁路不占删除响应 */
+    private final TaskExecutor graphCleanupExecutor;
+
+    /** 手写构造器（@RequiredArgsConstructor 退役）：graphCleanupExecutor 须 @Qualifier 显式定夺
+     *  （容器内 AsyncTaskExecutor 多候选，lombok 不复制注解到构造参数——IndexRebuildService 同款纪律） */
+    public DocumentService(MinioClient minioClient,
+                           KbDocumentRepository documentRepository,
+                           KbChunkRepository chunkRepository,
+                           DocumentEtlService etlService,
+                           EtlProgressRedisWriter progressWriter,
+                           ChunkCleanupService chunkCleanupService,
+                           AiBusinessMetrics metrics,
+                           ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher,
+                           ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher,
+                           ObjectProvider<com.enterprise.kb.infrastructure.graph.GraphGateway> graphGateway,
+                           @Qualifier("graphCleanupExecutor") TaskExecutor graphCleanupExecutor) {
+        this.minioClient = minioClient;
+        this.documentRepository = documentRepository;
+        this.chunkRepository = chunkRepository;
+        this.etlService = etlService;
+        this.progressWriter = progressWriter;
+        this.chunkCleanupService = chunkCleanupService;
+        this.metrics = metrics;
+        this.cacheInvalidationPublisher = cacheInvalidationPublisher;
+        this.graphExtractionPublisher = graphExtractionPublisher;
+        this.graphGateway = graphGateway;
+        this.graphCleanupExecutor = graphCleanupExecutor;
+    }
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -149,7 +177,9 @@ public class DocumentService {
 
     /**
      * 删除文档（级联清理）：PG Chunk/文档行 → 向量库 → ES 索引 → MinIO 对象。
-     * 下游存储清理为尽力而为（失败告警不阻断主删除——PG 为事实源，残留可离线清理）。
+     * 下游存储清理为尽力而为（失败告警不阻断主删除——PG 为事实源，残留可离线清理）；
+     * 图引用清理经 graphCleanupExecutor **异步旁路**（孤儿清扫可达数十秒，不占删除响应，
+     * 在途窗口经 PG 事实源反查自然滤除——见方法体注释）。
      *
      * <p><b>幂等</b>（2026-08-03）：删除不存在的文档静默成功。E2E 实测删除竞态
      * （重复点击/双 Tab/列表刷新前再删）会产生第二次 DELETE，此前抛 DOC_NOT_FOUND
@@ -187,15 +217,22 @@ public class DocumentService {
             log.warn("MinIO 对象清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
         }
 
-        // 图谱引用清理（簇④ 批3）：Chunk 锚点删除 + 实体/关系引用摘除 + 孤儿清扫
-        // 尽力而为——图故障不阻断删除（残留引用经下次同文档重抽取/孤儿清扫收敛）
-        graphGateway.ifAvailable(gateway -> {
+        // 图谱引用清理（簇④ 批3）：Chunk 锚点删除 + 实体/关系引用摘除 + 孤儿清扫。
+        // 异步旁路（生命周期补强，2026-09-04）：removeDocument 含全图孤儿扫描，经 bolt+s
+        // 多事务往返可达数十秒（E2E 实测 ~20s）——同步等待致前端删除盲等，改经
+        // graphCleanupExecutor 虚拟线程执行，删除即刻返回。语义不变，仍尽力而为：
+        // ① 图故障仅告警不阻断删除（残留引用经下次同文档重抽取/孤儿清扫收敛）；
+        // ② 清理在途窗口无害——图路检索 chunk 反查 PG 事实源，锚点残留即纵深丢弃
+        //    （GraphDocumentRetriever 失主丢弃语义，PG 行已在本方法上方同步删除）；
+        // ③ removeDocument 按 docId 定向且幂等，与删除后同 ID 重上传的抽取无碰撞竞态
+        graphCleanupExecutor.execute(() -> graphGateway.ifAvailable(gateway -> {
             try {
                 gateway.removeDocument(tenantId, docId);
+                log.info("图引用清理完成（异步）: docId={}", docId);
             } catch (Exception e) {
                 log.warn("图数据清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
             }
-        });
+        }));
 
         documentRepository.delete(doc);
         log.info("文档已删除: id={}, name={}, chunks={}", docId, doc.getName(), chunkIds.size());

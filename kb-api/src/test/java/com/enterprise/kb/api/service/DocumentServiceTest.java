@@ -26,6 +26,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -76,7 +77,8 @@ class DocumentServiceTest {
         cacheInvalidationPublisher = publisherProvider(null);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
-            graphPublisherProvider(null), emptyGraphGatewayProvider());   // 图谱抽取派发器缺省缺位（簇④，关闭态零变化）
+            graphPublisherProvider(null), emptyGraphGatewayProvider(),   // 图谱抽取派发器缺省缺位（簇④，关闭态零变化）
+            new SyncTaskExecutor());   // 图清理异步旁路：单测同步直跑（verify 即时生效）
         // @Value 字段测试注入：MinIO args builder 在 build 时即校验 bucket 非空
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
         when(progressWriter.andThen(any())).thenReturn(p -> { });
@@ -123,7 +125,7 @@ class DocumentServiceTest {
         GraphGateway gateway = mock(GraphGateway.class);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
-            graphPublisherProvider(null), gatewayProvider(gateway));
+            graphPublisherProvider(null), gatewayProvider(gateway), new SyncTaskExecutor());
         KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
         when(chunkRepository.findByDocIdOrderByChunkIndex(DOC_ID)).thenReturn(List.of());
@@ -142,7 +144,7 @@ class DocumentServiceTest {
             .when(gateway).removeDocument(anyString(), anyString());
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
-            graphPublisherProvider(null), gatewayProvider(gateway));
+            graphPublisherProvider(null), gatewayProvider(gateway), new SyncTaskExecutor());
         KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
         when(chunkRepository.findByDocIdOrderByChunkIndex(DOC_ID)).thenReturn(List.of());
@@ -150,6 +152,26 @@ class DocumentServiceTest {
         service.delete(DOC_ID, TENANT);
 
         verify(documentRepository).delete(document);   // 删除主流程不受图故障影响
+    }
+
+    /** 生命周期补强（2026-09-04）：图清理经异步执行器派发，不占删除同步路径 */
+    @Test
+    void deleteDispatchesGraphCleanupAsynchronously() {
+        GraphGateway gateway = mock(GraphGateway.class);
+        List<Runnable> dispatched = new java.util.ArrayList<>();
+        service = new DocumentService(minioClient, documentRepository, chunkRepository,
+            etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
+            graphPublisherProvider(null), gatewayProvider(gateway), dispatched::add);   // 只收任务不执行
+        KbDocument document = doc(TENANT, DocumentStatus.SUCCESS);
+        when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
+        when(chunkRepository.findByDocIdOrderByChunkIndex(DOC_ID)).thenReturn(List.of());
+
+        service.delete(DOC_ID, TENANT);
+
+        verify(gateway, never()).removeDocument(anyString(), anyString());   // 同步路径零触达图
+        verify(documentRepository).delete(document);
+        dispatched.forEach(Runnable::run);   // 手动执行派发任务
+        verify(gateway).removeDocument(TENANT, DOC_ID);                      // 任务体内完成清理
     }
 
     @SuppressWarnings("unchecked")
@@ -295,7 +317,7 @@ class DocumentServiceTest {
         CacheInvalidationPublisher publisher = mock(CacheInvalidationPublisher.class);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(publisher),
-            graphPublisherProvider(null), emptyGraphGatewayProvider());
+            graphPublisherProvider(null), emptyGraphGatewayProvider(), new SyncTaskExecutor());
         when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(doc(TENANT, DocumentStatus.SUCCESS)));
         when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
@@ -323,7 +345,7 @@ class DocumentServiceTest {
         GraphExtractionPublisher graphPublisher = mock(GraphExtractionPublisher.class);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, publisherProvider(cachePublisher),
-            graphPublisherProvider(graphPublisher), emptyGraphGatewayProvider());
+            graphPublisherProvider(graphPublisher), emptyGraphGatewayProvider(), new SyncTaskExecutor());
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
         when(progressWriter.andThen(any())).thenAnswer(inv -> inv.getArgument(0));
         MockMultipartFile file = new MockMultipartFile("file", "样本.md", "text/markdown", "内容".getBytes());
