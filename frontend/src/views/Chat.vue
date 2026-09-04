@@ -138,22 +138,6 @@
       </div>
     </div>
 
-    <!-- ══ 上传进度条（2.13 实时 WS） ══ -->
-    <transition name="slide-fade">
-      <div v-if="upload" class="upload-strip panel reveal">
-        <el-icon class="upload-ico"><Document /></el-icon>
-        <div class="upload-info">
-          <div class="upload-name">{{ upload.name }}
-            <span class="chip" :class="upload.stage === 'FAILED' ? 'chip-danger' : 'chip-pine'">
-              {{ stageLabel(upload.stage) }}
-            </span>
-          </div>
-          <el-progress :percentage="Math.round(upload.percentage)" :status="progressStatus"
-            :class="{ 'progress-live': isLiveStage(upload.stage) }" :stroke-width="8" />
-        </div>
-      </div>
-    </transition>
-
     <!-- ══ 输入区 ══ -->
     <footer class="composer reveal">
       <div class="composer-box">
@@ -169,12 +153,6 @@
               <el-radio-button value="rag">知识问答</el-radio-button>
               <el-radio-button value="tool">企业工具</el-radio-button>
             </el-radio-group>
-            <el-upload :show-file-list="false" :before-upload="handleUpload"
-              accept=".pdf,.docx,.pptx,.xlsx,.md,.txt,.html">
-              <el-button text :disabled="streaming" class="attach-btn">
-                <el-icon><Paperclip /></el-icon>&nbsp;上传文档
-              </el-button>
-            </el-upload>
           </div>
           <el-button type="primary" round :disabled="!input.trim() || streaming" @click="ask(input)">
             发送&nbsp;<el-icon><Promotion /></el-icon>
@@ -193,14 +171,14 @@
 import { ref, nextTick, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore, type Message, type Source, type SourceChunk } from '@/stores/chat'
-import { chatStreamUrl, uploadDocument, etlProgressWsUrl, submitFeedback, getSessionMessages,
-  type ToolCallInfo, type EtlProgress, type HistoryMessage } from '@/api'
+import { chatStreamUrl, submitFeedback, getSessionMessages,
+  type ToolCallInfo, type HistoryMessage } from '@/api'
 import { renderAnswer } from '@/composables/markdown'
 import SourceDialog, { type SourceTarget } from '@/components/SourceDialog.vue'
 import ToolCallCard from '@/components/ToolCallCard.vue'
 import SessionList from '@/components/SessionList.vue'
 import { ElMessage } from 'element-plus'
-import { Right, ArrowDown, Document, Promotion, Refresh, Link as Paperclip } from '@element-plus/icons-vue'
+import { Right, ArrowDown, Document, Promotion, Refresh } from '@element-plus/icons-vue'
 
 const auth = useAuthStore()
 const store = useChatStore()
@@ -456,65 +434,7 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
   }
 }
 
-// ── 上传 + ETL 实时进度（2.13）──
-
-const upload = ref<{ name: string; stage: string; percentage: number } | null>(null)
-let progressWs: WebSocket | null = null
-
-async function handleUpload(file: File) {
-  try {
-    const docId = await uploadDocument(file)
-    upload.value = { name: file.name, stage: 'UPLOADING', percentage: 5 }
-    subscribeProgress(docId, file.name)
-  } catch (e: any) {
-    ElMessage.error('上传失败：' + (e.response?.data?.message || e.message))
-  }
-  return false
-}
-
-function subscribeProgress(docId: string, fileName: string) {
-  progressWs?.close()
-  const ws = new WebSocket(etlProgressWsUrl(docId))
-  progressWs = ws
-  ws.onmessage = ev => {
-    try {
-      const p: EtlProgress = JSON.parse(ev.data)
-      if (p.docId !== docId) return
-      upload.value = { name: fileName, stage: p.stage, percentage: p.percentage }
-      if (p.stage === 'COMPLETED') {
-        ElMessage.success(`「${fileName}」已完成入库，可立即检索`)
-        closeProgress()
-      } else if (p.stage === 'FAILED') {
-        ElMessage.error(`「${fileName}」处理失败`)
-        closeProgress()
-      }
-    } catch { /* 忽略非 JSON 帧 */ }
-  }
-  ws.onclose = () => { if (progressWs === ws) progressWs = null }
-}
-
-function closeProgress() {
-  setTimeout(() => {
-    progressWs?.close()
-    progressWs = null
-    upload.value = null
-  }, 1600)
-}
-
 // ── 展示辅助 ──
-
-const stageLabel = (s: string) =>
-  ({ READING: '解析中', TRANSFORMING: '切分中', PERSISTING: '落库中',
-     EMBEDDING: '向量化', INDEXING: '索引中', COMPLETED: '完成', FAILED: '失败' } as Record<string, string>)[s] || s
-
-const isLiveStage = (s: string) => s !== 'COMPLETED' && s !== 'FAILED'
-
-const progressStatus = computed(() => {
-  if (!upload.value) return undefined
-  if (upload.value.stage === 'COMPLETED') return 'success'
-  if (upload.value.stage === 'FAILED') return 'exception'
-  return undefined
-})
 
 const srcLabel = (s: string) =>
   ({ vector: '向量路', bm25: 'BM25 路', graph: '图谱路', final: '最终注入' } as Record<string, string>)[s] || s
@@ -707,19 +627,6 @@ function finalCount(msg: Message) {
 .tag-opt.on { background: var(--pine-700); border-color: var(--pine-700); color: #EAF2EF; }
 .dislike-actions { display: flex; justify-content: flex-end; gap: 4px; }
 
-/* ── 上传进度 ── */
-.upload-strip {
-  display: flex; align-items: center; gap: 12px;
-  margin: 0 28px 10px; padding: 12px 16px;
-  border-left: 3px solid var(--pine-600);
-}
-.upload-ico { color: var(--pine-700); font-size: 18px; }
-.upload-info { flex: 1; }
-.upload-name {
-  font-size: 13px; font-weight: 600; color: var(--ink-2);
-  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-}
-
 /* ── 输入区 ── */
 .composer { padding: 0 28px 22px; }
 .composer-box {
@@ -733,9 +640,6 @@ function finalCount(msg: Message) {
 }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; }
 .composer-left { display: flex; align-items: center; gap: 10px; }
-.attach-btn { color: var(--ink-3); }
-.attach-btn:hover { color: var(--pine-700); }
-
 .slide-fade-enter-active { transition: all .3s var(--ease); }
 .slide-fade-leave-active { transition: all .2s ease; }
 .slide-fade-enter-from, .slide-fade-leave-to { opacity: 0; transform: translateY(-6px); }
