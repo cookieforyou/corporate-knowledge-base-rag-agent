@@ -120,7 +120,9 @@ public class OrchestratorChatClientConfig {
     @Bean
     public TaskTool taskTool(SubAgentRegistry subAgentRegistry,
                              ObservationRegistry observationRegistry,
-                             ExecutorService orchestratorSubAgentExecutor,
+                             // 容器内 ExecutorService Bean 不唯一（另有 hybridRetrievalExecutor）——
+                             // 显式限定防按类型歧义（坑位㊺，IDEA 编译无 -parameters 时按名消歧亦失效）
+                             @Qualifier("orchestratorSubAgentExecutor") ExecutorService orchestratorSubAgentExecutor,
                              AiBusinessMetrics aiBusinessMetrics) {
         ConcurrentHashMap<String, ChatClient> clientCache = new ConcurrentHashMap<>();
         SubAgentClientFactory factory = spec -> clientCache.computeIfAbsent(spec.name(), name -> {

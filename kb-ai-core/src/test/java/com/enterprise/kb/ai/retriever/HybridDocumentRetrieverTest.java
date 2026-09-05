@@ -212,4 +212,21 @@ class HybridDocumentRetrieverTest {
         assertTrue(ctx.getTraceSummary().stream()
             .noneMatch(e -> "graph".equals(e.source())));
     }
+
+    /**
+     * 坑位㊺ 契约钉死：executor 注入点显式 @Qualifier——容器内 ExecutorService Bean
+     * 不唯一（编排开关开启态另有 orchestratorSubAgentExecutor），限定符缺失时
+     * 按类型歧义启动失败（IDEA 编译无 -parameters 时按名消歧亦失效）。
+     */
+    @Test
+    void executorInjectionPointPinnedByQualifier() {
+        var ctor = HybridDocumentRetriever.class.getDeclaredConstructors()[0];
+        var param = java.util.Arrays.stream(ctor.getParameters())
+            .filter(p -> p.getType() == java.util.concurrent.ExecutorService.class)
+            .findFirst().orElseThrow();
+        var qualifier = param.getAnnotation(
+            org.springframework.beans.factory.annotation.Qualifier.class);
+        assertNotNull(qualifier, "executor 注入点必须显式 @Qualifier（坑位㊺）");
+        assertEquals("hybridRetrievalExecutor", qualifier.value());
+    }
 }

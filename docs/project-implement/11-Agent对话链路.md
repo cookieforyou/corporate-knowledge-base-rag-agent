@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-03 · v2.98（坑位㊹：记忆配置段误挂 tools 节点从未生效——纠偏挂载 + 行为变化记档，§11.2）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-05 · v2.103（簇⑤ E2E 热修一：编排开关开启态 ExecutorService Bean 歧义——消费点显式 @Qualifier 钉死，坑位㊺，§11.5.5）
+>
+> **v2.103（2026-09-05，簇⑤ E2E 热修一：坑位㊺）**：`RAG_ORCHESTRATOR_ENABLED=true` 首次完整启动暴露容器内 `ExecutorService` Bean 歧义——`orchestratorSubAgentExecutor`（条件装配）入场后该类型 Bean 不再唯一，`HybridDocumentRetriever` 构造注入与 `taskTool` 装配参数按类型解析即 `found 2` 启动失败（IDEA 编译无 `-parameters` 时按名消歧亦失效；Maven 产物带参数名故单测/构建不炸——掩盖不豁免）。修复 = 两消费点显式 `@Qualifier` + 反射契约测试防回退（「多 ChatClient Bean 注入点显式 @Qualifier」纪律的 ExecutorService 族延伸）；详 19 章附录 E ㊺。
 >
 > **v2.98（2026-09-03，依赖升级批三段：坑位㊹ 纠偏——记忆配置段误挂从未生效）**：用户审阅 yml 目击发现——会话记忆配置段（application-ai.yml）自 **3.1 落地起误挂 `spring.ai.tools:` 节点下**（实际路径 `spring.ai.tools.memory.*`，正确为 `spring.ai.chat.memory.*`；`chat:` 与 `tools:` 平级、当年插段锚错父节点），Binder 从未命中且无任何报错；运行实态一直是框架缺省值（索引 `chat-memory-idx` / 键前缀 `chat-memory:` / **无 TTL**——`time-to-live: 24h` 意图从未生效），`initialize-schema` 缺省 true 恰与配置意图一致故长期未暴露。kb-eval 侧独立成段挂载正确（其 `initialize-schema: false` 一直生效，kb-eval 零 Redis 依赖不受影响）。v2.96 前缀迁移时只沿错误位置插 `repository` 层未纠挂载点。**纠偏**：移段至 `chat:` 节点下。**配置首次生效的行为变化**：① 首建新索引 `kb-chat-memory-idx` + 新键前缀 `kb:chat-memory:`——历史热记忆留在旧索引不迁移（多轮上下文经 PG 归档 + 续聊回填机制自然接住，影响≈0；热记忆本为 TTL 易失语义）；② TTL 24h 首次生效（旧键永不过期）；③ 旧索引 `chat-memory-idx` 与无 TTL 旧键成孤儿（建议 `FT.DROPINDEX` + 键清理，运维可选）。教训入坑位㊹：多节点平级的 yml 插段必须核父级链缩进，「配置写了」≠「配置生效」。kb-ai-core 310 测试绿。
 >
@@ -755,6 +757,12 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 > （Building Effective Agents 五模式 + Agentic Patterns Part 4 Task tool 形态；
 > 源码级核验 2.0.1 GA 无框架级 Agent 抽象）。过程方案与批次留档：
 > `project-progress/sub-cluster-progress/Phase5簇⑤Agent编排实施方案（批次推进版）.md`。
+>
+> **v2.103 补注（E2E 热修一，坑位㊺）**：开关开启态首次完整启动暴露
+> `orchestratorSubAgentExecutor` 与既有 `hybridRetrievalExecutor` 的按类型注入
+> 歧义（`HybridDocumentRetriever` 构造器 + `taskTool` 装配参数两处消费点）——
+> 显式 `@Qualifier` 钉死 + 反射契约测试；条件装配开关的「开启态完整容器启动」
+> 为独立验证面（单测手工装配不可替代，坑位㊲/㉞ 同族）。
 
 **组件（kb-ai-agent `orchestration/` 包）**：
 

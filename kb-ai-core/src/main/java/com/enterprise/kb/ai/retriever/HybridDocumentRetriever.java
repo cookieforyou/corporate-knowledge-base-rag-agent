@@ -9,6 +9,7 @@ import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -71,7 +72,9 @@ public class HybridDocumentRetriever implements DocumentRetriever {
                                    RrfFusion rrfFusion,
                                    AiBusinessMetrics metrics,
                                    RetrievalProperties properties,
-                                   ExecutorService executor,
+                                   // 容器内 ExecutorService Bean 不唯一（编排开关开启态另有
+                                   // orchestratorSubAgentExecutor）——显式限定防按类型歧义（坑位㊺）
+                                   @Qualifier("hybridRetrievalExecutor") ExecutorService executor,
                                    ObjectProvider<GraphDocumentRetriever> graphRetrieverProvider) {
         this.vectorStore = vectorStore;
         this.esRetriever = esRetriever;

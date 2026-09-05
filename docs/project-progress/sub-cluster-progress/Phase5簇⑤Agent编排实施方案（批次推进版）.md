@@ -1,6 +1,6 @@
 # Phase 5 簇⑤ Agent 编排（Multi-Agent Orchestrator 收窄版）实施方案（批次推进版）
 
-> **版本**：v1.2（机器侧收官稿）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
+> **版本**：v1.3（E2E 热修一）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
 > **性质**：簇⑤落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.3 / §五簇表；批次进展回填 07 卷簇⑤段。
 > **官方路径核验（2026-09-05）**：Spring AI 2.0.1 GA 无框架级 Agent 抽象，[Building Effective Agents 五模式](https://docs.spring.io/spring-ai/reference/api/effective-agents.html) 全为纯 Java 组合；[Agentic Patterns Part 4 Subagent Orchestration](https://spring.io/blog/2026/01/27/spring-ai-agentic-patterns-4-task-subagents) 的 Task tool 模式 = 主 Agent 仅持 task 工具、子代理各持隔离上下文/独立 system prompt/可差异化模型。与定案原文「主 Agent + TaskTool 子代理委派」完全对齐，自建成本即 3d 底气。
 > **分支纪律**：沿簇④先例拟分支 `phase5-cluster5-orchestrator`（开工时按 main 状态定，3d 小簇亦可直推 main——开工时定）。
@@ -247,6 +247,8 @@
 ---
 
 ## 八、验收与 E2E（用户侧执行清单）
+
+> **E2E 热修一（2026-09-05，坑位㊺）**：步骤 1 首次执行即暴露开关开启态启动失败——`orchestratorSubAgentExecutor`（条件装配）入场后容器内 ExecutorService Bean 不唯一，`HybridDocumentRetriever`（kb-ai-core）构造注入与 `taskTool`（kb-ai-agent）装配参数按类型解析 `found 2` 歧义（用户 IDEA 编译产物无 `-parameters`，按名消歧亦失效；Maven 产物带参数名故单测/构建全绿未拦——坑位㊲/㉞ 同族「条件装配开启态完整启动不可由单测替代核验」）。修复 = 两消费点显式 `@Qualifier` + 反射契约测试 ×2 防回退（「多 ChatClient Bean 显式 @Qualifier」纪律的 ExecutorService 族延伸）；回写 11 章 v2.103 + 19 章附录 E ㊺；kb-ai-core 311 / kb-ai-agent 69 单测绿。**用户侧重启后自步骤 1 续跑。**
 
 - **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）；文档三件套回写 ✅；git 提交 ✅（三批三提交）
 - **判定标准**（逐例四条，10 例 ≥8 例全过 = 收官）：① 委派对象正确（子代理选择与任务语义匹配）；② 委派参数合理（description 自包含可执行）；③ 最终答案综合子代理结果（非凭空作答）；④ 知识类内容有检索依据（主 Agent 不越权直答）
