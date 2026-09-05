@@ -1,6 +1,6 @@
 # Phase 5 簇⑤ Agent 编排（Multi-Agent Orchestrator 收窄版）实施方案（批次推进版）
 
-> **版本**：v1.3（E2E 热修一）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
+> **版本**：v1.4（E2E 热修二：演示任务集语料对齐）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
 > **性质**：簇⑤落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.3 / §五簇表；批次进展回填 07 卷簇⑤段。
 > **官方路径核验（2026-09-05）**：Spring AI 2.0.1 GA 无框架级 Agent 抽象，[Building Effective Agents 五模式](https://docs.spring.io/spring-ai/reference/api/effective-agents.html) 全为纯 Java 组合；[Agentic Patterns Part 4 Subagent Orchestration](https://spring.io/blog/2026/01/27/spring-ai-agentic-patterns-4-task-subagents) 的 Task tool 模式 = 主 Agent 仅持 task 工具、子代理各持隔离上下文/独立 system prompt/可差异化模型。与定案原文「主 Agent + TaskTool 子代理委派」完全对齐，自建成本即 3d 底气。
 > **分支纪律**：沿簇④先例拟分支 `phase5-cluster5-orchestrator`（开工时按 main 状态定，3d 小簇亦可直推 main——开工时定）。
@@ -250,23 +250,27 @@
 
 > **E2E 热修一（2026-09-05，坑位㊺）**：步骤 1 首次执行即暴露开关开启态启动失败——`orchestratorSubAgentExecutor`（条件装配）入场后容器内 ExecutorService Bean 不唯一，`HybridDocumentRetriever`（kb-ai-core）构造注入与 `taskTool`（kb-ai-agent）装配参数按类型解析 `found 2` 歧义（用户 IDEA 编译产物无 `-parameters`，按名消歧亦失效；Maven 产物带参数名故单测/构建全绿未拦——坑位㊲/㉞ 同族「条件装配开启态完整启动不可由单测替代核验」）。修复 = 两消费点显式 `@Qualifier` + 反射契约测试 ×2 防回退（「多 ChatClient Bean 显式 @Qualifier」纪律的 ExecutorService 族延伸）；回写 11 章 v2.103 + 19 章附录 E ㊺；kb-ai-core 311 / kb-ai-agent 69 单测绿。**用户侧重启后自步骤 1 续跑。**
 
+> **E2E 热修二（2026-09-05，演示任务集语料对齐）**：用户预审发现原任务集 #1/#2/#4 的「差旅报销制度」知识面在现网语料（docs/corpus/ 六份文档）中不存在——空证据触发拒答模板或模型编造，判定标准④（知识内容有检索依据）结构性不可判。调整 = 三例替换为真实语料锚点任务（信息安全分级分类+最小权限 / 发票认证勾选 / XS-200 网关规格与兼容矩阵），知识面覆盖由单一 DDD 扩至五份语料文档；全量 10 例锚点逐一核验（语料 grep 在场 + Mock 员工/年假数据与 EnterpriseMockReadTools 在码一致，含部门契合度：财务部×数据安全、销售部×发票、研发部×硬件选型）。零代码变更。
+
 - **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）；文档三件套回写 ✅；git 提交 ✅（三批三提交）
 - **判定标准**（逐例四条，10 例 ≥8 例全过 = 收官）：① 委派对象正确（子代理选择与任务语义匹配）；② 委派参数合理（description 自包含可执行）；③ 最终答案综合子代理结果（非凭空作答）；④ 知识类内容有检索依据（主 Agent 不越权直答）
 
 ### 8.1 演示任务集（10 例，跨子代理分层）
 
-| # | 任务 | 预期委派 |
-|---|---|---|
-| 1 | 检索知识库中的差旅报销制度要点，查询员工 E1001 的基本信息与年假余额，起草一份假期申请情况说明 | knowledge-searcher + data-query + report-writer |
-| 2 | 检索公司差旅制度中住宿与交通标准，查询李四（E1002）的部门与职位，据此起草一份出差申请说明 | knowledge-searcher + data-query + report-writer |
-| 3 | 检索知识库 DDD 相关文档的核心要点，查询王五（E1003）的信息，起草一份面向其所在部门的 DDD 学习提纲 | knowledge-searcher + data-query + report-writer |
-| 4 | 检索差旅报销制度要点，并据此起草一份员工报销须知 | knowledge-searcher + report-writer |
-| 5 | 查询 E1001 与 E1002 的年假余额，起草一份两人假期余额简报 | data-query + report-writer |
-| 6 | 检索知识库中大泥球模式的应对建议，起草一份团队重构风险清单 | knowledge-searcher + report-writer |
-| 7 | 查询张三的职位与部门信息，起草一份岗位说明 | data-query + report-writer |
-| 8 | 检索知识库中限界上下文的核心定义与划分原则并归纳 | knowledge-searcher（单深任务） |
-| 9 | 查询 E1003 的完整信息与年假余额 | data-query（单任务） |
-| 10 | 起草一份季度知识库使用情况汇报模板 | report-writer（单任务） |
+> **v1.4 语料对齐（2026-09-05，E2E 热修二）**：原 #1/#2/#4 三例的「差旅报销制度」知识面在知识库语料中不存在（现网语料 = docs/corpus/ 六份：DDD 解析 / 信息安全管理办法 / 增值税发票手册 / K8s 运维规范 / 智能硬件规格目录 / 阿里云文档解析介绍）——空证据将触发拒答/编造，判定标准④不可判。已替换为真实语料锚点任务，知识面覆盖扩至五份语料；Mock 数据面（张三 E1001 研发部 / 李四 E1002 财务部 / 王五 E1003 销售部 + 年假 10/5/15 天）与 EnterpriseMockReadTools 在码数据逐项核验一致。
+
+| # | 任务 | 预期委派 | 语料/数据锚点 |
+|---|---|---|---|
+| 1 | 检索《企业信息安全与数据保护管理办法》中数据分级分类与最小权限原则的要点，查询李四（E1002）的基本信息与年假余额，起草一份面向财务部的数据安全合规学习通知 | knowledge-searcher + data-query + report-writer | 信息安全 §二/§3.3；E1002 财务部契合 |
+| 2 | 检索增值税发票认证与勾选确认的要点，查询王五（E1003）的部门与职位，起草一份面向销售团队的发票合规要点提醒 | knowledge-searcher + data-query + report-writer | 发票手册 §二；E1003 销售部契合 |
+| 3 | 检索知识库中 XS-200 智能传感网关的规格要点与配件兼容情况，查询张三（E1001）的职位信息，起草一份面向研发部的硬件选型参考摘要 | knowledge-searcher + data-query + report-writer | 硬件目录 §四/§五；E1001 研发部契合 |
+| 4 | 检索 Kubernetes 集群运维规范中的发布策略与回滚要求，据此起草一份团队上线操作检查单 | knowledge-searcher + report-writer | K8s 规范 §四/§七 |
+| 5 | 查询 E1001 与 E1002 的年假余额，起草一份两人假期余额简报 | data-query + report-writer | 年假 10/5 天 |
+| 6 | 检索知识库中大泥球模式的应对建议，起草一份团队重构风险清单 | knowledge-searcher + report-writer | DDD 文档「大泥球」节 |
+| 7 | 查询张三的职位与部门信息，起草一份岗位说明 | data-query + report-writer | E1001 高级工程师/研发部 |
+| 8 | 检索知识库中限界上下文的核心定义与划分原则并归纳 | knowledge-searcher（单深任务） | DDD 文档「限界上下文」节 |
+| 9 | 查询 E1003 的完整信息与年假余额 | data-query（单任务） | E1003 全字段 |
+| 10 | 起草一份季度知识库使用情况汇报模板 | report-writer（单任务） | 纯写作无知识依赖 |
 
 ### 8.2 E2E 步骤
 
