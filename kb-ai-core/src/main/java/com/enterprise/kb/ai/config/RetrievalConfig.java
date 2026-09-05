@@ -12,6 +12,9 @@ import com.enterprise.kb.ai.retriever.RewriteCapturingQueryTransformer;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.domain.repository.KbDocumentRepository;
 import com.enterprise.kb.infrastructure.graph.GraphGateway;
+import io.micrometer.context.ContextSnapshotFactory;
+import io.micrometer.context.ContextExecutorService;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.observation.AdvisorObservationConvention;
 import org.springframework.ai.chat.client.observation.ChatClientObservationConvention;
@@ -25,9 +28,6 @@ import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugment
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
 import org.springframework.ai.rag.preretrieval.query.transformation.CompressionQueryTransformer;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
-import io.micrometer.context.ContextExecutorService;
-import io.micrometer.context.ContextSnapshot;
-import io.micrometer.observation.ObservationRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -103,7 +103,7 @@ public class RetrievalConfig {
      * 经无参 render() 调用（RetrievalConfigContextFormatTest 回归钉死）。
      */
 
-    /**
+    /*
      * 模块化 RAG 主 Advisor（10.6）：改写 → 双路检索 → 融合 → 精排 → 证据注入。
      * Order 500：RetrievalTraceAdvisor(450) 之后、工具调用(1000) 之前（11.2 链序表）。
      *
@@ -115,6 +115,7 @@ public class RetrievalConfig {
      * <p>检索在 before() 内经 taskExecutor 并行执行（源码核验）；租户/溯源上下文
      * 经 Advisor 参数随 Query.context 流入检索组件——与线程模型解耦，同步/流式一致。
      */
+
     /**
      * 查询改写器（多轮指代消解）——独立 Bean 以便检索调试台（2.14）复用，
      * 与主链路共享同一实例。
@@ -286,7 +287,7 @@ public class RetrievalConfig {
     /** hybridRetrievalExecutor 构造逻辑提取（单测直调同构实例，防装配漂移） */
     static ExecutorService contextPropagatingHybridExecutor() {
         return ContextExecutorService.wrap(
-            Executors.newVirtualThreadPerTaskExecutor(), ContextSnapshot::captureAll);
+            Executors.newVirtualThreadPerTaskExecutor(), ContextSnapshotFactory.builder().build()::captureAll);
     }
 
     /**
