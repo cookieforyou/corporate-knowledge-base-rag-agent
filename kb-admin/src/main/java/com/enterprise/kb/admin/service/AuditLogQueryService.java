@@ -39,6 +39,8 @@ public class AuditLogQueryService {
 
     private static final Set<String> FEEDBACK_FILTERS = Set.of("POSITIVE", "NEGATIVE");
     private static final Set<String> STATUS_FILTERS = Set.of("SUCCESS", "REJECTED", "ERROR");
+    /** 链路过滤值（mode 落库为小写形态 rag/tool/agent——AuditTraceAdvisor.MODE_KEY 自由字符串） */
+    private static final Set<String> MODE_FILTERS = Set.of("rag", "tool", "agent");
     private static final Set<String> ROOT_CAUSE_FILTERS =
         java.util.Arrays.stream(RootCause.values()).map(Enum::name).collect(Collectors.toSet());
 
@@ -57,11 +59,12 @@ public class AuditLogQueryService {
      * @throws BusinessException INVALID_TIME_FORMAT 时间解析失败；INVALID_FILTER 枚举过滤值非法
      */
     public AuditLogPage search(String tenantId, String from, String to,
-                               String userId, String sessionId, String feedback,
-                               String status, String rootCause, Boolean annotated,
+                               String userId, String sessionId, String mode,
+                               String feedback, String status, String rootCause, Boolean annotated,
                                Integer page, Integer size) {
         LocalDateTime fromTime = parseTime(from, "from");
         LocalDateTime toTime = parseTime(to, "to");
+        String modeFilter = normalizeMode(mode);
         String feedbackFilter = normalizeEnum(feedback, FEEDBACK_FILTERS, "feedback", "INVALID_FILTER");
         String statusFilter = normalizeEnum(status, STATUS_FILTERS, "status", "INVALID_FILTER");
         String rootCauseFilter = normalizeEnum(rootCause, ROOT_CAUSE_FILTERS, "rootCause", "INVALID_FILTER");
@@ -70,7 +73,7 @@ public class AuditLogQueryService {
 
         Page<KbAuditLog> result = auditLogRepository.findAll(
             AuditLogSpecs.search(tenantId, fromTime, toTime,
-                blankToNull(userId), blankToNull(sessionId),
+                blankToNull(userId), blankToNull(sessionId), modeFilter,
                 feedbackFilter, statusFilter, rootCauseFilter, annotated),
             PageRequest.of(pageIndex, cappedSize));
 
@@ -93,6 +96,19 @@ public class AuditLogQueryService {
             throw new BusinessException("INVALID_TIME_FORMAT",
                 "时间参数 " + field + " 须为 ISO 格式（yyyy-MM-ddTHH:mm:ss）: " + value);
         }
+    }
+
+    /** 链路归一（小写存储形态）：空白 → null 不过滤；非空小写归一须命中合法集，否则抛错码 */
+    private static String normalizeMode(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase();
+        if (!MODE_FILTERS.contains(normalized)) {
+            throw new BusinessException("INVALID_FILTER",
+                "不支持的 mode 过滤值: " + value + "（合法值: " + MODE_FILTERS + "）");
+        }
+        return normalized;
     }
 
     /** 空白 → null 不过滤；非空须命中合法集（大写归一），否则抛错码 */

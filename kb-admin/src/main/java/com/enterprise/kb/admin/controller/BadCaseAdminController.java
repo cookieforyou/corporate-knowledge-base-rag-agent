@@ -47,7 +47,7 @@ public class BadCaseAdminController {
     private final AuditLogQueryService auditLogQueryService;
     private final BadCaseService badCaseService;
 
-    /** 审计日志多选项分页查询（时间/用户/会话/反馈/状态/根因/标注态，全部可选） */
+    /** 审计日志多选项分页查询（时间/用户/会话/链路/反馈/状态/根因/标注态，全部可选） */
     @GetMapping("/audit-logs")
     public ApiResponse<AuditLogPage> search(
         @AuthenticationPrincipal Jwt jwt,
@@ -55,6 +55,7 @@ public class BadCaseAdminController {
         @RequestParam(required = false) String to,
         @RequestParam(required = false) String userId,
         @RequestParam(required = false) String sessionId,
+        @RequestParam(required = false) String mode,
         @RequestParam(required = false) String feedback,
         @RequestParam(required = false) String status,
         @RequestParam(required = false) String rootCause,
@@ -62,7 +63,7 @@ public class BadCaseAdminController {
         @RequestParam(required = false) Integer page,
         @RequestParam(required = false) Integer size) {
         return ApiResponse.success(auditLogQueryService.search(requireTenantId(jwt),
-            from, to, userId, sessionId, feedback, status, rootCause, annotated, page, size));
+            from, to, userId, sessionId, mode, feedback, status, rootCause, annotated, page, size));
     }
 
     /** 根因标注：四分类写入审计行 */

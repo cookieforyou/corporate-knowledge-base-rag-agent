@@ -197,7 +197,7 @@ class AdminControllerTenantGuardTest {
 
     @Test
     void badCaseEndpointsRejectMissingTenant() {
-        assertThatThrownBy(() -> badCaseController.search(null, null, null, null, null,
+        assertThatThrownBy(() -> badCaseController.search(null, null, null, null, null, null,
             null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
@@ -212,22 +212,22 @@ class AdminControllerTenantGuardTest {
         assertThatThrownBy(() -> badCaseController.resolve(null, "f-1", new ResolvedRequest(true)))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
-        verify(auditLogQueryService, never()).search(anyString(), any(), any(), any(), any(),
+        verify(auditLogQueryService, never()).search(anyString(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any());
         verify(badCaseService, never()).annotate(anyString(), any(), anyString());
     }
 
     @Test
     void badCaseSearchPassesOwnerClaimAsTenant() {
-        when(auditLogQueryService.search(eq("t-1"), any(), any(), any(), any(),
+        when(auditLogQueryService.search(eq("t-1"), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any()))
             .thenReturn(new AuditLogPage(List.of(), 0, 0, 20));
 
-        var response = badCaseController.search(jwtWithOwner("t-1"), null, null, null, null,
+        var response = badCaseController.search(jwtWithOwner("t-1"), null, null, null, null, null,
             "NEGATIVE", null, null, null, null, null);
 
         assertThat(response.data().total()).isZero();
-        verify(auditLogQueryService).search(eq("t-1"), isNull(), isNull(), isNull(), isNull(),
+        verify(auditLogQueryService).search(eq("t-1"), isNull(), isNull(), isNull(), isNull(), isNull(),
             eq("NEGATIVE"), isNull(), isNull(), isNull(), isNull(), isNull());
     }
 

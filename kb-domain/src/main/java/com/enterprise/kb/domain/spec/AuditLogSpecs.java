@@ -35,6 +35,7 @@ public final class AuditLogSpecs {
      * @param to        created_at 闭区间上界，null 不限
      * @param userId    用户过滤，null 不限
      * @param sessionId 会话过滤，null 不限
+     * @param mode      链路过滤 rag/tool/agent（小写存储形态，簇⑤ E2E 审计核对项），null 不限
      * @param feedback  POSITIVE/NEGATIVE，null 不限
      * @param status    SUCCESS/REJECTED/ERROR，null 不限
      * @param rootCause 已标注根因，null 不限
@@ -43,6 +44,7 @@ public final class AuditLogSpecs {
     public static Specification<KbAuditLog> search(String tenantId,
                                                    LocalDateTime from, LocalDateTime to,
                                                    String userId, String sessionId,
+                                                   String mode,
                                                    String feedback, String status,
                                                    String rootCause, Boolean annotated) {
         return (root, query, cb) -> {
@@ -59,6 +61,9 @@ public final class AuditLogSpecs {
             }
             if (sessionId != null) {
                 predicates.add(cb.equal(root.get("sessionId"), sessionId));
+            }
+            if (mode != null) {
+                predicates.add(cb.equal(root.get("mode"), mode));
             }
             if (feedback != null) {
                 predicates.add(cb.equal(root.get("feedback"), feedback));

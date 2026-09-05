@@ -205,6 +205,11 @@
             style="width: 360px" />
           <el-input v-model="logFilter.userId" placeholder="用户 ID" clearable style="width: 140px" />
           <el-input v-model="logFilter.sessionId" placeholder="会话 ID" clearable style="width: 200px" />
+          <el-select v-model="logFilter.mode" placeholder="链路" clearable style="width: 120px">
+            <el-option label="检索问答" value="rag" />
+            <el-option label="工具事务" value="tool" />
+            <el-option label="任务编排" value="agent" />
+          </el-select>
           <el-select v-model="logFilter.feedback" placeholder="反馈" clearable style="width: 110px">
             <el-option label="点踩" value="NEGATIVE" />
             <el-option label="点赞" value="POSITIVE" />
@@ -226,7 +231,7 @@
           <el-table-column prop="sessionId" label="会话" width="150" show-overflow-tooltip />
           <el-table-column prop="mode" label="链路" width="70">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.mode === 'tool' ? 'warning' : 'success'" effect="plain">
+              <el-tag size="small" :type="row.mode === 'tool' ? 'warning' : row.mode === 'agent' ? 'primary' : 'success'" effect="plain">
                 {{ row.mode ?? '—' }}
               </el-tag>
             </template>
@@ -764,7 +769,8 @@ async function doStartRebuild() {
 // ── 日志查询 ──
 
 const logFilter = reactive<{ range: [Date, Date] | null; userId: string; sessionId: string;
-  feedback: string; status: string }>({ range: null, userId: '', sessionId: '', feedback: '', status: '' })
+  mode: string; feedback: string; status: string }>(
+  { range: null, userId: '', sessionId: '', mode: '', feedback: '', status: '' })
 const logs = ref<AuditLogItem[]>([])
 const logLoading = ref(false)
 const logPage = ref(1)
@@ -784,6 +790,7 @@ async function loadLogs(reset?: number) {
     }
     if (logFilter.userId.trim()) params.userId = logFilter.userId.trim()
     if (logFilter.sessionId.trim()) params.sessionId = logFilter.sessionId.trim()
+    if (logFilter.mode) params.mode = logFilter.mode
     if (logFilter.feedback) params.feedback = logFilter.feedback
     if (logFilter.status) params.status = logFilter.status
     const page = await searchAuditLogs(params)

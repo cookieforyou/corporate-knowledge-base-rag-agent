@@ -264,6 +264,7 @@ export interface AuditQuery {
   to?: string
   userId?: string
   sessionId?: string
+  mode?: string
   feedback?: string
   status?: string
   rootCause?: string

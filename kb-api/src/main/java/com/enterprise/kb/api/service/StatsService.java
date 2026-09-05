@@ -65,9 +65,9 @@ public class StatsService {
         // 直调 /api/v1/admin/audit-logs（admin 域限权后非超管 403；聚合数字全员可读，
         // 与审计明细查询分域）。谓词复用 AuditLogSpecs 运营查询同源口径
         long badCaseTotal = auditLogRepository.count(AuditLogSpecs.search(
-            tenantId, null, null, null, null, FEEDBACK_NEGATIVE, null, null, null));
+            tenantId, null, null, null, null, null, FEEDBACK_NEGATIVE, null, null, null));
         long unannotatedTotal = auditLogRepository.count(AuditLogSpecs.search(
-            tenantId, null, null, null, null, FEEDBACK_NEGATIVE, null, null, Boolean.FALSE));
+            tenantId, null, null, null, null, null, FEEDBACK_NEGATIVE, null, null, Boolean.FALSE));
 
         return new StatsOverview(
             documentRepository.countByTenantId(tenantId),

@@ -66,7 +66,7 @@ class AuditLogQueryServiceTest {
         feedback.setExpectedAnswer("期望回答");
         when(feedbackRepository.findByAuditLogIdIn(List.of(7L))).thenReturn(List.of(feedback));
 
-        AuditLogPage page = service.search("t-1", null, null, null, null, null, null, null, null, null, null);
+        AuditLogPage page = service.search("t-1", null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(page.total()).isEqualTo(1);
         assertThat(page.page()).isZero();
@@ -83,7 +83,7 @@ class AuditLogQueryServiceTest {
         stubSearch(List.of(), 0, PageRequest.of(2, 50));
 
         service.search("t-1", "2026-08-01T00:00:00", "2026-08-15T23:59:59",
-            "u-9", "s-9", "negative", "rejected", "retrieval_miss", false, 2, 50);
+            "u-9", "s-9", "AGENT", "negative", "rejected", "retrieval_miss", false, 2, 50);
 
         // 归一化后的过滤值进入 AuditLogSpecs（谓词拼接断言见 AuditLogSpecsTest）
         verify(auditLogRepository).findAll(any(Specification.class), eq(PageRequest.of(2, 50)));
@@ -93,7 +93,7 @@ class AuditLogQueryServiceTest {
     void searchCapsSizeAt100AndDefaultsPage() {
         stubSearch(List.of(), 0, PageRequest.of(0, 100));
 
-        AuditLogPage page = service.search("t-1", null, null, null, null, null, null, null, null, -3, 500);
+        AuditLogPage page = service.search("t-1", null, null, null, null, null, null, null, null, null, -3, 500);
 
         assertThat(page.size()).isEqualTo(100);
         assertThat(page.page()).isZero();
@@ -102,7 +102,7 @@ class AuditLogQueryServiceTest {
 
     @Test
     void searchRejectsMalformedTime() {
-        assertThatThrownBy(() -> service.search("t-1", "2026/08/01", null, null, null,
+        assertThatThrownBy(() -> service.search("t-1", "2026/08/01", null, null, null, null,
             null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("INVALID_TIME_FORMAT");
@@ -110,12 +110,27 @@ class AuditLogQueryServiceTest {
 
     @Test
     void searchRejectsIllegalFilterValues() {
-        assertThatThrownBy(() -> service.search("t-1", null, null, null, null,
+        assertThatThrownBy(() -> service.search("t-1", null, null, null, null, null,
             "MAYBE", null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("INVALID_FILTER");
-        assertThatThrownBy(() -> service.search("t-1", null, null, null, null,
+        assertThatThrownBy(() -> service.search("t-1", null, null, null, null, null,
             null, null, "UNKNOWN_CAUSE", null, null, null))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo("INVALID_FILTER");
+    }
+    /** 簇⑤ E2E 审计核对项：mode 小写存储形态归一（大写入参 → 小写谓词值，不误入 normalizeEnum 大写轨道） */
+    @Test
+    void searchNormalizesModeToStorageForm() {
+        stubSearch(List.of(), 0, PageRequest.of(0, 20));
+        service.search("t-1", null, null, null, null, "AGENT", null, null, null, null, null, null);
+        verify(auditLogRepository).findAll(any(Specification.class), eq(PageRequest.of(0, 20)));
+    }
+
+    @Test
+    void searchRejectsIllegalModeValue() {
+        assertThatThrownBy(() -> service.search("t-1", null, null, null, null, "mcp",
+            null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo("INVALID_FILTER");
     }
