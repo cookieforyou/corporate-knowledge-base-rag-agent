@@ -17,61 +17,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Mock 工具层测试（3.3/3.4）—— 读工具契约 + 写工具 HITL 三段式
+ * Mock 写工具测试（簇⑤ 5.3 拆类自 EnterpriseMockToolsTest）——HITL 三段式
  * （预检挂起 / 校验消费执行 / 越权与故障 fail-closed）
  */
-class EnterpriseMockToolsTest {
+class EnterpriseMockWriteToolsTest {
 
     private ToolApprovalService approvalService;
-    private EnterpriseMockTools tools;
+    private EnterpriseMockWriteTools tools;
 
     @BeforeEach
     void setUp() {
         approvalService = mock(ToolApprovalService.class);
-        tools = new EnterpriseMockTools(approvalService);
+        tools = new EnterpriseMockWriteTools(approvalService);
     }
-
-    // ── 读工具（3.3）──
-
-    @Test
-    void queryEmployeeById() {
-        EnterpriseMockTools.EmployeeInfo info = tools.queryEmployee("E1001");
-
-        assertThat(info).isNotNull();
-        assertThat(info.name()).isEqualTo("张三");
-        assertThat(info.department()).isEqualTo("研发部");
-        assertThat(info.position()).isEqualTo("高级工程师");
-        assertThat(info.hireDate()).isEqualTo("2021-03-15");
-    }
-
-    @Test
-    void queryEmployeeByName() {
-        EnterpriseMockTools.EmployeeInfo info = tools.queryEmployee("李四");
-
-        assertThat(info).isNotNull();
-        assertThat(info.employeeId()).isEqualTo("E1002");
-        assertThat(info.department()).isEqualTo("财务部");
-    }
-
-    @Test
-    void queryEmployeeUnknownReturnsNull() {
-        assertThat(tools.queryEmployee("不存在的人")).isNull();
-    }
-
-    @Test
-    void queryLeaveBalance() {
-        EnterpriseMockTools.LeaveBalance balance = tools.queryLeaveBalance("E1003");
-
-        assertThat(balance).isNotNull();
-        assertThat(balance.remainingDays()).isEqualTo(15);
-    }
-
-    @Test
-    void queryLeaveBalanceUnknownReturnsNull() {
-        assertThat(tools.queryLeaveBalance("E9999")).isNull();
-    }
-
-    // ── 写工具 HITL（3.4）──
 
     private static ToolContext toolContext(RetrievalContext ctx, String approvedId) {
         Map<String, Object> map = new HashMap<>();

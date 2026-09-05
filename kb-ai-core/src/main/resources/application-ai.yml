@@ -81,6 +81,14 @@ rag:
   tool:
     approval:
       ttl-minutes: ${RAG_TOOL_APPROVAL_TTL_MINUTES:10}
+  # 多子代理编排（簇⑤ 5.3，设计文档 §11.5.5）——Orchestrator-Workers 收窄骨架：
+  # mode=agent 第三链，主 Agent 仅持 task 委派工具。enabled 缺省关——关闭态编排族
+  # Bean 整体缺位（rag/tool 两链逐字节零变化），mode=agent 显式 400
+  # ORCHESTRATOR_DISABLED；真实工具立项后升级回原验收（>85% 任务完成率）
+  orchestrator:
+    enabled: ${RAG_ORCHESTRATOR_ENABLED:false}
+    # 子代理单次委派有界超时（秒）——非打断式弃任务（坑位㊶），防真实工具拖死主链
+    subagent-timeout-seconds: ${RAG_ORCHESTRATOR_SUBAGENT_TIMEOUT_SECONDS:60}
   # 多模型路由（3.2，设计文档 11.2.2）—— 主模型双形态开关（v2.77 模型层批B）+
   # 备用 qwen3.8-flash 熔断切换（连续失败 failure-threshold 次 → OPEN
   # open-seconds 秒直发备用，窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，

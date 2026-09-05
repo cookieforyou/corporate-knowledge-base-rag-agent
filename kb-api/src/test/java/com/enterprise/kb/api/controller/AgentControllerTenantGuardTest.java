@@ -1,6 +1,8 @@
 package com.enterprise.kb.api.controller;
 
+import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
+import org.springframework.beans.factory.ObjectProvider;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.service.RagChatService;
@@ -35,13 +37,17 @@ class AgentControllerTenantGuardTest {
 
     private final RagChatService ragChatService = mock(RagChatService.class);
     private final ToolChatService toolChatService = mock(ToolChatService.class);
+
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<AgentOrchestratorService> orchestratorProvider =
+        mock(ObjectProvider.class);
     private final ChatSessionService chatSessionService = mock(ChatSessionService.class);
     private final JwtUtils jwtUtils = mock(JwtUtils.class);
     private AgentController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new AgentController(ragChatService, toolChatService, chatSessionService, jwtUtils,
+        controller = new AgentController(ragChatService, toolChatService, orchestratorProvider, chatSessionService, jwtUtils,
             ObservationRegistry.create(), new AiBusinessMetrics(new SimpleMeterRegistry()), PiiRecognizerRegistry.defaults());
         when(jwtUtils.getCurrentUsername()).thenReturn("user_test");
     }

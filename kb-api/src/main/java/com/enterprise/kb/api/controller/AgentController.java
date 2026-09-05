@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
+import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
@@ -23,6 +24,7 @@ import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccess
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
@@ -60,12 +62,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class AgentController {
 
-    /** 问答模式（11.5 双链路）：rag=知识库检索问答，tool=工具事务 */
+    /** 问答模式（11.5 双链路 + 簇⑤ 5.3 第三链）：rag=知识库检索问答，tool=工具事务，agent=多子代理编排 */
     private static final String MODE_RAG = "rag";
     private static final String MODE_TOOL = "tool";
+    private static final String MODE_AGENT = "agent";
 
     private final RagChatService ragChatService;
     private final ToolChatService toolChatService;
+    /** 编排服务 ObjectProvider 容忍缺位（簇⑤ D3：enabled=false 时 Bean 缺位 → 显式 400） */
+    private final ObjectProvider<AgentOrchestratorService> orchestratorServiceProvider;
     private final ChatSessionService chatSessionService;
     private final JwtUtils jwtUtils;
     private final ObservationRegistry observationRegistry;
@@ -78,15 +83,17 @@ public class AgentController {
      *
      * <pre>
      * POST /api/v1/chat
-     * { "query": "...", "sessionId": "可选", "mode": "rag|tool（可选，缺省 rag）",
+     * { "query": "...", "sessionId": "可选", "mode": "rag|tool|agent（可选，缺省 rag）",
      *   "approvedToolCallId": "可选（tool 模式 HITL 确认回传）" }
      * → { "code": 200, "data": { "answer": "...", "sessionId": "...", "toolCalls": [...] } }
      * </pre>
      *
-     * <p><b>双链路分流（11.5）</b>：mode=rag 走 ragAgentChatClient（纯检索、零工具，
-     * toolCalls 恒空）；mode=tool 走 toolAgentChatClient（纯工具事务、零检索）。
-     * toolCalls 为工具调用记录（3.4）：写工具挂起时含 status=PENDING_APPROVAL 与
-     * approvalId，前端确认后携带 approvedToolCallId 发起二次请求触发真正执行。
+     * <p><b>三链分流（11.5 双链路 + 簇⑤ 5.3）</b>：mode=rag 走 ragAgentChatClient
+     * （纯检索、零工具，toolCalls 恒空）；mode=tool 走 toolAgentChatClient（纯工具
+     * 事务、零检索）；mode=agent 走 orchestratorChatClient（多子代理编排，主 Agent
+     * 仅持 task 委派工具，委派记录同经 toolCalls 透出）。toolCalls 为工具调用记录
+     * （3.4）：写工具挂起时含 status=PENDING_APPROVAL 与 approvalId，前端确认后
+     * 携带 approvedToolCallId 发起二次请求触发真正执行（agent 链无 HITL 语义）。
      */
     @PostMapping("/chat")
     public ApiResponse<Map<String, Object>> chat(@RequestBody Map<String, String> body) {
@@ -108,17 +115,21 @@ public class AgentController {
         ctx.setTraceId(UUID.randomUUID().toString());
 
         boolean toolMode = MODE_TOOL.equals(mode);
+        boolean agentMode = MODE_AGENT.equals(mode);
         if (!toolMode) {
             warnIfStrayApprovalId(approvedToolCallId);
         }
+        AgentOrchestratorService orchestrator = agentMode ? requireOrchestrator() : null;
         String answer = toolMode
                 ? toolChatService.chatTool(query, sessionId, ctx, approvedToolCallId)
-                : ragChatService.chatRag(query, sessionId, ctx);
+                : agentMode
+                    ? orchestrator.chatOrchestrator(query, sessionId, ctx)
+                    : ragChatService.chatRag(query, sessionId, ctx);
 
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(),
             safeQuery, answer, assistantMessageId,
-            // 溯源载荷（v2.17）：tool 链零检索、闲聊免检索直答无溯源 → null
-            toolMode || ctx.isSkipRetrieval() ? null : safeBuildTrace(ctx), ctx.getTraceId());
+            // 溯源载荷（v2.17）：tool/agent 链零检索、闲聊免检索直答无溯源 → null
+            toolMode || agentMode || ctx.isSkipRetrieval() ? null : safeBuildTrace(ctx), ctx.getTraceId());
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", answer);
         data.put("sessionId", sessionId);
@@ -158,12 +169,17 @@ public class AgentController {
         AtomicBoolean ttftRecorded = new AtomicBoolean();
 
         boolean toolMode = MODE_TOOL.equals(mode);
+        boolean agentMode = MODE_AGENT.equals(mode);
         if (!toolMode) {
             warnIfStrayApprovalId(approvedToolCallId);
         }
+        // 开关守卫在请求线程执行（Flux 组装前）：关闭态与 INVALID_MODE 同形态 400，不进流
+        AgentOrchestratorService orchestrator = agentMode ? requireOrchestrator() : null;
         Flux<String> tokens = toolMode
             ? toolChatService.chatStreamTool(query, sessionId, traceCtx, approvedToolCallId)
-            : ragChatService.chatStreamRag(query, sessionId, traceCtx);
+            : agentMode
+                ? orchestrator.chatStreamOrchestrator(query, sessionId, traceCtx)
+                : ragChatService.chatStreamRag(query, sessionId, traceCtx);
 
         Flux<ServerSentEvent<Object>> sseFlux = tokens
             .filter(token -> token != null && !token.isEmpty())
@@ -174,10 +190,11 @@ public class AgentController {
             })
             .doOnNext(answerBuffer::append)
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build());
-        // SSE 事件按链路精简（11.5）：tool 链只可能产生 TOOL_CALL（无溯源数据不推空 TRACE）；
+        // SSE 事件按链路精简（11.5）：tool/agent 链只可能产生 TOOL_CALL（无溯源数据不推空
+        // TRACE）——agent 链的委派即工具调用（task），协议零变更（簇⑤ 5.3）；
         // rag 链只推 TRACE（零工具不产生 TOOL_CALL）；闲聊免检索直答路径（5.4 收窄版）
         // 无溯源数据，对齐「不推空帧」纪律同样省略 TRACE
-        if (toolMode) {
+        if (toolMode || agentMode) {
             sseFlux = sseFlux.concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
                 ? Flux.empty()
                 : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx))
@@ -194,7 +211,7 @@ public class AgentController {
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
                 safeQuery, answerBuffer.toString(), assistantMessageId,
-                toolMode || traceCtx.isSkipRetrieval() ? null : safeBuildTrace(traceCtx),
+                toolMode || agentMode || traceCtx.isSkipRetrieval() ? null : safeBuildTrace(traceCtx),
                 traceCtx.getTraceId()))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
@@ -238,17 +255,32 @@ public class AgentController {
     }
 
     /**
-     * 问答模式解析（11.5 双链路）：缺省回落 {@code rag.agent.default-mode}（默认
-     * rag 兼容现状）；大小写归一；非法值 400 INVALID_MODE（协议层错误在请求
-     * 处理期拒绝，不进 SSE 流）。自动意图路由预留 Phase 5.4。
+     * 问答模式解析（11.5 双链路 + 簇⑤ 5.3 第三链）：缺省 rag 兼容现状；
+     * 大小写归一；非法值 400 INVALID_MODE（协议层错误在请求处理期拒绝，
+     * 不进 SSE 流）。mode=agent 的可用性守卫见 {@link #requireOrchestrator()}。
+     * 跨链自动意图路由不实现（5.4-A 归档，真实工具立项触发复活）。
      */
     private String resolveMode(Map<String, String> body) {
         String mode = body.get("mode");
         mode = mode == null || mode.isBlank() ? MODE_RAG : mode.trim().toLowerCase();
-        if (!MODE_RAG.equals(mode) && !MODE_TOOL.equals(mode)) {
-            throw new BusinessException("INVALID_MODE", "不支持的问答模式: " + mode + "（仅支持 rag|tool）");
+        if (!MODE_RAG.equals(mode) && !MODE_TOOL.equals(mode) && !MODE_AGENT.equals(mode)) {
+            throw new BusinessException("INVALID_MODE", "不支持的问答模式: " + mode + "（仅支持 rag|tool|agent）");
         }
         return mode;
+    }
+
+    /**
+     * 编排链可用性守卫（簇⑤ D3）：rag.orchestrator.enabled=false 时编排族 Bean
+     * 缺位——mode=agent 显式拒绝（ORCHESTRATOR_DISABLED 400），不静默回落 tool
+     * 改变语义。ObjectProvider 容忍缺位（簇③ CacheCheckAdvisor 同款先例）。
+     */
+    private AgentOrchestratorService requireOrchestrator() {
+        AgentOrchestratorService service = orchestratorServiceProvider.getIfAvailable();
+        if (service == null) {
+            throw new BusinessException("ORCHESTRATOR_DISABLED",
+                "编排模式未启用（rag.orchestrator.enabled=false），无法以 agent 模式问答");
+        }
+        return service;
     }
 
     /** rag 模式收到 HITL 凭证：rag 链无工具消费方，忽略并告警（调用方协议误用提示） */

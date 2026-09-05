@@ -6,7 +6,8 @@ import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
-import com.enterprise.kb.ai.agent.tool.EnterpriseMockTools;
+import com.enterprise.kb.ai.agent.tool.EnterpriseMockReadTools;
+import com.enterprise.kb.ai.agent.tool.EnterpriseMockWriteTools;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.prompt.PromptTemplates;
 import io.micrometer.observation.ObservationRegistry;
@@ -65,7 +66,8 @@ public class ToolAgentChatClientConfig {
                                           InputSanitizeAdvisor inputSanitizeAdvisor,
                                           SemanticInjectionAdvisor semanticInjectionAdvisor,
                                           ToolCallingAdvisor agentToolCallingAdvisor,
-                                          EnterpriseMockTools enterpriseMockTools,
+                                          EnterpriseMockReadTools enterpriseMockReadTools,
+                                          EnterpriseMockWriteTools enterpriseMockWriteTools,
                                           PromptCanary promptCanary) {
         // 同 ragAgentChatClient：单参 builder 默认 NOOP registry，chat_client/Advisor
         // 观测静默缺失——显式传入应用 ObservationRegistry（簇① 碎片化定案）
@@ -82,7 +84,8 @@ public class ToolAgentChatClientConfig {
                 semanticInjectionAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
                 agentToolCallingAdvisor)
-            .defaultTools(enterpriseMockTools)
+            // 簇⑤ 5.3 Mock 拆类后双挂（读+写）——工具集与拆分前等价（三 @Tool 全在）
+            .defaultTools(enterpriseMockReadTools, enterpriseMockWriteTools)
             .build();
     }
 }

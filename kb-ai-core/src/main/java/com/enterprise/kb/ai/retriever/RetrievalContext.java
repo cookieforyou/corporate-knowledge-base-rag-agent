@@ -165,6 +165,9 @@ public class RetrievalContext {
         public static final String STATUS_EXECUTED = "EXECUTED";
         /** 审批拒绝/凭证失效 */
         public static final String STATUS_REJECTED = "REJECTED";
+
+        /** 执行失败态（簇⑤ 5.3：TaskTool 委派超时/异常——错误文本回流主 Agent，不击穿主链） */
+        public static final String STATUS_FAILED = "FAILED";
     }
 
     /** 护栏 FLAG 观察标记写入（安全簇① T7）：命中侧 advisor（输入/输出护栏）调用 */

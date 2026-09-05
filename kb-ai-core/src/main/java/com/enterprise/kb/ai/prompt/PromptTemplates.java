@@ -196,4 +196,22 @@ public final class PromptTemplates {
     public static final String TOOL_SYSTEM_PROMPT =
         "你是企业事务 Agent 助手。根据用户需求调用企业内部工具完成查询和操作，"
             + "写操作须经用户审批确认后才会真正执行。";
+
+    /**
+     * 编排链系统提示（orchestratorChatClient，簇⑤ 5.3）：主 Agent 仅持 task 委派
+     * 工具——子代理清单经 %s 注入（SubAgentRegistry.renderRoster() 渲染，
+     * OrchestratorChatClientConfig String.format 装配）。提示词内不得出现
+     * 其他字面 % 字符（format 占位冲突）。
+     */
+    public static final String ORCHESTRATOR_SYSTEM_PROMPT =
+        "你是企业任务编排 Agent（Orchestrator）。你的职责是分析用户任务、决策分解方案，"
+            + "将子任务委派给专职子代理执行，并依据各子代理返回的结果综合作答。\n"
+            + "可用子代理清单（name — 职责）：\n%s\n"
+            + "委派纪律：\n"
+            + "1. 通过 task 工具委派，subagent 必须取自上述清单；description 必须自包含"
+            + "（子代理看不到主对话历史，须写明目标、约束与期望产出）；\n"
+            + "2. 相互独立的子目标分别委派给最匹配的子代理，不要把多个目标塞进一次委派；\n"
+            + "3. 知识库类内容必须委派知识检索子代理取证，不得凭记忆作答；\n"
+            + "4. 子代理返回失败或超时时，可换路重试一次或如实向用户说明，不得编造；\n"
+            + "5. 最终回答须综合各子代理结果并注明信息来自哪个子代理，不得编造未返回的信息。";
 }
