@@ -161,6 +161,9 @@ public class AiBusinessMetrics {
     private final Counter mcpSearch;
     private final Counter mcpGetDocument;
     private final Counter mcpAsk;
+    /** 注册中心引用（簇⑤ 5.3）：编排委派指标 subagent 标签为有限枚举但随注册表扩展，
+     *  动态注册形态（Micrometer register 幂等）——零租户标签纪律不变 */
+    private final MeterRegistry meterRegistry;
     /** MCP 只读工具限流拒绝计数（安全簇② B3）——独立桶，与对话链限流分账 */
     private final Counter guardrailMcpRateLimited;
     /** L2 语义判定触发计数（安全簇⑤ E1）：可疑触发进入二判的请求数（触发率分子，分母 rag.request.total） */
@@ -207,6 +210,7 @@ public class AiBusinessMetrics {
     private final Counter graphExtractionFailed;
 
     public AiBusinessMetrics(MeterRegistry registry) {
+        this.meterRegistry = registry;
         this.feedbackLike = Counter.builder("rag.feedback.like")
             .description("用户点赞反馈数（3.17 反馈 API 接线点）").register(registry);
         this.feedbackDislike = Counter.builder("rag.feedback.dislike")
@@ -544,6 +548,28 @@ public class AiBusinessMetrics {
         } else if (RetrievalContext.ToolCall.STATUS_PENDING_APPROVAL.equals(status)) {
             toolCallPending.increment();
         }
+    }
+
+    /**
+     * 编排委派终态计数（簇⑤ 5.3）：TaskTool 委派 success/fail 分桶，tag=subagent
+     * 有限枚举（注册表扩展随之增长，零租户标签纪律不变；委派记录另经
+     * RetrievalContext.ToolCall 快照进审计行与 rag.tool.call.* 通道）
+     */
+    public void recordOrchestratorDelegation(String subAgentName, boolean success) {
+        Counter.builder("rag.orchestrator.delegation")
+            .description("编排子代理委派终态计数（TaskTool 委派 success/fail）")
+            .tag("subagent", subAgentName)
+            .tag("outcome", success ? "success" : "fail")
+            .register(meterRegistry).increment();
+    }
+
+    /** 编排子代理单次委派执行耗时（簇⑤ 5.3，p50/p95/p99） */
+    public void recordOrchestratorSubAgentDuration(String subAgentName, Duration elapsed) {
+        Timer.builder("rag.orchestrator.subagent.duration")
+            .description("编排子代理单次委派执行耗时")
+            .tag("subagent", subAgentName)
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(meterRegistry).record(elapsed);
     }
 
     /** Token 消耗累加（TokenBudgetAdvisor after 回写） */

@@ -1,11 +1,13 @@
 package com.enterprise.kb.ai.agent.orchestration;
 
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -37,12 +39,14 @@ public class TaskTool {
     private final SubAgentRegistry registry;
     private final SubAgentClientFactory clientFactory;
     private final ExecutorService executor;
+    private final AiBusinessMetrics metrics;
 
     public TaskTool(SubAgentRegistry registry, SubAgentClientFactory clientFactory,
-                    ExecutorService executor) {
+                    ExecutorService executor, AiBusinessMetrics metrics) {
         this.registry = registry;
         this.clientFactory = clientFactory;
         this.executor = executor;
+        this.metrics = metrics;
     }
 
     @Tool(description = "将子任务委派给专职子代理执行并返回其结果。子代理在隔离上下文中工作"
@@ -67,30 +71,42 @@ public class TaskTool {
                 .user(description)
                 .toolContext(buildSubAgentToolContext(ctx, retrievalContext))
                 .call().content());
+        long startNanos = System.nanoTime();
         try {
             String result = future.get(spec.timeoutSeconds(), TimeUnit.SECONDS);
+            recordOutcome(spec.name(), true, startNanos);
             recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_EXECUTED,
                 description);
             return result;
         } catch (TimeoutException e) {
             // 非打断式弃任务（坑位㊶）：底层调用经客户端读超时自然收敛
             future.cancel(false);
+            recordOutcome(spec.name(), false, startNanos);
             recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
                 "执行超时（>" + spec.timeoutSeconds() + "s）: " + description);
             return "⚠️ 子代理 " + spec.name() + " 执行超时（>" + spec.timeoutSeconds()
                 + "s）。请换其他途径或如实告知用户该部分暂时无法完成。";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            recordOutcome(spec.name(), false, startNanos);
             recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
                 "执行被中断: " + description);
             return "⚠️ 子代理 " + spec.name() + " 执行被中断，请如实告知用户。";
         } catch (ExecutionException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
+            recordOutcome(spec.name(), false, startNanos);
             recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
                 "执行失败: " + cause.getMessage());
             return "⚠️ 子代理 " + spec.name() + " 执行失败：" + cause.getMessage()
                 + "。可重试一次或如实告知用户。";
         }
+    }
+
+    /** 委派终态指标（rag.orchestrator.delegation / subagent.duration，簇⑤ 批2） */
+    private void recordOutcome(String subAgentName, boolean success, long startNanos) {
+        metrics.recordOrchestratorDelegation(subAgentName, success);
+        metrics.recordOrchestratorSubAgentDuration(subAgentName,
+            Duration.ofNanos(System.nanoTime() - startNanos));
     }
 
     /**

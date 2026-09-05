@@ -89,6 +89,9 @@ rag:
     enabled: ${RAG_ORCHESTRATOR_ENABLED:false}
     # 子代理单次委派有界超时（秒）——非打断式弃任务（坑位㊶），防真实工具拖死主链
     subagent-timeout-seconds: ${RAG_ORCHESTRATOR_SUBAGENT_TIMEOUT_SECONDS:60}
+    # 知识检索子代理 getDocument 全文读取 chunk 上限（截断防上下文爆仓）
+    knowledge:
+      max-chunks: ${RAG_ORCHESTRATOR_KNOWLEDGE_MAX_CHUNKS:30}
   # 多模型路由（3.2，设计文档 11.2.2）—— 主模型双形态开关（v2.77 模型层批B）+
   # 备用 qwen3.8-flash 熔断切换（连续失败 failure-threshold 次 → OPEN
   # open-seconds 秒直发备用，窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，

@@ -6,6 +6,7 @@ import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
+import com.enterprise.kb.ai.agent.orchestration.KnowledgeSearchTools;
 import com.enterprise.kb.ai.agent.orchestration.SubAgentClientFactory;
 import com.enterprise.kb.ai.agent.orchestration.SubAgentRegistry;
 import com.enterprise.kb.ai.agent.orchestration.SubAgentSpec;
@@ -13,6 +14,7 @@ import com.enterprise.kb.ai.agent.orchestration.TaskTool;
 import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.tool.EnterpriseMockReadTools;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.prompt.PromptTemplates;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
@@ -71,18 +73,31 @@ public class OrchestratorChatClientConfig {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
+    /** 知识检索子代理 system prompt（检索管线零 LLM 主答，工具调用与综合在子代理轻模型上） */
+    static final String KNOWLEDGE_SEARCHER_SYSTEM_PROMPT =
+        "你是企业知识检索子代理。依据任务描述先调用 searchKnowledge 检索知识库获取证据，"
+            + "需要完整上下文时再调用 getDocument 读取全文；基于检索结果如实归纳回答，"
+            + "引用处标注文件名与页码，检索不到时明确说明，不得编造。";
+
     /**
-     * 子代理注册表（批1 先注册 data-query / report-writer；knowledge-searcher 批2 落）。
-     * 模型分工（D2 定案）：轻任务子代理挂 fallbackChatModel（qwen3.8-flash，
-     * 轻任务挂备先例 v2.83），报告生成挂 smartRoutingChatModel（主答质量）。
+     * 子代理注册表（批2 全量三 Spec，D2 定案差异化模型分工）：
+     * 知识检索/数据查询挂 fallbackChatModel（qwen3.8-flash，轻任务挂备先例 v2.83），
+     * 报告生成挂 smartRoutingChatModel（主答质量）。
      */
     @Bean
-    public SubAgentRegistry subAgentRegistry(EnterpriseMockReadTools enterpriseMockReadTools,
+    public SubAgentRegistry subAgentRegistry(KnowledgeSearchTools knowledgeSearchTools,
+                                             EnterpriseMockReadTools enterpriseMockReadTools,
                                              @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
                                              @Qualifier("smartRoutingChatModel") ChatModel smartRoutingChatModel,
                                              @Value("${rag.orchestrator.subagent-timeout-seconds:60}")
                                              int timeoutSeconds) {
         return new SubAgentRegistry(List.of(
+            new SubAgentSpec("knowledge-searcher",
+                "检索企业知识库（制度、规范、流程、事实依据），检索与全文读取",
+                KNOWLEDGE_SEARCHER_SYSTEM_PROMPT,
+                List.of(knowledgeSearchTools),
+                fallbackChatModel,
+                timeoutSeconds),
             new SubAgentSpec("data-query",
                 "查询企业业务数据（员工信息、部门、职位、年假余额等）",
                 DATA_QUERY_SYSTEM_PROMPT,
@@ -105,7 +120,8 @@ public class OrchestratorChatClientConfig {
     @Bean
     public TaskTool taskTool(SubAgentRegistry subAgentRegistry,
                              ObservationRegistry observationRegistry,
-                             ExecutorService orchestratorSubAgentExecutor) {
+                             ExecutorService orchestratorSubAgentExecutor,
+                             AiBusinessMetrics aiBusinessMetrics) {
         ConcurrentHashMap<String, ChatClient> clientCache = new ConcurrentHashMap<>();
         SubAgentClientFactory factory = spec -> clientCache.computeIfAbsent(spec.name(), name -> {
             ChatClient.Builder builder =
@@ -116,7 +132,7 @@ public class OrchestratorChatClientConfig {
             }
             return builder.build();
         });
-        return new TaskTool(subAgentRegistry, factory, orchestratorSubAgentExecutor);
+        return new TaskTool(subAgentRegistry, factory, orchestratorSubAgentExecutor, aiBusinessMetrics);
     }
 
     @Bean

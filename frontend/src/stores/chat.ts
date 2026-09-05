@@ -40,7 +40,7 @@ export interface Message {
  */
 export const useChatStore = defineStore('chat', () => {
   const sessionId = ref<string>(crypto.randomUUID())
-  const mode = ref<'rag' | 'tool'>('rag')
+  const mode = ref<'rag' | 'tool' | 'agent'>('rag')
   const messages = ref<Message[]>([])
 
   function newSession() {

@@ -1,7 +1,9 @@
 package com.enterprise.kb.ai.agent.orchestration;
 
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +59,7 @@ class TaskToolTest {
         taskTool = new TaskTool(
             new SubAgentRegistry(List.of(new SubAgentSpec(
                 "demo", "演示职责", "演示系统指令", List.of(), null, 60))),
-            clientFactory, EXECUTOR);
+            clientFactory, EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()));
     }
 
     private static ToolContext parentContext(RetrievalContext ctx) {
@@ -130,7 +132,7 @@ class TaskToolTest {
         TaskTool oneSecondTool = new TaskTool(
             new SubAgentRegistry(List.of(new SubAgentSpec(
                 "demo", "演示职责", "演示系统指令", List.of(), null, 1))),
-            spec -> blockingClient(), EXECUTOR);
+            spec -> blockingClient(), EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()));
 
         long start = System.nanoTime();
         String result = oneSecondTool.task("demo", "任务", parentContext(new RetrievalContext()));

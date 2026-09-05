@@ -25,10 +25,12 @@
       <!-- 空态：能力面板 -->
       <div v-if="store.messages.length === 0 && !streaming" class="empty reveal">
         <div class="empty-mark t-display">知</div>
-        <h2 class="t-display empty-title">{{ store.mode === 'rag' ? '向知识库提问' : '企业事务办理' }}</h2>
-        <p class="empty-sub">{{ store.mode === 'rag'
-          ? '检索 · 融合 · 精排 · 溯源，全链路可观测'
-          : '员工查询 · 年假余额 · 请假申请（写操作需人工审批）' }}</p>
+        <h2 class="t-display empty-title">{{ { rag: '向知识库提问', tool: '企业事务办理', agent: '编排复合任务' }[store.mode] }}</h2>
+        <p class="empty-sub">{{ {
+          rag: '检索 · 融合 · 精排 · 溯源，全链路可观测',
+          tool: '员工查询 · 年假余额 · 请假申请（写操作需人工审批）',
+          agent: '知识检索 · 数据查询 · 报告生成，子代理委派自动分解'
+        }[store.mode] }}</p>
         <div class="suggest">
           <button v-for="(s, i) in suggestions" :key="i" class="suggest-item panel panel-lift"
             :style="{ '--d': `${0.08 * i}s` }" @click="ask(s)">
@@ -45,9 +47,14 @@
             <span class="pipe-step chip chip-rerank">精排</span><i class="pipe-sep" />
             <span class="pipe-step chip chip-gold">Grounding 生成</span>
           </template>
-          <template v-else>
+          <template v-else-if="store.mode === 'tool'">
             <span class="pipe-step chip chip-pine">读工具自动执行</span><i class="pipe-sep" />
             <span class="pipe-step chip chip-gold">写工具 HITL 审批</span>
+          </template>
+          <template v-else>
+            <span class="pipe-step chip chip-vector">任务分解</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-fusion">子代理委派</span><i class="pipe-sep" />
+            <span class="pipe-step chip chip-rerank">结果综合</span>
           </template>
         </div>
       </div>
@@ -142,16 +149,19 @@
     <footer class="composer reveal">
       <div class="composer-box">
         <el-input v-model="input" type="textarea" :rows="2" resize="none"
-          :placeholder="store.mode === 'rag'
-            ? '输入问题，Enter 发送，Shift+Enter 换行'
-            : '描述要办理的事务，Enter 发送（写操作将弹出审批确认）'"
+          :placeholder="{
+            rag: '输入问题，Enter 发送，Shift+Enter 换行',
+            tool: '描述要办理的事务，Enter 发送（写操作将弹出审批确认）',
+            agent: '描述复合任务（如：检索报销制度要点并查询员工假期余额，起草情况说明）'
+          }[store.mode]"
           :disabled="streaming" @keydown.enter.exact="ask(input)" />
         <div class="composer-actions">
           <div class="composer-left">
-            <!-- 双链路显式分流（11.5）：rag 知识问答 / tool 企业事务 -->
+            <!-- 三链显式分流（11.5 双链路 + 簇⑤ 5.3）：rag 知识问答 / tool 企业事务 / agent 任务编排 -->
             <el-radio-group v-model="store.mode" size="small" :disabled="streaming">
               <el-radio-button value="rag">知识问答</el-radio-button>
               <el-radio-button value="tool">企业工具</el-radio-button>
+              <el-radio-button value="agent">任务编排</el-radio-button>
             </el-radio-group>
           </div>
           <el-button type="primary" round :disabled="!input.trim() || streaming" @click="ask(input)">
@@ -190,7 +200,7 @@ const msgList = ref<HTMLElement>()
 const sourceTarget = ref<SourceTarget | null>(null)
 const sessionListRef = ref<InstanceType<typeof SessionList>>()
 
-const suggestionsByMode: Record<'rag' | 'tool', string[]> = {
+const suggestionsByMode: Record<'rag' | 'tool' | 'agent', string[]> = {
   rag: [
     '什么是大泥球模式，DDD 建议怎么应对？',
     '实体和值对象应该如何区分？',
@@ -200,6 +210,11 @@ const suggestionsByMode: Record<'rag' | 'tool', string[]> = {
     '查询员工 E1001 的基本信息',
     '员工 E1001 还剩多少天年假？',
     '帮张三提交 2026-08-10 到 2026-08-12 的年假申请'
+  ],
+  agent: [
+    '检索知识库中的差旅报销制度要点，并查询员工 E1001 的年假余额',
+    '查询张三的部门与职位信息，据此起草一份岗位介绍',
+    '检索 DDD 相关文档的核心要点，汇总成一份团队学习提纲'
   ]
 }
 const suggestions = computed(() => suggestionsByMode[store.mode])
@@ -326,7 +341,7 @@ async function submitRate(msg: Message, rating: 'POSITIVE' | 'NEGATIVE',
   }
 }
 
-interface AskOpts { mode?: 'rag' | 'tool'; approvedToolCallId?: string }
+interface AskOpts { mode?: 'rag' | 'tool' | 'agent'; approvedToolCallId?: string }
 
 async function ask(raw: string | undefined, opts: AskOpts = {}) {
   const query = (raw ?? '').trim()

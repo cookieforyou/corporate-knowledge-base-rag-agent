@@ -189,6 +189,7 @@
 ## 六、批次分解（3d）
 
 > **进展**：批1 ✅（2026-09-05 落码 + 验证通过：kb-ai-agent + kb-api 28 测试类 185 用例全绿）。批1 实现注记：① `SubAgentClientFactory` 接口化为 TaskTool 可测性设计（生产实现 = Config 内 Spec.name 缓存工厂，`ChatClient.Builder` 类型核验为嵌套接口）；② 落码前核验 N1 通过——`AuditTraceAdvisor.MODE_KEY` 为自由字符串、无白名单（仅 `"rag".equals(mode)` 特判 traceEntries，`'agent'` 落库零 DDL 零阻）；③ 批1 已注册 data-query / report-writer 两 Spec（D2 差异化模型），knowledge-searcher 批2 落；④ Mock 拆类双挂后 tool 链工具集等价（三 @Tool 全在）。
+> **进展**：批2 ✅（2026-09-05 落码 + 双端验证通过：后端 kb-ai-core/kb-ai-agent/kb-api 全绿 + vue-tsc 零错 + vite build 绿）。批2 实现注记：① N3 定谳——`McpKnowledgeTools` 身份经 `identityGuard.requireIdentity()`（MCP JWT 捕获）与编排链 toolContext 通道不同源，**不可复用实例**，按方案新写 `KnowledgeSearchTools` 薄委派（检索管线同构：改写→双路召回→重排零 LLM）；② 指标族落 `AiBusinessMetrics`（新增 meterRegistry 字段支撑 subagent 有限枚举 tag 动态注册）；③ 前端 mode 三态全量（radio/空态/placeholder/pipeline/suggestions/AskOpts 六处）。
 
 ### 批1：编排骨架（1d）
 
