@@ -1,6 +1,6 @@
 # Phase 5 簇⑤ Agent 编排（Multi-Agent Orchestrator 收窄版）实施方案（批次推进版）
 
-> **版本**：v1.1（定案稿）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
+> **版本**：v1.2（机器侧收官稿）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
 > **性质**：簇⑤落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.3 / §五簇表；批次进展回填 07 卷簇⑤段。
 > **官方路径核验（2026-09-05）**：Spring AI 2.0.1 GA 无框架级 Agent 抽象，[Building Effective Agents 五模式](https://docs.spring.io/spring-ai/reference/api/effective-agents.html) 全为纯 Java 组合；[Agentic Patterns Part 4 Subagent Orchestration](https://spring.io/blog/2026/01/27/spring-ai-agentic-patterns-4-task-subagents) 的 Task tool 模式 = 主 Agent 仅持 task 工具、子代理各持隔离上下文/独立 system prompt/可差异化模型。与定案原文「主 Agent + TaskTool 子代理委派」完全对齐，自建成本即 3d 底气。
 > **分支纪律**：沿簇④先例拟分支 `phase5-cluster5-orchestrator`（开工时按 main 状态定，3d 小簇亦可直推 main——开工时定）。
@@ -190,6 +190,7 @@
 
 > **进展**：批1 ✅（2026-09-05 落码 + 验证通过：kb-ai-agent + kb-api 28 测试类 185 用例全绿）。批1 实现注记：① `SubAgentClientFactory` 接口化为 TaskTool 可测性设计（生产实现 = Config 内 Spec.name 缓存工厂，`ChatClient.Builder` 类型核验为嵌套接口）；② 落码前核验 N1 通过——`AuditTraceAdvisor.MODE_KEY` 为自由字符串、无白名单（仅 `"rag".equals(mode)` 特判 traceEntries，`'agent'` 落库零 DDL 零阻）；③ 批1 已注册 data-query / report-writer 两 Spec（D2 差异化模型），knowledge-searcher 批2 落；④ Mock 拆类双挂后 tool 链工具集等价（三 @Tool 全在）。
 > **进展**：批2 ✅（2026-09-05 落码 + 双端验证通过：后端 kb-ai-core/kb-ai-agent/kb-api 全绿 + vue-tsc 零错 + vite build 绿）。批2 实现注记：① N3 定谳——`McpKnowledgeTools` 身份经 `identityGuard.requireIdentity()`（MCP JWT 捕获）与编排链 toolContext 通道不同源，**不可复用实例**，按方案新写 `KnowledgeSearchTools` 薄委派（检索管线同构：改写→双路召回→重排零 LLM）；② 指标族落 `AiBusinessMetrics`（新增 meterRegistry 字段支撑 subagent 有限枚举 tag 动态注册）；③ 前端 mode 三态全量（radio/空态/placeholder/pipeline/suggestions/AskOpts 六处）。
+> **进展**：批3 ✅（2026-09-05，**簇⑤ 机器侧收官**）：§11.5.5 扩写（v2.102，含契约六条）+ §11.5.1 链序表第三行 + §11.5.6 后续演进重编号 + README/CLAUDE.md/07 卷簇⑤ 段/00 卷状态行 + 演示任务集与 E2E 步骤（§八）。D5 定谳：`DefaultToolCallingManager.executeToolCalls` 源码核验为**串行 for 循环**（同消息多 task 委派顺序执行），收窄版接受，并发升级形态登记契约第 5 条。
 
 ### 批1：编排骨架（1d）
 
@@ -245,19 +246,42 @@
 
 ---
 
-## 八、验收与 E2E
+## 八、验收与 E2E（用户侧执行清单）
 
-- **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿；验证通道通过（Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审）；文档三件套回写；git 提交
-- **演示任务集**（10 例，批3 交付全量；形态示例）：「检索公司差旅报销制度要点，查询 E1001 员工信息与年假余额，起草一份假期申请情况说明」——跨三子代理复合任务 / 两子代理 / 单子代理深度任务分层覆盖
-- **判定标准**：① 委派对象正确（子代理选择与任务语义匹配）；② 委派参数合理（description 自包含可执行）；③ 最终答案综合子代理结果（非凭空作答）；④ 知识类内容有检索依据（主 Agent 不越权直答）。10 例中 ≥8 例全过 = 通过
-- **E2E 步骤**：批3 按项目纪律交付（开关开启 → 前端切 agent 模式 → 复合任务 → TOOL_CALL 卡片观察委派 → 综合答案 → 审计行 mode='agent' + 指标计数核对），用户自测结果下轮回传
+- **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）；文档三件套回写 ✅；git 提交 ✅（三批三提交）
+- **判定标准**（逐例四条，10 例 ≥8 例全过 = 收官）：① 委派对象正确（子代理选择与任务语义匹配）；② 委派参数合理（description 自包含可执行）；③ 最终答案综合子代理结果（非凭空作答）；④ 知识类内容有检索依据（主 Agent 不越权直答）
 
-## 附：落码前核验点清单
+### 8.1 演示任务集（10 例，跨子代理分层）
 
-| # | 核验项 | 方法 |
+| # | 任务 | 预期委派 |
 |---|---|---|
-| N1 | AuditTraceAdvisor / Bad Case 查询端点对 mode 值的枚举假设（'agent' 落库与查询是否受阻） | 源码级 |
-| N2 | `DefaultToolCallingManager` 同消息多 tool call 并行/串行形态（D5） | 源码级 |
-| N3 | McpKnowledgeTools.search 的身份消费签名（ToolContext 形态），定知识检索子代理复用粒度 | 源码级 |
-| N4 | 子代理调用的 observation 传播（trace 合树可行性） | 源码级 + 本地观测验证 |
-| N5 | ChatClient 按 Spec 缓存的安全性（工具回调无状态假设） | 源码级 |
+| 1 | 检索知识库中的差旅报销制度要点，查询员工 E1001 的基本信息与年假余额，起草一份假期申请情况说明 | knowledge-searcher + data-query + report-writer |
+| 2 | 检索公司差旅制度中住宿与交通标准，查询李四（E1002）的部门与职位，据此起草一份出差申请说明 | knowledge-searcher + data-query + report-writer |
+| 3 | 检索知识库 DDD 相关文档的核心要点，查询王五（E1003）的信息，起草一份面向其所在部门的 DDD 学习提纲 | knowledge-searcher + data-query + report-writer |
+| 4 | 检索差旅报销制度要点，并据此起草一份员工报销须知 | knowledge-searcher + report-writer |
+| 5 | 查询 E1001 与 E1002 的年假余额，起草一份两人假期余额简报 | data-query + report-writer |
+| 6 | 检索知识库中大泥球模式的应对建议，起草一份团队重构风险清单 | knowledge-searcher + report-writer |
+| 7 | 查询张三的职位与部门信息，起草一份岗位说明 | data-query + report-writer |
+| 8 | 检索知识库中限界上下文的核心定义与划分原则并归纳 | knowledge-searcher（单深任务） |
+| 9 | 查询 E1003 的完整信息与年假余额 | data-query（单任务） |
+| 10 | 起草一份季度知识库使用情况汇报模板 | report-writer（单任务） |
+
+### 8.2 E2E 步骤
+
+1. **开关开启**：`RAG_ORCHESTRATOR_ENABLED=true` 重启 kb-api（fat jar 本地或 ECS env）；关闭态回归对照见步骤 6
+2. **前端**：Chat 页切「任务编排」模式，逐条发送 §8.1 任务（流式），观察流末 TOOL_CALL 卡片（toolName 形如 `task:knowledge-searcher`）与综合答案（应注明信息来自哪个子代理）
+3. **越权直答回归**：任选知识类单任务（如 #8），确认答案依据检索证据非模型记忆（判定标准④）
+4. **审计核对**：Admin 运维中心「日志查询」Tab 查本轮会话——mode 列 = `agent`、tool_calls 快照含各委派记录
+5. **指标核对**：`GET /actuator/metrics/rag.orchestrator.delegation`（tag subagent/outcome 计数与委派次数一致）+ `rag.orchestrator.subagent.duration`（p50/p95/p99 有读数）
+6. **关闭态零回归**：开关关重启 → mode=agent 请求返回 400 `ORCHESTRATOR_DISABLED`；rag/tool 两模式正常（含 HITL 审批流）
+7. 逐例按四判定标准记分回传（≥8/10 通过 = 簇⑤ 收官；失败例记录委派对象与答案偏差供归因）
+
+## 附：落码前核验点清单（回填结论）
+
+| # | 核验项 | 结论 |
+|---|---|---|
+| N1 | AuditTraceAdvisor / 查询端点对 mode 值的枚举假设 | ✅ `MODE_KEY` 自由字符串无白名单；仅 `"rag".equals(mode)` 特判 traceEntries——'agent' 落库零 DDL 零阻 |
+| N2 / D5 | DefaultToolCallingManager 同消息多 tool call 执行形态 | ✅ **串行 for 循环**（源码核验）——单消息多 task 委派顺序执行，收窄版接受；并发升级登记契约第 5 条 |
+| N3 | McpKnowledgeTools.search 身份消费签名 | ✅ 经 `identityGuard.requireIdentity()`（MCP JWT 捕获）与编排链 toolContext 通道不同源，**不可复用实例**——新写 KnowledgeSearchTools 薄委派（检索管线同构） |
+| N4 | 子代理调用 observation 传播（trace 合树可行性） | 🟡 子 ChatClient 已显式传应用 ObservationRegistry（簇① 单参 NOOP 坑规避）；工具执行线程内传播形态未深挖——**留 E2E 观察点**：Langfuse trace 树下子代理 chat_client span 是否与主请求合树，不合树登记为已知取舍（升级路径项） |
+| N5 | ChatClient 按 Spec 缓存安全性 | ✅ 工厂 `computeIfAbsent` 落地；ChatClient 不可变配置线程安全（toolAgentChatClient 单 Bean 多请求共享既有先例） |

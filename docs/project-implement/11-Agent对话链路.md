@@ -697,6 +697,7 @@ kb-eval 只依赖 kb-ai-core 不受影响。
 |---|---|---|---|---|
 | `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→**QueryRouting(440)**→Trace(450)→**CacheCheck(460，条件挂载)**→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
 | `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
+| `orchestratorChatClient`（簇⑤ 5.3，v2.102） | kb-ai-agent | 与 tool 链同构（复用 `agentToolCallingAdvisor`(1000) Bean），条件装配 `rag.orchestrator.enabled=true` | `taskTool`（唯一，§11.5.5） | 任务编排：分析分解 → task 委派子代理 → 综合作答 |
 
 > v2.13 链序变更：440 插入 QueryRoutingAdvisor（意图分类），500 位由 RetrievalGateAdvisor 承接（组合式包裹原 RetrievalAugmentationAdvisor，skipRetrieval 时旁路整套 RAG 管线，见 §11.4 v2.13 注）。
 > v2.47 链序变更（安全簇⑤）：320 插入 SemanticInjectionAdvisor（L2 语义判定，12 章 §12.11）——L1 词表快筛之后、记忆之前，REGEX 可疑且干词未命中请求经备用模型二判，拒绝内容不入多轮记忆仓储。
@@ -744,12 +745,71 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 | RagChatService（chatRag/chatStreamRag） | kb-ai-core（原 ChatService） |
 | AgentController（mode 解析分发） | kb-api |
 
-### 11.5.5 后续演进（不排期）
+### 11.5.5 Multi-Agent 编排链（簇⑤ 5.3 收窄版，v2.102）
 
-kb-ai-agent 为 Agent 事务域容器：真实 OA/ERP/数据库工具客户端（外部 SDK 依赖）、
-MCP Server 宿主（5.11）、Multi-Agent Orchestrator（5.3）均落此模块；kb-ai-core
-保持纯 RAG 核心不受污染。**多 ChatClient Bean 纪律**：所有注入点显式 @Qualifier
-（3.2 @Primary 歧义教训）。
+> **定案（2026-09-05 用户拍板 D1-D6）**：Orchestrator-Workers 骨架以 **mode=agent
+> 第三链**形态落地——主 Agent 仅持 task 委派工具，子代理经 `SubAgentRegistry`
+> 静态注册；`rag.orchestrator.enabled` 缺省关（关闭态编排族 Bean 缺位，rag/tool
+> 两链逐字节零变化；mode=agent 显式 400 `ORCHESTRATOR_DISABLED`，不静默回落）；
+> **不引** spring-ai-agent-utils 与 Spring AI Alibaba graph——官方组合式路径
+> （Building Effective Agents 五模式 + Agentic Patterns Part 4 Task tool 形态；
+> 源码级核验 2.0.1 GA 无框架级 Agent 抽象）。过程方案与批次留档：
+> `project-progress/sub-cluster-progress/Phase5簇⑤Agent编排实施方案（批次推进版）.md`。
+
+**组件（kb-ai-agent `orchestration/` 包）**：
+
+| 组件 | 职责 |
+|---|---|
+| `SubAgentSpec` | record：name / description（主 Agent 选择依据）/ systemPrompt / toolObjects / chatModel / timeoutSeconds；工具集静态**不含 task**——递归物理防护，层级恒两层 |
+| `SubAgentRegistry` | 静态注册表 + `renderRoster()` 渲染子代理清单进主 Agent system prompt（`%s` 占位注入）——**真实工具挂接点：新 Spec 注册即自动纳入，链路零改动** |
+| `TaskTool` | `@Tool task(subagent, description, toolContext)`：按 Spec 委派（子 ChatClient 按 Spec.name 缓存，**轻链构建**——不挂 Memory/Audit/配额防双计）；身份三键下传子调用（`APPROVED_TOOL_CALL_ID` 不下传——编排链无跨层 HITL，凭证不可经委派透传）；失败/超时**文本化回流**主 Agent 决策（不抛异常击穿主链）；超时非打断式 `cancel(false)`（坑位㊶ 先例）；终态 `recordToolCall`（EXECUTED/FAILED）+ `rag.orchestrator.delegation`/`subagent.duration` 指标 |
+| `AgentOrchestratorService` | 同步/流式服务（契约对齐 ToolChatService，签名无 approvedToolCallId——物理消除凭证流入）；`MODE_KEY='agent'` |
+| `KnowledgeSearchTools` | 知识检索子代理工具：searchKnowledge（改写→双路[+Graph]召回→RRF→重排，**零 LLM**，管线同构 McpKnowledgeTools）+ getDocument（跨租户/不存在一律 KB_DOC_NOT_FOUND + 软删过滤 + chunk 上限截断）；身份经 toolContext 下传链（MCP 版经 identityGuard JWT 捕获不同源，不可复用实例——N3 核验定谳） |
+
+**三 Mock 子代理（D2 定案差异化模型）**：knowledge-searcher / data-query 挂
+`fallbackChatModel`（qwen3.8-flash，轻任务挂备先例 v2.83），report-writer 挂
+`smartRoutingChatModel`（主答质量）；data-query 工具 = `EnterpriseMockReadTools`
+（簇⑤ 自 EnterpriseMockTools 拆类——2.0 defaultTools 为对象级全量挂载无方法级
+过滤，拆类是子代理仅挂读工具的物理隔离路径；tool 链 defaultTools 双挂读写，
+行为与拆分前等价）。
+
+**记忆与上下文隔离**：编排链挂 Memory(400)（同 sessionId 跨 mode 互通，多轮
+编排会话）；子代理不挂记忆——每次委派独立上下文（Part 4 context isolation
+语义：子代理看不到主对话历史，task 的 description 必须自包含）。
+
+**协议零变更**：委派即工具调用——SSE TOOL_CALL 命名事件（toolName=
+`task:{subagent}`，前端审批卡片同款渲染路径）/ 审计 tool_calls 快照 /
+`rag.tool.call.*` 指标全复用；TRACE 帧 agent 链不推（同 tool 链）；
+kb_audit_log.mode 落 'agent'（MODE_KEY 自由字符串，零 DDL）。
+
+**真实工具挂接契约**（升级触发 = 真实 OA/ERP/DB 工具立项，与 5.3 原验收
+「任务完成率 >85%」复活、5.4-A 跨链 auto 路由复活同步）：
+
+1. 新增能力 = 注册一条 SubAgentSpec，主 Agent prompt 自动纳入；已有子代理换
+   真实实现 = toolObjects 换实现类（@Tool 契约不变即零改动）；
+2. 真实工具实现契约：@Tool 签名与描述即模型接口契约；身份必经 ToolContext
+   （TENANT_ID / USER_ID / RETRIEVAL_CONTEXT）消费，租户 fail-closed 两层语义
+   沿用；返回结构化 record（对齐 EnterpriseMockTools 契约先例）；
+3. 跨层 HITL 升级路径：编排链无审批语义（凭证不可经委派透传）——真实写工具
+   立项时设计「子代理挂起 → 审批账本扩展委派上下文 → TaskTool 结果携带
+   PENDING 上行」三段式扩展；
+4. usage 聚合计账路径：子代理轻链不挂 TokenBudget（防双计）——升级形态 =
+   TaskTool 执行后子调用 usage 累加回 RetrievalContext，TokenBudgetAdvisor
+   流末一次计账；
+5. 并发子代理：2.0.1 `DefaultToolCallingManager.executeToolCalls` 为串行 for
+   循环（源码核验），单消息多 task 委派顺序执行——收窄版接受（Mock 子代理
+   秒级）；升级形态 = TaskTool 批量委派参数内部并行（hybridRetrievalExecutor
+   同款虚拟线程先例）或编排层并行提交；
+6. Mock 工具留存（D4 定案）：`EnterpriseMockReadTools` / `EnterpriseMockWriteTools`
+   保留至真实工具立项时替换（L1 演示层换实现，HITL 机制层/链路层不动）。
+
+### 11.5.6 后续演进（不排期）
+
+kb-ai-agent 为 Agent 事务域容器：真实 OA/ERP/数据库工具客户端（外部 SDK
+依赖）、跨层 HITL、usage 聚合计账、kb-eval 编排链评估（模块依赖边界所致
+不可达，登记）均落此模块；kb-ai-core 保持纯 RAG 核心不受污染。
+**多 ChatClient Bean 纪律**：五 Bean（chatClient / ragAgent / toolAgent /
+orchestrator / evalGuardrail）所有注入点显式 @Qualifier（3.2 @Primary 歧义教训）。
 
 ---
 
