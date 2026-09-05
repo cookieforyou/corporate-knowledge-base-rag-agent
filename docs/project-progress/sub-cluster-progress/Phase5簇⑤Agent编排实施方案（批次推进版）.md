@@ -1,6 +1,6 @@
 # Phase 5 簇⑤ Agent 编排（Multi-Agent Orchestrator 收窄版）实施方案（批次推进版）
 
-> **版本**：v1.5（E2E 热修三：审计查询补链路过滤）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
+> **版本**：v1.6（E2E 热修四：子代理检索收敛治理 + 委派预算硬闸）· **日期**：2026-09-05 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
 > **性质**：簇⑤落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.3 / §五簇表；批次进展回填 07 卷簇⑤段。
 > **官方路径核验（2026-09-05）**：Spring AI 2.0.1 GA 无框架级 Agent 抽象，[Building Effective Agents 五模式](https://docs.spring.io/spring-ai/reference/api/effective-agents.html) 全为纯 Java 组合；[Agentic Patterns Part 4 Subagent Orchestration](https://spring.io/blog/2026/01/27/spring-ai-agentic-patterns-4-task-subagents) 的 Task tool 模式 = 主 Agent 仅持 task 工具、子代理各持隔离上下文/独立 system prompt/可差异化模型。与定案原文「主 Agent + TaskTool 子代理委派」完全对齐，自建成本即 3d 底气。
 > **分支纪律**：沿簇④先例拟分支 `phase5-cluster5-orchestrator`（开工时按 main 状态定，3d 小簇亦可直推 main——开工时定）。
@@ -254,6 +254,8 @@
 
 > **E2E 热修三（2026-09-05，审计查询补链路过滤，用户侧步骤 4 发现）**：日志查询 Tab 有「链路」列展示而无对应搜索项，mode=agent 行需人工翻查。补齐 = 后端 mode 过滤全链（`AuditLogSpecs.search` +mode 谓词 / Service 白名单 {rag,tool,agent} **小写归一**——mode 落库为 MODE_KEY 小写形态，不得沿用 normalizeEnum 大写轨道 / Controller +mode 参数 / StatsService 双计数调用点适配）+ 前端「链路」下拉三态与 mode 列 tag 三色（agent=primary）；零 DDL。14 章 v2.37；kb-admin 114 / kb-api 121 单测绿 + 前端构建绿。
 
+> **E2E 热修四（2026-09-05，演示首跑挂死治敛，用户侧步骤 2 发现）**：首条演示任务 3.5 分钟无回答、检索日志持续输出。根因三层——① knowledge-searcher（qwen3.8-flash）单次委派内无收敛纪律反复检索 15 次（每次 2.5-4s），全文命中滚胀上下文加剧不收敛，撞 60s 委派超时；② 主 Agent 按委派纪律第 4 条「可重试一次」原样重发同一委派（必然再超时，循环无出口）；③ 无委派总预算。修复三层（11 章 v2.104）= 子代理检索收敛纪律（1-3 次即归纳、禁同义反复）+ 主 Agent 纪律修订（超时不原样重发须缩小范围；新增总次数 ≤6 条款）+ TaskTool 委派预算硬闸（`rag.orchestrator.max-delegations` 缺省 6，快照 `task:*` 计数超限文本拒绝要求立即综合作答）。kb-ai-agent + kb-ai-core 382 单测绿（TaskToolTest +2）。**预期形态告知：三代理演示任务端到端 1-3 分钟属正常量级（主模型强制思考 + 串行委派），等待期 SSE 无 token 输出为收窄版预期行为，非挂死。**
+
 - **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）；文档三件套回写 ✅；git 提交 ✅（三批三提交）
 - **判定标准**（逐例四条，10 例 ≥8 例全过 = 收官）：① 委派对象正确（子代理选择与任务语义匹配）；② 委派参数合理（description 自包含可执行）；③ 最终答案综合子代理结果（非凭空作答）；④ 知识类内容有检索依据（主 Agent 不越权直答）
 
@@ -277,7 +279,7 @@
 ### 8.2 E2E 步骤
 
 1. **开关开启**：`RAG_ORCHESTRATOR_ENABLED=true` 重启 kb-api（fat jar 本地或 ECS env）；关闭态回归对照见步骤 6
-2. **前端**：Chat 页切「任务编排」模式，逐条发送 §8.1 任务（流式），观察流末 TOOL_CALL 卡片（toolName 形如 `task:knowledge-searcher`）与综合答案（应注明信息来自哪个子代理）
+2. **前端**：Chat 页切「任务编排」模式，逐条发送 §8.1 任务（流式），观察流末 TOOL_CALL 卡片（toolName 形如 `task:knowledge-searcher`）与综合答案（应注明信息来自哪个子代理）。**预期时长（热修四注）**：三代理任务端到端约 1-3 分钟（主模型强制思考 + 串行委派 + 子代理检索管线），等待期前端无 token 输出属收窄版预期行为；若超 ~4 分钟仍无输出再视为异常回传日志
 3. **越权直答回归**：任选知识类单任务（如 #8），确认答案依据检索证据非模型记忆（判定标准④）
 4. **审计核对**：Admin 运维中心「日志查询」Tab 查本轮会话（可用「链路 = 任务编排」筛选快速定位）——mode 列 = `agent`、tool_calls 快照含各委派记录
 5. **指标核对**：`GET /actuator/metrics/rag.orchestrator.delegation`（tag subagent/outcome 计数与委派次数一致）+ `rag.orchestrator.subagent.duration`（p50/p95/p99 有读数）

@@ -59,7 +59,7 @@ class TaskToolTest {
         taskTool = new TaskTool(
             new SubAgentRegistry(List.of(new SubAgentSpec(
                 "demo", "演示职责", "演示系统指令", List.of(), null, 60))),
-            clientFactory, EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()));
+            clientFactory, EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()), 6);
     }
 
     private static ToolContext parentContext(RetrievalContext ctx) {
@@ -132,7 +132,7 @@ class TaskToolTest {
         TaskTool oneSecondTool = new TaskTool(
             new SubAgentRegistry(List.of(new SubAgentSpec(
                 "demo", "演示职责", "演示系统指令", List.of(), null, 1))),
-            spec -> blockingClient(), EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()));
+            spec -> blockingClient(), EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()), 6);
 
         long start = System.nanoTime();
         String result = oneSecondTool.task("demo", "任务", parentContext(new RetrievalContext()));
@@ -141,6 +141,44 @@ class TaskToolTest {
         assertThat(result).contains("执行超时");
         assertThat(elapsedMs).isLessThan(2500);
         assertThat(Thread.currentThread().isInterrupted()).isFalse();
+    }
+
+    @Test
+    void delegationBudgetExceededRejectsWithoutExecution() {
+        // E2E 热修四：快照内已有 2 次 task:* 记录 + 预算 2 → 本次直接文本拒绝，
+        // 不执行子代理，拒绝事件入快照（审计可见）
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.addToolCall(new RetrievalContext.ToolCall("task:demo", "EXECUTED", null, "第 1 次"));
+        ctx.addToolCall(new RetrievalContext.ToolCall("task:demo", "FAILED", null, "第 2 次"));
+        TaskTool budgeted = new TaskTool(
+            new SubAgentRegistry(List.of(new SubAgentSpec(
+                "demo", "演示职责", "演示系统指令", List.of(), null, 60))),
+            clientFactory, EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()), 2);
+
+        String result = budgeted.task("demo", "任务", parentContext(ctx));
+
+        assertThat(result).contains("上限").contains("综合作答");
+        verifyNoInteractions(clientFactory);
+        assertThat(ctx.getToolCalls()).hasSize(3);
+        assertThat(ctx.getToolCalls().get(2).toolName()).isEqualTo("task:demo");
+        assertThat(ctx.getToolCalls().get(2).status()).isEqualTo("FAILED");
+        assertThat(ctx.getToolCalls().get(2).summary()).contains("预算超限");
+    }
+
+    @Test
+    void nonTaskToolCallsDoNotConsumeBudget() {
+        // 预算只数 task:* 记录——叶子工具（如 mock 读工具）调用不占委派预算
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.addToolCall(new RetrievalContext.ToolCall("queryEmployee", "EXECUTED", null, "叶子工具"));
+        TaskTool budgeted = new TaskTool(
+            new SubAgentRegistry(List.of(new SubAgentSpec(
+                "demo", "演示职责", "演示系统指令", List.of(), null, 60))),
+            clientFactory, EXECUTOR, new AiBusinessMetrics(new SimpleMeterRegistry()), 1);
+
+        String result = budgeted.task("demo", "任务", parentContext(ctx));
+
+        assertThat(result).isEqualTo("子代理结果");
+        verify(clientFactory).create(any());
     }
 
     /** 返回阻塞 3s 的子客户端（模拟挂死的 LLM 调用） */

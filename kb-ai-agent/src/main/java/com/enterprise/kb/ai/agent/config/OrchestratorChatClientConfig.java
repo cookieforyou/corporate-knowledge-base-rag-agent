@@ -57,7 +57,8 @@ public class OrchestratorChatClientConfig {
     /** 数据查询子代理 system prompt（契约位：真实 OA/ERP 工具替换时按真实系统能力修订） */
     static final String DATA_QUERY_SYSTEM_PROMPT =
         "你是企业业务数据查询子代理。依据任务描述调用数据查询工具获取员工信息、"
-            + "假期余额等业务数据，如实返回查询结果；查询不到时明确说明，不得编造。";
+            + "假期余额等业务数据，如实返回查询结果；查询不到时明确说明，不得编造。"
+            + "查到所需信息后立即归纳返回，不做多余查询。";
 
     /** 报告生成子代理 system prompt（纯 LLM 写作，无工具） */
     static final String REPORT_WRITER_SYSTEM_PROMPT =
@@ -73,11 +74,16 @@ public class OrchestratorChatClientConfig {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
-    /** 知识检索子代理 system prompt（检索管线零 LLM 主答，工具调用与综合在子代理轻模型上） */
+    /** 知识检索子代理 system prompt（检索管线零 LLM 主答，工具调用与综合在子代理轻模型上）。
+     *  E2E 热修四：补检索收敛纪律——无次数约束时轻量模型对同一要点反复换词检索，
+     *  单次委派可拖满 60s 超时（15 次检索实证），上下文随全文命中滚胀加剧不收敛。 */
     static final String KNOWLEDGE_SEARCHER_SYSTEM_PROMPT =
-        "你是企业知识检索子代理。依据任务描述先调用 searchKnowledge 检索知识库获取证据，"
+        "你是企业知识检索子代理。依据任务描述调用 searchKnowledge 检索知识库获取证据，"
             + "需要完整上下文时再调用 getDocument 读取全文；基于检索结果如实归纳回答，"
-            + "引用处标注文件名与页码，检索不到时明确说明，不得编造。";
+            + "引用处标注文件名与页码，检索不到时明确说明，不得编造。\n"
+            + "检索纪律：通常 1-3 次检索即可——优先一次覆盖任务全部要点的综合查询，"
+            + "不足时补 1-2 次针对性查询；禁止对同一要点反复换词检索；"
+            + "证据足够后立即停止调用工具并输出归纳结果。";
 
     /**
      * 子代理注册表（批2 全量三 Spec，D2 定案差异化模型分工）：
@@ -123,7 +129,8 @@ public class OrchestratorChatClientConfig {
                              // 容器内 ExecutorService Bean 不唯一（另有 hybridRetrievalExecutor）——
                              // 显式限定防按类型歧义（坑位㊺，IDEA 编译无 -parameters 时按名消歧亦失效）
                              @Qualifier("orchestratorSubAgentExecutor") ExecutorService orchestratorSubAgentExecutor,
-                             AiBusinessMetrics aiBusinessMetrics) {
+                             AiBusinessMetrics aiBusinessMetrics,
+                             @Value("${rag.orchestrator.max-delegations:6}") int maxDelegations) {
         ConcurrentHashMap<String, ChatClient> clientCache = new ConcurrentHashMap<>();
         SubAgentClientFactory factory = spec -> clientCache.computeIfAbsent(spec.name(), name -> {
             ChatClient.Builder builder =
@@ -134,7 +141,8 @@ public class OrchestratorChatClientConfig {
             }
             return builder.build();
         });
-        return new TaskTool(subAgentRegistry, factory, orchestratorSubAgentExecutor, aiBusinessMetrics);
+        return new TaskTool(subAgentRegistry, factory, orchestratorSubAgentExecutor, aiBusinessMetrics,
+            maxDelegations);
     }
 
     @Bean

@@ -89,6 +89,9 @@ rag:
     enabled: ${RAG_ORCHESTRATOR_ENABLED:false}
     # 子代理单次委派有界超时（秒）——非打断式弃任务（坑位㊶），防真实工具拖死主链
     subagent-timeout-seconds: ${RAG_ORCHESTRATOR_SUBAGENT_TIMEOUT_SECONDS:60}
+    # 单请求委派总预算（E2E 热修四）：超限文本拒绝要求立即综合作答，防超时重试
+    # 循环无出口拖死请求（子代理收敛纪律是软约束，硬闸兜底）
+    max-delegations: ${RAG_ORCHESTRATOR_MAX_DELEGATIONS:6}
     # 知识检索子代理 getDocument 全文读取 chunk 上限（截断防上下文爆仓）
     knowledge:
       max-chunks: ${RAG_ORCHESTRATOR_KNOWLEDGE_MAX_CHUNKS:30}

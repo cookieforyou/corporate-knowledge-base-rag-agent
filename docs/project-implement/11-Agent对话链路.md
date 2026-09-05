@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-05 · v2.103（簇⑤ E2E 热修一：编排开关开启态 ExecutorService Bean 歧义——消费点显式 @Qualifier 钉死，坑位㊺，§11.5.5）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-05 · v2.104（簇⑤ E2E 热修四：子代理检索循环不收敛治敛——收敛纪律 + 主 Agent 重试纪律 + 委派预算硬闸，§11.5.5）
+>
+> **v2.104（2026-09-05，簇⑤ E2E 热修四：编排链演示首跑挂死治敛）**：mode=agent 首条演示任务 3.5 分钟无回答且检索日志持续输出。根因三层——① 子代理工具循环无收敛纪律：knowledge-searcher（qwen3.8-flash）单次委派内对同一要点反复换词调 searchKnowledge 达 15 次（每次 2.5-4s = flash 决策 + 改写 LLM + 检索 ~0.7s + 重排），全文命中 ×5 条/次滚胀上下文加剧不收敛，最终撞 60s 委派超时；② 主 Agent 委派纪律第 4 条「可重试一次」被字面执行——超时后原样重发同一委派必然再超时，循环无出口；③ 无委派总预算硬闸。修复三层 = knowledge-searcher system prompt 补检索收敛纪律（1-3 次即归纳、禁同义反复检索）+ 主 Agent 纪律第 4 条改「不得原样重发、须大幅缩小范围」并新增第 5 条总次数预算 + TaskTool 委派预算硬闸（`rag.orchestrator.max-delegations` 缺省 6，按快照 `task:*` 记录计数，超限文本拒绝并要求立即综合作答，拒绝事件入快照可审计）。详 §11.5.5 补注。
 >
 > **v2.103（2026-09-05，簇⑤ E2E 热修一：坑位㊺）**：`RAG_ORCHESTRATOR_ENABLED=true` 首次完整启动暴露容器内 `ExecutorService` Bean 歧义——`orchestratorSubAgentExecutor`（条件装配）入场后该类型 Bean 不再唯一，`HybridDocumentRetriever` 构造注入与 `taskTool` 装配参数按类型解析即 `found 2` 启动失败（IDEA 编译无 `-parameters` 时按名消歧亦失效；Maven 产物带参数名故单测/构建不炸——掩盖不豁免）。修复 = 两消费点显式 `@Qualifier` + 反射契约测试防回退（「多 ChatClient Bean 注入点显式 @Qualifier」纪律的 ExecutorService 族延伸）；详 19 章附录 E ㊺。
 >
@@ -763,6 +765,19 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 > 歧义（`HybridDocumentRetriever` 构造器 + `taskTool` 装配参数两处消费点）——
 > 显式 `@Qualifier` 钉死 + 反射契约测试；条件装配开关的「开启态完整容器启动」
 > 为独立验证面（单测手工装配不可替代，坑位㊲/㉞ 同族）。
+>
+> **v2.104 补注（E2E 热修四：收敛治理）**：LLM 工具循环（子代理侧与主 Agent
+> 侧）**无内建收敛机制**——指令层不约束次数时，轻量模型倾向反复调用工具，
+> 叠加全文命中滚胀上下文即接近或撞满单委派超时；超时文本回流后主 Agent 若
+> 原样重试即形成无出口循环（SSE 在工具循环内无 token 输出，前端呈挂死态）。
+> 治理双层：**软约束** = 子代理/主 Agent system prompt 收敛纪律（检索 1-3 次
+> 即归纳；超时不原样重发、缩小范围重述；总委派 ≤6 即综合作答）；**硬闸** =
+> TaskTool 委派预算（`rag.orchestrator.max-delegations` 缺省 6，env
+> `RAG_ORCHESTRATOR_MAX_DELEGATIONS`），按 RetrievalContext 快照 `task:*`
+> 记录数计数（成功/失败/超时全终态），达上限文本拒绝——prompt 纪律对 LLM 是
+> 概率性约束，硬闸是确定性兜底，两者缺一不可。经验形态：三代理演示任务端到
+> 端 1-3 分钟属正常量级（主模型强制思考 + 串行委派 + 子代理检索管线），等待期
+> 无 token 输出为收窄版预期行为。
 
 **组件（kb-ai-agent `orchestration/` 包）**：
 
@@ -770,7 +785,7 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 |---|---|
 | `SubAgentSpec` | record：name / description（主 Agent 选择依据）/ systemPrompt / toolObjects / chatModel / timeoutSeconds；工具集静态**不含 task**——递归物理防护，层级恒两层 |
 | `SubAgentRegistry` | 静态注册表 + `renderRoster()` 渲染子代理清单进主 Agent system prompt（`%s` 占位注入）——**真实工具挂接点：新 Spec 注册即自动纳入，链路零改动** |
-| `TaskTool` | `@Tool task(subagent, description, toolContext)`：按 Spec 委派（子 ChatClient 按 Spec.name 缓存，**轻链构建**——不挂 Memory/Audit/配额防双计）；身份三键下传子调用（`APPROVED_TOOL_CALL_ID` 不下传——编排链无跨层 HITL，凭证不可经委派透传）；失败/超时**文本化回流**主 Agent 决策（不抛异常击穿主链）；超时非打断式 `cancel(false)`（坑位㊶ 先例）；终态 `recordToolCall`（EXECUTED/FAILED）+ `rag.orchestrator.delegation`/`subagent.duration` 指标 |
+| `TaskTool` | `@Tool task(subagent, description, toolContext)`：按 Spec 委派（子 ChatClient 按 Spec.name 缓存，**轻链构建**——不挂 Memory/Audit/配额防双计）；身份三键下传子调用（`APPROVED_TOOL_CALL_ID` 不下传——编排链无跨层 HITL，凭证不可经委派透传）；失败/超时**文本化回流**主 Agent 决策（不抛异常击穿主链）；超时非打断式 `cancel(false)`（坑位㊶ 先例）；**委派预算硬闸**（`max-delegations` 缺省 6，快照 `task:*` 计数超限文本拒绝——v2.104 热修四）；终态 `recordToolCall`（EXECUTED/FAILED）+ `rag.orchestrator.delegation`/`subagent.duration` 指标 |
 | `AgentOrchestratorService` | 同步/流式服务（契约对齐 ToolChatService，签名无 approvedToolCallId——物理消除凭证流入）；`MODE_KEY='agent'` |
 | `KnowledgeSearchTools` | 知识检索子代理工具：searchKnowledge（改写→双路[+Graph]召回→RRF→重排，**零 LLM**，管线同构 McpKnowledgeTools）+ getDocument（跨租户/不存在一律 KB_DOC_NOT_FOUND + 软删过滤 + chunk 上限截断）；身份经 toolContext 下传链（MCP 版经 identityGuard JWT 捕获不同源，不可复用实例——N3 核验定谳） |
 

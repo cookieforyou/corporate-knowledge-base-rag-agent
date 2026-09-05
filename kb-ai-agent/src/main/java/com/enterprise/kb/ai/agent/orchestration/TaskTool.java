@@ -33,6 +33,10 @@ import java.util.concurrent.TimeoutException;
  * 由主 Agent 决策重试、换路或如实告知。超时用非打断式 {@code cancel(false)}
  * （坑位㊶ 先例：打断阻塞线程即杀弃底层 HTTP 连接，弃任务经客户端读超时
  * 自然收敛）。
+ *
+ * <p><b>委派预算硬闸（E2E 热修四）</b>：按 RetrievalContext 快照内 {@code task:*}
+ * 记录数计已发起委派，达 {@code maxDelegations} 上限后直接文本拒绝——防主 Agent
+ * 超时重试等行为形成无出口循环拖死请求（prompt 纪律是软约束，硬闸兜底）。
  */
 public class TaskTool {
 
@@ -40,13 +44,15 @@ public class TaskTool {
     private final SubAgentClientFactory clientFactory;
     private final ExecutorService executor;
     private final AiBusinessMetrics metrics;
+    private final int maxDelegations;
 
     public TaskTool(SubAgentRegistry registry, SubAgentClientFactory clientFactory,
-                    ExecutorService executor, AiBusinessMetrics metrics) {
+                    ExecutorService executor, AiBusinessMetrics metrics, int maxDelegations) {
         this.registry = registry;
         this.clientFactory = clientFactory;
         this.executor = executor;
         this.metrics = metrics;
+        this.maxDelegations = Math.max(1, maxDelegations);
     }
 
     @Tool(description = "将子任务委派给专职子代理执行并返回其结果。子代理在隔离上下文中工作"
@@ -64,6 +70,14 @@ public class TaskTool {
         Map<String, Object> ctx = toolContext == null ? Map.of() : toolContext.getContext();
         RetrievalContext retrievalContext =
             ctx.get(ToolContextKeys.RETRIEVAL_CONTEXT) instanceof RetrievalContext rc ? rc : null;
+
+        // 委派预算硬闸（E2E 热修四）：已达上限不再执行，文本要求主 Agent 立即综合作答
+        if (retrievalContext != null && countDelegations(retrievalContext) >= maxDelegations) {
+            recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
+                "委派预算超限拒绝（已达 " + maxDelegations + " 次）: " + description);
+            return "⚠️ 本次请求委派次数已达上限（" + maxDelegations + "），不要再委派，"
+                + "请立即基于已获得的子代理结果综合作答，缺失部分如实说明。";
+        }
 
         Future<String> future = executor.submit(() ->
             clientFactory.create(spec)
@@ -100,6 +114,13 @@ public class TaskTool {
             return "⚠️ 子代理 " + spec.name() + " 执行失败：" + cause.getMessage()
                 + "。可重试一次或如实告知用户。";
         }
+    }
+
+    /** 快照内已发起的委派次数（task:* 记录，含成功/失败/超时全终态） */
+    private static int countDelegations(RetrievalContext ctx) {
+        return (int) ctx.getToolCalls().stream()
+            .filter(tc -> tc.toolName() != null && tc.toolName().startsWith("task:"))
+            .count();
     }
 
     /** 委派终态指标（rag.orchestrator.delegation / subagent.duration，簇⑤ 批2） */
