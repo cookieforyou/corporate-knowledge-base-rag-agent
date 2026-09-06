@@ -419,6 +419,9 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
           const json = JSON.parse(data)
           if (currentEvent === 'TRACE') {
             sources = json.sources || []
+          } else if (currentEvent === 'REPLACE') {
+            // 输出护栏替换追回（v2.109）：已渲染回答整段替换为安全话术
+            streamText.value = json.answer ?? ''
           } else if (currentEvent === 'TOOL_CALL') {
             toolCalls = json.toolCalls || []
           } else if (json.messageId != null) {

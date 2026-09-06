@@ -28,6 +28,15 @@ public sealed interface AgentStreamEvent {
     record DoneEvent(String messageId, String traceId) implements AgentStreamEvent {}
 
     /**
+     * 输出护栏替换追回（命名事件 REPLACE，v2.109）：OutputGuardrailAdvisor 增量
+     * 放行形态命中截断时，已放行前缀已流至前端——本帧要求前端将已渲染回答整段
+     * 替换为安全话术（answer 载荷）。泄露窗口 = 命中点前合规前缀的播放延迟
+     * （亚秒级）。聚合形态（REGEX 轨 / ctx 缺席）下话术本身即唯一输出，本帧不
+     * 出现。唯一消费方自家前端（3.17 DONE 帧 JSON 化同款协议演进先例）。
+     */
+    record ReplaceEvent(String answer) implements AgentStreamEvent {}
+
+    /**
      * 检索溯源（命名事件 TRACE，流末推送）：双路原始命中 + final 最终注入序列。
      * final 序列下标与回答中 [ref-N] 标注一一对应（11.1.2），前端溯源卡片按此渲染。
      */

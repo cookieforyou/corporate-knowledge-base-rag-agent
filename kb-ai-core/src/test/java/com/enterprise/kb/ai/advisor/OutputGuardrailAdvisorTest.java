@@ -19,9 +19,13 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -363,6 +367,130 @@ class OutputGuardrailAdvisorTest {
         advisor.after(response("联系电话 1***-****-**** 已脱敏"), chain);
 
         assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isZero();
+    }
+
+    // ── v2.109 增量放行（带 ctx；无 ctx / REGEX 轨回落聚合——上方既有流式用例即聚合语义）──
+
+    /** 受控合成词表（窗口确定，剥离 bundled 基线词表的窗口影响）：competitor_x 12 字 → 窗口 11 */
+    private OutputGuardrailAdvisor controlledAdvisor(PromptCanary canary) {
+        OutputGuardrailAdvisor target = new OutputGuardrailAdvisor("", "",
+            new AiBusinessMetrics(meterRegistry), canary, PiiRecognizerRegistry.defaults());
+        target.onOutputRulesUpdated(List.of(new GuardrailRule("kw-probe-01", "UNCLASSIFIED",
+            "", RuleType.KEYWORD, "competitor_x", RuleAction.BLOCK, true, null)));
+        return target;
+    }
+
+    /** 增量放行时序：块到达即放行（先于上游完成）——聚合形态首元素必在 complete 之后 */
+    @Test
+    void incrementalStreamReleasesChunksBeforeCompletion() throws Exception {
+        OutputGuardrailAdvisor target = controlledAdvisor(new PromptCanary(false));
+        RetrievalContext ctx = new RetrievalContext();
+        Sinks.Many<ChatClientResponse> upstream = Sinks.many().unicast().onBackpressureBuffer();
+        StreamAdvisorChain streamChain = mock(StreamAdvisorChain.class);
+        ChatClientRequest request = new ChatClientRequest(
+            new Prompt(List.of(new UserMessage("q"))), Map.of(RetrievalContext.CONTEXT_KEY, ctx));
+        when(streamChain.nextStream(any())).thenReturn(upstream.asFlux());
+
+        CountDownLatch firstReleased = new CountDownLatch(1);
+        target.adviseStream(request, streamChain)
+            .doOnNext(r -> firstReleased.countDown())
+            .subscribe();
+
+        // 窗口 11：15 字块即放行 4 字切片
+        upstream.tryEmitNext(response("前".repeat(15)));
+        assertThat(firstReleased.await(2, TimeUnit.SECONDS))
+            .as("块到达即放行（此刻上游尚未 complete）").isTrue();
+        upstream.tryEmitComplete();
+
+        assertThat(ctx.isOutputReplaced()).isFalse();
+    }
+
+    /** 跨块截断：命中词零流出 + 已放行前缀保留 + ctx 携带话术（REPLACE 消费点信号） */
+    @Test
+    void incrementalViolationTruncatesMarksCtxAndNeverReleasesHitWord() {
+        OutputGuardrailAdvisor target = controlledAdvisor(new PromptCanary(false));
+        RetrievalContext ctx = new RetrievalContext();
+
+        List<ChatClientResponse> results = streamThroughWithCtx(target, List.of(
+                response("前".repeat(15)),          // 窗口 11 → 放行 4 字
+                response(" competitor_x 及后续文本")),  // 命中 → 吞块截断
+            ctx).collectList().block();
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).chatResponse().getResult().getOutput().getText())
+            .isEqualTo("前".repeat(4));            // 不含命中词任何片段
+        assertThat(ctx.isOutputReplaced()).isTrue();
+        assertThat(ctx.getOutputReplacement()).isEqualTo("抱歉，由于合规要求，无法提供该信息。");
+        assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isEqualTo(1.0);
+    }
+
+    /** 金丝雀增量截断：token 计入窗口（token 永不出流）+ ctx 打标 + 独立指标 */
+    @Test
+    void incrementalCanaryEchoTruncatesAndMarks() {
+        PromptCanary canary = new PromptCanary(true);
+        // 窗口 = max(canary token 46 - 1, 11) = 45（kb-canary- 前缀 10 + UUID 36）
+        OutputGuardrailAdvisor target = controlledAdvisor(canary);
+        RetrievalContext ctx = new RetrievalContext();
+
+        List<ChatClientResponse> results = streamThroughWithCtx(target, List.of(
+                response("合".repeat(60)),            // 窗口 45 → 放行 15 字
+                response(" " + canary.token() + " 尾部")),
+            ctx).collectList().block();
+
+        assertThat(results).hasSize(1);
+        String released = results.get(0).chatResponse().getResult().getOutput().getText();
+        assertThat(released).isEqualTo("合".repeat(15));
+        assertThat(released).doesNotContain("kb-canary-");
+        assertThat(ctx.isOutputReplaced()).isTrue();
+        assertThat(ctx.getOutputReplacement()).isEqualTo("抱歉，由于合规要求，无法提供该信息。");
+        assertThat(meterRegistry.counter("rag.guardrail.output.canary").count()).isEqualTo(1.0);
+    }
+
+    /**
+     * REGEX 轨（无窗口语义）：模式跨已放行区与新增块（流中 pending 判定视图已被
+     * 窗口裁剪，单块视图不命中）——流末 fullText 检出补救，已流出文本经 ctx 打标
+     * 由 REPLACE 帧追回（泄露窗口 = 答案播放时长，分层检出语义）。
+     */
+    @Test
+    void regexRuleCrossingReleasedTextDetectedAtStreamEnd() {
+        OutputGuardrailAdvisor target = new OutputGuardrailAdvisor("", "",
+            new AiBusinessMetrics(meterRegistry), new PromptCanary(false), PiiRecognizerRegistry.defaults());
+        // 纯 REGEX 词表替换 → 窗口 1（KEYWORD 空 + 金丝雀关）；模式跨「内部…机密」
+        target.onOutputRulesUpdated(List.of(new GuardrailRule("rx-probe-01", "UNCLASSIFIED", "",
+            RuleType.REGEX, "内部[\\s\\S]*机密", RuleAction.BLOCK, true,
+            java.util.regex.Pattern.compile("内部[\\s\\S]*机密"))));
+        RetrievalContext ctx = new RetrievalContext();
+
+        // 块1「内部说明」全量放行（窗口 1）；块2「机密42」单块视图无「内部」不命中、
+        // 放行 4/5 字；流末 fullText「内部说明机密42」find 命中 → 追回
+        List<ChatClientResponse> results = streamThroughWithCtx(target, List.of(
+                response("内部说明"), response("机密42")), ctx)
+            .collectList().block();
+
+        String released = results.stream()
+            .map(r -> r.chatResponse().getResult() == null ? "" :
+                r.chatResponse().getResult().getOutput().getText())
+            .collect(Collectors.joining());
+        assertThat(released).contains("内部说明");     // 已放行部分确实流出（追回语义的泄露窗口面）
+        assertThat(ctx.isOutputReplaced()).isTrue();   // 流末检出 → REPLACE 追回
+        assertThat(ctx.getOutputReplacement()).isEqualTo("抱歉，由于合规要求，无法提供该信息。");
+        assertThat(meterRegistry.counter("rag.guardrail.output.replaced").count()).isEqualTo(1.0);
+    }
+
+    /** 空文本块（usage/finishReason 元数据帧）无泄露面，原样透传（计量传播链不断） */
+    @Test
+    void incrementalEmptyTextMetadataChunkPassesThrough() {
+        RetrievalContext ctx = new RetrievalContext();
+        ChatClientResponse usageFrame = ChatClientResponse.builder()
+            .chatResponse(new ChatResponse(List.of()))
+            .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx))
+            .build();
+
+        List<ChatClientResponse> results = streamThroughWithCtx(advisor, List.of(
+                response("合规内容"), usageFrame), ctx)
+            .collectList().block();
+
+        assertThat(results).anySatisfy(r -> assertThat(r).isSameAs(usageFrame));
     }
 
     // ── 热重载（安全簇⑥ F1）──

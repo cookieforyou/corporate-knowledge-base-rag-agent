@@ -10,6 +10,7 @@ import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.DoneEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ErrorEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
+import com.enterprise.kb.api.dto.AgentStreamEvent.ReplaceEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TokenEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ToolCallEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ToolCallInfo;
@@ -190,6 +191,13 @@ public class AgentController {
             })
             .doOnNext(answerBuffer::append)
             .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build());
+        // 输出护栏替换追回帧（v2.109）：增量放行形态命中截断时已放行前缀流至前端，
+        // 此帧（ctx 参数链信号，位于 TOOL_CALL/TRACE 之前）要求前端整段替换为安全
+        // 话术；聚合形态话术即唯一输出，此帧缺席
+        sseFlux = sseFlux.concatWith(Mono.defer(() -> traceCtx.isOutputReplaced()
+            ? Mono.just(ServerSentEvent.<Object>builder(
+                new ReplaceEvent(traceCtx.getOutputReplacement())).event("REPLACE").build())
+            : Mono.empty()));
         // SSE 事件按链路精简（11.5）：tool/agent 链只可能产生 TOOL_CALL（无溯源数据不推空
         // TRACE）——agent 链的委派即工具调用（task），协议零变更（簇⑤ 5.3）；
         // rag 链只推 TRACE（零工具不产生 TOOL_CALL）；闲聊免检索直答路径（5.4 收窄版）
@@ -210,7 +218,10 @@ public class AgentController {
                 new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
-                safeQuery, answerBuffer.toString(), assistantMessageId,
+                safeQuery,
+                // 替换轮归档话术（v2.109）：answerBuffer 累积的是已放行前缀
+                traceCtx.isOutputReplaced() ? traceCtx.getOutputReplacement() : answerBuffer.toString(),
+                assistantMessageId,
                 toolMode || agentMode || traceCtx.isSkipRetrieval() ? null : safeBuildTrace(traceCtx),
                 traceCtx.getTraceId()))
             .onErrorResume(e -> {

@@ -84,6 +84,23 @@ public class RetrievalContext {
 
     private volatile Filter.Expression securityFilter;
 
+    /**
+     * 输出护栏替换标记（流式增量放行形态）：OutputGuardrailAdvisor 命中截断时
+     * 写入——SSE REPLACE 帧（Controller 流末）、归档 answer、审计 final_answer、
+     * 语义缓存写入门槛四处消费点凭此将「已放行前缀」替换为安全话术（追回语义）。
+     * volatile：写在流式链线程（110 advisor），读在流末各消费点。
+     */
+    @Getter
+    private volatile boolean outputReplaced;
+    @Getter
+    private volatile String outputReplacement;
+
+    /** 输出护栏替换标记写入（话术随标记一并携带） */
+    public void markOutputReplaced(String replacement) {
+        this.outputReplaced = true;
+        this.outputReplacement = replacement;
+    }
+
     private final List<TraceEntry> traceEntries = new CopyOnWriteArrayList<>();
 
     /** 工具调用记录（3.4 HITL）：工具在模型调用线程内写入，Controller 流末读取投影 SSE TOOL_CALL */

@@ -229,7 +229,7 @@
           </el-table-column>
           <el-table-column prop="userId" label="用户" width="150" show-overflow-tooltip />
           <el-table-column prop="sessionId" label="会话" width="150" show-overflow-tooltip />
-          <el-table-column prop="mode" label="链路" width="70">
+          <el-table-column prop="mode" label="链路" width="80">
             <template #default="{ row }">
               <el-tag size="small" :type="row.mode === 'tool' ? 'warning' : row.mode === 'agent' ? 'primary' : 'success'" effect="plain">
                 {{ row.mode ?? '—' }}

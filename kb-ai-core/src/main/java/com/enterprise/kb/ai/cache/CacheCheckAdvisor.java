@@ -246,13 +246,20 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
     // ── 未命中写入（门槛把关 + 异步旁路） ──
 
     /**
-     * 写入门槛（批1 定案）：回答非空 ∧ final 重排证据非空（空证据拒答不缓存）。
+     * 写入门槛（批1 定案 + v2.109 替换轮门槛）：回答非空 ∧ final 重排证据非空
+     * （空证据拒答不缓存）∧ **非输出护栏替换轮**——链序上本 advisor(460) 在
+     * OutputGuardrail(110) 内层，流式增量形态命中点在流中段（先于本门槛，零竞态）；
+     * 同步形态 after() 替换晚于本方法（时序结构性倒挂），依赖 writeExecutor 异步
+     * 二次检查收敛（投递→执行间隙的微竞态：替换轮本低频 + TTL 兜底，注记在案）。
      * trace 载荷序列化失败即放弃写入（保守：宁可下次重新生成，不存无溯源条目）。
      * 实际落 Redis 经 writeExecutor 虚拟线程异步，不占响应路径延迟。
      */
     private void writeIfEligible(ChatClientRequest request, RetrievalContext ctx,
                                  float[] vector, String answer) {
         try {
+            if (ctx.isOutputReplaced()) {
+                return;
+            }
             if (answer == null || answer.isBlank()) {
                 return;
             }
@@ -275,7 +282,14 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
                 .toList();
             String traceJson = jsonMapper.writeValueAsString(projectTrace(entries));
             SemanticCacheEntry entry = new SemanticCacheEntry(question, answer, traceJson, docIds, Instant.now());
-            writeExecutor.execute(() -> cacheService.put(ctx.getTenantId(), entry, vector));
+            // 同步形态时序竞态收敛（v2.109）：110 after() 替换可能晚于本方法投递，
+            // 异步执行时二次检查（流式增量形态命中点在流中段，此处恒见标记）
+            writeExecutor.execute(() -> {
+                if (ctx.isOutputReplaced()) {
+                    return;
+                }
+                cacheService.put(ctx.getTenantId(), entry, vector);
+            });
         } catch (Exception e) {
             log.warn("语义缓存写入失败，跳过（不影响本次回答）：{}", e.getMessage());
         }

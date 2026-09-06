@@ -160,6 +160,10 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             Map<String, Object> context = request.context();
             RetrievalContext ctx = context.get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
                 ? rc : null;
+            // 输出护栏替换轮（v2.109）：流式增量形态 doOnNext 累积的是已放行前缀，
+            // final_answer 以 ctx 携带的安全话术为准（v2.24「SUCCESS + 话术」语义保持）
+            String finalAnswer = ctx != null && ctx.isOutputReplaced() && answer != null
+                ? ctx.getOutputReplacement() : answer;
             String queryText = piiRegistry.mask(userTextOf(request));
 
             // 快照先提取、再异步落库——RetrievalContext 为请求级共享实例
@@ -176,7 +180,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                 latency(startMs));
 
             recordBusinessMetrics(snapshot, error);
-            auditExecutor.execute(() -> persistSafely(snapshot, queryText, answer, chatResponse, error));
+            auditExecutor.execute(() -> persistSafely(snapshot, queryText, finalAnswer, chatResponse, error));
         } catch (Exception e) {
             log.warn("审计记录构建失败，丢弃（旁路数据，不影响问答）: {}", e.getMessage());
         }

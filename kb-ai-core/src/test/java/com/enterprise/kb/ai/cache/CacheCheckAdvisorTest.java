@@ -266,6 +266,40 @@ class CacheCheckAdvisorTest {
         verify(cacheService, never()).put(anyString(), any(), any());
     }
 
+    /** v2.109 替换轮门槛：ctx.outputReplaced 置位即跳过写入（违规原文不得入缓存）——流式路径 */
+    @Test
+    void streamMissWithOutputReplacedSkipsWrite() {
+        RetrievalContext ctx = ctx();
+        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ctx.markOutputReplaced("抱歉，由于合规要求，无法提供该信息。");
+        ChatClientRequest req = request(ctx);
+        when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
+        when(streamChain.nextStream(req)).thenReturn(Flux.just(response("已放行前缀")));
+
+        advisor.adviseStream(req, streamChain).collectList().block();
+
+        verify(cacheService, never()).put(anyString(), any(), any());
+    }
+
+    /** v2.109 替换轮门槛：同步路径异步二查（投递后标记置位，执行时拦截） */
+    @Test
+    void callMissWithOutputReplacedSkipsWriteViaAsyncRecheck() {
+        RetrievalContext ctx = ctx();
+        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ChatClientRequest req = request(ctx);
+        when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
+        // 同步路径时序：460 写入判定先于 110 after() 替换——mock 内联替换模拟「替换
+        // 早于写入门槛」的可达排序（真实时序为投递后置位、writeExecutor 二查拦截）
+        when(callChain.nextCall(req)).thenAnswer(inv -> {
+            ctx.markOutputReplaced("抱歉，由于合规要求，无法提供该信息。");
+            return response("原文");
+        });
+
+        advisor.adviseCall(req, callChain);
+
+        verify(cacheService, never()).put(anyString(), any(), any());
+    }
+
     @Test
     void streamMissAggregatesAnswerAndWritesOnComplete() {
         RetrievalContext ctx = ctx();

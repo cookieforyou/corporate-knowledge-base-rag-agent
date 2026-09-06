@@ -263,6 +263,21 @@ class AuditTraceAdvisorTest {
         assertThat(captureSaved().getFinalAnswer()).isEqualTo("增值税解答");
     }
 
+    /** v2.109 替换轮：流式增量形态 doOnNext 累积的是已放行前缀，final_answer 以 ctx 话术落库 */
+    @Test
+    void streamReplacedRoundPersistsSafeTextAsFinalAnswer() {
+        RetrievalContext ctx = ctxWithTrace();
+        ctx.markOutputReplaced("抱歉，由于合规要求，无法提供该信息。");
+        when(streamChain.nextStream(any())).thenReturn(Flux.just(response("已放行前缀")));
+
+        advisor.adviseStream(request(ctx, "rag", "问题"), streamChain)
+            .collectList()
+            .block();
+
+        assertThat(captureSaved().getFinalAnswer())
+            .isEqualTo("抱歉，由于合规要求，无法提供该信息。");
+    }
+
     @Test
     void streamErrorRecordedAndPropagated() {
         when(streamChain.nextStream(any()))
