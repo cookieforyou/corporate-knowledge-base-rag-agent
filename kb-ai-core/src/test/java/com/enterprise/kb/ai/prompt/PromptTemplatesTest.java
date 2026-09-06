@@ -89,18 +89,20 @@ class PromptTemplatesTest {
     }
 
     /**
-     * 编排链任务边界纪律契约钉死（11 章 v2.106，E2E 收官注记①）：编排链挂
-     * Memory(400) 多轮互通，同会话连发独立新任务时主 Agent 被历史委派过程
-     * 带偏重做旧任务——三锚点缺一即边界纪律回退（唯一任务来源 / 历史仅指代
-     * 延续 / 已完成任务不重复委派）。
+     * 编排链任务边界纪律契约钉死（11 章 v2.106-v2.107，E2E 收官注记①）：编排链挂
+     * Memory(400) 多轮互通，同会话连发独立新任务时主 Agent 被「会话=任务清单累积」
+     * 心智带偏重做旧任务——v2.106 否定式禁令实测被无视，v2.107 升级程序式两分支
+     * + 末尾重申。锚点缺一即边界纪律回退。
      */
     @Test
     void orchestratorPromptPinsTaskBoundaryDiscipline() {
         assertThat(PromptTemplates.ORCHESTRATOR_SYSTEM_PROMPT)
-            .contains("任务边界")
-            .contains("唯一任务来源")
-            .contains("历史轮次仅用于理解指代与延续")
-            .contains("不重复执行、不重复委派");
+            // 程序式判断入口（先判断→按分支行动）
+            .contains("任务边界（每轮开始时先做此判断）")
+            .contains("一律视为已交付")
+            .contains("不重新检索、不重新委派、不在本轮答案中重复呈现")
+            // 末尾重申（system prompt 结尾注意力位，纪律第 7 条）
+            .contains("此前轮次的任务均已交付完毕，与新一轮无关");
     }
 
     @Test
