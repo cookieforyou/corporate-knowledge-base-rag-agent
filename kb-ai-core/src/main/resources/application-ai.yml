@@ -87,6 +87,10 @@ rag:
   # ORCHESTRATOR_DISABLED；真实工具立项后升级回原验收（>85% 任务完成率）
   orchestrator:
     enabled: ${RAG_ORCHESTRATOR_ENABLED:false}
+    # 会话记忆逃生舱（收官注记① 三轮，11 章 v2.108）：false = 编排链摘除 Memory
+    # （每轮独立上下文）——跨任务历史污染物理消除（system prompt 纪律与消息层
+    # TaskBoundaryAdvisor(420) 注记之外的硬开关；关闭即多轮指代延续失效）
+    memory-enabled: ${RAG_ORCHESTRATOR_MEMORY_ENABLED:true}
     # 子代理单次委派有界超时（秒）——非打断式弃任务（坑位㊶），防真实工具拖死主链
     subagent-timeout-seconds: ${RAG_ORCHESTRATOR_SUBAGENT_TIMEOUT_SECONDS:60}
     # 单请求委派总预算（E2E 热修四）：超限文本拒绝要求立即综合作答，防超时重试

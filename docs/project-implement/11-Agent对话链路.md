@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-06 · v2.107（簇⑤ 收官注记① 二轮：任务边界纪律升程序式两分支——否定式禁令实测被无视，§11.5.5）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-07 · v2.108（簇⑤ 收官注记① 三轮：TaskBoundaryAdvisor(420) 消息层结构分隔注记 + memory-enabled 逃生舱——system prompt 层两轮纪律实测被无视，§11.5.5）
+>
+> **v2.108（2026-09-07，簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
 > **v2.107（2026-09-06，簇⑤ 收官注记① 二轮：任务边界纪律升程序式两分支 + 末尾重申）**：v2.106 复验实证否定式禁令被无视——同会话连发两任务（例6→例7 形态），第二问仍全套重做旧任务（旧任务检索+委派+report-writer，审计 id=460 五连委派实证），最终答案开篇「我将分别委派两个知识检索任务」= 模型心智是「会话=任务清单累积」（新消息为第二项任务追加），不认为自己在「参照历史」——「不参照/不重复」类否定式禁令无从生效（v2.105「prompt 纪律是概率性约束」在多轮历史场景复现）。修复 = 程序式两分支（先判断当前消息是否明确引用历史产物→引用则在历史基础上继续 / 未引用即独立新任务只处理当前消息，历史已交付产物不重新检索/委派/呈现——剥壳判据同款「先判断→按分支行动」形态）+ 委派纪律第 7 条末尾重申（system prompt 结尾注意力位：「此前轮次的任务均已交付完毕，与新一轮无关」）。契约锚点同步换钉。详 §11.5.5 补注。
 >
@@ -707,7 +709,7 @@ kb-eval 只依赖 kb-ai-core 不受影响。
 |---|---|---|---|---|
 | `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→**QueryRouting(440)**→Trace(450)→**CacheCheck(460，条件挂载)**→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
 | `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
-| `orchestratorChatClient`（簇⑤ 5.3，v2.102） | kb-ai-agent | 与 tool 链同构（复用 `agentToolCallingAdvisor`(1000) Bean），条件装配 `rag.orchestrator.enabled=true` | `taskTool`（唯一，§11.5.5） | 任务编排：分析分解 → task 委派子代理 → 综合作答 |
+| `orchestratorChatClient`（簇⑤ 5.3，v2.102） | kb-ai-agent | 与 tool 链同构（复用 `agentToolCallingAdvisor`(1000) Bean），条件装配 `rag.orchestrator.enabled=true`；**TaskBoundary(420，v2.108 消息层任务边界注记，随 `memory-enabled` 在场)** | `taskTool`（唯一，§11.5.5） | 任务编排：分析分解 → task 委派子代理 → 综合作答 |
 
 > v2.13 链序变更：440 插入 QueryRoutingAdvisor（意图分类），500 位由 RetrievalGateAdvisor 承接（组合式包裹原 RetrievalAugmentationAdvisor，skipRetrieval 时旁路整套 RAG 管线，见 §11.4 v2.13 注）。
 > v2.47 链序变更（安全簇⑤）：320 插入 SemanticInjectionAdvisor（L2 语义判定，12 章 §12.11）——L1 词表快筛之后、记忆之前，REGEX 可疑且干词未命中请求经备用模型二判，拒绝内容不入多轮记忆仓储。
@@ -826,6 +828,23 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 > 部署核验方法论沉淀：**编译产物/运行时字节级核验 prompt 改动在场性**
 > （`grep` 对 class 文件假阴性，须 python 字节匹配；IDEA 源码直跑 vs fat jar
 > 两种运行形态核验位不同——fat jar 解包内嵌 jar、IDEA 查 target/classes）。
+>
+> **v2.108 补注（收官注记① 三轮：消息层结构分隔注记 + 记忆逃生舱）**：
+> v2.107 复验仍无效——归因升级：**治理位置错位**，system prompt 是静态层，
+> 历史注入是消息层动态载荷，后者惯性天然压过前者（与 v2.105「载荷治理
+> 优先级高于 prompt 纪律」同构，本次膨胀载荷 = 记忆历史）。修复 =
+> `TaskBoundaryAdvisor`（kb-ai-core/advisor，order 420——Memory(400) 之后
+> ToolCallingAdvisor(1000) 之前，仅编排链挂载）：历史在场（UserMessage 数>1）
+> 时在最后一条用户消息前插入 SystemMessage 分隔注记（历史完结声明 + 当前轮次
+> 边界 + 指代延续例外），工具循环每轮 LLM 调用均携带；首轮（无历史）透传
+> 零变化，无历史时（记忆故障降级单轮形态）自动不注入。**记忆回写零污染**
+> （源码核验 2.0.1 MessageChatMemoryAdvisor：user 消息写入发生于其 before
+> 阶段——先于 420 注入、取原始形态；assistant 消息写入取自 response 与注入
+> 无关；注记为 SystemMessage 类型不被 getLastUserOrToolResponseMessage 选中）。
+> 逃生舱：`rag.orchestrator.memory-enabled` 缺省 true，false = 编排链装配时
+> 摘除 Memory advisor（每轮独立上下文，跨任务污染物理消除；多轮指代延续
+> 失效的显式取舍）。**若消息层注记仍无效，下一层 = 逃生舱关闭记忆**
+> （确定性物理隔离，已是落地形态非设计项）。
 
 **组件（kb-ai-agent `orchestration/` 包）**：
 

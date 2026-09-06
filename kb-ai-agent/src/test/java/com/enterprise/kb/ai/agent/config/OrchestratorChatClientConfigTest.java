@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.agent.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
@@ -29,5 +30,24 @@ class OrchestratorChatClientConfigTest {
         var qualifier = param.getAnnotation(Qualifier.class);
         assertNotNull(qualifier, "taskTool 的 executor 参数必须显式 @Qualifier（坑位㊺）");
         assertEquals("orchestratorSubAgentExecutor", qualifier.value());
+    }
+
+    /**
+     * 记忆逃生舱配置键钉死（收官注记① 三轮，11 章 v2.108）：
+     * {@code rag.orchestrator.memory-enabled} 缺省必须 true——缺省翻转即编排链
+     * 静默失忆（多轮互通设计特性回归）。
+     */
+    @Test
+    void memoryEscapeHatchDefaultsToEnabled() {
+        var method = Arrays.stream(OrchestratorChatClientConfig.class.getDeclaredMethods())
+            .filter(m -> "orchestratorChatClient".equals(m.getName()))
+            .findFirst().orElseThrow();
+        var param = Arrays.stream(method.getParameters())
+            .filter(p -> p.getType() == boolean.class)
+            .findFirst().orElseThrow();
+        var value = param.getAnnotation(Value.class);
+        assertNotNull(value, "orchestratorChatClient 须有 memory-enabled @Value 参数");
+        assertEquals("${rag.orchestrator.memory-enabled:true}", value.value(),
+            "逃生舱缺省必须 true（false = 显式关闭摘记忆）");
     }
 }

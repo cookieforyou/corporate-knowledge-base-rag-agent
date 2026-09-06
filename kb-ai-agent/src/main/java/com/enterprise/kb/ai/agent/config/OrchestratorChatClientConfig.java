@@ -5,6 +5,7 @@ import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
 import com.enterprise.kb.ai.advisor.RateLimitAdvisor;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
+import com.enterprise.kb.ai.advisor.TaskBoundaryAdvisor;
 import com.enterprise.kb.ai.advisor.TokenBudgetAdvisor;
 import com.enterprise.kb.ai.agent.orchestration.KnowledgeSearchTools;
 import com.enterprise.kb.ai.agent.orchestration.SubAgentClientFactory;
@@ -20,6 +21,7 @@ import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,6 +30,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -43,9 +46,12 @@ import java.util.concurrent.Executors;
  *
  * <p><b>链序</b>：与 tool 链同构（Audit(10) → TokenBudget(30) → RateLimit(100) →
  * OutputGuardrail(110) → InputSanitize(300) → SemanticInjection(320) → Memory(400) →
- * ToolCallingAdvisor(1000 复用既有 agentToolCallingAdvisor Bean)），差异仅两处：
+ * TaskBoundary(420，编排链独有——消息层任务边界注记，v2.108) →
+ * ToolCallingAdvisor(1000 复用既有 agentToolCallingAdvisor Bean)），差异三处：
  * ① defaultTools = task 单工具（主 Agent 上下文零叶子工具 schema）；
- * ② system prompt = 编排者角色 + 子代理清单注入（renderRoster 渲染）。
+ * ② system prompt = 编排者角色 + 子代理清单注入（renderRoster 渲染）；
+ * ③ TaskBoundaryAdvisor 消息层分隔注记 + {@code rag.orchestrator.memory-enabled}
+ * 逃生舱（false = 摘记忆每轮独立，收官注记① 三轮）。
  *
  * <p><b>主 Agent 记忆</b>：挂 Memory(400)——多轮编排会话（同 sessionId 跨 mode
  * 互通）；子代理不挂记忆（TaskTool 委派即隔离上下文，Part 4 语义）。
@@ -164,21 +170,32 @@ public class OrchestratorChatClientConfig {
                                              ToolCallingAdvisor agentToolCallingAdvisor,
                                              TaskTool taskTool,
                                              SubAgentRegistry subAgentRegistry,
-                                             PromptCanary promptCanary) {
+                                             PromptCanary promptCanary,
+                                             // 逃生舱（簇⑤ 收官注记① 三轮，11 章 v2.108）：
+                                             // false = 编排链摘除记忆（每轮独立上下文），
+                                             // 跨任务历史污染物理消除——多轮指代延续失效
+                                             @Value("${rag.orchestrator.memory-enabled:true}")
+                                             boolean memoryEnabled) {
         // 同 tool 链：显式传 ObservationRegistry（簇① 单参 builder NOOP registry 坑）+
         // 金丝雀嵌入（安全簇① T5，输出回显经共享 OutputGuardrailAdvisor 后验拦截）
+        List<Advisor> advisors = new ArrayList<>(List.of(
+            auditTraceAdvisor,
+            tokenBudgetAdvisor,
+            rateLimitAdvisor,
+            outputGuardrailAdvisor,
+            inputSanitizeAdvisor,
+            semanticInjectionAdvisor));
+        if (memoryEnabled) {
+            // TaskBoundaryAdvisor(420) 必须随 Memory(400) 在场（历史在场才有边界注入）；
+            // 无历史时透传零变化，故关闭记忆时不挂（职责单一）
+            advisors.add(MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build());
+            advisors.add(new TaskBoundaryAdvisor());
+        }
+        advisors.add(agentToolCallingAdvisor);
         return ChatClient.builder(chatModel, observationRegistry, null, null)
             .defaultSystem(promptCanary.embed(String.format(
                 PromptTemplates.ORCHESTRATOR_SYSTEM_PROMPT, subAgentRegistry.renderRoster())))
-            .defaultAdvisors(
-                auditTraceAdvisor,
-                tokenBudgetAdvisor,
-                rateLimitAdvisor,
-                outputGuardrailAdvisor,
-                inputSanitizeAdvisor,
-                semanticInjectionAdvisor,
-                MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
-                agentToolCallingAdvisor)
+            .defaultAdvisors(advisors)
             .defaultTools(taskTool)
             .build();
     }
