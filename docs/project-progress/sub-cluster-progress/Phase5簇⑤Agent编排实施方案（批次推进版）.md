@@ -256,7 +256,6 @@
 
 > **E2E 热修四（2026-09-05，演示首跑挂死治敛，用户侧步骤 2 发现）**：首条演示任务 3.5 分钟无回答、检索日志持续输出。根因三层——① knowledge-searcher（qwen3.8-flash）单次委派内无收敛纪律反复检索 15 次（每次 2.5-4s），全文命中滚胀上下文加剧不收敛，撞 60s 委派超时；② 主 Agent 按委派纪律第 4 条「可重试一次」原样重发同一委派（必然再超时，循环无出口）；③ 无委派总预算。修复三层（11 章 v2.104）= 子代理检索收敛纪律（1-3 次即归纳、禁同义反复）+ 主 Agent 纪律修订（超时不原样重发须缩小范围；新增总次数 ≤6 条款）+ TaskTool 委派预算硬闸（`rag.orchestrator.max-delegations` 缺省 6，快照 `task:*` 计数超限文本拒绝要求立即综合作答）。kb-ai-agent + kb-ai-core 382 单测绿（TaskToolTest +2）。**预期形态告知：三代理演示任务端到端 1-3 分钟属正常量级（主模型强制思考 + 串行委派），等待期 SSE 无 token 输出为收窄版预期行为，非挂死。**
 
-
 > **E2E 热修五（2026-09-06，载荷滚胀型不收敛 + 审计膨胀 + 输出护栏误伤，用户侧步骤 2 复跑发现）**：热修四复查——收敛纪律生效一半（audit tool_calls 实证：委派①超时后主 Agent 确已「缩小范围重述」，委派②③④⑤全 EXECUTED），但 knowledge-searcher 单委派仍检索 40+ 次/2 分钟（prompt 纪律被滚胀上下文淹没——每轮 5 条全文命中累积数十万 token 后指令注意力失效）；伴生两缺陷：审计行 retrieved_chunks 累积 883 条（唯一 chunk 仅 43，子代理检索直写主请求 trace）；主 Agent 综合答案被输出侧词表 import-out-09（BUSINESS_CONFIDENTIAL, BLOCK）整段替换为 22 字拒答。修复（11 章 v2.105）= searchKnowledge 载荷截断（`max-chars` 缺省 400，全文经 getDocument）+ 检索预算闸（`max-searches` 缺省 6 次/请求，跨委派与超时弃任务同计数，SearchOutcome.note 携带剩余次数/停止指令）+ trace 隔离（检索管线喂仅拷贝租户身份的隔离 ctx，溯源改 `search:knowledge`/`get:document` ToolCall 审计记录）。**输出护栏误伤 = 词表运营项非代码缺陷，用户侧处置：Admin 第五 Tab 查词项 import-out-09（编辑弹窗回显词面）→ 降 FLAG / 收紧词面（A4 生命周期）；建议先 rag 模式同题对照判误伤面是否编排链特有。** kb-ai-agent 75 单测绿（KnowledgeSearchToolsTest +4）。
 
 - **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）；文档三件套回写 ✅；git 提交 ✅（三批三提交）

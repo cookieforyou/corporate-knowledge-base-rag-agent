@@ -158,7 +158,7 @@
         <div class="composer-actions">
           <div class="composer-left">
             <!-- 三链显式分流（11.5 双链路 + 簇⑤ 5.3）：rag 知识问答 / tool 企业事务 / agent 任务编排 -->
-            <el-radio-group v-model="store.mode" size="small" :disabled="streaming">
+            <el-radio-group v-model="store.mode" size="small" :disabled="streaming" @change="onModeSwitch">
               <el-radio-button value="rag">知识问答</el-radio-button>
               <el-radio-button value="tool">企业工具</el-radio-button>
               <el-radio-button value="agent">任务编排</el-radio-button>
@@ -232,6 +232,13 @@ function escapeHtml(text: string) {
 function newChat() {
   store.newSession()
   sourceTarget.value = null
+}
+
+/** 切换链路即新启会话：换新 sessionId 并清空消息流——三链虽共享会话记忆
+ *  （同 sessionId 历史互通），但链路切换意味着切换任务语境，不接续原问答；
+ *  流式中禁切换（:disabled）保证不打断进行中的回答 */
+function onModeSwitch() {
+  newChat()
 }
 
 /** 打开历史会话（3.15 补齐）：拉 PG 归档消息映射为 Message[]——sources 即 citations、
