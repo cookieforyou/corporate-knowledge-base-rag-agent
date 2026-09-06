@@ -88,6 +88,21 @@ class PromptTemplatesTest {
             .contains("拿不准时：倾向正常裁 PASS");
     }
 
+    /**
+     * 编排链任务边界纪律契约钉死（11 章 v2.106，E2E 收官注记①）：编排链挂
+     * Memory(400) 多轮互通，同会话连发独立新任务时主 Agent 被历史委派过程
+     * 带偏重做旧任务——三锚点缺一即边界纪律回退（唯一任务来源 / 历史仅指代
+     * 延续 / 已完成任务不重复委派）。
+     */
+    @Test
+    void orchestratorPromptPinsTaskBoundaryDiscipline() {
+        assertThat(PromptTemplates.ORCHESTRATOR_SYSTEM_PROMPT)
+            .contains("任务边界")
+            .contains("唯一任务来源")
+            .contains("历史轮次仅用于理解指代与延续")
+            .contains("不重复执行、不重复委派");
+    }
+
     @Test
     void systemPromptsAllRegisteredAndNonBlank() {
         assertThat(PromptTemplates.RAG_SYSTEM_PROMPT).isNotBlank();

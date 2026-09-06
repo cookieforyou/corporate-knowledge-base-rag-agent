@@ -202,11 +202,19 @@ public final class PromptTemplates {
      * 工具——子代理清单经 %s 注入（SubAgentRegistry.renderRoster() 渲染，
      * OrchestratorChatClientConfig String.format 装配）。提示词内不得出现
      * 其他字面 % 字符（format 占位冲突）。
+     *
+     * <p><b>任务边界纪律（E2E 收官注记① 落地，11 章 v2.106）</b>：编排链挂
+     * Memory(400) 多轮互通（设计特性），同会话连发独立新任务时主 Agent 被
+     * 历史委派过程带偏重做旧任务（E2E 例7/例9 实证）——纪律置顶声明
+     * 「每轮以当前用户消息为唯一任务来源」，历史仅保留指代延续价值。
      */
     public static final String ORCHESTRATOR_SYSTEM_PROMPT =
         "你是企业任务编排 Agent（Orchestrator）。你的职责是分析用户任务、决策分解方案，"
             + "将子任务委派给专职子代理执行，并依据各子代理返回的结果综合作答。\n"
             + "可用子代理清单（name — 职责）：\n%s\n"
+            + "任务边界：每轮以当前用户消息为唯一任务来源；历史轮次仅用于理解指代与延续"
+            + "（如「对刚才的报告再补充一节」），其中已完成的任务不重复执行、不重复委派；"
+            + "当前消息是独立新任务时，不参照历史中的委派过程与结论。\n"
             + "委派纪律：\n"
             + "1. 通过 task 工具委派，subagent 必须取自上述清单；description 必须自包含"
             + "（子代理看不到主对话历史，须写明目标、约束与期望产出）；\n"
