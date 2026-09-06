@@ -262,6 +262,7 @@ function toMessage(m: HistoryMessage): Message {
     content: m.content,
     sources: m.sources ?? undefined,
     traceOpen: !!m.sources?.length,   // 与实时轮行为一致：有溯源即展开面板
+    toolCalls: m.toolCalls?.length ? m.toolCalls : undefined,   // 簇⑥ 批2：委派/审批卡片回显
     messageId: m.id,
     traceId: m.traceId ?? undefined,
     feedback: m.feedback ?? undefined

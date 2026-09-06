@@ -130,7 +130,8 @@ public class AgentController {
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(),
             safeQuery, answer, assistantMessageId,
             // 溯源载荷（v2.17）：tool/agent 链零检索、闲聊免检索直答无溯源 → null
-            toolMode || agentMode || ctx.isSkipRetrieval() ? null : safeBuildTrace(ctx), ctx.getTraceId());
+            toolMode || agentMode || ctx.isSkipRetrieval() ? null : safeBuildTrace(ctx), ctx.getTraceId(),
+            toToolCallInfos(ctx));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("answer", answer);
         data.put("sessionId", sessionId);
@@ -223,7 +224,8 @@ public class AgentController {
                 traceCtx.isOutputReplaced() ? traceCtx.getOutputReplacement() : answerBuffer.toString(),
                 assistantMessageId,
                 toolMode || agentMode || traceCtx.isSkipRetrieval() ? null : safeBuildTrace(traceCtx),
-                traceCtx.getTraceId()))
+                traceCtx.getTraceId(),
+                toToolCallInfos(traceCtx)))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
                 return Flux.just(ServerSentEvent.<Object>builder(
@@ -254,9 +256,17 @@ public class AgentController {
 
     /** TOOL_CALL 载荷投影（RetrievalContext.ToolCall → SSE DTO） */
     private static ToolCallEvent toToolCallEvent(RetrievalContext ctx) {
-        return new ToolCallEvent(ctx.getToolCalls().stream()
+        return new ToolCallEvent(toToolCallInfos(ctx));
+    }
+
+    /**
+     * 工具调用投影（簇⑥ 体验批2）：SSE TOOL_CALL 帧、同步响应 toolCalls、
+     * 归档 metadata 三消费面同形——历史会话恢复复用实时轮卡片渲染链路。
+     */
+    private static List<ToolCallInfo> toToolCallInfos(RetrievalContext ctx) {
+        return ctx.getToolCalls().stream()
             .map(tc -> new ToolCallInfo(tc.toolName(), tc.status(), tc.approvalId(), tc.summary()))
-            .toList());
+            .toList();
     }
 
     /** 会话 ID：请求携带则复用（多轮），缺省生成一次性 ID（兼容 Phase 1 单轮前端） */

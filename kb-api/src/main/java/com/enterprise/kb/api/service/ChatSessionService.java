@@ -100,18 +100,21 @@ public class ChatSessionService {
      * ID 保证 kb_feedback.message_id 外键可解析；缺省回落自生成（兼容既有调用形态）。
      *
      * <p><b>溯源载荷（v2.17）</b>：traceEvent 非空时序列化为 citations JSON
-     * （与 SSE TRACE 帧同形）；traceId 非空时写入 metadata。序列化失败降级
-     * null（溯源是旁路增值数据，不击穿归档）。
+     * （与 SSE TRACE 帧同形）。**工具调用记录（簇⑥ 体验批2）**：toolCalls 非空时
+     * 经 metadata JSON 下沉（`{"traceId":…, "toolCalls":[…]}`，与 SSE TOOL_CALL 帧
+     * 同形）——历史会话恢复时 tool/agent 链委派卡片可回显。序列化失败降级
+     * null（溯源/委派是旁路增值数据，不击穿归档）。
      */
     @Async("sessionArchiveExecutor")
     public void archiveTurn(String sessionId, String tenantId, String userId,
                             String query, String answer, String assistantMessageId,
-                            AgentStreamEvent.TraceEvent traceEvent, String traceId) {
+                            AgentStreamEvent.TraceEvent traceEvent, String traceId,
+                            List<AgentStreamEvent.ToolCallInfo> toolCalls) {
         try {
             ensureSession(sessionId, tenantId, userId, query);
             messageRepository.save(newMessage(sessionId, "USER", query, null, null, null));
             messageRepository.save(newMessage(sessionId, "ASSISTANT", answer, assistantMessageId,
-                serializeTrace(traceEvent), metadataOf(traceId)));
+                serializeTrace(traceEvent), metadataOf(traceId, toolCalls)));
             sessionRepository.incrementMessageCount(sessionId, 2);
         } catch (Exception e) {
             log.warn("会话归档失败（不影响对话）: sessionId={}, {}", sessionId, e.getMessage());
@@ -131,13 +134,22 @@ public class ChatSessionService {
         }
     }
 
-    /** metadata JSON：仅 traceId 非空时写入（Spring AI Document metadata 禁 null 同款纪律） */
-    private String metadataOf(String traceId) {
-        if (traceId == null || traceId.isBlank()) {
+    /** metadata JSON：traceId / toolCalls 各自非空才入键（Spring AI Document metadata 禁 null 同款纪律） */
+    private String metadataOf(String traceId, List<AgentStreamEvent.ToolCallInfo> toolCalls) {
+        boolean hasTraceId = traceId != null && !traceId.isBlank();
+        boolean hasToolCalls = toolCalls != null && !toolCalls.isEmpty();
+        if (!hasTraceId && !hasToolCalls) {
             return null;
         }
         try {
-            return jsonMapper.writeValueAsString(Map.of("traceId", traceId));
+            java.util.HashMap<String, Object> metadata = new java.util.HashMap<>();
+            if (hasTraceId) {
+                metadata.put("traceId", traceId);
+            }
+            if (hasToolCalls) {
+                metadata.put("toolCalls", toolCalls);
+            }
+            return jsonMapper.writeValueAsString(metadata);
         } catch (Exception e) {
             log.warn("消息 metadata 序列化失败，降级为空: {}", e.getMessage());
             return null;
@@ -307,7 +319,28 @@ public class ChatSessionService {
             m.getCreatedAt(),
             assistant ? parseSources(m.getCitations()) : null,
             assistant ? traceIdOf(m.getMetadata()) : null,
-            feedback != null && feedback.getRating() != null ? feedback.getRating().name() : null);
+            feedback != null && feedback.getRating() != null ? feedback.getRating().name() : null,
+            assistant ? toolCallsOf(m.getMetadata()) : null);
+    }
+
+    /** metadata JSON → 工具调用记录（簇⑥ 体验批2）；null/无键/解析失败 → null（降级同存量数据形态） */
+    private List<AgentStreamEvent.ToolCallInfo> toolCallsOf(String metadata) {
+        if (metadata == null || metadata.isBlank() || !metadata.contains("toolCalls")) {
+            return null;
+        }
+        try {
+            tools.jackson.databind.JsonNode node = jsonMapper.readTree(metadata);
+            tools.jackson.databind.JsonNode array = node.get("toolCalls");
+            if (array == null || !array.isArray()) {
+                return null;
+            }
+            return jsonMapper.readValue(array.toString(),
+                jsonMapper.getTypeFactory().constructCollectionType(
+                    List.class, AgentStreamEvent.ToolCallInfo.class));
+        } catch (Exception e) {
+            log.warn("metadata toolCalls 反序列化失败，降级为空: {}", e.getMessage());
+            return null;
+        }
     }
 
     /** citations JSON → TRACE 同形溯源结构；null/解析失败 → null（降级同旧数据形态） */

@@ -54,6 +54,8 @@ export interface HistoryMessage {
   traceId?: string | null
   /** 当前用户既有反馈评价（upsert 语义至多一条），无则 null */
   feedback?: 'POSITIVE' | 'NEGATIVE' | null
+  /** 工具调用记录（簇⑥ 体验批2，metadata 下沉），与 SSE TOOL_CALL 同形；rag 轮/存量为 null */
+  toolCalls?: ToolCallInfo[] | null
 }
 
 export const listSessions = (page = 0, size = 50) =>

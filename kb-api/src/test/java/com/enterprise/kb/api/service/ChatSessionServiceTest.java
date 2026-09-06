@@ -72,7 +72,7 @@ class ChatSessionServiceTest {
     void firstTurnCreatesSessionAndArchivesTwoMessages() {
         when(sessionRepository.existsById("s1")).thenReturn(false);
 
-        service.archiveTurn("s1", "tenant-a", "user-1", "什么是增值税发票？", "增值税发票是……", null, null, null);
+        service.archiveTurn("s1", "tenant-a", "user-1", "什么是增值税发票？", "增值税发票是……", null, null, null, null);
 
         ArgumentCaptor<KbSession> sessionCaptor = ArgumentCaptor.forClass(KbSession.class);
         verify(sessionRepository).save(sessionCaptor.capture());
@@ -98,7 +98,7 @@ class ChatSessionServiceTest {
     void preGeneratedAssistantMessageIdReused() {
         when(sessionRepository.existsById("s1")).thenReturn(true);
 
-        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", "msg-assistant-001", null, null);
+        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", "msg-assistant-001", null, null, null);
 
         ArgumentCaptor<KbMessage> messageCaptor = ArgumentCaptor.forClass(KbMessage.class);
         verify(messageRepository, Mockito.times(2)).save(messageCaptor.capture());
@@ -111,7 +111,7 @@ class ChatSessionServiceTest {
     void existingSessionNotRecreated() {
         when(sessionRepository.existsById("s1")).thenReturn(true);
 
-        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", null, null, null);
+        service.archiveTurn("s1", "tenant-a", "user-1", "问题", "回答", null, null, null, null);
 
         verify(sessionRepository, never()).save(any(KbSession.class));
         verify(messageRepository, Mockito.times(2)).save(any(KbMessage.class));
@@ -124,7 +124,7 @@ class ChatSessionServiceTest {
             .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
         // 主键冲突只影响会话创建，消息归档照常
-        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null, null, null))
+        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null, null, null, null))
             .doesNotThrowAnyException();
         verify(messageRepository, Mockito.times(2)).save(any(KbMessage.class));
     }
@@ -134,7 +134,7 @@ class ChatSessionServiceTest {
         when(sessionRepository.existsById(anyString())).thenReturn(false);
         String longQuery = "这是一个非常长的首问".repeat(20);
 
-        service.archiveTurn("s2", "t", "u", longQuery, "回答", null, null, null);
+        service.archiveTurn("s2", "t", "u", longQuery, "回答", null, null, null, null);
 
         ArgumentCaptor<KbSession> captor = ArgumentCaptor.forClass(KbSession.class);
         verify(sessionRepository).save(captor.capture());
@@ -145,7 +145,7 @@ class ChatSessionServiceTest {
     void nullIdentityFallsBackToPlaceholder() {
         when(sessionRepository.existsById(anyString())).thenReturn(false);
 
-        service.archiveTurn("s3", null, null, "问题", "回答", null, null, null);
+        service.archiveTurn("s3", null, null, "问题", "回答", null, null, null, null);
 
         ArgumentCaptor<KbSession> captor = ArgumentCaptor.forClass(KbSession.class);
         verify(sessionRepository).save(captor.capture());
@@ -158,7 +158,7 @@ class ChatSessionServiceTest {
         when(sessionRepository.existsById(anyString())).thenReturn(true);
         when(messageRepository.save(any(KbMessage.class))).thenThrow(new RuntimeException("PG 连接失败"));
 
-        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null, null, null))
+        assertThatCode(() -> service.archiveTurn("s1", "t", "u", "问题", "回答", null, null, null, null))
             .doesNotThrowAnyException();
         verify(sessionRepository, never()).incrementMessageCount(anyString(), eq(2));
     }
@@ -170,7 +170,7 @@ class ChatSessionServiceTest {
         when(sessionRepository.existsById("s1")).thenReturn(true);
         AgentStreamEvent.TraceEvent trace = sampleTrace();
 
-        service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", trace, "trace-xyz");
+        service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", trace, "trace-xyz", null);
 
         ArgumentCaptor<KbMessage> captor = ArgumentCaptor.forClass(KbMessage.class);
         verify(messageRepository, Mockito.times(2)).save(captor.capture());
@@ -187,7 +187,7 @@ class ChatSessionServiceTest {
     void nullTraceArchivesNullCitations() {
         when(sessionRepository.existsById("s1")).thenReturn(true);
 
-        service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", null, null);
+        service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", null, null, null);
 
         ArgumentCaptor<KbMessage> captor = ArgumentCaptor.forClass(KbMessage.class);
         verify(messageRepository, Mockito.times(2)).save(captor.capture());
@@ -351,6 +351,63 @@ class ChatSessionServiceTest {
         assertThat(assistantItem.sources().get(0).chunks().get(0).chunkId()).isEqualTo("chunk-1");
         assertThat(assistantItem.traceId()).isEqualTo("trace-xyz");
         assertThat(assistantItem.feedback()).isEqualTo("POSITIVE");
+    }
+
+    // ── 工具调用归档回显（簇⑥ 体验批2）──
+
+    @Test
+    void toolCallsArchivedIntoMetadataAlongsideTraceId() {
+        when(sessionRepository.existsById("s1")).thenReturn(true);
+
+        service.archiveTurn("s1", "t", "u", "问题", "回答", "msg-1", null, "trace-xyz",
+            List.of(new AgentStreamEvent.ToolCallInfo("task:knowledge-searcher", "EXECUTED", null, "检索 DDD 反模式")));
+
+        ArgumentCaptor<KbMessage> captor = ArgumentCaptor.forClass(KbMessage.class);
+        verify(messageRepository, Mockito.times(2)).save(captor.capture());
+        String metadata = captor.getAllValues().get(1).getMetadata();
+        assertThat(metadata).contains("trace-xyz").contains("toolCalls")
+            .contains("task:knowledge-searcher").contains("EXECUTED");
+    }
+
+    @Test
+    void loadMessagesRestoresToolCallsFromMetadata() throws Exception {
+        KbSession owned = session("s1", "标题", 2);
+        owned.setTenantId("t");
+        owned.setUserId("u");
+        when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
+
+        KbMessage assistant = message("s1", "ASSISTANT", "回答");
+        assistant.setId("m-ast");
+        assistant.setMetadata(jsonMapper.writeValueAsString(Map.of(
+            "traceId", "trace-xyz",
+            "toolCalls", List.of(new AgentStreamEvent.ToolCallInfo(
+                "task:report-writer", "EXECUTED", null, "生成清单")))));
+        when(messageRepository.findBySessionIdOrderByCreatedAt("s1")).thenReturn(List.of(assistant));
+        when(feedbackRepository.findByMessageIdInAndUserId(List.of("m-ast"), "u"))
+            .thenReturn(List.of());
+
+        List<HistoryMessageItem> items = service.loadMessages("s1", "t", "u");
+
+        assertThat(items.get(0).toolCalls()).hasSize(1);
+        assertThat(items.get(0).toolCalls().get(0).toolName()).isEqualTo("task:report-writer");
+        assertThat(items.get(0).toolCalls().get(0).status()).isEqualTo("EXECUTED");
+    }
+
+    @Test
+    void legacyMetadataWithoutToolCallsYieldsNull() throws Exception {
+        KbSession owned = session("s1", "标题", 2);
+        owned.setTenantId("t");
+        owned.setUserId("u");
+        when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
+
+        KbMessage assistant = message("s1", "ASSISTANT", "回答");
+        assistant.setId("m-ast");
+        assistant.setMetadata(jsonMapper.writeValueAsString(Map.of("traceId", "trace-xyz")));
+        when(messageRepository.findBySessionIdOrderByCreatedAt("s1")).thenReturn(List.of(assistant));
+        when(feedbackRepository.findByMessageIdInAndUserId(List.of("m-ast"), "u"))
+            .thenReturn(List.of());
+
+        assertThat(service.loadMessages("s1", "t", "u").get(0).toolCalls()).isNull();
     }
 
     @Test

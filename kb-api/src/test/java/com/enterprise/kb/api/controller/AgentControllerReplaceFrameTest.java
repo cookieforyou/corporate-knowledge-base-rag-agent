@@ -73,7 +73,7 @@ class AgentControllerReplaceFrameTest {
         // 归档话术（answerBuffer 前缀被替换）
         org.mockito.Mockito.verify(chatSessionService).archiveTurn(anyString(), anyString(), anyString(),
             anyString(), org.mockito.ArgumentMatchers.eq("抱歉，由于合规要求，无法提供该信息。"),
-            anyString(), any(), any());
+            anyString(), any(), any(), any());
     }
 
     @Test

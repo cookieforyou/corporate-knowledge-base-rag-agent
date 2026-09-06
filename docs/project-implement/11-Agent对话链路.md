@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-07 · v2.109（簇⑥ E2E 体验批1：SSE REPLACE 追回事件——输出护栏增量放行形态的配套协议，§11.3）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-07 · v2.110（簇⑥ E2E 体验批2：toolCalls 归档回显——agent/tool 链委派卡片历史会话恢复，§11.7）
 >
 > **v2.108（2026-09-07，簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
@@ -94,6 +94,17 @@
 > **v2.17.1（2026-08-09，E2E 修复）**：删除带反馈会话外键违例——kb_feedback.message_id 无级联，删除会话须同事务先清反馈（§11.7.2 DELETE 行）。
 >
 > **v2.61（2026-08-22，Phase 4 簇⑦ 批2——4.8 Prompt Git Ops 专类收编）**：对话链全部 Prompt 模板收编至单一事实源 `com.enterprise.kb.ai.prompt.PromptTemplates`（kb-ai-core，9 条：GROUNDING_PROMPT / INDIRECT_WARNING_NOTE / EMPTY_CONTEXT_PROMPT / HISTORY_REWRITE_PROMPT / INTENT_CLASSIFIER_PROMPT / INJECTION_JUDGE_PROMPT / RAG_SYSTEM_PROMPT / EVAL_SYSTEM_PROMPT / TOOL_SYSTEM_PROMPT）——原散落 6 处常量（RetrievalConfig ×3 + QueryRoutingAdvisor + SemanticInjectionAdvisor 分类器 + ChatConfig/Rag/Tool 三处 defaultSystem）全部改引用；解析链语境增强模板收编于 `com.enterprise.kb.etl.prompt.PromptTemplates`（kb-etl 不依赖 kb-ai-core 的架构约束，用户定案每模块一专类）；kb-eval Judge Prompt 既有 `JudgePrompts` 专类形态零改动。**Git Ops 纪律**：模板增删改一律经专类，`git log` 即版本史，消费方禁内联（PromptTemplatesTest / RetrievalConfigContextFormatTest 契约钉死）。外部化配置率 100% 达成（第 18 章验收，18.2 注记同步）。
+>
+> **v2.110（2026-09-07，簇⑥ E2E 体验批2：toolCalls 归档回显）**：rag 链溯源经
+> kb_message.citations 历史回显，而 tool/agent 链的委派/审批卡片（toolCalls）从未
+> 落库——离开会话重进即丢失。修复：**零 DDL**——`archiveTurn` 增 toolCalls 参数
+> （与 SSE TOOL_CALL 帧/同步响应 toolCalls **三消费面同形投影** `toToolCallInfos`），
+> 经 kb_message.metadata JSON 下沉（`{"traceId":…, "toolCalls":[…]}`，citations 列
+> 语义保持纯溯源）；`loadMessages` 反解回传 `HistoryMessageItem.toolCalls`（readTree
+> 取键，无键/解析失败降级 null 同存量数据形态）；前端 `toMessage` 映射
+> `Message.toolCalls` 复用既有 ToolCallCard 渲染链路。agent 链编排委派
+> （task:* 记录）与 tool 链 HITL 挂起态（PENDING_APPROVAL + approvalId）均回显；
+> rag 链恒空、存量消息 null。§11.7.1 补段。
 >
 > **v2.109（2026-09-07，簇⑥ E2E 体验批1：SSE REPLACE 追回事件）**：输出护栏
 > `OutputGuardrailAdvisor` 流式改增量放行（12 章 v2.102：逐块判定 + 尾部保留窗 +
@@ -979,6 +990,13 @@ kb-eval 评估链不挂本 Advisor（评估流量不污染审计）。`rag.audit
 **选型否决**：读取时反查 kb_audit_log——kb_message 无 trace_id 列，关联只能靠时间+内容
 模糊匹配；audit chunks 形态 ≠ TRACE 三路形态，final 序列重建与 `[ref-N]` 对齐有风险；
 审计表有脱敏/降级缺口且是运维视角表，不当产品读取事实源。
+
+> **v2.110 补注（簇⑥ 体验批2）**：toolCalls（tool 链 HITL / agent 链编排委派记录）
+> 同轮归档——`archiveTurn` 第 9 参（SSE TOOL_CALL 帧/同步响应/归档**三消费面同形
+> 投影**）写入 metadata JSON `toolCalls` 键（citations 列保持纯溯源语义，**零 DDL**）；
+> `loadMessages` 经 readTree 取键反解 `HistoryMessageItem.toolCalls` 回传，前端
+> `toMessage` 映射复用 ToolCallCard 渲染链路。无键/解析失败降级 null（存量消息
+> 形态），rag 链恒空。
 
 ### 11.7.2 会话 API（SessionController，`/api/v1/sessions`）
 

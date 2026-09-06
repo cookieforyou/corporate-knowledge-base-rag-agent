@@ -86,7 +86,7 @@ class SessionControllerTest {
     void messagesPassesIdentityThrough() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(chatSessionService.loadMessages(anyString(), anyString(), anyString()))
-            .thenReturn(List.of(new HistoryMessageItem("m1", "USER", "问题", null, null, null, null)));
+            .thenReturn(List.of(new HistoryMessageItem("m1", "USER", "问题", null, null, null, null, null)));
 
         List<HistoryMessageItem> data = controller.sessionMessages("s1").data();
 
