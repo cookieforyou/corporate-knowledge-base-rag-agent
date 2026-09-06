@@ -138,6 +138,14 @@
       <div v-if="streaming" class="msg assistant">
         <div class="msg-avatar assistant">知</div>
         <div class="msg-body">
+          <!-- 委派/审批卡片实时渲染（簇⑥ 批3：TOOL_CALL 帧流中多次推送增量更新） -->
+          <ToolCallCard v-for="(tc, j) in streamToolCalls" :key="j" :call="tc"
+            @confirmed="onApprovalConfirmed" />
+          <!-- 阶段/检索进度行（簇⑥ 批3：PROGRESS 帧；token 到达后让位于正文） -->
+          <div v-if="progressText && !streamText" class="progress-line">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>{{ progressText }}</span>
+          </div>
           <div class="msg-bubble assistant">
             <span class="msg-text md" v-html="renderAnswer(streamText)" /><i class="caret" />
           </div>
@@ -188,7 +196,7 @@ import SourceDialog, { type SourceTarget } from '@/components/SourceDialog.vue'
 import ToolCallCard from '@/components/ToolCallCard.vue'
 import SessionList from '@/components/SessionList.vue'
 import { ElMessage } from 'element-plus'
-import { Right, ArrowDown, Document, Promotion, Refresh } from '@element-plus/icons-vue'
+import { Right, ArrowDown, Document, Promotion, Refresh, Loading } from '@element-plus/icons-vue'
 
 const auth = useAuthStore()
 const store = useChatStore()
@@ -196,6 +204,10 @@ const store = useChatStore()
 const input = ref('')
 const streamText = ref('')
 const streaming = ref(false)
+/** 委派/审批卡片实时态（簇⑥ 批3：TOOL_CALL 帧流中推送，流末固化进消息） */
+const streamToolCalls = ref<ToolCallInfo[]>([])
+/** 阶段/检索进度行（簇⑥ 批3：PROGRESS 帧，token 到达后隐藏） */
+const progressText = ref('')
 const msgList = ref<HTMLElement>()
 const sourceTarget = ref<SourceTarget | null>(null)
 const sessionListRef = ref<InstanceType<typeof SessionList>>()
@@ -362,8 +374,9 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
 
   streaming.value = true
   streamText.value = ''
+  streamToolCalls.value = []
+  progressText.value = ''
   let sources: Source[] = []
-  let toolCalls: ToolCallInfo[] = []
   // DONE 帧 JSON 载荷（3.17）：本轮反馈定位句柄
   let doneMeta: { messageId?: string; traceId?: string } = {}
 
@@ -424,7 +437,11 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
             // 输出护栏替换追回（v2.109）：已渲染回答整段替换为安全话术
             streamText.value = json.answer ?? ''
           } else if (currentEvent === 'TOOL_CALL') {
-            toolCalls = json.toolCalls || []
+            // 簇⑥ 批3：流中实时快照（RUNNING→终态增量更新）+ 流末兜底投影同分支
+            streamToolCalls.value = json.toolCalls || []
+          } else if (currentEvent === 'PROGRESS') {
+            // 簇⑥ 批3：阶段/检索进度行（token 到达后模板自动隐藏）
+            progressText.value = json.text || ''
           } else if (json.messageId != null) {
             // DONE 帧（3.17）：{messageId, traceId} 反馈定位句柄
             doneMeta = { messageId: json.messageId, traceId: json.traceId }
@@ -445,7 +462,7 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
       content: streamText.value,
       sources,
       traceOpen: sources.length > 0,
-      toolCalls: toolCalls.length ? toolCalls : undefined,
+      toolCalls: streamToolCalls.value.length ? streamToolCalls.value : undefined,
       messageId: doneMeta.messageId,
       traceId: doneMeta.traceId
     })
@@ -454,6 +471,8 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
   } finally {
     streaming.value = false
     streamText.value = ''
+    streamToolCalls.value = []
+    progressText.value = ''
     scrollToBottom()
     // 归档为异步旁路：DONE 后延迟刷新会话列表，防首轮会话未落库的竞态空窗
     setTimeout(() => sessionListRef.value?.refresh(), 1000)
@@ -484,6 +503,13 @@ function finalCount(msg: Message) {
 
 <style scoped>
 .chat-shell { display: flex; height: 100%; }
+
+/* ── 进度行（簇⑥ 批3：PROGRESS 帧阶段/检索进度）── */
+.progress-line {
+  display: flex; align-items: center; gap: 6px;
+  margin: 2px 0 8px; padding: 0 2px;
+  font-size: 12px; color: var(--el-text-color-secondary);
+}
 .chat-page { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%; }
 
 /* ── 页头 ── */

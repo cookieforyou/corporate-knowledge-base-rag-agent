@@ -10,6 +10,7 @@ import com.enterprise.kb.api.dto.AgentStreamEvent.ChunkTrace;
 import com.enterprise.kb.api.dto.AgentStreamEvent.DoneEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ErrorEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
+import com.enterprise.kb.api.dto.AgentStreamEvent.ProgressFrame;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ReplaceEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.TokenEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.ToolCallEvent;
@@ -31,6 +32,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -175,6 +177,29 @@ public class AgentController {
         if (!toolMode) {
             warnIfStrayApprovalId(approvedToolCallId);
         }
+        // 进度旁路通道（簇⑥ 体验批3）：ctx 参数链 listener → Sinks 合流——TOOL_CALL
+        // 实时快照（TaskTool 委派 RUNNING/终态）与 PROGRESS 阶段/检索事件（rag 链
+        // 四锚点 + KnowledgeSearchTools 预算进度）与主 token 流 merge 下发；同步
+        // 经 synchronized 序列化多生产者 emit（tryEmitNext 并发 FAIL_NON_SERIALIZED）
+        Sinks.Many<ServerSentEvent<Object>> progressSink =
+            Sinks.many().unicast().onBackpressureBuffer();
+        traceCtx.setProgressListener(evt -> {
+            if (evt.toolCalls() != null) {
+                synchronized (progressSink) {
+                    progressSink.tryEmitNext(ServerSentEvent.<Object>builder(
+                            new ToolCallEvent(evt.toolCalls().stream()
+                                .map(tc -> new ToolCallInfo(tc.toolName(), tc.status(),
+                                    tc.approvalId(), tc.summary())).toList()))
+                        .event("TOOL_CALL").build());
+                }
+            } else {
+                synchronized (progressSink) {
+                    progressSink.tryEmitNext(ServerSentEvent.<Object>builder(
+                            new ProgressFrame(evt.kind(), evt.text()))
+                        .event("PROGRESS").build());
+                }
+            }
+        });
         // 开关守卫在请求线程执行（Flux 组装前）：关闭态与 INVALID_MODE 同形态 400，不进流
         AgentOrchestratorService orchestrator = agentMode ? requireOrchestrator() : null;
         Flux<String> tokens = toolMode
@@ -183,7 +208,11 @@ public class AgentController {
                 ? orchestrator.chatStreamOrchestrator(query, sessionId, traceCtx)
                 : ragChatService.chatStreamRag(query, sessionId, traceCtx);
 
-        Flux<ServerSentEvent<Object>> sseFlux = tokens
+        // token 主链（唯一订阅源——merge 消费一次，绝不重复订阅触发二次 LLM 调用）：
+        // 完成/错误时关闭进度通道与心跳（merge 全源 completion 语义——interval 无限流
+        // 若不显式终止将致主流完成后 merge 永不 complete，SSE 连接悬挂）
+        Sinks.Empty<Object> mainTerminated = Sinks.empty();
+        Flux<ServerSentEvent<Object>> tokenEvents = tokens
             .filter(token -> token != null && !token.isEmpty())
             .doOnNext(token -> {
                 if (ttftRecorded.compareAndSet(false, true)) {
@@ -191,7 +220,23 @@ public class AgentController {
                 }
             })
             .doOnNext(answerBuffer::append)
-            .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build());
+            .map(token -> ServerSentEvent.<Object>builder(new TokenEvent(token)).build())
+            .doOnComplete(() -> {
+                progressSink.tryEmitComplete();
+                mainTerminated.tryEmitEmpty();
+            })
+            .doOnError(e -> {
+                progressSink.tryEmitError(e);
+                mainTerminated.tryEmitError(e);
+            });
+        Flux<ServerSentEvent<Object>> sseFlux = tokenEvents
+            // 心跳注释帧（簇⑥ 体验批3）：长静默期（工具循环/思考期）防中间层 idle 掐断
+            // ——浏览器 SSE 解析层自动忽略注释帧；主流终结信号联动终止（merge 完成语义）
+            .mergeWith(Flux.interval(Duration.ofSeconds(15))
+                .takeUntilOther(mainTerminated.asMono())
+                .map(i -> ServerSentEvent.<Object>builder().comment("ping").build()))
+            // 进度旁路合流（ctx 参数链 listener → sink）：TOOL_CALL 实时快照 + PROGRESS
+            .mergeWith(progressSink.asFlux());
         // 输出护栏替换追回帧（v2.109）：增量放行形态命中截断时已放行前缀流至前端，
         // 此帧（ctx 参数链信号，位于 TOOL_CALL/TRACE 之前）要求前端整段替换为安全
         // 话术；聚合形态话术即唯一输出，此帧缺席

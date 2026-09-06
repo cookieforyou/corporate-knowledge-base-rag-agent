@@ -111,6 +111,8 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
                     ? result.rewrittenQuery().trim()
                     : trimmed);
             metrics.recordRoutingKnowledge();
+            // rag 链阶段进度（簇⑥ 体验批3，PROGRESS 帧）：路由+改写完成，进入检索
+            ctx.emitProgress("stage", "意图识别与查询改写完成，检索知识库…");
         } catch (Exception e) {
             log.warn("意图分类失败，fail-open 回落完整检索链路", e);
             metrics.recordRoutingKnowledge();

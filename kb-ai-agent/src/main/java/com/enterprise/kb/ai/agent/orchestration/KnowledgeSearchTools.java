@@ -98,6 +98,11 @@ public class KnowledgeSearchTools {
             return new SearchOutcome(List.of(), "检索次数已达上限（" + maxSearches
                 + " 次/请求）。不要再调用检索工具，立即基于已获得的检索结果归纳回答。");
         }
+        // 检索进度推送（簇⑥ 体验批3，PROGRESS 帧）：开始即推——单次检索路径
+        // （改写+双路召回+重排）数秒静默期前端可感知；监听器缺席 no-op
+        ctx.emitProgress("retrieval",
+            "知识检索 " + (executed + 1) + "/" + maxSearches + " 次：" + abbreviate(query));
+
         Query rewritten = rewriteQueryTransformer.apply(new Query(query));
         RetrievalContext isolated = isolatedContext(ctx);
         Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, isolated);

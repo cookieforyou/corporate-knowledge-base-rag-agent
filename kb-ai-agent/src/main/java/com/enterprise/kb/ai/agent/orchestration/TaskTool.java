@@ -79,6 +79,13 @@ public class TaskTool {
                 + "请立即基于已获得的子代理结果综合作答，缺失部分如实说明。";
         }
 
+        // 委派发起即推送 RUNNING 快照（簇⑥ 体验批3，TOOL_CALL 帧实时化）：
+        // 预算闸计数含 RUNNING（「已发起」语义）；终态原地回写，流末恒全终态
+        recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_RUNNING, description);
+        if (retrievalContext != null) {
+            retrievalContext.emitToolCallsSnapshot();
+        }
+
         Future<String> future = executor.submit(() ->
             clientFactory.create(spec)
                 .prompt()
@@ -89,27 +96,27 @@ public class TaskTool {
         try {
             String result = future.get(spec.timeoutSeconds(), TimeUnit.SECONDS);
             recordOutcome(spec.name(), true, startNanos);
-            recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_EXECUTED,
+            completeToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_EXECUTED,
                 description);
             return result;
         } catch (TimeoutException e) {
             // 非打断式弃任务（坑位㊶）：底层调用经客户端读超时自然收敛
             future.cancel(false);
             recordOutcome(spec.name(), false, startNanos);
-            recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
+            completeToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
                 "执行超时（>" + spec.timeoutSeconds() + "s）: " + description);
             return "⚠️ 子代理 " + spec.name() + " 执行超时（>" + spec.timeoutSeconds()
                 + "s）。请换其他途径或如实告知用户该部分暂时无法完成。";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             recordOutcome(spec.name(), false, startNanos);
-            recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
+            completeToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
                 "执行被中断: " + description);
             return "⚠️ 子代理 " + spec.name() + " 执行被中断，请如实告知用户。";
         } catch (ExecutionException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             recordOutcome(spec.name(), false, startNanos);
-            recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
+            completeToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_FAILED,
                 "执行失败: " + cause.getMessage());
             return "⚠️ 子代理 " + spec.name() + " 执行失败：" + cause.getMessage()
                 + "。可重试一次或如实告知用户。";
@@ -156,6 +163,15 @@ public class TaskTool {
                                        String status, String summary) {
         if (ctx != null) {
             ctx.addToolCall(new RetrievalContext.ToolCall("task:" + subAgentName, status, null, summary));
+        }
+    }
+
+    /** 委派终态（簇⑥ 体验批3）：RUNNING 原地回写终态 + 快照实时推送 */
+    private static void completeToolCall(RetrievalContext ctx, String subAgentName,
+                                         String status, String summary) {
+        if (ctx != null) {
+            ctx.completeRunningToolCall("task:" + subAgentName, status, summary);
+            ctx.emitToolCallsSnapshot();
         }
     }
 }

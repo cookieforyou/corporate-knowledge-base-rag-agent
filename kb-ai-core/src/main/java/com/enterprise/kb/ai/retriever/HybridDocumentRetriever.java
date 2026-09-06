@@ -153,6 +153,10 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         log.debug("混合检索完成: vector={} bm25={} graph={} fused={} 耗时={}ms",
             vectorHits.size(), bm25Hits.size(),
             graphFuture == null ? "off" : graphHits.size(), fused.size(), elapsed);
+        // rag 链阶段进度（簇⑥ 体验批3，PROGRESS 帧）：多路召回+融合完成；ctx 缺席 no-op
+        if (ctx != null) {
+            ctx.emitProgress("stage", "混合检索完成（" + fused.size() + " 条候选），重排中…");
+        }
         return fused;
     }
 

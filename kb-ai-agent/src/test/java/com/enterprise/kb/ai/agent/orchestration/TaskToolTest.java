@@ -71,6 +71,44 @@ class TaskToolTest {
         return new ToolContext(map);
     }
 
+    /**
+     * 委派进度快照实时推送（簇⑥ 体验批3）：RUNNING 发起即推 + 终态原地回写再推
+     * ——两次 tool_call 快照事件；流末 ctx 快照恒全终态（RUNNING 被替换非追加）。
+     */
+    @Test
+    void runningThenTerminalEmitsSnapshotTwiceAndFinalSnapshotIsTerminal() {
+        RetrievalContext ctx = new RetrievalContext();
+        List<RetrievalContext.ProgressEvent> events = new java.util.ArrayList<>();
+        ctx.setProgressListener(events::add);
+
+        String result = taskTool.task("demo", "查询 E1001 假期余额", parentContext(ctx));
+
+        assertThat(result).isEqualTo("子代理结果");
+        // 两次快照：发起 RUNNING + 终态 EXECUTED
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0).toolCalls()).hasSize(1);
+        assertThat(events.get(0).toolCalls().get(0).status())
+            .isEqualTo(RetrievalContext.ToolCall.STATUS_RUNNING);
+        assertThat(events.get(1).toolCalls()).hasSize(1);
+        assertThat(events.get(1).toolCalls().get(0).status())
+            .isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
+        // 流末快照单条终态（RUNNING 原地回写，不残留）
+        assertThat(ctx.getToolCalls()).hasSize(1);
+        assertThat(ctx.getToolCalls().get(0).status())
+            .isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
+    }
+
+    /** 监听器缺席（同步路径/评估链）：emitProgress 零开销 no-op，委派行为不变 */
+    @Test
+    void noListenerDelegationStillWorks() {
+        RetrievalContext ctx = new RetrievalContext();
+
+        String result = taskTool.task("demo", "查询 E1001", parentContext(ctx));
+
+        assertThat(result).isEqualTo("子代理结果");
+        assertThat(ctx.getToolCalls()).hasSize(1);
+    }
+
     @Test
     void delegatesAndRecordsExecuted() {
         RetrievalContext ctx = new RetrievalContext();

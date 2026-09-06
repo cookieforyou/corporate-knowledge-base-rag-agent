@@ -79,7 +79,7 @@ kb-rag-agent/
 
 - 主链路：`RetrievalAugmentationAdvisor`(500) = CompressionQueryTransformer（默认开）→ `HybridDocumentRetriever` 多路并行（向量+BM25[+Graph 条件在场]，租户/软删过滤，5s 单路降级）→ `RrfFusion`(K=60 N 路) → `RerankDocumentPostProcessor`（故障降级截断）→ `ContextualQueryAugmenter`（**编号化 formatter** 锚定 [ref-N] + 空证据拒答）；参数 `rag.retrieval.*`
 - **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 创建并填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末直读推 TRACE
-- SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE 为 JSON {messageId,traceId}）+ 命名 TRACE（三路溯源与 [ref-N] 对齐，rag 链）/TOOL_CALL（tool/agent 链——委派即工具调用）/REPLACE（护栏追回）
+- SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE JSON 载荷）+ 命名 TRACE（rag 链溯源 [ref-N]）/TOOL_CALL（tool/agent 委派，实时+流末兜底）/REPLACE（护栏追回）/PROGRESS（三链路进度+心跳）
 - 前端对话窗：sessionId 多轮 + rag/tool/agent 三模式切换 + TOOL_CALL 审批/委派卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open；剥壳判据=包裹手段不改变裁决）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8

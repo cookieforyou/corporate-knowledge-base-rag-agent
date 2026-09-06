@@ -104,9 +104,18 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     @Override
     public @NonNull List<Document> process(@NonNull Query query, @NonNull List<Document> documents) {
         long start = System.currentTimeMillis();
+        // rag 链阶段进度（簇⑥ 体验批3，PROGRESS 帧）：重排 API 1-3s 静默期可感知；
+        // 无 ctx 入口（调试台/评估）from 返回 null 即跳过
+        RetrievalContext progressCtx = RetrievalContext.from(query);
+        if (progressCtx != null) {
+            progressCtx.emitProgress("stage", "证据重排中（" + documents.size() + " 条候选）…");
+        }
         List<Document> top = doProcess(query, documents);
         // 最终注入序列 trace（source=final）：[ref-N] 标注与本列表下标一一对应（11.1.2）
         recordFinalTrace(query, top, System.currentTimeMillis() - start);
+        if (progressCtx != null) {
+            progressCtx.emitProgress("stage", "证据就绪（Top " + top.size() + "），生成回答中…");
+        }
         return top;
     }
 

@@ -101,6 +101,62 @@ public class RetrievalContext {
         this.outputReplacement = replacement;
     }
 
+    /**
+     * 进度监听器（簇⑥ 体验批3）：Controller 流式入口注册（Sinks 合流通道），各信号源
+     * （rag 链阶段锚点 / TaskTool 委派 / KnowledgeSearchTools 检索预算）经
+     * {@link #emitProgress} 推送——缺席即 no-op（同步路径/评估链零开销）。
+     * volatile：注册在请求线程，emit 在工具执行/检索线程。
+     */
+    private volatile java.util.function.Consumer<ProgressEvent> progressListener;
+
+    /** 注册进度监听器（Controller 流式入口；null 即清除） */
+    public void setProgressListener(java.util.function.Consumer<ProgressEvent> listener) {
+        this.progressListener = listener;
+    }
+
+    /**
+     * 推送阶段/检索进度事件（kind ∈ {stage, retrieval}）；监听器缺席或异常静默
+     * no-op——进度是旁路增值信号，不得影响主链路。
+     */
+    public void emitProgress(String kind, String text) {
+        java.util.function.Consumer<ProgressEvent> listener = progressListener;
+        if (listener != null) {
+            try {
+                listener.accept(new ProgressEvent(kind, text, null));
+            } catch (Exception ignored) {
+                // 尽力而为语义：进度通道故障不击穿对话链
+            }
+        }
+    }
+
+    /**
+     * 推送工具调用全量快照（TOOL_CALL 帧实时化）：流中多次推送，前端增量更新卡片；
+     * 流末快照仍由 Controller 投影兜底（同步/审计/归档消费面不变）。
+     */
+    public void emitToolCallsSnapshot() {
+        java.util.function.Consumer<ProgressEvent> listener = progressListener;
+        if (listener != null) {
+            try {
+                listener.accept(new ProgressEvent("tool_call", null, List.copyOf(toolCalls)));
+            } catch (Exception ignored) {
+                // 尽力而为语义
+            }
+        }
+    }
+
+    /**
+     * 进度事件（簇⑥ 体验批3，kb-api Controller 转换为 SSE PROGRESS / TOOL_CALL 帧）。
+     *
+     * @param kind      事件类：stage（rag 链阶段）/ retrieval（检索预算进度）/ tool_call（工具快照）
+     * @param text      展示文本（tool_call 为 null——结构化数据在 toolCalls）
+     * @param toolCalls 工具调用全量快照（仅 tool_call 携带）
+     */
+    public record ProgressEvent(String kind, String text, List<ToolCall> toolCalls) {
+        public static ProgressEvent of(String kind, String text) {
+            return new ProgressEvent(kind, text, null);
+        }
+    }
+
     private final List<TraceEntry> traceEntries = new CopyOnWriteArrayList<>();
 
     /** 工具调用记录（3.4 HITL）：工具在模型调用线程内写入，Controller 流末读取投影 SSE TOOL_CALL */
@@ -161,6 +217,22 @@ public class RetrievalContext {
     public record TraceEntry(String source, List<Document> documents, Long latencyMs) {}
 
     /** 工具经 toolContext 取本实例写入调用记录（与 trace 同款参数链机制） */
+    /**
+     * 委派终态原地回写（簇⑥ 体验批3）：定位最后一条同名 RUNNING 记录替换为终态
+     * （工具循环串行执行，同时至多一条同名 RUNNING 在途）；无 RUNNING 记录时
+     * 追加终态（兼容直写终态的既有路径）。CopyOnWriteArrayList.set 线程安全。
+     */
+    public void completeRunningToolCall(String toolName, String status, String summary) {
+        for (int i = toolCalls.size() - 1; i >= 0; i--) {
+            ToolCall tc = toolCalls.get(i);
+            if (ToolCall.STATUS_RUNNING.equals(tc.status()) && toolName != null && toolName.equals(tc.toolName())) {
+                toolCalls.set(i, new ToolCall(tc.toolName(), status, tc.approvalId(), summary));
+                return;
+            }
+        }
+        toolCalls.add(new ToolCall(toolName, status, null, summary));
+    }
+
     public void addToolCall(ToolCall toolCall) {
         toolCalls.add(toolCall);
     }
@@ -185,6 +257,13 @@ public class RetrievalContext {
 
         /** 执行失败态（簇⑤ 5.3：TaskTool 委派超时/异常——错误文本回流主 Agent，不击穿主链） */
         public static final String STATUS_FAILED = "FAILED";
+
+        /**
+         * 进行中态（簇⑥ 体验批3，TOOL_CALL 帧实时化）：委派发起时写入（预算闸
+         * 计数按「已发起」语义将其计入），终态经 {@link #completeRunningToolCall}
+         * 原地替换——流末快照恒全终态（工具循环内主链阻塞等待工具返回）。
+         */
+        public static final String STATUS_RUNNING = "RUNNING";
     }
 
     /** 护栏 FLAG 观察标记写入（安全簇① T7）：命中侧 advisor（输入/输出护栏）调用 */
