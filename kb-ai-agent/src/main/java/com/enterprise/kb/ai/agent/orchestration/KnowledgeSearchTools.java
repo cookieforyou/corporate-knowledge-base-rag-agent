@@ -48,6 +48,8 @@ public class KnowledgeSearchTools {
     private final KbChunkRepository chunkRepository;
     private final JsonMapper jsonMapper;
     private final int documentMaxChunks;
+    private final int maxChars;
+    private final int maxSearches;
 
     public KnowledgeSearchTools(HybridDocumentRetriever hybridRetriever,
                                 RerankDocumentPostProcessor rerankPostProcessor,
@@ -55,7 +57,9 @@ public class KnowledgeSearchTools {
                                 KbDocumentRepository documentRepository,
                                 KbChunkRepository chunkRepository,
                                 JsonMapper jsonMapper,
-                                @Value("${rag.orchestrator.knowledge.max-chunks:30}") int documentMaxChunks) {
+                                @Value("${rag.orchestrator.knowledge.max-chunks:30}") int documentMaxChunks,
+                                @Value("${rag.orchestrator.knowledge.max-chars:400}") int maxChars,
+                                @Value("${rag.orchestrator.knowledge.max-searches:6}") int maxSearches) {
         this.hybridRetriever = hybridRetriever;
         this.rerankPostProcessor = rerankPostProcessor;
         this.rewriteQueryTransformer = rewriteQueryTransformer;
@@ -63,19 +67,40 @@ public class KnowledgeSearchTools {
         this.chunkRepository = chunkRepository;
         this.jsonMapper = jsonMapper;
         this.documentMaxChunks = Math.max(1, documentMaxChunks);
+        this.maxChars = Math.max(50, maxChars);
+        this.maxSearches = Math.max(1, maxSearches);
     }
 
     /**
-     * 知识库混合检索（向量 + BM25 [+Graph] + 重排序，零 LLM）——子代理取证主路径
+     * 知识库混合检索（向量 + BM25 [+Graph] + 重排序，零 LLM）——子代理取证主路径。
+     *
+     * <p><b>E2E 热修五治理三件</b>：
+     * ① <b>载荷截断</b>——正文每条截断至 {@code max-chars}（高频检索 = 摘要级载荷，
+     * 全文经 getDocument 深读）；子代理同上下文多轮工具循环下全文载荷滚胀数十万
+     * token，指令被淹没致检索循环不收敛（40 次检索实证）。
+     * ② <b>检索预算硬闸</b>——单请求（跨委派 + 超时弃任务同计数）超过
+     * {@code max-searches} 次即返回空结果 + 停止提示；prompt 收敛纪律对膨胀后的
+     * 上下文是概率性约束，预算闸是确定性兜底（与 TaskTool 委派闸同构双层）。
+     * ③ <b>trace 隔离</b>——检索管线喂隔离 ctx（仅拷贝租户身份），多路命中不再
+     * 写主请求 trace（agent 链审计行 retrieved_chunks 曾累积 883 条/唯一 43）；
+     * 溯源语义改经 {@code search:knowledge} ToolCall 快照承载（query 摘要入审计）。
      */
     @Tool(description = "在企业知识库中检索与问题最相关的文档片段（混合检索+重排序）。"
-        + "适用于查找制度、规范、流程、事实等知识依据；返回片段含文件名/页码/标题路径/正文")
-    public List<SearchHit> searchKnowledge(
+        + "适用于查找制度、规范、流程、事实等知识依据；返回 hits 含文件名/页码/标题路径/"
+        + "正文摘要（截断），note 携带检索预算提示——note 要求停止检索时必须立即停止并"
+        + "基于已有结果归纳，需要完整上下文时改用 getDocument")
+    public SearchOutcome searchKnowledge(
             @ToolParam(description = "自然语言检索问题（自包含，可独立理解）") String query,
             ToolContext toolContext) {
         RetrievalContext ctx = requireContext(toolContext);
+        int executed = countExecutedSearches(ctx);
+        if (executed >= maxSearches) {
+            return new SearchOutcome(List.of(), "检索次数已达上限（" + maxSearches
+                + " 次/请求）。不要再调用检索工具，立即基于已获得的检索结果归纳回答。");
+        }
         Query rewritten = rewriteQueryTransformer.apply(new Query(query));
-        Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, ctx);
+        RetrievalContext isolated = isolatedContext(ctx);
+        Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, isolated);
         List<Document> fused = hybridRetriever.retrieve(
             Query.builder().text(rewritten.text()).context(queryContext).build());
         List<Document> finals = rerankPostProcessor.process(
@@ -90,10 +115,14 @@ public class KnowledgeSearchTools {
                 asString(meta.get("file_name")),
                 asString(meta.get("heading_path")),
                 meta.get("page_num") instanceof Number n ? n.intValue() : null,
-                doc.getText(),
+                truncate(doc.getText()),
                 rank));
         }
-        return hits;
+        ctx.addToolCall(new RetrievalContext.ToolCall("search:knowledge",
+            RetrievalContext.ToolCall.STATUS_EXECUTED, null, "检索: " + abbreviate(query)));
+        int remaining = maxSearches - executed - 1;
+        return new SearchOutcome(hits,
+            "检索预算剩余 " + remaining + "/" + maxSearches + " 次，证据足够时请立即归纳回答");
     }
 
     /**
@@ -117,11 +146,48 @@ public class KnowledgeSearchTools {
             .map(c -> new ChunkText(c.getChunkIndex(), headingPathOf(c.getMetadata()),
                 c.getPageNum(), c.getContent()))
             .toList();
+        ctx.addToolCall(new RetrievalContext.ToolCall("get:document",
+            RetrievalContext.ToolCall.STATUS_EXECUTED, null, "读文档: " + documentId));
         return new DocumentText(doc.getId(), doc.getName(), doc.getType(),
             doc.getPageCount(), doc.getChunkCount(), chunks);
     }
 
     // ── 内部方法 ──
+
+    /**
+     * 隔离检索上下文（热修五 trace 隔离）：仅拷贝租户身份喂检索管线——多路命中
+     * 与改写文本写入隔离实例随请求丢弃，主请求 trace / rewritten_query 不被子代理
+     * 检索污染（身份 fail-closed 语义经隔离实例完整保留）。
+     */
+    private static RetrievalContext isolatedContext(RetrievalContext source) {
+        RetrievalContext isolated = new RetrievalContext();
+        isolated.setTenantId(source.getTenantId());
+        isolated.setUserId(source.getUserId());
+        return isolated;
+    }
+
+    /** 主请求快照内已执行的检索次数（跨委派与超时弃任务同计数，CopyOnWrite 容器线程安全） */
+    private static int countExecutedSearches(RetrievalContext ctx) {
+        return (int) ctx.getToolCalls().stream()
+            .filter(tc -> "search:knowledge".equals(tc.toolName()))
+            .count();
+    }
+
+    /** 正文载荷截断（超长加截断标记；高频检索 = 摘要级载荷，全文经 getDocument） */
+    private String truncate(String content) {
+        if (content == null || content.length() <= maxChars) {
+            return content;
+        }
+        return content.substring(0, maxChars) + "…（已截断，全文经 getDocument）";
+    }
+
+    /** query 摘要（检索审计记录用，60 字符） */
+    private static String abbreviate(String query) {
+        if (query == null) {
+            return "";
+        }
+        return query.length() <= 60 ? query : query.substring(0, 60) + "…";
+    }
 
     /** 身份提取（TaskTool 下传链）：缺 ctx 或缺租户 fail-closed 拒绝 */
     private static RetrievalContext requireContext(ToolContext toolContext) {
@@ -151,9 +217,13 @@ public class KnowledgeSearchTools {
         return value != null ? String.valueOf(value) : null;
     }
 
-    /** 检索命中视图（子代理 LLM 消费面：字段精简，rank 为重排后序） */
+    /** 检索命中视图（子代理 LLM 消费面：字段精简，rank 为重排后序，content 为截断后摘要） */
     public record SearchHit(String chunkId, String fileName, String headingPath,
                             Integer pageNum, String content, int rank) {
+    }
+
+    /** 检索结果外层视图（热修五）：hits 命中列表 + note 预算提示（含停止指令时子代理必须服从） */
+    public record SearchOutcome(List<SearchHit> hits, String note) {
     }
 
     /** 文档全文视图（chunk 上限 rag.orchestrator.knowledge.max-chunks 截断） */

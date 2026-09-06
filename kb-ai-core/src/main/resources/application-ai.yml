@@ -92,9 +92,14 @@ rag:
     # 单请求委派总预算（E2E 热修四）：超限文本拒绝要求立即综合作答，防超时重试
     # 循环无出口拖死请求（子代理收敛纪律是软约束，硬闸兜底）
     max-delegations: ${RAG_ORCHESTRATOR_MAX_DELEGATIONS:6}
-    # 知识检索子代理 getDocument 全文读取 chunk 上限（截断防上下文爆仓）
+    # 知识检索子代理检索治理（E2E 热修五）——全文载荷滚胀致子代理循环不收敛实证
     knowledge:
+      # getDocument 全文读取 chunk 上限（截断防上下文爆仓）
       max-chunks: ${RAG_ORCHESTRATOR_KNOWLEDGE_MAX_CHUNKS:30}
+      # searchKnowledge 命中正文每条截断字符数（高频检索=摘要级载荷，全文经 getDocument）
+      max-chars: ${RAG_ORCHESTRATOR_KNOWLEDGE_MAX_CHARS:400}
+      # 单请求检索次数硬闸（跨委派与超时弃任务同计数）：超限返回停止提示要求立即归纳
+      max-searches: ${RAG_ORCHESTRATOR_KNOWLEDGE_MAX_SEARCHES:6}
   # 多模型路由（3.2，设计文档 11.2.2）—— 主模型双形态开关（v2.77 模型层批B）+
   # 备用 qwen3.8-flash 熔断切换（连续失败 failure-threshold 次 → OPEN
   # open-seconds 秒直发备用，窗口后 HALF_OPEN 试探）；备用为百炼 OpenAI 兼容端点，

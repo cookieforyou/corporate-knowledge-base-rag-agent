@@ -2,7 +2,9 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-05 · v2.104（簇⑤ E2E 热修四：子代理检索循环不收敛治敛——收敛纪律 + 主 Agent 重试纪律 + 委派预算硬闸，§11.5.5）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-06 · v2.105（簇⑤ E2E 热修五：检索载荷截断 + 检索预算闸 + 子代理 trace 隔离——治上下文滚胀型不收敛与审计快照膨胀，§11.5.5）
+>
+> **v2.105（2026-09-06，簇⑤ E2E 热修五：载荷滚胀型不收敛 + 审计快照膨胀 + 输出护栏误伤三联治理）**：热修四收敛纪律生效一半（主 Agent 超时后确已「缩小范围重述」再委派，委派②③④⑤全 EXECUTED），但 knowledge-searcher 单委派仍检索失控（40+ 次/2 分钟），且暴露三新事实：① **prompt 纪律对膨胀上下文无效**——每次检索返回 5 条全文命中（数百-2000 字/条），40 轮滚胀至数十万 token 后指令被淹没，flash 不读 system prompt 只顾继续调工具，委派①撞 60s 超时（非打断式弃任务仍在后台继续检索直至自灭）；② **审计快照结构性膨胀**——子代理检索直写主请求 RetrievalContext trace，审计行 retrieved_chunks 累积 883 条（唯一 chunk 仅 43，重复率 95%）；③ **输出护栏误伤**——主 Agent 综合的好答案被输出侧词表 import-out-09（BUSINESS_CONFIDENTIAL, BLOCK）整段替换为 22 字拒答（知识面即保密制度文档，输出天然高密度敏感词面；词表运营项非代码缺陷，用户侧第五 Tab 处置）。修复 = searchKnowledge **载荷截断**（每条正文 `max-chars` 缺省 400，高频检索 = 摘要级载荷，全文经 getDocument 深读）+ **检索预算闸**（`max-searches` 缺省 6 次/请求，跨委派与超时弃任务同计数——弃任务检索时预算尽即收到停止提示自然了断；返回 SearchOutcome{hits, note}，note 始终携带剩余次数、预算尽时携带停止指令）+ **trace 隔离**（检索管线喂仅拷贝租户身份的隔离 ctx，主请求 trace/rewritten_query 零污染；溯源改经 `search:knowledge` ToolCall 快照承载，query 摘要入审计 tool_calls——agent 链检索溯源语义反而增强）；getDocument 同步记 `get:document` 审计条目。详 §11.5.5 补注。
 >
 > **v2.104（2026-09-05，簇⑤ E2E 热修四：编排链演示首跑挂死治敛）**：mode=agent 首条演示任务 3.5 分钟无回答且检索日志持续输出。根因三层——① 子代理工具循环无收敛纪律：knowledge-searcher（qwen3.8-flash）单次委派内对同一要点反复换词调 searchKnowledge 达 15 次（每次 2.5-4s = flash 决策 + 改写 LLM + 检索 ~0.7s + 重排），全文命中 ×5 条/次滚胀上下文加剧不收敛，最终撞 60s 委派超时；② 主 Agent 委派纪律第 4 条「可重试一次」被字面执行——超时后原样重发同一委派必然再超时，循环无出口；③ 无委派总预算硬闸。修复三层 = knowledge-searcher system prompt 补检索收敛纪律（1-3 次即归纳、禁同义反复检索）+ 主 Agent 纪律第 4 条改「不得原样重发、须大幅缩小范围」并新增第 5 条总次数预算 + TaskTool 委派预算硬闸（`rag.orchestrator.max-delegations` 缺省 6，按快照 `task:*` 记录计数，超限文本拒绝并要求立即综合作答，拒绝事件入快照可审计）。详 §11.5.5 补注。
 >
@@ -778,6 +780,19 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 > 概率性约束，硬闸是确定性兜底，两者缺一不可。经验形态：三代理演示任务端到
 > 端 1-3 分钟属正常量级（主模型强制思考 + 串行委派 + 子代理检索管线），等待期
 > 无 token 输出为收窄版预期行为。
+>
+> **v2.105 补注（E2E 热修五：载荷与审计治理）**：热修四实证复查——prompt
+> 收敛纪律**只在上下文未膨胀时有效**：工具循环每轮全文载荷（5 条 × 数百-2000
+> 字）滚胀至数十万 token 后，指令注意力被淹没，纪律失效（40+ 次检索实证）。
+> 结论：**agentic 检索工具的载荷治理优先级高于 prompt 纪律**——载荷截断
+> （`max-chars`）控制单次注入量、检索预算闸（`max-searches`，跨委派与弃任务
+> 同计数）提供确定性出口、trace 隔离保住审计快照不被子代理检索污染（溯源改
+> `search:knowledge`/`get:document` ToolCall 记录，query 摘要入审计——agent
+> 链检索溯源语义增强）。弃任务（非打断式超时）经预算闸协同自然了断：其后续
+> 检索读到停止提示即收敛，无需引入协作取消机制。**输出护栏误伤面**（import-out-09
+> BUSINESS_CONFIDENTIAL 整段替换）为词表运营项：知识库场景输出天然高密度内部
+> 词面，处置 = Admin 第五 Tab 词项降 FLAG / 收紧词面（A4 生命周期），rag 链
+> 同题对照可判定误伤是否编排链特有。
 
 **组件（kb-ai-agent `orchestration/` 包）**：
 
@@ -787,7 +802,7 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 | `SubAgentRegistry` | 静态注册表 + `renderRoster()` 渲染子代理清单进主 Agent system prompt（`%s` 占位注入）——**真实工具挂接点：新 Spec 注册即自动纳入，链路零改动** |
 | `TaskTool` | `@Tool task(subagent, description, toolContext)`：按 Spec 委派（子 ChatClient 按 Spec.name 缓存，**轻链构建**——不挂 Memory/Audit/配额防双计）；身份三键下传子调用（`APPROVED_TOOL_CALL_ID` 不下传——编排链无跨层 HITL，凭证不可经委派透传）；失败/超时**文本化回流**主 Agent 决策（不抛异常击穿主链）；超时非打断式 `cancel(false)`（坑位㊶ 先例）；**委派预算硬闸**（`max-delegations` 缺省 6，快照 `task:*` 计数超限文本拒绝——v2.104 热修四）；终态 `recordToolCall`（EXECUTED/FAILED）+ `rag.orchestrator.delegation`/`subagent.duration` 指标 |
 | `AgentOrchestratorService` | 同步/流式服务（契约对齐 ToolChatService，签名无 approvedToolCallId——物理消除凭证流入）；`MODE_KEY='agent'` |
-| `KnowledgeSearchTools` | 知识检索子代理工具：searchKnowledge（改写→双路[+Graph]召回→RRF→重排，**零 LLM**，管线同构 McpKnowledgeTools）+ getDocument（跨租户/不存在一律 KB_DOC_NOT_FOUND + 软删过滤 + chunk 上限截断）；身份经 toolContext 下传链（MCP 版经 identityGuard JWT 捕获不同源，不可复用实例——N3 核验定谳） |
+| `KnowledgeSearchTools` | 知识检索子代理工具：searchKnowledge（改写→双路[+Graph]召回→RRF→重排，**零 LLM**，管线同构 McpKnowledgeTools；**v2.105 热修五治理**——返回 SearchOutcome{hits, note}：正文每条截断 `max-chars`（缺省 400，高频检索 = 摘要级载荷）、检索预算闸 `max-searches`（缺省 6 次/请求，跨委派与弃任务同计数，note 携带剩余次数/停止指令）、trace 隔离（检索管线喂仅拷贝租户身份的隔离 ctx，主请求 trace 零污染））+ getDocument（跨租户/不存在一律 KB_DOC_NOT_FOUND + 软删过滤 + chunk 上限截断）；检索/读档记录 `search:knowledge`/`get:document` ToolCall 快照（agent 链检索溯源审计语义）；身份经 toolContext 下传链（MCP 版经 identityGuard JWT 捕获不同源，不可复用实例——N3 核验定谳） |
 
 **三 Mock 子代理（D2 定案差异化模型）**：knowledge-searcher / data-query 挂
 `fallbackChatModel`（qwen3.8-flash，轻任务挂备先例 v2.83），report-writer 挂

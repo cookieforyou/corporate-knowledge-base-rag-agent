@@ -45,7 +45,7 @@ kb-rag-agent/
 
 **三链路架构**：`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索 + defaultTools）+ `orchestratorChatClient`（kb-ai-agent，**簇⑤ 5.3 编排链**，条件装配 `rag.orchestrator.enabled` 缺省关）；请求体 `mode: rag|tool|agent` 显式分流（agent 关闭态显式 400 ORCHESTRATOR_DISABLED）；共享 smartRoutingChatModel / agentChatMemory / 护栏配额 Advisor / RetrievalContext；toolContext 仅 ToolChatService / AgentOrchestratorService 组装（物理消除 HITL 凭证泄露）；链序见 11.2/§11.5.5
 
-**Multi-Agent 编排（Phase 5 簇⑤ 收窄版）**：Orchestrator-Workers——主 Agent 仅持 `TaskTool` 委派工具（委派即工具调用：SSE TOOL_CALL/审计/rag.tool.call.* 协议零变更）；`orchestration/` = SubAgentSpec（record，工具集不含 task 防递归）/ SubAgentRegistry（静态注册 + roster 注入主 Agent prompt = 真实工具挂接点）/ TaskTool（身份三键下传、凭证不下传、失败文本化回流、非打断式超时、委派预算硬闸）/ KnowledgeSearchTools（检索同构 MCP 零 LLM，身份走 toolContext）；三 Mock 子代理差异化模型（检索收敛纪律）；Mock 拆 Read/Write 两类（tool 链双挂等价，保留至真实工具替换）；指标 `rag.orchestrator.*`；真实工具挂接契约六条 §11.5.5
+**Multi-Agent 编排（Phase 5 簇⑤ 收窄版）**：Orchestrator-Workers——主 Agent 仅持 `TaskTool` 委派工具（委派即工具调用：SSE TOOL_CALL/审计/rag.tool.call.* 协议零变更）；`orchestration/` = SubAgentSpec（record，工具集不含 task 防递归）/ SubAgentRegistry（静态注册 + roster 注入主 Agent prompt = 真实工具挂接点）/ TaskTool（身份三键下传、凭证不下传、失败文本化回流、非打断式超时、委派预算硬闸）/ KnowledgeSearchTools（检索同构 MCP 零 LLM，身份走 toolContext，治理:收敛+截断+检索闸）；三子代理差异化模型；Mock 拆 Read/Write 两类（tool 链双挂等价，保留至真实工具替换）；指标 `rag.orchestrator.*`；真实工具挂接契约六条 §11.5.5
 
 **全链路审计**：`AuditTraceAdvisor`(order 10 最外层)挂双链，异步落 kb_audit_log（旁路容错）；捕获被拒请求，三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏、改写查询经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
