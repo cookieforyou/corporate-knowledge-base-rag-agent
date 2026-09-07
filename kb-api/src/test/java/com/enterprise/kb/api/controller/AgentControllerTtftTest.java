@@ -18,6 +18,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,7 +63,7 @@ class AgentControllerTtftTest {
         Timer ttft = meterRegistry.find("rag.ttft").timer();
         assertThat(ttft).isNotNull();
         assertThat(ttft.count()).isEqualTo(1);
-        assertThat(ttft.totalTime(java.util.concurrent.TimeUnit.NANOSECONDS)).isPositive();
+        assertThat(ttft.totalTime(TimeUnit.NANOSECONDS)).isPositive();
     }
 
     @Test

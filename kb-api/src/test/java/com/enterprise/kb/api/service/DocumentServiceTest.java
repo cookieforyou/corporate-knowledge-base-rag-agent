@@ -36,6 +36,8 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -179,7 +181,7 @@ class DocumentServiceTest {
         ObjectProvider<GraphGateway> provider = mock(ObjectProvider.class);
         if (gateway != null) {
             org.mockito.Mockito.doAnswer(inv -> {
-                ((java.util.function.Consumer<GraphGateway>) inv.getArgument(0)).accept(gateway);
+                ((Consumer<GraphGateway>) inv.getArgument(0)).accept(gateway);
                 return null;
             }).when(provider).ifAvailable(any());
         }
@@ -297,10 +299,10 @@ class DocumentServiceTest {
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
         when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
 
-        java.util.concurrent.CompletableFuture<Boolean> outcome = service.reparse(DOC_ID, TENANT, null);
+        CompletableFuture<Boolean> outcome = service.reparse(DOC_ID, TENANT, null);
         assertThat(outcome).isNotCompleted();
 
-        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        ArgumentCaptor<Consumer<EtlProgress>> captor = callbackCaptor();
         verify(etlService).process(eq(DOC_ID), captor.capture(), any());
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
@@ -323,7 +325,7 @@ class DocumentServiceTest {
         when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
 
         service.reparse(DOC_ID, TENANT, null);
-        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        ArgumentCaptor<Consumer<EtlProgress>> captor = callbackCaptor();
         verify(etlService).process(eq(DOC_ID), captor.capture(), any());
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
@@ -352,7 +354,7 @@ class DocumentServiceTest {
 
         service.upload(file, TENANT, "u-1", null);
 
-        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        ArgumentCaptor<Consumer<EtlProgress>> captor = callbackCaptor();
         verify(etlService).process(anyString(), captor.capture(), any());
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.COMPLETED));
@@ -375,7 +377,7 @@ class DocumentServiceTest {
         ObjectProvider<GraphExtractionPublisher> provider = mock(ObjectProvider.class);
         if (publisher != null) {
             org.mockito.Mockito.doAnswer(inv -> {
-                ((java.util.function.Consumer<GraphExtractionPublisher>) inv.getArgument(0)).accept(publisher);
+                ((Consumer<GraphExtractionPublisher>) inv.getArgument(0)).accept(publisher);
                 return null;
             }).when(provider).ifAvailable(any());
         }
@@ -388,7 +390,7 @@ class DocumentServiceTest {
         ObjectProvider<CacheInvalidationPublisher> provider = mock(ObjectProvider.class);
         if (publisher != null) {
             org.mockito.Mockito.doAnswer(inv -> {
-                ((java.util.function.Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
+                ((Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
                 return null;
             }).when(provider).ifAvailable(any());
         }
@@ -402,9 +404,9 @@ class DocumentServiceTest {
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(document));
         when(documentRepository.acquireForReindex(anyString(), any(), anyList())).thenReturn(1);
 
-        java.util.concurrent.CompletableFuture<Boolean> outcome = service.reparse(DOC_ID, TENANT, null);
+        CompletableFuture<Boolean> outcome = service.reparse(DOC_ID, TENANT, null);
 
-        ArgumentCaptor<java.util.function.Consumer<EtlProgress>> captor = callbackCaptor();
+        ArgumentCaptor<Consumer<EtlProgress>> captor = callbackCaptor();
         verify(etlService).process(eq(DOC_ID), captor.capture(), any());
 
         captor.getValue().accept(new EtlProgress(DOC_ID, EtlStage.FAILED));
@@ -412,8 +414,8 @@ class DocumentServiceTest {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static ArgumentCaptor<java.util.function.Consumer<EtlProgress>> callbackCaptor() {
-        return ArgumentCaptor.forClass((Class) java.util.function.Consumer.class);
+    private static ArgumentCaptor<Consumer<EtlProgress>> callbackCaptor() {
+        return ArgumentCaptor.forClass((Class) Consumer.class);
     }
 
     // ── replace（替换原件）──

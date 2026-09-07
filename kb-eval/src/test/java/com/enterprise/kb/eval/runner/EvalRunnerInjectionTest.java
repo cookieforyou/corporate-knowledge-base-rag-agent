@@ -172,7 +172,7 @@ class EvalRunnerInjectionTest {
         when(guardrailChatClient.prompt().user(anyString()).call().content())
             .thenReturn("（L1 未拦截）");
         when(guardrailL2ChatClient.prompt().user(anyString())
-            .advisors(any(java.util.function.Consumer.class)).call().content())
+            .advisors(any(Consumer.class)).call().content())
             .thenThrow(new BusinessException("PROMPT_INJECTION", "L2 拦截"));
 
         EvalReport report = runner(List.of(

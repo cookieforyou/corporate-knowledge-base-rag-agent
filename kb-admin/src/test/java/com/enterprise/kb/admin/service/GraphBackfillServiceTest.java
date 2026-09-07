@@ -58,8 +58,7 @@ class GraphBackfillServiceTest {
         provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(extractionService);
 
-        service = new GraphBackfillService(documentRepository, provider,
-            (java.util.concurrent.Executor) Runnable::run, store);
+        service = new GraphBackfillService(documentRepository, provider, Runnable::run, store);
         ReflectionTestUtils.setField(service, "concurrency", 1);
         ReflectionTestUtils.setField(service, "docTimeoutMinutes", 1L);
         ReflectionTestUtils.setField(service, "pollSeconds", 1L);

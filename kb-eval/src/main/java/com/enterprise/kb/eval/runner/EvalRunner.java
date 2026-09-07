@@ -28,6 +28,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -553,8 +555,8 @@ public class EvalRunner {
         // Semaphore 限流 concurrency 个在飞用例（虚拟线程无上限，不限流会击穿 LLM API 速率限制）；
         // concurrency=1 退化为串行。结果按数据集顺序收集，报告逐用例明细顺序不变。
         List<EvalResult> results = new ArrayList<>();
-        var inflight = new java.util.concurrent.Semaphore(concurrency);
-        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+        var inflight = new Semaphore(concurrency);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var futures = dataset.stream()
                 .map(pair -> executor.submit(() -> {
                     inflight.acquire();

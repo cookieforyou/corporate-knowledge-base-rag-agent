@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -51,7 +52,7 @@ class AiBusinessMetricsTest {
         metrics.recordRetrievalLatency(Duration.ofMillis(120));
 
         assertThat(registry.timer("rag.retrieval.latency").count()).isEqualTo(1);
-        assertThat(registry.timer("rag.retrieval.latency").totalTime(java.util.concurrent.TimeUnit.MILLISECONDS))
+        assertThat(registry.timer("rag.retrieval.latency").totalTime(TimeUnit.MILLISECONDS))
             .isEqualTo(120.0);
     }
 

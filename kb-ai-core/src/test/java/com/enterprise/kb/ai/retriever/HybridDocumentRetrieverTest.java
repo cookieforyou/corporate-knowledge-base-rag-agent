@@ -11,8 +11,11 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,10 +49,11 @@ class HybridDocumentRetrieverTest {
     }
 
     private void buildHybrid(GraphDocumentRetriever graphRetriever) {
-        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever, new RrfFusion(properties, metrics),
-            metrics, properties,
-            java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor(),
-            graphProvider(graphRetriever));
+        hybrid = new HybridDocumentRetriever(vectorStore, esRetriever,
+                new RrfFusion(properties, metrics),
+                metrics, properties,
+                Executors.newVirtualThreadPerTaskExecutor(),
+                graphProvider(graphRetriever));
     }
 
     @BeforeEach
@@ -221,8 +225,8 @@ class HybridDocumentRetrieverTest {
     @Test
     void executorInjectionPointPinnedByQualifier() {
         var ctor = HybridDocumentRetriever.class.getDeclaredConstructors()[0];
-        var param = java.util.Arrays.stream(ctor.getParameters())
-            .filter(p -> p.getType() == java.util.concurrent.ExecutorService.class)
+        var param = Arrays.stream(ctor.getParameters())
+            .filter(p -> p.getType() == ExecutorService.class)
             .findFirst().orElseThrow();
         var qualifier = param.getAnnotation(
             org.springframework.beans.factory.annotation.Qualifier.class);

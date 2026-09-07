@@ -26,6 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -319,7 +320,7 @@ class ChunkOpsServiceTest {
         ObjectProvider<CacheInvalidationPublisher> provider = mock(ObjectProvider.class);
         if (publisher != null) {
             org.mockito.Mockito.doAnswer(inv -> {
-                ((java.util.function.Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
+                ((Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
                 return null;
             }).when(provider).ifAvailable(any());
         }

@@ -10,6 +10,7 @@ import org.springframework.lang.Nullable;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /**
  * 请求级检索上下文（设计文档 10.2.1）—— **每请求纯实例，经 Advisor 参数传递**
@@ -106,20 +107,18 @@ public class RetrievalContext {
      * （rag 链阶段锚点 / TaskTool 委派 / KnowledgeSearchTools 检索预算）经
      * {@link #emitProgress} 推送——缺席即 no-op（同步路径/评估链零开销）。
      * volatile：注册在请求线程，emit 在工具执行/检索线程。
+     * -- SETTER --
+     * 注册进度监听器（Controller 流式入口；null 即清除）
      */
-    private volatile java.util.function.Consumer<ProgressEvent> progressListener;
-
-    /** 注册进度监听器（Controller 流式入口；null 即清除） */
-    public void setProgressListener(java.util.function.Consumer<ProgressEvent> listener) {
-        this.progressListener = listener;
-    }
+    @Setter
+    private volatile Consumer<ProgressEvent> progressListener;
 
     /**
      * 推送阶段/检索进度事件（kind ∈ {stage, retrieval}）；监听器缺席或异常静默
      * no-op——进度是旁路增值信号，不得影响主链路。
      */
     public void emitProgress(String kind, String text) {
-        java.util.function.Consumer<ProgressEvent> listener = progressListener;
+        Consumer<ProgressEvent> listener = progressListener;
         if (listener != null) {
             try {
                 listener.accept(new ProgressEvent(kind, text, null));
@@ -134,7 +133,7 @@ public class RetrievalContext {
      * 流末快照仍由 Controller 投影兜底（同步/审计/归档消费面不变）。
      */
     public void emitToolCallsSnapshot() {
-        java.util.function.Consumer<ProgressEvent> listener = progressListener;
+        Consumer<ProgressEvent> listener = progressListener;
         if (listener != null) {
             try {
                 listener.accept(new ProgressEvent("tool_call", null, List.copyOf(toolCalls)));
