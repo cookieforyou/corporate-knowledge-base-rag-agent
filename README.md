@@ -16,7 +16,7 @@
 
 区别于 Dify / RAGFlow / MaxKB 等通用平台方案，本项目聚焦 Spring AI 生态内的三件事：**深度可溯源**（多路得分透明的检索调试台）、**企业权限集成**（Casdoor 认证 / 多租户 fail-closed 隔离 / 三层角色分级）、**运维闭环**（评估门禁 / 全链路审计 / 护栏体系 / 可观测性）——适合对审计与溯源有强需求、以 Java 为技术栈的企业。
 
-> **项目状态**：Phase 1-4 已全部收官并通过用户侧验收；当前推进 Phase 5（收官阶段）——收尾清零 / 评估进化 / 语义缓存 / GraphRAG 四簇已收官，主答模型已切换 GLM-5.3-Flash，Agent 编排与产品化收尾推进中。能力矩阵见[阶段概览](#阶段概览)。
+> **项目状态**：Phase 1-4 已全部收官并通过用户侧验收；Phase 5（收官阶段）——①-⑤ 簇与模型层（主答 GLM-5.3-Flash）已收官，簇⑥ 产品化收尾推进中（E2E 体验三问优化已交付：三链路真流式 / 实时进度推送 / 委派卡片历史回显）。能力矩阵见[阶段概览](#阶段概览)。
 
 ## 目录
 
@@ -45,14 +45,16 @@
 
 ### Agent 与工具
 
-- 🛠️ **双链路物理隔离**：`ragAgentChatClient`（纯检索零工具）与 `toolAgentChatClient`（纯工具零检索）按请求体 `mode: rag|tool` 显式分流——rag 链零工具 schema 注入，tool 链零检索成本，toolContext 通道物理消除凭证泄露面
+- 🛠️ **三链路物理隔离**：`ragAgentChatClient`（纯检索零工具）/ `toolAgentChatClient`（纯工具零检索）/ `orchestratorChatClient`（编排委派）按请求体 `mode: rag|tool|agent` 显式分流——rag 链零工具 schema 注入，tool 链零检索成本，toolContext 通道物理消除凭证泄露面
+- 🧩 **Multi-Agent 编排链**：`mode: agent` 第三链（Orchestrator-Workers）——主 Agent 仅持 task 委派工具，子代理静态注册差异化模型（检索 / 数据 / 撰写），委派即工具调用（审批卡片 / 审计 / 指标协议全复用）；委派与检索双预算硬闸防工具循环；`rag.orchestrator.enabled` 缺省关
+- ✨ **真流式体验**：输出护栏流式增量放行（安全滞后窗逐块判定，命中吞断 + REPLACE 追回话术，不再整流缓冲瞬间倾泻）；SSE `PROGRESS` 阶段进度 + `TOOL_CALL` 卡片实时推送（委派 / 检索随执行逐次出现）+ 心跳防中间层掐断；溯源与委派 / 审批卡片随会话历史回显
 - ✋ **HITL 人工审批**：企业 Mock 工具对齐真实 OA/ERP 契约，读工具自动执行、写工具三段式审批（挂起 → approve → 一次性消费），Redis 账本 TTL + 租户/用户绑定，故障 fail-closed
 - 📡 **MCP Server**：Streamable HTTP `/mcp` 暴露三工具（search / get_document / ask），JWT 身份守卫 + scope 治理 + 独立限流桶；`ask` 全链复用 RAG 管线与护栏
 
 ### 安全与合规
 
 - 🏢 **多租户 fail-closed 两层**：入口身份守卫（tenantId 缺失即拒）+ 检索器有上下文无租户返回空结果（多路零触达），全链路零例外
-- 🛡️ **三段护栏**：输入消毒（NFKC 归一化 + PII 七类识别器掩码 + 注入词表拦截）→ L2 语义二判（可疑触发备用模型判定，fail-open 回落）→ 输出黑名单整段替换（流式聚合后验）；召回证据入生成前另有间接注入扫描（warn/exclude 双策略）
+- 🛡️ **三段护栏**：输入消毒（NFKC 归一化 + PII 七类识别器掩码 + 注入词表拦截）→ L2 语义二判（可疑触发备用模型判定，fail-open 回落）→ 输出黑名单流式增量放行（命中吞断 + 追回安全话术）；召回证据入生成前另有间接注入扫描（warn/exclude 双策略）
 - 🔑 **三层权限分级**：普通用户 / 租户管理员（isAdmin）/ 系统超管（owner=built-in）——Casdoor JWT claims 直映射 Spring Security 角色，护栏词表等系统级资产超管独占
 - 📜 **全链路审计**：三态落库（SUCCESS / REJECTED / ERROR，含被拒请求），query 脱敏、改写查询经装饰器捕获；用户反馈经 trace_id 回填审计行
 - 🔏 **PII 治理**：七类独立识别器（手机/身份证/邮箱/银行卡/座机/车牌/IPv4），对话链 / ETL / 审计 / MCP / 入口日志同一实现源；每类型可独立开关
@@ -90,11 +92,13 @@ flowchart TB
         ADV --> PIPE
     end
 
-    subgraph TOOL["tool 链 toolAgentChatClient · kb-ai-agent · 零检索"]
+    subgraph TOOL["tool/agent 链 · kb-ai-agent · 零检索"]
         direction TB
         TADV["共享治理链 → ToolCallingAdvisor"]
-        HITL["企业 Mock 工具 · 写工具 HITL 三段式审批"]
+        HITL["tool 链 toolAgentChatClient<br/>企业 Mock 工具 · 写工具 HITL 三段式审批"]
+        ORCH["agent 链 orchestratorChatClient<br/>Orchestrator-Workers · task 委派三子代理（检索/数据/撰写）"]
         TADV --> HITL
+        TADV --> ORCH
     end
 
     subgraph ETL["kb-etl 文档加工流水线"]
@@ -118,6 +122,7 @@ flowchart TB
     FE --> API
     API -->|mode: rag| RAG
     API -->|mode: tool| TOOL
+    API -->|mode: agent| TOOL
     API -->|/mcp| TOOL
     ETL --> STORE
     RAG --> STORE
@@ -126,16 +131,17 @@ flowchart TB
     RAG -.-> OBS
 ```
 
-### 双链路与 Advisor 链序
+### 三链路与 Advisor 链序
 
-安全与配额 Advisor 双链共享、物理隔离各自装配（order 即执行优先级）：
+安全与配额 Advisor 三链共享、物理隔离各自装配（order 即执行优先级）：
 
 | 链 | Advisor 链（order） |
 |---|---|
 | **rag 链**（kb-ai-core） | AuditTrace(10) → TokenBudget(30) → RateLimit(100) → OutputGuardrail(110) → InputSanitize(300) → SemanticInjection(320) → Memory(400) → QueryRouting(440) → Trace(450) → CacheCheck(460，条件挂载) → RetrievalGate(500，内包检索管线) |
 | **tool 链**（kb-ai-agent） | AuditTrace(10) → TokenBudget(30) → RateLimit(100) → OutputGuardrail(110) → InputSanitize(300) → SemanticInjection(320) → Memory(400) → ToolCallingAdvisor(1000) |
+| **agent 编排链**（kb-ai-agent，条件装配） | 同 tool 链 + TaskBoundary(420，多轮任务边界注记) → ToolCallingAdvisor(1000)（唯一工具 = task 委派） |
 
-两条链共享：智能路由 ChatModel（主备容灾）、跨链会话记忆（同 sessionId 历史互通）、护栏与配额 Advisor、请求级 `RetrievalContext`（租户过滤 / 溯源 / 配额身份的参数链载体——不依赖 ThreadLocal，天然兼容流式异步线程切换）。
+三条链共享：智能路由 ChatModel（主备容灾）、跨链会话记忆（同 sessionId 历史互通）、护栏与配额 Advisor、请求级 `RetrievalContext`（租户过滤 / 溯源 / 配额身份 / 进度推送的参数链载体——不依赖 ThreadLocal，天然兼容流式异步线程切换）。
 
 ### 检索管线
 
@@ -244,7 +250,7 @@ curl http://localhost:8080/actuator/health
 | 授权 | 三层角色：普通用户 / 租户管理员（isAdmin）/ 系统超管（owner=built-in） |
 | 租户隔离 | fail-closed 两层：入口身份守卫 + 检索器无租户即空结果 |
 | 输入护栏 | NFKC 归一化 + PII 七类掩码 + 注入词表拦截（L1）+ 备用模型语义二判（L2） |
-| 输出护栏 | 黑名单整段替换（流式聚合后验）+ PII 回显观察 |
+| 输出护栏 | 黑名单流式增量放行（命中吞断 + 追回安全话术）+ PII 回显观察 |
 | 间接注入 | 召回证据入生成前逐条扫描，warn / exclude 双策略 |
 | 配额 | 租户日 Token 预算 + Redisson 每租户令牌桶限流（429） |
 | 审计 | 三态异步旁路落库（含被拒请求），查询脱敏，trace_id 反馈回填 |
@@ -264,7 +270,7 @@ curl http://localhost:8080/actuator/health
 
 | 域 | 端点 | 权限 |
 |---|---|---|
-| 对话 | `POST /api/v1/chat`、`POST /api/v1/chat/stream`（SSE 主入口） | 全员 |
+| 对话 | `POST /api/v1/chat`、`POST /api/v1/chat/stream`（SSE 主入口：TOKEN / PROGRESS / TOOL_CALL / TRACE / REPLACE / DONE 帧族） | 全员 |
 | 文档 | `/api/v1/documents`：上传 / 列表 / 详情 / chunks / 删除 / 重解析 / 替换 | 上传与读全员，治理写租户管理员 |
 | 检索调试 | `POST /api/v1/retrieval/search`（三路得分透传） | 全员 |
 | 会话与反馈 | `/api/v1/sessions`、`/api/v1/feedback` | 全员（租户+用户双过滤） |
@@ -287,7 +293,7 @@ curl http://localhost:8080/actuator/health
 | 优化冲刺 | 六簇：流式计账/熔断加固、检索调优 A/B、语境增强、Bad Case 治理、护栏加固、增量重入库 | ✅ |
 | 安全加固专项 | 六簇：词表工程、平台层零缺口、PII 注册表化、间接注入闭环、L2 语义判定、词表运营与对抗自动化 | ✅ |
 | Phase 4 | 七簇：观测地基 / 面板统计 / Chunk 运维与索引重建 / Bad Case 运营闭环 / MCP Server 产品化 / 生产加固压测 / 文档与格式收尾 | ✅ 全阶段收官（用户侧验收通过） |
-| Phase 5 | 六簇：收尾清零 / 评估进化 / 语义缓存 / GraphRAG / Agent 编排 / 产品化收尾 + 模型层批B | 🔄 ①-④ + 模型层（GLM-5.3-Flash）已收官，⑤⑥ 推进中 |
+| Phase 5 | 六簇：收尾清零 / 评估进化 / 语义缓存 / GraphRAG / Agent 编排 / 产品化收尾 + 模型层批B | 🔄 ①-⑤ + 模型层（GLM-5.3-Flash）已收官，⑥ 产品化收尾推进中 |
 
 ## 文档
 
