@@ -141,8 +141,10 @@
           <!-- 委派/审批卡片实时渲染（簇⑥ 批3：TOOL_CALL 帧流中多次推送增量更新） -->
           <ToolCallCard v-for="(tc, j) in streamToolCalls" :key="j" :call="tc"
             @confirmed="onApprovalConfirmed" />
-          <!-- 阶段/检索进度行（簇⑥ 批3：PROGRESS 帧；token 到达后让位于正文） -->
-          <div v-if="progressText && !streamText" class="progress-line">
+          <!-- 阶段/检索进度行（簇⑥ 批3：PROGRESS 帧；E2E 补强三——常驻至流结束，
+               不因 token 让位：编排链 token 是散落过渡叙述（「我先委派…」数语），
+               让位假设仅 rag 链成立，编排链 token 一吐进度即被吞没） -->
+          <div v-if="progressText" class="progress-line">
             <el-icon class="is-loading"><Loading /></el-icon>
             <span>{{ progressText }}</span>
           </div>
