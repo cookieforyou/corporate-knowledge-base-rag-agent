@@ -22,6 +22,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
@@ -325,8 +326,8 @@ public class ChatSessionService {
             return null;
         }
         try {
-            tools.jackson.databind.JsonNode node = jsonMapper.readTree(metadata);
-            tools.jackson.databind.JsonNode array = node.get("toolCalls");
+            JsonNode node = jsonMapper.readTree(metadata);
+            JsonNode array = node.get("toolCalls");
             if (array == null || !array.isArray()) {
                 return null;
             }

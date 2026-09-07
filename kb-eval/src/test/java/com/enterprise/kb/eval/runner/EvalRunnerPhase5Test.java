@@ -6,6 +6,7 @@ import com.enterprise.kb.eval.dataset.QACategory;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,7 @@ class EvalRunnerPhase5Test {
             }
         };
         return new EvalRunner(null, List.of(stub), null, null, null, null, null, null, props,
-            tools.jackson.databind.json.JsonMapper.builder().build(), null);
+            JsonMapper.builder().build(), null);
     }
 
     private static GoldenQAPair pair(String id, QACategory category, String question) {

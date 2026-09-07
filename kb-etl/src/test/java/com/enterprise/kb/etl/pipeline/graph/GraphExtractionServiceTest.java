@@ -1,6 +1,7 @@
 package com.enterprise.kb.etl.pipeline.graph;
 
 import com.enterprise.kb.domain.enums.ChunkType;
+import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.enums.GraphStatus;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
@@ -103,7 +104,7 @@ class GraphExtractionServiceTest {
         KbDocument doc = new KbDocument();
         doc.setId("d1");
         doc.setTenantId(tenantId);
-        doc.setStatus(com.enterprise.kb.domain.enums.DocumentStatus.SUCCESS);
+        doc.setStatus(DocumentStatus.SUCCESS);
         return doc;
     }
 

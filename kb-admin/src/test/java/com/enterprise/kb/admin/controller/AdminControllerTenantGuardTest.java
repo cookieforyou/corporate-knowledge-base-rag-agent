@@ -1,17 +1,6 @@
 package com.enterprise.kb.admin.controller;
 
-import com.enterprise.kb.admin.dto.AuditLogPage;
-import com.enterprise.kb.admin.dto.ChunkUpdateRequest;
-import com.enterprise.kb.admin.dto.DrillRequest;
-import com.enterprise.kb.admin.dto.DrillResult;
-import com.enterprise.kb.admin.dto.GuardrailRuleCreateRequest;
-import com.enterprise.kb.admin.dto.GuardrailRulePage;
-import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
-import com.enterprise.kb.admin.dto.RebuildRequest;
-import com.enterprise.kb.admin.dto.ReingestRequest;
-import com.enterprise.kb.admin.dto.ReloadResult;
-import com.enterprise.kb.admin.dto.ResolvedRequest;
-import com.enterprise.kb.admin.dto.RootCauseRequest;
+import com.enterprise.kb.admin.dto.*;
 import com.enterprise.kb.admin.service.AuditLogQueryService;
 import com.enterprise.kb.admin.service.BadCaseService;
 import com.enterprise.kb.admin.service.ChunkOpsService;
@@ -161,7 +150,7 @@ class AdminControllerTenantGuardTest {
     @Test
     void rebuildStartPassesNullBodyAsFullMode() {
         when(indexRebuildService.start(eq("t-1"), eq(null)))
-            .thenReturn(new com.enterprise.kb.admin.dto.RebuildTaskView(
+            .thenReturn(new RebuildTaskView(
                 "task-1", "RUNNING", 0, 0, 0, 0, null, null, List.of()));
 
         var response = rebuildController.start(jwtWithOwner("t-1"), null);
@@ -184,7 +173,7 @@ class AdminControllerTenantGuardTest {
     @Test
     void rebuildListAndDetailPassOwnerClaimAsTenant() {
         when(indexRebuildService.detail("t-1", "task-1"))
-            .thenReturn(new com.enterprise.kb.admin.dto.RebuildTaskView(
+            .thenReturn(new RebuildTaskView(
                 "task-1", "RUNNING", 0, 0, 0, 0, null, null, List.of()));
 
         rebuildController.tasks(jwtWithOwner("t-1"));
@@ -236,7 +225,7 @@ class AdminControllerTenantGuardTest {
     void badCaseAnnotateAndReingestPassOwnerClaimAsTenant() {
         when(badCaseService.annotate("t-1", 3L, "RETRIEVAL_MISS")).thenReturn("RETRIEVAL_MISS");
         when(badCaseService.reingest(eq("t-1"), any()))
-            .thenReturn(new com.enterprise.kb.admin.dto.ReingestResult(
+            .thenReturn(new ReingestResult(
                 "bc-3", "f", "q", "FACTOID", null));
 
         var annotateResponse = badCaseController.annotate(jwtWithOwner("t-1"), 3L,
@@ -373,7 +362,7 @@ class AdminControllerTenantGuardTest {
     @Test
     void exportSummaryDelegatesOwnerClaimAsTenant() {
         when(feedbackExportService.summary("t-1")).thenReturn(
-            new com.enterprise.kb.admin.dto.FeedbackExportSummary(
+            new FeedbackExportSummary(
                 2, 1, 1, 1, 2, 1, 1, 1, 0, 0, 0, 0,
                 100, false, 50, false));
 
