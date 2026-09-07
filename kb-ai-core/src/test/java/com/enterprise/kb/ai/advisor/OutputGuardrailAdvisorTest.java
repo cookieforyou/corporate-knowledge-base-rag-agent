@@ -15,6 +15,8 @@ import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -492,6 +494,36 @@ class OutputGuardrailAdvisorTest {
             .collectList().block();
 
         assertThat(results).anySatisfy(r -> assertThat(r).isSameAs(usageFrame));
+    }
+
+    /**
+     * 尾窗块元数据传播（E2E 回传热修）：审计流式取数读流<b>最后一个</b>元素的
+     * model/usage——尾窗合成块（concatWith 段，恒为末元素）必须携带流末真实
+     * metadata。曾以 recombined(null,…) 构造，缺省 ChatResponseMetadata 即
+     * model "" + EmptyUsage 零值，致 kb_audit_log.model_name 空 +
+     * token_usage 归零（三链路 SUCCESS 轮全中）。
+     */
+    @Test
+    void tailFlushCarriesLastRealMetadataForAuditLastChunkRead() {
+        OutputGuardrailAdvisor target = controlledAdvisor(new PromptCanary(false));
+        RetrievalContext ctx = new RetrievalContext();
+        ChatResponseMetadata metadata = ChatResponseMetadata.builder()
+            .model("glm-test").usage(new DefaultUsage(10, 20, 30)).build();
+        ChatClientResponse usageFrame = ChatClientResponse.builder()
+            .chatResponse(new ChatResponse(List.of(), metadata))
+            .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx))
+            .build();
+
+        // 内容 6 字 < 窗口 11：流中零放行，尾窗整体 flush = 末元素
+        List<ChatClientResponse> results = streamThroughWithCtx(target, List.of(
+                response("合规内容若干"), usageFrame), ctx)
+            .collectList().block();
+
+        ChatClientResponse last = results.get(results.size() - 1);
+        assertThat(last.chatResponse().getResult().getOutput().getText())
+            .isEqualTo("合规内容若干");
+        assertThat(last.chatResponse().getMetadata().getModel()).isEqualTo("glm-test");
+        assertThat(last.chatResponse().getMetadata().getUsage().getTotalTokens()).isEqualTo(30);
     }
 
     // ── 热重载（安全簇⑥ F1）──

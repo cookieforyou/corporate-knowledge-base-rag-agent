@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -311,12 +312,21 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
         StringBuilder pending = new StringBuilder();
         StringBuilder fullText = new StringBuilder();
         AtomicBoolean truncated = new AtomicBoolean();
+        // 流末真实 metadata 备援（E2E 回传热修）：审计（AuditTraceAdvisor 流式取数）
+        // 读流最后一个元素的 model/usage——尾窗合成块必须携带，无 metadata 的合成
+        // 末块曾致 kb_audit_log.model_name 空 + token_usage 归零（缺省
+        // ChatResponseMetadata 即 "" + EmptyUsage）；TokenBudget 不受影响（after()
+        // 锚 onFinishReason 块，该块经空文本透传原样放行）
+        AtomicReference<ChatClientResponse> lastMetadataCarrier = new AtomicReference<>();
         return chain.nextStream(request)
             .<ChatClientResponse>handle((response, sink) -> {
                 String text = extractText(response);
                 if (text != null && !text.isEmpty()) {
                     pending.append(text);
                     fullText.append(text);
+                }
+                if (response.chatResponse() != null && response.chatResponse().getMetadata() != null) {
+                    lastMetadataCarrier.set(response);
                 }
                 if (truncated.get()) {
                     return;   // 截断后迟到块：只累积观察视图，不再放行
@@ -368,9 +378,10 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
                 if (truncated.get() || pending.isEmpty()) {
                     return Mono.<ChatClientResponse>empty();
                 }
-                // 放行尾部保留窗（流完成即无后续，窗口使命结束）；usage 等元数据
-                // 已随空文本帧透传或流中重组块携带，此块无需 metadata
-                return Mono.just(recombined(null, pending.toString()));
+                // 放行尾部保留窗（流完成即无后续，窗口使命结束）；携带流末真实
+                // metadata（模型名/usage）——审计以末元素取数，合成块缺元数据即断
+                // model_name/token_usage 计量链（E2E 回传热修）
+                return Mono.just(recombined(lastMetadataCarrier.get(), pending.toString()));
             }));
     }
 
