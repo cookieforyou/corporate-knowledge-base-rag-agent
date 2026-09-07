@@ -34,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -160,7 +161,7 @@ class DocumentServiceTest {
     @Test
     void deleteDispatchesGraphCleanupAsynchronously() {
         GraphGateway gateway = mock(GraphGateway.class);
-        List<Runnable> dispatched = new java.util.ArrayList<>();
+        List<Runnable> dispatched = new ArrayList<>();
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
             graphPublisherProvider(null), gatewayProvider(gateway), dispatched::add);   // 只收任务不执行

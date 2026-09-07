@@ -1,5 +1,6 @@
 package com.enterprise.kb.commons.security.pii;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -37,7 +38,7 @@ public final class LicensePlatePiiRecognizer extends RegexPiiRecognizer {
         while (matcher.find()) {
             String candidate = matcher.group();
             matcher.appendReplacement(sb,
-                java.util.regex.Matcher.quoteReplacement(candidate.substring(0, 2) + "*****"));
+                Matcher.quoteReplacement(candidate.substring(0, 2) + "*****"));
         }
         matcher.appendTail(sb);
         return sb.toString();

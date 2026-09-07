@@ -8,6 +8,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -103,7 +104,7 @@ class EvalDiffRunnerTest {
         assertThat(report).contains("STABLE");     // MRR 持平
         assertThat(report).contains("样本缺失");   // Negative Rejection B 侧 NaN
         // Hallucination 越低越好：0.05→0.02 应为 IMPROVED（方向语义核验）
-        String hrLine = java.util.Arrays.stream(report.split(System.lineSeparator()))
+        String hrLine = Arrays.stream(report.split(System.lineSeparator()))
             .filter(l -> l.startsWith("| Hallucination Rate")).findFirst().orElseThrow();
         assertThat(hrLine).contains("IMPROVED");
     }

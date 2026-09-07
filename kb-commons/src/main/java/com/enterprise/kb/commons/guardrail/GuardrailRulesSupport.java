@@ -3,6 +3,7 @@ package com.enterprise.kb.commons.guardrail;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.HexFormat;
 
 /**
@@ -31,11 +32,11 @@ public final class GuardrailRulesSupport {
 
     /** 运行时明文 → Base64 编码态（加载层解码的逆操作，交付形态约束）。 */
     public static String encodeB64(String value) {
-        return java.util.Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
     /** Base64 编码态 → 运行时明文；非法编码抛 IllegalArgumentException（调用方校验承接）。 */
     public static String decodeB64(String encoded) {
-        return new String(java.util.Base64.getDecoder().decode(encoded.trim()), StandardCharsets.UTF_8);
+        return new String(Base64.getDecoder().decode(encoded.trim()), StandardCharsets.UTF_8);
     }
 }

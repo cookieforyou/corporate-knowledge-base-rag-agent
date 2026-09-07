@@ -20,6 +20,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -171,7 +172,7 @@ class KnowledgeSearchToolsTest {
     void crossTenantDocumentHidden() {
         KbDocument doc = mock(KbDocument.class);
         when(doc.getTenantId()).thenReturn("tenant-other");
-        when(documentRepository.findById("doc-1")).thenReturn(java.util.Optional.of(doc));
+        when(documentRepository.findById("doc-1")).thenReturn(Optional.of(doc));
 
         assertThatThrownBy(() -> tools.getDocument("doc-1", toolContext("tenant-a")))
             .isInstanceOf(BusinessException.class)
@@ -188,7 +189,7 @@ class KnowledgeSearchToolsTest {
         when(doc.getType()).thenReturn("md");
         when(doc.getPageCount()).thenReturn(10);
         when(doc.getChunkCount()).thenReturn(5);
-        when(documentRepository.findById("doc-1")).thenReturn(java.util.Optional.of(doc));
+        when(documentRepository.findById("doc-1")).thenReturn(Optional.of(doc));
         // 先建 chunk 列表再 when——thenReturn 参数内嵌套 mock+when 会致 UnfinishedStubbing
         List<KbChunk> chunks = List.of(
             chunk(0, false, "{\"heading_path\":\"总则\"}"),

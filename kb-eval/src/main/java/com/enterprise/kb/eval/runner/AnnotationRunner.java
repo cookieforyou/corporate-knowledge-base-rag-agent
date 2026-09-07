@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -34,7 +35,7 @@ public class AnnotationRunner implements ApplicationRunner {
 
     public AnnotationRunner(List<RetrievalProbe> probes, GoldenDatasetLoader datasetLoader) {
         this.probe = probes.stream()
-            .min(java.util.Comparator.comparingInt(RetrievalProbe::getOrder))
+            .min(Comparator.comparingInt(RetrievalProbe::getOrder))
             .orElseThrow();
         this.datasetLoader = datasetLoader;
     }

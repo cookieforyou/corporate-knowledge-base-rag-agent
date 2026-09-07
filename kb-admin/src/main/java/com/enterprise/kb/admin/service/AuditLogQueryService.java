@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ public class AuditLogQueryService {
     /** 链路过滤值（mode 落库为小写形态 rag/tool/agent——AuditTraceAdvisor.MODE_KEY 自由字符串） */
     private static final Set<String> MODE_FILTERS = Set.of("rag", "tool", "agent");
     private static final Set<String> ROOT_CAUSE_FILTERS =
-        java.util.Arrays.stream(RootCause.values()).map(Enum::name).collect(Collectors.toSet());
+        Arrays.stream(RootCause.values()).map(Enum::name).collect(Collectors.toSet());
 
     private final KbAuditLogRepository auditLogRepository;
     private final KbFeedbackRepository feedbackRepository;

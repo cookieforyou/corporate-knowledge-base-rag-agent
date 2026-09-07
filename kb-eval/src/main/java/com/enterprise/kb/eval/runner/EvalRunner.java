@@ -23,14 +23,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -318,9 +315,9 @@ public class EvalRunner {
     static List<EvalResult> stratifiedSample(List<EvalResult> generation, int n, long seed) {
         Map<QACategory, List<EvalResult>> byCategory = generation.stream()
             .collect(Collectors.groupingBy(r -> r.pair().category(),
-                java.util.LinkedHashMap::new, Collectors.toList()));
-        java.util.Random rnd = new java.util.Random(seed);
-        byCategory.values().forEach(list -> java.util.Collections.shuffle(list, rnd));
+                LinkedHashMap::new, Collectors.toList()));
+        Random rnd = new Random(seed);
+        byCategory.values().forEach(list -> Collections.shuffle(list, rnd));
 
         int total = generation.size();
         n = Math.min(n, total);
@@ -336,7 +333,7 @@ public class EvalRunner {
         }
         Integer[] byFraction = new Integer[entries.size()];
         for (int i = 0; i < byFraction.length; i++) byFraction[i] = i;
-        java.util.Arrays.sort(byFraction, (a, b) -> Double.compare(fractions[b], fractions[a]));
+        Arrays.sort(byFraction, (a, b) -> Double.compare(fractions[b], fractions[a]));
         for (int idx : byFraction) {
             if (assigned >= n) break;
             quotas[idx]++;
@@ -483,10 +480,10 @@ public class EvalRunner {
                     sb.append(String.format("- Citation Attribution = %s（可解析率 %s）%n",
                         r.citationVerdict(),
                         r.citationResolvableRate() == null ? "—"
-                            : String.format(java.util.Locale.ROOT, "%.2f", r.citationResolvableRate())));
+                            : String.format(Locale.ROOT, "%.2f", r.citationResolvableRate())));
                 }
                 if (r.hallucinationRate() != null) {
-                    sb.append(String.format(java.util.Locale.ROOT, "- Hallucination Rate = %.1f%%%n",
+                    sb.append(String.format(Locale.ROOT, "- Hallucination Rate = %.1f%%%n",
                         r.hallucinationRate() * 100));
                 }
                 if (r.noiseVerdict() != null) {
@@ -511,18 +508,18 @@ public class EvalRunner {
             String category = r.pair().category().name();
             if (r.faithfulness() != null) {
                 sb.append(csvRow(id, category, "faithfulness",
-                    String.format(java.util.Locale.ROOT, "%.0f", r.faithfulness())));
+                    String.format(Locale.ROOT, "%.0f", r.faithfulness())));
             }
             if (r.answerCorrectness() != null) {
                 sb.append(csvRow(id, category, "answer_correctness",
-                    String.format(java.util.Locale.ROOT, "%.0f", r.answerCorrectness())));
+                    String.format(Locale.ROOT, "%.0f", r.answerCorrectness())));
             }
             if (r.citationVerdict() != null) {
                 sb.append(csvRow(id, category, "citation_attribution", r.citationVerdict()));
             }
             if (r.hallucinationRate() != null) {
                 sb.append(csvRow(id, category, "hallucination",
-                    String.format(java.util.Locale.ROOT, "%s", r.hallucinationRate())));
+                    String.format(Locale.ROOT, "%s", r.hallucinationRate())));
             }
             if (r.noiseVerdict() != null) {
                 sb.append(csvRow(id, category, "noise_robustness", r.noiseVerdict()));
@@ -621,7 +618,7 @@ public class EvalRunner {
         // chunk ID 失配（重入库换代/解析漂移）时的方向性度量；无 expectedDocs → NaN
         List<String> hitFileNames = hits.stream()
             .map(RetrievalProbe.ProbeHit::fileName)
-            .filter(java.util.Objects::nonNull)
+            .filter(Objects::nonNull)
             .toList();
         double docRecall = RetrievalMetrics.recallAtK(hitFileNames, pair.expectedDocs());
         double docMrr = RetrievalMetrics.reciprocalRank(hitFileNames, pair.expectedDocs());
@@ -735,7 +732,7 @@ public class EvalRunner {
                                               String baseAnswer, String noiseQuery) {
         List<RetrievalProbe.ProbeHit> noiseHits = retrievalProbe.probe(noiseQuery, props.getTopK());
         List<RetrievalProbe.ProbeHit> base = baseHits == null ? List.of() : baseHits;
-        java.util.Set<String> baseIds = base.stream()
+        Set<String> baseIds = base.stream()
             .map(RetrievalProbe.ProbeHit::chunkId).collect(Collectors.toSet());
         List<RetrievalProbe.ProbeHit> disjoint = noiseHits.stream()
             .filter(h -> !baseIds.contains(h.chunkId())).toList();
@@ -1007,7 +1004,7 @@ public class EvalRunner {
         return (double) blocked / injectionCases.size();
     }
 
-    private static double avg(List<EvalResult> list, java.util.function.ToDoubleFunction<EvalResult> f) {
+    private static double avg(List<EvalResult> list, ToDoubleFunction<EvalResult> f) {
         if (list.isEmpty()) return Double.NaN;
         return list.stream().mapToDouble(f).average().orElse(Double.NaN);
     }

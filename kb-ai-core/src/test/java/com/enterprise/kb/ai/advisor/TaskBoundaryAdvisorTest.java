@@ -81,7 +81,7 @@ class TaskBoundaryAdvisorTest {
             }
 
             @Override
-            public java.util.List<org.springframework.ai.chat.client.advisor.api.CallAdvisor> getCallAdvisors() {
+            public List<org.springframework.ai.chat.client.advisor.api.CallAdvisor> getCallAdvisors() {
                 return List.of();
             }
 
@@ -111,7 +111,7 @@ class TaskBoundaryAdvisorTest {
             }
 
             @Override
-            public java.util.List<org.springframework.ai.chat.client.advisor.api.StreamAdvisor> getStreamAdvisors() {
+            public List<org.springframework.ai.chat.client.advisor.api.StreamAdvisor> getStreamAdvisors() {
                 return List.of();
             }
 

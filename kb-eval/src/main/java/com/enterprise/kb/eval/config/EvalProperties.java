@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +101,7 @@ public class EvalProperties {
          * 成败（verdict = 观察）。缺省降级 noise_robustness——n=33 患病率偏差 +
          * Judge 单方向误报面（κ 复校-② 定谳）；复启门禁 = 清空本列表。
          */
-        private List<String> observationDimensions = new java.util.ArrayList<>(List.of("noise_robustness"));
+        private List<String> observationDimensions = new ArrayList<>(List.of("noise_robustness"));
     }
 
     /**

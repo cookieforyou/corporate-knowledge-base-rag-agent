@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.metric;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,8 +26,8 @@ class CohensKappaTest {
     @Test
     void nominalMatchesHandComputedMatrix() {
         // 经典 2×2：一致 35/50（po=0.70），边际期望一致 0.50 → κ=0.40
-        List<String> a = new java.util.ArrayList<>();
-        List<String> b = new java.util.ArrayList<>();
+        List<String> a = new ArrayList<>();
+        List<String> b = new ArrayList<>();
         repeat(a, b, 20, "YES", "YES");
         repeat(a, b, 5, "YES", "NO");
         repeat(a, b, 10, "NO", "YES");

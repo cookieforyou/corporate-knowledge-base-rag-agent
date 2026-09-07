@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * expectedAnswer 机器侧草稿生成器（簇② 批2，用户定案「机器侧草稿 + 人工审定」）
@@ -147,7 +148,7 @@ public class AnswerDraftRunner implements ApplicationRunner {
         }
         String fallback = hits.stream()
             .map(h -> "[" + h.chunkId() + "]\n" + (h.content() == null ? "" : h.content()))
-            .collect(java.util.stream.Collectors.joining("\n\n"));
+            .collect(Collectors.joining("\n\n"));
         return new TruthContext(SOURCE_RETRIEVAL_FALLBACK, fallback);
     }
 

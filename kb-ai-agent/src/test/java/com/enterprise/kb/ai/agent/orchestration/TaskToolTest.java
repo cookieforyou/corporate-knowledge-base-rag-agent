@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ToolContext;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,7 @@ class TaskToolTest {
     @Test
     void runningThenTerminalEmitsSnapshotTwiceAndFinalSnapshotIsTerminal() {
         RetrievalContext ctx = new RetrievalContext();
-        List<RetrievalContext.ProgressEvent> events = new java.util.ArrayList<>();
+        List<RetrievalContext.ProgressEvent> events = new ArrayList<>();
         ctx.setProgressListener(events::add);
 
         String result = taskTool.task("demo", "查询 E1001 假期余额", parentContext(ctx));

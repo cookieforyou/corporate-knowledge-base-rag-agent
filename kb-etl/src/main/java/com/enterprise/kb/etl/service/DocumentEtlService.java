@@ -31,13 +31,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -191,7 +185,7 @@ public class DocumentEtlService {
      * 需物理清理的残留。保序输出便于日志定位。
      */
     static List<String> staleChunkIds(List<String> oldIds, List<String> newIds) {
-        java.util.Set<String> newIdSet = java.util.Set.copyOf(newIds);
+        Set<String> newIdSet = Set.copyOf(newIds);
         return oldIds.stream().filter(id -> !newIdSet.contains(id)).toList();
     }
 

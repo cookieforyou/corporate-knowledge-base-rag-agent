@@ -17,6 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -167,8 +168,8 @@ class FeedbackExportServiceTest {
 
     @Test
     void toSummaryReportsThresholdAttainment() {
-        List<FeedbackExportService.SftPair> sftPairs = new java.util.ArrayList<>();
-        List<FeedbackExportService.DpoPair> dpoPairs = new java.util.ArrayList<>();
+        List<FeedbackExportService.SftPair> sftPairs = new ArrayList<>();
+        List<FeedbackExportService.DpoPair> dpoPairs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             sftPairs.add(new FeedbackExportService.SftPair("q" + i, "a" + i, false));
         }

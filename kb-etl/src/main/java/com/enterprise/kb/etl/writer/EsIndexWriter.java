@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * ES 双写器（设计文档 9.4）—— chunk 与向量库同批写入 kb_chunks 索引
@@ -117,7 +118,7 @@ public class EsIndexWriter {
             esClient.update(u -> u
                     .index(EsChunkDoc.INDEX)
                     .id(chunkId)
-                    .doc(java.util.Map.of("is_deleted", true)),
+                    .doc(Map.of("is_deleted", true)),
                 EsChunkDoc.class);
         } catch (Exception e) {
             log.error("ES 软删除失败: chunkId={}, error={}", chunkId, e.getMessage());

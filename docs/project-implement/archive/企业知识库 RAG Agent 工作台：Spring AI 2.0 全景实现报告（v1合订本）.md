@@ -2129,6 +2129,7 @@ import org.springframework.ai.chat.client.advisor.api.*;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -2174,7 +2175,7 @@ public class PrefetchRagAdvisor extends BaseAdvisor {
         String enhancedSystem = String.format(GROUNDING_PROMPT, evidence);
 
         // 4. 增强请求（注入证据到 System Prompt，透传溯源元数据）
-        Map<String, Object> context = new java.util.HashMap<>(request.context());
+        Map<String, Object> context = new HashMap<>(request.context());
         context.put("rag_trace", results);
         context.put("retrieval_count", results.size());
         context.put("top_score", results.isEmpty() ? 0 : results.get(0).getFusionScore());

@@ -25,11 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -142,7 +138,7 @@ public class ChatSessionService {
             return null;
         }
         try {
-            java.util.HashMap<String, Object> metadata = new java.util.HashMap<>();
+            HashMap<String, Object> metadata = new HashMap<>();
             if (hasTraceId) {
                 metadata.put("traceId", traceId);
             }

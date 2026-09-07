@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -150,7 +151,7 @@ class RrfFusionTest {
     @Test
     void fuseN_threeRoutes_tripleHitRanksFirstWithAllRankKeys() {
         // a 三路齐中（vector#1 / bm25#2 / graph#1）→ 三项倒数和最高
-        Map<String, List<Document>> routes = new java.util.LinkedHashMap<>();
+        Map<String, List<Document>> routes = new LinkedHashMap<>();
         routes.put("vector", List.of(doc("a", Map.of("vector_score", 0.9)), doc("v2", Map.of())));
         routes.put("bm25", List.of(doc("b1", Map.of()), doc("a", Map.of())));
         routes.put("graph", List.of(doc("a", Map.of("graph_score", 0.8, "graph_entity_hits", "甲公司")), doc("g2", Map.of())));
@@ -173,7 +174,7 @@ class RrfFusionTest {
     @Test
     void fuseN_emptyRouteIgnored_dualRouteSemanticsPreserved() {
         // graph 路空（未命中/降级）→ 与双路融合逐位一致（兼容签名对照）
-        Map<String, List<Document>> routes = new java.util.LinkedHashMap<>();
+        Map<String, List<Document>> routes = new LinkedHashMap<>();
         routes.put("vector", List.of(doc("a", Map.of())));
         routes.put("bm25", List.of(doc("a", Map.of())));
         routes.put("graph", List.of());
@@ -189,7 +190,7 @@ class RrfFusionTest {
     @Test
     void fuseN_routeRankKeyNamespaced() {
         // 路名即排名键前缀：开放路名不互相污染
-        Map<String, List<Document>> routes = new java.util.LinkedHashMap<>();
+        Map<String, List<Document>> routes = new LinkedHashMap<>();
         routes.put("graph", List.of(doc("g1", Map.of())));
 
         Document fused = fusion.fuse(routes, 10).get(0);

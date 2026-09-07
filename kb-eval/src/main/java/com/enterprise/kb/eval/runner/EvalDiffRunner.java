@@ -9,14 +9,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 
@@ -238,7 +231,7 @@ public class EvalDiffRunner implements ApplicationRunner {
         sb.append("── 运行配置一致性核验 ──").append(ls);
         int mismatches = 0;
         for (String[] row : rows) {
-            boolean match = java.util.Objects.equals(row[1], row[2]);
+            boolean match = Objects.equals(row[1], row[2]);
             if (!match) {
                 mismatches++;
             }

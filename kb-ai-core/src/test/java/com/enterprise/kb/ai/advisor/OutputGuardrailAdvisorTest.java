@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -458,7 +459,7 @@ class OutputGuardrailAdvisorTest {
         // 纯 REGEX 词表替换 → 窗口 1（KEYWORD 空 + 金丝雀关）；模式跨「内部…机密」
         target.onOutputRulesUpdated(List.of(new GuardrailRule("rx-probe-01", "UNCLASSIFIED", "",
             RuleType.REGEX, "内部[\\s\\S]*机密", RuleAction.BLOCK, true,
-            java.util.regex.Pattern.compile("内部[\\s\\S]*机密"))));
+            Pattern.compile("内部[\\s\\S]*机密"))));
         RetrievalContext ctx = new RetrievalContext();
 
         // 块1「内部说明」全量放行（窗口 1）；块2「机密42」单块视图无「内部」不命中、

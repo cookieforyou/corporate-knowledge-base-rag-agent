@@ -13,6 +13,7 @@ import org.testcontainers.utility.DockerImageName;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * 集成测试容器基类（簇⑥ D3）——三容器共享单例，整个 IT 套件只启动一次：
@@ -172,7 +173,7 @@ public abstract class AbstractAdvisorChainIT {
     }
 
     /** 动态答案变体：路由时经 Supplier 读取（用例内改 defaultAnswer 的场景） */
-    protected static Function<String, String> knowledgeRouter(java.util.function.Supplier<String> answerSupplier) {
+    protected static Function<String, String> knowledgeRouter(Supplier<String> answerSupplier) {
         return userText -> {
             if (userText != null && userText.contains("意图分类器")) {
                 int idx = userText.lastIndexOf("【当前用户消息】");

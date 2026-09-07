@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -255,7 +256,7 @@ class IndexRebuildServiceTest {
 
         private final Map<String, String> tenants = new LinkedHashMap<>();
 
-        private void mutate(String taskId, java.util.function.UnaryOperator<RebuildTaskView> fn) {
+        private void mutate(String taskId, UnaryOperator<RebuildTaskView> fn) {
             RebuildTaskView view = tasks.get(taskId);
             if (view != null) {
                 tasks.put(taskId, fn.apply(view));

@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -481,7 +482,7 @@ class ChatSessionServiceTest {
 
     private static KbMessage message(String sessionId, String role, String content) {
         KbMessage m = new KbMessage();
-        m.setId(java.util.UUID.randomUUID().toString());
+        m.setId(UUID.randomUUID().toString());
         m.setSessionId(sessionId);
         m.setRole(role);
         m.setContent(content);

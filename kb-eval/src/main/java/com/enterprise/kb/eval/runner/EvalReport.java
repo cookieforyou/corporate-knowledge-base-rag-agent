@@ -387,7 +387,7 @@ public record EvalReport(
             String docMissed = multiDocDoc.stream()
                 .filter(r -> r.docRecall() < 0.5)
                 .map(r -> r.pair().id())
-                .collect(java.util.stream.Collectors.joining(" "));
+                .collect(Collectors.joining(" "));
             sb.append(String.format(
                 "%nMULTI_DOC 文档级召回: docRecall≥0.5 通过率 %.3f（%d/%d，门禁 ≥0.80[v2.89 转正]；不过例 %s）",
                 (double) docPassed / multiDocDoc.size(), docPassed, multiDocDoc.size(),
