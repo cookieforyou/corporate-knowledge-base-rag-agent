@@ -75,6 +75,8 @@ class TaskToolTest {
     /**
      * 委派进度快照实时推送（簇⑥ 体验批3）：RUNNING 发起即推 + 终态原地回写再推
      * ——两次 tool_call 快照事件；流末 ctx 快照恒全终态（RUNNING 被替换非追加）。
+     * 委派阶段进度（E2E 反馈补强）：发起「委派子代理…」+ 终态「执行完成」
+     * 两 stage 事件——进度行随委派轮转，检索进行时文案不停留。
      */
     @Test
     void runningThenTerminalEmitsSnapshotTwiceAndFinalSnapshotIsTerminal() {
@@ -86,13 +88,20 @@ class TaskToolTest {
 
         assertThat(result).isEqualTo("子代理结果");
         // 两次快照：发起 RUNNING + 终态 EXECUTED
-        assertThat(events).hasSize(2);
-        assertThat(events.get(0).toolCalls()).hasSize(1);
-        assertThat(events.get(0).toolCalls().get(0).status())
+        List<RetrievalContext.ProgressEvent> snapshots = events.stream()
+            .filter(e -> e.toolCalls() != null).toList();
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots.get(0).toolCalls().get(0).status())
             .isEqualTo(RetrievalContext.ToolCall.STATUS_RUNNING);
-        assertThat(events.get(1).toolCalls()).hasSize(1);
-        assertThat(events.get(1).toolCalls().get(0).status())
+        assertThat(snapshots.get(1).toolCalls().get(0).status())
             .isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
+        // 两次阶段进度：委派发起 + 执行完成（随委派轮转，消除进行时文案停留）
+        List<String> stages = events.stream()
+            .filter(e -> e.toolCalls() == null)
+            .map(RetrievalContext.ProgressEvent::text).toList();
+        assertThat(stages).hasSize(2);
+        assertThat(stages.get(0)).startsWith("委派子代理 demo：");
+        assertThat(stages.get(1)).isEqualTo("子代理 demo 执行完成");
         // 流末快照单条终态（RUNNING 原地回写，不残留）
         assertThat(ctx.getToolCalls()).hasSize(1);
         assertThat(ctx.getToolCalls().get(0).status())

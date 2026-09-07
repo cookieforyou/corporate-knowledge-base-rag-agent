@@ -84,6 +84,10 @@ public class TaskTool {
         recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_RUNNING, description);
         if (retrievalContext != null) {
             retrievalContext.emitToolCallsSnapshot();
+            // 委派阶段进度（E2E 反馈补强）：进度行随委派轮转——消除上一子代理的
+            // 「知识检索 x/6」进行时文案停留至流末的歧义（后续委派期看似仍在检索）
+            retrievalContext.emitProgress("stage",
+                "委派子代理 " + spec.name() + "：" + abbreviate(description));
         }
 
         Future<String> future = executor.submit(() ->
@@ -166,12 +170,22 @@ public class TaskTool {
         }
     }
 
-    /** 委派终态（簇⑥ 体验批3）：RUNNING 原地回写终态 + 快照实时推送 */
+    /** 委派终态（簇⑥ 体验批3）：RUNNING 原地回写终态 + 快照实时推送 + 阶段进度（完成态陈述，无进行时歧义） */
     private static void completeToolCall(RetrievalContext ctx, String subAgentName,
                                          String status, String summary) {
         if (ctx != null) {
             ctx.completeRunningToolCall("task:" + subAgentName, status, summary);
             ctx.emitToolCallsSnapshot();
+            ctx.emitProgress("stage", "子代理 " + subAgentName
+                + (RetrievalContext.ToolCall.STATUS_EXECUTED.equals(status) ? " 执行完成" : " 执行失败"));
         }
+    }
+
+    /** 委派描述摘要（进度行展示用，与 KnowledgeSearchTools 检索摘要同款 60 字符） */
+    private static String abbreviate(String description) {
+        if (description == null) {
+            return "";
+        }
+        return description.length() <= 60 ? description : description.substring(0, 60) + "…";
     }
 }
