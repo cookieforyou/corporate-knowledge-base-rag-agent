@@ -132,7 +132,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     private final int historySize;
 
     /**
-     * 装配构造器——双构造器形态必须显式钉 {@link org.springframework.beans.factory.annotation.Autowired}
+     * 装配构造器——双构造器形态必须显式钉 {@link Autowired}
      * （Spring 6 多构造器无注解即回落无参构造器致启动失败；先例
      * IndirectInjectionScanPostProcessor 同形态，坑位实证 2026-08-18）。
      * 词表经 {@link GuardrailRulesRegistry} 取初始快照并订阅热重载推送（安全簇⑥ F1）。

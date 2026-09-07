@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.redisson.api.RKeys;
 import org.redisson.api.RMap;
 import org.redisson.api.RSearch;
@@ -12,6 +13,7 @@ import org.redisson.api.RedissonClient;
 import org.redisson.api.search.query.Document;
 import org.redisson.api.search.query.QueryOptions;
 import org.redisson.api.search.query.SearchResult;
+import org.redisson.client.codec.Codec;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -51,7 +53,7 @@ class SemanticCacheServiceTest {
         keys = mock(RKeys.class);
         meterRegistry = new SimpleMeterRegistry();
         properties = new SemanticCacheProperties();
-        when(redisson.getSearch(any(org.redisson.client.codec.Codec.class))).thenReturn(search);
+        when(redisson.getSearch(any(Codec.class))).thenReturn(search);
         when(redisson.getKeys()).thenReturn(keys);
         // 探测通过（getIndexes 不抛异常）
         when(search.getIndexes()).thenReturn(List.of());
@@ -76,7 +78,7 @@ class SemanticCacheServiceTest {
         assertThat(degraded.invalidateByDocument("t-1", "doc-1")).isZero();
         // 自关后零 Redis 触达（探测调用除外）
         verify(search, never()).search(anyString(), anyString(), any());
-        verify(redisson, never()).getMap(anyString(), any(org.redisson.client.codec.Codec.class));
+        verify(redisson, never()).getMap(anyString(), any(Codec.class));
     }
 
     // ── KNN 命中判定 ──
@@ -168,15 +170,15 @@ class SemanticCacheServiceTest {
     @SuppressWarnings("unchecked")
     void putWritesHashFieldsWithTtlAndDeterministicKey() {
         RMap<String, Object> map = mock(RMap.class);
-        org.mockito.Mockito.doReturn(map).when(redisson)
-                .getMap(anyString(), any(org.redisson.client.codec.Codec.class));
+        Mockito.doReturn(map).when(redisson)
+                .getMap(anyString(), any(Codec.class));
         when(search.hasIndex(anyString())).thenReturn(true);
 
         service.put("t-1", entry("什么是增值税发票？"), vector(1.0f));
 
         // 确定性键：根前缀 + 问句指纹（同问句幂等覆盖）
         String expectedKey = SemanticCacheService.entryKey("t-1", "什么是增值税发票？");
-        verify(redisson).getMap(eq(expectedKey), any(org.redisson.client.codec.Codec.class));
+        verify(redisson).getMap(eq(expectedKey), any(Codec.class));
         verify(map).put("question", "什么是增值税发票？");
         verify(map).put("answer", "回答 [ref-1]");
         verify(map).put("docIds", "doc-9");
@@ -188,22 +190,22 @@ class SemanticCacheServiceTest {
     @SuppressWarnings("unchecked")
     void putSameQuestionTwiceHitsSameKey() {
         RMap<String, Object> map = mock(RMap.class);
-        org.mockito.Mockito.doReturn(map).when(redisson)
-                .getMap(anyString(), any(org.redisson.client.codec.Codec.class));
+        Mockito.doReturn(map).when(redisson)
+                .getMap(anyString(), any(Codec.class));
         when(search.hasIndex(anyString())).thenReturn(true);
 
         service.put("t-1", entry("同一问题"), vector(1.0f));
         service.put("t-1", entry("同一问题"), vector(2.0f));
 
         String expectedKey = SemanticCacheService.entryKey("t-1", "同一问题");
-        verify(redisson, org.mockito.Mockito.times(2))
-                .getMap(eq(expectedKey), any(org.redisson.client.codec.Codec.class));
+        verify(redisson, Mockito.times(2))
+                .getMap(eq(expectedKey), any(Codec.class));
     }
 
     @Test
     void putRuntimeFailureSwallowed() {
-        org.mockito.Mockito.doThrow(new RuntimeException("down")).when(redisson)
-                .getMap(anyString(), any(org.redisson.client.codec.Codec.class));
+        Mockito.doThrow(new RuntimeException("down")).when(redisson)
+                .getMap(anyString(), any(Codec.class));
         when(search.hasIndex(anyString())).thenReturn(true);
 
         // 不抛出——写入失败不传导

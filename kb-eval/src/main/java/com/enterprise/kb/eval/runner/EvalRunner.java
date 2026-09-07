@@ -23,6 +23,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -149,9 +151,9 @@ public class EvalRunner {
         try {
             String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
             String fileName = label.isEmpty() ? "eval-report.txt" : "eval-report-" + label + ".txt";
-            java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
-            java.nio.file.Files.createDirectories(out.getParent());
-            java.nio.file.Files.writeString(out, header + summary + System.lineSeparator());
+            Path out = Path.of("target", fileName);
+            Files.createDirectories(out.getParent());
+            Files.writeString(out, header + summary + System.lineSeparator());
             log.info("评估报告已写入: {}", out.toAbsolutePath());
         } catch (Exception e) {
             log.warn("评估报告落盘失败（不影响门禁）: {}", e.getMessage());
@@ -192,9 +194,9 @@ public class EvalRunner {
             EvalSnapshot snapshot = EvalSnapshot.from(report, props, anchor);
             String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
             String fileName = label.isEmpty() ? "eval-results.json" : "eval-results-" + label + ".json";
-            java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
-            java.nio.file.Files.createDirectories(out.getParent());
-            java.nio.file.Files.writeString(out,
+            Path out = Path.of("target", fileName);
+            Files.createDirectories(out.getParent());
+            Files.writeString(out,
                 jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(snapshot)
                     + System.lineSeparator());
             log.info("评估机读快照已写入: {}（A/B 差异报表经 --eval.diff 消费）", out.toAbsolutePath());
@@ -219,9 +221,9 @@ public class EvalRunner {
         try {
             String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
             String fileName = label.isEmpty() ? "eval-answers.md" : "eval-answers-" + label + ".md";
-            java.nio.file.Path out = java.nio.file.Path.of("target", fileName);
-            java.nio.file.Files.createDirectories(out.getParent());
-            java.nio.file.Files.writeString(out, renderAnswerSheet(report) + System.lineSeparator());
+            Path out = Path.of("target", fileName);
+            Files.createDirectories(out.getParent());
+            Files.writeString(out, renderAnswerSheet(report) + System.lineSeparator());
             log.info("答案人审表已写入: {}（人审材料，勿入 git）", out.toAbsolutePath());
         } catch (Exception e) {
             log.warn("答案人审表落盘失败（不影响评估）: {}", e.getMessage());
@@ -291,15 +293,15 @@ public class EvalRunner {
         }
         List<EvalResult> sampled = stratifiedSample(generation, n, 42L);
         try {
-            java.nio.file.Path outDir = java.nio.file.Path.of("target");
-            java.nio.file.Files.createDirectories(outDir);
-            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.md"),
+            Path outDir = Path.of("target");
+            Files.createDirectories(outDir);
+            Files.writeString(outDir.resolve("judge-agreement-sheet.md"),
                 renderAgreementSheet(sampled));
-            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.ev.md"),
+            Files.writeString(outDir.resolve("judge-agreement-sheet.ev.md"),
                 renderEvidenceBlindSheet(sampled));
-            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.ac.md"),
+            Files.writeString(outDir.resolve("judge-agreement-sheet.ac.md"),
                 renderAcBlindSheet(sampled));
-            java.nio.file.Files.writeString(outDir.resolve("judge-agreement-sheet.csv"),
+            Files.writeString(outDir.resolve("judge-agreement-sheet.csv"),
                 renderCalibrationCsv(sampled));
             log.info("人类校准抽样表（{} 条，全量母版 + 双盲材 + CSV 打分表）已写入: {}",
                 sampled.size(), outDir.toAbsolutePath());
@@ -1032,8 +1034,6 @@ public class EvalRunner {
      *   <li>首块即超预算 → 单块截断带标记（兜底，防单块击穿）。</li>
      * </ul>
      * 标记入视图（Judge 与人审同形），截断视图不被误读为全量。
-     *
-     * @param budgetChars 总长上限（字符；{@code eval.judge.context-budget-chars}）
      */
     record VerificationView(String context, int includedChunks, boolean capped) {}
 

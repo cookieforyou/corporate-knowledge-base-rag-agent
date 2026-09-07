@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.metric;
 
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -40,7 +41,7 @@ class CitationMetricsTest {
     void resolvableRatePartialOutOfRange() {
         // [ref-6] 越界（上下文仅 5 条），[ref-0] 越下界 → 1/3 可解析
         assertThat(CitationMetrics.resolvableRate(List.of(1, 6, 0), 5))
-            .isCloseTo(1.0 / 3, org.assertj.core.data.Offset.offset(1e-9));
+            .isCloseTo(1.0 / 3, Offset.offset(1e-9));
     }
 
     @Test

@@ -4,9 +4,11 @@ import com.enterprise.kb.admin.dto.GraphBackfillView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.redisson.api.RAtomicLong;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.Codec;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -45,14 +47,14 @@ class RedisGraphBackfillStoreTest {
         when(rMap.put(any(), any())).thenAnswer(inv ->
             state.put(inv.getArgument(0), inv.getArgument(1)));
         // putAll 为 void 形态：doAnswer 桩（when(...).thenAnswer 不适用 void）
-        org.mockito.Mockito.doAnswer(inv -> {
+        Mockito.doAnswer(inv -> {
             state.putAll(inv.getArgument(0));
             return null;
         }).when(rMap).putAll(any());
         // getMap(String, Codec) 与 (String, MapOptions) 重载歧义 + 泛型推断：
         // 显式 Codec 类匹配器 + doReturn 形态钉死
-        org.mockito.Mockito.doReturn(rMap).when(redisson)
-            .getMap(anyString(), any(org.redisson.client.codec.Codec.class));
+        Mockito.doReturn(rMap).when(redisson)
+            .getMap(anyString(), any(Codec.class));
 
         RAtomicLong succeeded = mock(RAtomicLong.class);
         when(succeeded.incrementAndGet()).thenAnswer(inv -> ++succeededCount);

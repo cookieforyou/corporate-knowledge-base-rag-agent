@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
@@ -86,7 +87,7 @@ class McpRateLimiterTest {
 
         disabled.acquire("tenant-a");
 
-        org.mockito.Mockito.verifyNoInteractions(redisson);
+        Mockito.verifyNoInteractions(redisson);
     }
 
     @Test
@@ -94,6 +95,6 @@ class McpRateLimiterTest {
         mcpRateLimiter.acquire("  ");
         mcpRateLimiter.acquire(null);
 
-        org.mockito.Mockito.verifyNoInteractions(redisson);
+        Mockito.verifyNoInteractions(redisson);
     }
 }

@@ -10,7 +10,9 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +90,7 @@ class HybridDocumentRetrieverTest {
             .thenReturn(List.of(doc("v1"), doc("v2")));
         when(esRetriever.retrieve(any(Query.class), anyInt()))
             .thenThrow(new ElasticsearchDocumentRetriever
-                .ElasticsearchRetrievalException("ES 不可达", new java.io.IOException("timeout")));
+                .ElasticsearchRetrievalException("ES 不可达", new IOException("timeout")));
 
         List<Document> result = assertDoesNotThrow(() -> hybrid.retrieve(query));
 
@@ -228,8 +230,7 @@ class HybridDocumentRetrieverTest {
         var param = Arrays.stream(ctor.getParameters())
             .filter(p -> p.getType() == ExecutorService.class)
             .findFirst().orElseThrow();
-        var qualifier = param.getAnnotation(
-            org.springframework.beans.factory.annotation.Qualifier.class);
+        var qualifier = param.getAnnotation(Qualifier.class);
         assertNotNull(qualifier, "executor 注入点必须显式 @Qualifier（坑位㊺）");
         assertEquals("hybridRetrievalExecutor", qualifier.value());
     }

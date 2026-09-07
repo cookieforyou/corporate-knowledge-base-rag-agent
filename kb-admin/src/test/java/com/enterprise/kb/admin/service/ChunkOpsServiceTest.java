@@ -17,7 +17,9 @@ import com.enterprise.kb.etl.writer.EsIndexWriter;
 import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
@@ -135,7 +137,7 @@ class ChunkOpsServiceTest {
 
         service.edit(CHUNK_ID, TENANT, "新内容");
 
-        org.mockito.ArgumentCaptor<List<Document>> captor = listCaptor();
+        ArgumentCaptor<List<Document>> captor = listCaptor();
         verify(vectorStore).add(captor.capture());
         Document vectorDoc = captor.getValue().get(0);
         assertThat(vectorDoc.getId()).isEqualTo(CHUNK_ID);
@@ -148,8 +150,8 @@ class ChunkOpsServiceTest {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static org.mockito.ArgumentCaptor<List<Document>> listCaptor() {
-        return org.mockito.ArgumentCaptor.forClass((Class) List.class);
+    private static ArgumentCaptor<List<Document>> listCaptor() {
+        return ArgumentCaptor.forClass((Class) List.class);
     }
 
     /** 编辑内容经同源消毒：注入词表命中 → metadata 打标（heading_path 键保留）。
@@ -319,7 +321,7 @@ class ChunkOpsServiceTest {
     private static ObjectProvider<CacheInvalidationPublisher> publisherProvider(CacheInvalidationPublisher publisher) {
         ObjectProvider<CacheInvalidationPublisher> provider = mock(ObjectProvider.class);
         if (publisher != null) {
-            org.mockito.Mockito.doAnswer(inv -> {
+            Mockito.doAnswer(inv -> {
                 ((Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
                 return null;
             }).when(provider).ifAvailable(any());

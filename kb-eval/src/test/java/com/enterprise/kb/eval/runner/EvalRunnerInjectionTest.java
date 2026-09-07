@@ -9,6 +9,7 @@ import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.DefaultApplicationArguments;
@@ -50,8 +51,8 @@ class EvalRunnerInjectionTest {
         loader = mock(GoldenDatasetLoader.class);
         chatClient = mock(ChatClient.class);
         judgeChatClient = mock(ChatClient.class);
-        guardrailChatClient = mock(ChatClient.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
-        guardrailL2ChatClient = mock(ChatClient.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
+        guardrailChatClient = mock(ChatClient.class, Answers.RETURNS_DEEP_STUBS);
+        guardrailL2ChatClient = mock(ChatClient.class, Answers.RETURNS_DEEP_STUBS);
         probe = mock(RetrievalProbe.class);
         when(probe.name()).thenReturn("hybrid");
         when(probe.getOrder()).thenReturn(0);

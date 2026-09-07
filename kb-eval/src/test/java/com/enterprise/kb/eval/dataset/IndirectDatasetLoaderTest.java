@@ -3,6 +3,9 @@ package com.enterprise.kb.eval.dataset;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,10 +88,10 @@ class IndirectDatasetLoaderTest {
     /** 将腐化语料写入 target/test-classes/indirect/（测试 classpath 根），供加载器解析 */
     private static void writeCorpusToTestOutput(String content) {
         try {
-            java.nio.file.Path dir = java.nio.file.Path.of("target/test-classes/indirect");
-            java.nio.file.Files.createDirectories(dir);
-            java.nio.file.Files.writeString(dir.resolve("indirect-qa-corrupt.json"), content);
-        } catch (java.io.IOException e) {
+            Path dir = Path.of("target/test-classes/indirect");
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("indirect-qa-corrupt.json"), content);
+        } catch (IOException e) {
             throw new IllegalStateException("测试资源写入失败", e);
         }
     }

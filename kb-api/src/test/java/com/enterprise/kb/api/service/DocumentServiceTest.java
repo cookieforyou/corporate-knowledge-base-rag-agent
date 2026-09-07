@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.mock.web.MockMultipartFile;
@@ -143,7 +144,7 @@ class DocumentServiceTest {
     @Test
     void deleteSucceedsEvenWhenGraphCleanupFails() {
         GraphGateway gateway = mock(GraphGateway.class);
-        org.mockito.Mockito.doThrow(new RuntimeException("Neo4j 不可达"))
+        Mockito.doThrow(new RuntimeException("Neo4j 不可达"))
             .when(gateway).removeDocument(anyString(), anyString());
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
@@ -181,7 +182,7 @@ class DocumentServiceTest {
     private static ObjectProvider<GraphGateway> gatewayProvider(GraphGateway gateway) {
         ObjectProvider<GraphGateway> provider = mock(ObjectProvider.class);
         if (gateway != null) {
-            org.mockito.Mockito.doAnswer(inv -> {
+            Mockito.doAnswer(inv -> {
                 ((Consumer<GraphGateway>) inv.getArgument(0)).accept(gateway);
                 return null;
             }).when(provider).ifAvailable(any());
@@ -377,7 +378,7 @@ class DocumentServiceTest {
     private static ObjectProvider<GraphExtractionPublisher> graphPublisherProvider(GraphExtractionPublisher publisher) {
         ObjectProvider<GraphExtractionPublisher> provider = mock(ObjectProvider.class);
         if (publisher != null) {
-            org.mockito.Mockito.doAnswer(inv -> {
+            Mockito.doAnswer(inv -> {
                 ((Consumer<GraphExtractionPublisher>) inv.getArgument(0)).accept(publisher);
                 return null;
             }).when(provider).ifAvailable(any());
@@ -390,7 +391,7 @@ class DocumentServiceTest {
     private static ObjectProvider<CacheInvalidationPublisher> publisherProvider(CacheInvalidationPublisher publisher) {
         ObjectProvider<CacheInvalidationPublisher> provider = mock(ObjectProvider.class);
         if (publisher != null) {
-            org.mockito.Mockito.doAnswer(inv -> {
+            Mockito.doAnswer(inv -> {
                 ((Consumer<CacheInvalidationPublisher>) inv.getArgument(0)).accept(publisher);
                 return null;
             }).when(provider).ifAvailable(any());

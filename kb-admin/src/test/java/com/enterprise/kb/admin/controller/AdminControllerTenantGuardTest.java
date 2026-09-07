@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
@@ -356,7 +357,7 @@ class AdminControllerTenantGuardTest {
         assertThat(response.getHeaders().getFirst("Content-Disposition"))
             .contains("attachment").contains("kb-feedback-sft-t-1-").contains(".jsonl");
         assertThat(response.getBody()).isNotNull();
-        assertThat(new String(response.getBody(), java.nio.charset.StandardCharsets.UTF_8))
+        assertThat(new String(response.getBody(), StandardCharsets.UTF_8))
             .isEqualTo("{\"messages\":[]}\n");
         verify(feedbackExportService).exportLines("t-1", FeedbackExportService.ExportFormat.SFT);
     }

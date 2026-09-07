@@ -1,6 +1,5 @@
 package com.enterprise.kb.eval.it;
 
-import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
@@ -8,6 +7,7 @@ import com.enterprise.kb.eval.it.stub.StubChatModel;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +67,7 @@ class CrossTenantLeakIT extends AbstractAdvisorChainIT {
 
     @Test
     void crossTenant_vectorFilterEnforced() {
-        List<org.springframework.ai.document.Document> results = vectorStore.similaritySearch(
+        List<Document> results = vectorStore.similaritySearch(
             SearchRequest.builder()
                 .query("财务报表")
                 .topK(10)

@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.observability;
 
 import io.micrometer.context.ContextRegistry;
+import io.micrometer.context.ThreadLocalAccessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,7 +44,7 @@ public class LangfuseObservabilityConfig {
             Hooks.enableAutomaticContextPropagation();
             log.info("Reactor 自动上下文传播已启用，已装载 ThreadLocalAccessor: {}",
                 registry.getThreadLocalAccessors().stream()
-                    .map(io.micrometer.context.ThreadLocalAccessor::key).toList());
+                    .map(ThreadLocalAccessor::key).toList());
         }
     }
 }

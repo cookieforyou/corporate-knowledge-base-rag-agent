@@ -7,7 +7,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
+import org.springframework.ai.chat.client.advisor.api.CallAdvisor;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
+import org.springframework.ai.chat.client.advisor.api.StreamAdvisor;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -81,12 +83,12 @@ class TaskBoundaryAdvisorTest {
             }
 
             @Override
-            public List<org.springframework.ai.chat.client.advisor.api.CallAdvisor> getCallAdvisors() {
+            public List<CallAdvisor> getCallAdvisors() {
                 return List.of();
             }
 
             @Override
-            public CallAdvisorChain copy(org.springframework.ai.chat.client.advisor.api.CallAdvisor advisor) {
+            public CallAdvisorChain copy(CallAdvisor advisor) {
                 throw new UnsupportedOperationException();
             }
         };
@@ -111,12 +113,12 @@ class TaskBoundaryAdvisorTest {
             }
 
             @Override
-            public List<org.springframework.ai.chat.client.advisor.api.StreamAdvisor> getStreamAdvisors() {
+            public List<StreamAdvisor> getStreamAdvisors() {
                 return List.of();
             }
 
             @Override
-            public StreamAdvisorChain copy(org.springframework.ai.chat.client.advisor.api.StreamAdvisor advisor) {
+            public StreamAdvisorChain copy(StreamAdvisor advisor) {
                 throw new UnsupportedOperationException();
             }
         };

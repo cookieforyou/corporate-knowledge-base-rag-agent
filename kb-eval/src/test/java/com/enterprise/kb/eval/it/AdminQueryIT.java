@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -146,11 +147,11 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
 
     // ── helpers ──
 
-    private long countAudit(org.springframework.data.jpa.domain.Specification<KbAuditLog> spec) {
+    private long countAudit(Specification<KbAuditLog> spec) {
         return auditLogRepository.count(spec);
     }
 
-    private long countFeedback(org.springframework.data.jpa.domain.Specification<KbFeedback> spec) {
+    private long countFeedback(Specification<KbFeedback> spec) {
         return feedbackRepository.count(spec);
     }
 

@@ -12,6 +12,8 @@ import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
@@ -71,8 +73,8 @@ class AgentControllerReplaceFrameTest {
         assertThat(events.get(3).event()).isEqualTo("TRACE");
         assertThat(events.get(4).data().toString()).contains("messageId");
         // 归档话术（answerBuffer 前缀被替换）
-        org.mockito.Mockito.verify(chatSessionService).archiveTurn(anyString(), anyString(), anyString(),
-            anyString(), org.mockito.ArgumentMatchers.eq("抱歉，由于合规要求，无法提供该信息。"),
+        Mockito.verify(chatSessionService).archiveTurn(anyString(), anyString(), anyString(),
+            anyString(), ArgumentMatchers.eq("抱歉，由于合规要求，无法提供该信息。"),
             anyString(), any(), any(), any());
     }
 

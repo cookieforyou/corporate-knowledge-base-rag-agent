@@ -3,6 +3,8 @@ package com.enterprise.kb.eval.runner;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -131,9 +133,9 @@ class EvalRunnerPhase5Test {
         assertThat(m.avgAnswerCorrectness()).isEqualTo(4.0);
         // CA 分母 = 3（含 NO_CITATION 判负），通过 1 → 1/3
         assertThat(m.citationEvaluated()).isEqualTo(3);
-        assertThat(m.citationPassRate()).isCloseTo(1.0 / 3, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(m.citationPassRate()).isCloseTo(1.0 / 3, Offset.offset(1e-9));
         assertThat(m.hallucinationEvaluated()).isEqualTo(3);
-        assertThat(m.avgHallucinationRate()).isCloseTo(0.05, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(m.avgHallucinationRate()).isCloseTo(0.05, Offset.offset(1e-9));
         assertThat(m.noiseEvaluated()).isEqualTo(2);
         assertThat(m.noiseConsistencyRate()).isEqualTo(0.5);
     }
@@ -183,7 +185,7 @@ class EvalRunnerPhase5Test {
     void phase5MetricsGateAfterCalibration() {
         EvalReport.Phase5Metrics low = new EvalReport.Phase5Metrics(
             2, 1.0, 3, 0.0, 3, 0.9, 2, 0.0);
-        org.assertj.core.api.Assertions.assertThatThrownBy(
+        Assertions.assertThatThrownBy(
                 () -> reportWith(low).assertThresholds(props))
             .isInstanceOf(EvalFailedException.class)
             .hasMessageContaining("Answer Correctness")
@@ -196,7 +198,7 @@ class EvalRunnerPhase5Test {
     void phase5GateReportsOnlyBreachedDimension() {
         EvalReport.Phase5Metrics caOnly = new EvalReport.Phase5Metrics(
             2, 4.5, 3, 0.5, 3, 0.0, 2, 1.0);
-        org.assertj.core.api.Assertions.assertThatThrownBy(
+        Assertions.assertThatThrownBy(
                 () -> reportWith(caOnly).assertThresholds(props))
             .isInstanceOf(EvalFailedException.class)
             .hasMessageContaining("Citation Support Rate")
@@ -209,7 +211,7 @@ class EvalRunnerPhase5Test {
     void noiseRobustnessStaysObservationAndDoesNotGate() {
         EvalReport.Phase5Metrics noiseLow = new EvalReport.Phase5Metrics(
             2, 4.5, 3, 0.9, 3, 0.0, 2, 0.0);
-        org.assertj.core.api.Assertions.assertThatCode(
+        Assertions.assertThatCode(
                 () -> reportWith(noiseLow).assertThresholds(props))
             .doesNotThrowAnyException();
     }
@@ -217,7 +219,7 @@ class EvalRunnerPhase5Test {
     /** 无样本跳过纪律承继：全维 NaN（EMPTY）不门禁 */
     @Test
     void emptyPhase5MetricsDoNotGate() {
-        org.assertj.core.api.Assertions.assertThatCode(
+        Assertions.assertThatCode(
                 () -> reportWith(EvalReport.Phase5Metrics.EMPTY).assertThresholds(props))
             .doesNotThrowAnyException();
     }
@@ -227,7 +229,7 @@ class EvalRunnerPhase5Test {
     void phase5MetricsAllAboveThresholdsPass() {
         EvalReport.Phase5Metrics good = new EvalReport.Phase5Metrics(
             2, 4.5, 3, 0.9, 3, 0.02, 2, 0.5);
-        org.assertj.core.api.Assertions.assertThatCode(
+        Assertions.assertThatCode(
                 () -> reportWith(good).assertThresholds(props))
             .doesNotThrowAnyException();
     }

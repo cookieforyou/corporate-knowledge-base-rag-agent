@@ -14,9 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.Codec;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -229,13 +231,13 @@ class GuardrailRuleOpsServiceTest {
         taken.setId("api-inj-1");
         when(repository.findAll()).thenReturn(List.of(taken));
         when(repository.save(any(KbGuardrailRule.class)))
-            .thenThrow(new org.springframework.dao.DataIntegrityViolationException("pk"))
+            .thenThrow(new DataIntegrityViolationException("pk"))
             .thenAnswer(inv -> inv.getArgument(0));
 
         service.create(create("injection", "UNCLASSIFIED", "probe-retry"), "t-1");
 
         ArgumentCaptor<KbGuardrailRule> captor = ArgumentCaptor.forClass(KbGuardrailRule.class);
-        verify(repository, org.mockito.Mockito.times(2)).save(captor.capture());
+        verify(repository, Mockito.times(2)).save(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo("api-inj-2");
     }
 }
