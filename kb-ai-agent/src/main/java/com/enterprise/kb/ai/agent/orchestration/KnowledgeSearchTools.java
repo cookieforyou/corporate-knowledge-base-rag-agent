@@ -125,6 +125,11 @@ public class KnowledgeSearchTools {
         }
         ctx.addToolCall(new RetrievalContext.ToolCall("search:knowledge",
             RetrievalContext.ToolCall.STATUS_EXECUTED, null, "检索: " + abbreviate(query)));
+        // 检索终态快照实时推送（E2E 反馈补强）：委派内多次检索的卡片随各自完成时刻
+        // 逐次出现（此前只记录不推送，攒到 TaskTool 委派终态快照一齐涌出）；
+        // 监听器缺席 no-op。不做 RUNNING 态——预算闸 countExecutedSearches 按
+        // 终态记录计数，且执行期已有「知识检索 n/6」进度行即时反馈
+        ctx.emitToolCallsSnapshot();
         int remaining = maxSearches - executed - 1;
         return new SearchOutcome(hits,
             "检索预算剩余 " + remaining + "/" + maxSearches + " 次，证据足够时请立即归纳回答");
@@ -153,6 +158,8 @@ public class KnowledgeSearchTools {
             .toList();
         ctx.addToolCall(new RetrievalContext.ToolCall("get:document",
             RetrievalContext.ToolCall.STATUS_EXECUTED, null, "读文档: " + documentId));
+        // 读档终态快照实时推送（同 searchKnowledge 补强语义，卡片逐次出现）
+        ctx.emitToolCallsSnapshot();
         return new DocumentText(doc.getId(), doc.getName(), doc.getType(),
             doc.getPageCount(), doc.getChunkCount(), chunks);
     }

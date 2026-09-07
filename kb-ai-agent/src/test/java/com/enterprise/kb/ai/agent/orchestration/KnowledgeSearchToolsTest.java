@@ -17,6 +17,7 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,6 +167,50 @@ class KnowledgeSearchToolsTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
             .isEqualTo("IDENTITY_INCOMPLETE");
+    }
+
+    @Test
+    void searchCompletionEmitsSnapshotForEachExecution() {
+        // E2E 反馈补强：委派内多次检索的卡片随各自完成时刻逐次推送
+        //（此前只记录不推送，攒到 TaskTool 委派终态快照一齐涌出）
+        when(hybridRetriever.retrieve(any(Query.class))).thenReturn(List.of());
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
+        List<RetrievalContext.ProgressEvent> events = new ArrayList<>();
+        ctx.setProgressListener(events::add);
+        Map<String, Object> map = new HashMap<>();
+        map.put(ToolContextKeys.RETRIEVAL_CONTEXT, ctx);
+
+        tools.searchKnowledge("第一问", new ToolContext(map));
+        tools.searchKnowledge("第二问", new ToolContext(map));
+
+        List<RetrievalContext.ProgressEvent> snapshots = events.stream()
+            .filter(e -> e.toolCalls() != null).toList();
+        assertThat(snapshots).hasSize(2);   // 逐次推送，非攒批
+        assertThat(snapshots.get(0).toolCalls()).hasSize(1);
+        assertThat(snapshots.get(1).toolCalls()).hasSize(2);
+        assertThat(snapshots.get(1).toolCalls().get(1).summary()).contains("第二问");
+    }
+
+    @Test
+    void getDocumentCompletionEmitsSnapshot() {
+        // 读档终态快照实时推送（同检索补强语义，卡片逐次出现）
+        KbDocument doc = mock(KbDocument.class);
+        when(doc.getTenantId()).thenReturn("tenant-a");
+        when(documentRepository.findById("doc-1")).thenReturn(Optional.of(doc));
+        when(chunkRepository.findByDocIdOrderByChunkIndex("doc-1")).thenReturn(List.of());
+        RetrievalContext ctx = new RetrievalContext();
+        ctx.setTenantId("tenant-a");
+        List<RetrievalContext.ProgressEvent> events = new ArrayList<>();
+        ctx.setProgressListener(events::add);
+        Map<String, Object> map = new HashMap<>();
+        map.put(ToolContextKeys.RETRIEVAL_CONTEXT, ctx);
+
+        tools.getDocument("doc-1", new ToolContext(map));
+
+        assertThat(events).hasSize(1);   // getDocument 无进度行，恰一条快照事件
+        assertThat(events.get(0).toolCalls()).hasSize(1);
+        assertThat(events.get(0).toolCalls().get(0).toolName()).isEqualTo("get:document");
     }
 
     @Test
