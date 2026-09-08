@@ -40,6 +40,8 @@ export const chatStreamUrl = () => `${api.defaults.baseURL}/chat/stream`
 export interface SessionSummary {
   id: string
   title: string
+  /** 会话链路归属（簇⑥ E2E 补强四，归档首轮写入）：打开会话恢复对应链路 tab；存量为 null */
+  mode?: 'rag' | 'tool' | 'agent' | null
   messageCount: number
   updatedAt: string
 }

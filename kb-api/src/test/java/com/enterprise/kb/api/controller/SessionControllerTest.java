@@ -73,7 +73,7 @@ class SessionControllerTest {
     void listPassesIdentityAndPagingThrough() {
         when(jwtUtils.getCurrentTenantId()).thenReturn("tenant-a");
         when(chatSessionService.listSessions(anyString(), anyString(), anyInt(), anyInt()))
-            .thenReturn(List.of(new SessionItem("s1", "标题", 4, null)));
+            .thenReturn(List.of(new SessionItem("s1", "标题", "rag", 4, null)));
 
         List<SessionItem> data = controller.listSessions(2, 30).data();
 

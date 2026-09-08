@@ -101,14 +101,17 @@ public class ChatSessionService {
      * 经 metadata JSON 下沉（`{"traceId":…, "toolCalls":[…]}`，与 SSE TOOL_CALL 帧
      * 同形）——历史会话恢复时 tool/agent 链委派卡片可回显。序列化失败降级
      * null（溯源/委派是旁路增值数据，不击穿归档）。
+     *
+     * <p><b>会话链路归属（簇⑥ E2E 补强四）</b>：mode 会话首建时写入 kb_session.mode
+     * （首轮归属，已存在不覆写），会话列表回传供前端恢复对应链路 tab。
      */
     @Async("sessionArchiveExecutor")
-    public void archiveTurn(String sessionId, String tenantId, String userId,
+    public void archiveTurn(String sessionId, String tenantId, String userId, String mode,
                             String query, String answer, String assistantMessageId,
                             AgentStreamEvent.TraceEvent traceEvent, String traceId,
                             List<AgentStreamEvent.ToolCallInfo> toolCalls) {
         try {
-            ensureSession(sessionId, tenantId, userId, query);
+            ensureSession(sessionId, tenantId, userId, mode, query);
             messageRepository.save(newMessage(sessionId, "USER", query, null, null, null));
             messageRepository.save(newMessage(sessionId, "ASSISTANT", answer, assistantMessageId,
                 serializeTrace(traceEvent), metadataOf(traceId, toolCalls)));
@@ -153,16 +156,17 @@ public class ChatSessionService {
         }
     }
 
-    /** 会话不存在则创建；并发首建的主键冲突容忍为「已存在」 */
-    private void ensureSession(String sessionId, String tenantId, String userId, String firstQuery) {
+    /** 会话不存在则创建（mode 首轮归属写入，已存在不覆写）；并发首建的主键冲突容忍为「已存在」 */
+    private void ensureSession(String sessionId, String tenantId, String userId, String mode, String firstQuery) {
         if (sessionRepository.existsById(sessionId)) {
-            return;
+            return; // 已存在：链路归属保持首轮 mode（前端切换链路即新会话，恒属一链路）
         }
         KbSession session = new KbSession();
         session.setId(sessionId);
         // 表约束 NOT NULL：身份缺失兜底占位（生产链路 JWT 保证非空，此为防御）
         session.setTenantId(tenantId != null ? tenantId : "unknown");
         session.setUserId(userId != null ? userId : "unknown");
+        session.setMode(mode);
         session.setTitle(titleOf(firstQuery));
         try {
             sessionRepository.save(session);
@@ -248,7 +252,7 @@ public class ChatSessionService {
         int safeSize = Math.clamp(size, 1, MAX_PAGE_SIZE);
         return sessionRepository
             .findByTenantIdAndUserIdOrderByUpdatedAtDesc(tenantId, userId, PageRequest.of(safePage, safeSize))
-            .map(s -> new SessionItem(s.getId(), s.getTitle(), s.getMessageCount(), s.getUpdatedAt()))
+            .map(s -> new SessionItem(s.getId(), s.getTitle(), s.getMode(), s.getMessageCount(), s.getUpdatedAt()))
             .getContent();
     }
 

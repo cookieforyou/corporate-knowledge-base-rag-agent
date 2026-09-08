@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS kb_session (
     user_id         VARCHAR(50) NOT NULL,
     title           VARCHAR(255),
     knowledge_base  VARCHAR(100),
+    mode            VARCHAR(10),
     status          VARCHAR(20) DEFAULT 'ACTIVE',
     message_count   INT DEFAULT 0,
     total_tokens    BIGINT DEFAULT 0,

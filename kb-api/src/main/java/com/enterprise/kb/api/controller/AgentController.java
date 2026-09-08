@@ -129,7 +129,7 @@ public class AgentController {
                     ? orchestrator.chatOrchestrator(query, sessionId, ctx)
                     : ragChatService.chatRag(query, sessionId, ctx);
 
-        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(),
+        chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), mode,
             safeQuery, answer, assistantMessageId,
             // 溯源载荷（v2.17）：tool/agent 链零检索、闲聊免检索直答无溯源 → null
             toolMode || agentMode || ctx.isSkipRetrieval() ? null : safeBuildTrace(ctx), ctx.getTraceId(),
@@ -263,7 +263,7 @@ public class AgentController {
             .concatWith(Mono.just(ServerSentEvent.<Object>builder(
                 new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
-                sessionId, traceCtx.getTenantId(), traceCtx.getUserId(),
+                sessionId, traceCtx.getTenantId(), traceCtx.getUserId(), mode,
                 safeQuery,
                 // 替换轮归档话术（v2.109）：answerBuffer 累积的是已放行前缀
                 traceCtx.isOutputReplaced() ? traceCtx.getOutputReplacement() : answerBuffer.toString(),

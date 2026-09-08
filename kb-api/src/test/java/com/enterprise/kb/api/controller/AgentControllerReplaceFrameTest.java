@@ -73,7 +73,7 @@ class AgentControllerReplaceFrameTest {
         assertThat(events.get(3).event()).isEqualTo("TRACE");
         assertThat(events.get(4).data().toString()).contains("messageId");
         // 归档话术（answerBuffer 前缀被替换）
-        Mockito.verify(chatSessionService).archiveTurn(anyString(), anyString(), anyString(),
+        Mockito.verify(chatSessionService).archiveTurn(anyString(), anyString(), anyString(), anyString(),
             anyString(), ArgumentMatchers.eq("抱歉，由于合规要求，无法提供该信息。"),
             anyString(), any(), any(), any());
     }

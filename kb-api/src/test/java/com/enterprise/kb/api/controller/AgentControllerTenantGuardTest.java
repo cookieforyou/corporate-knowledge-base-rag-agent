@@ -102,7 +102,7 @@ class AgentControllerTenantGuardTest {
 
         ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         Mockito.verify(chatSessionService).archiveTurn(
-            ArgumentMatchers.eq("s-pii"), anyString(), anyString(),
+            ArgumentMatchers.eq("s-pii"), anyString(), anyString(), anyString(),
             queryCaptor.capture(), anyString(), anyString(), any(), anyString(), any());
         assertThat(queryCaptor.getValue())
             .contains("1***-****-****")

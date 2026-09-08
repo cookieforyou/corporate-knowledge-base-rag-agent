@@ -10,10 +10,14 @@
     <div ref="listEl" class="sp-list" @scroll="onScroll">
       <div v-for="s in sessions" :key="s.id" class="sp-item panel"
         :class="{ active: s.id === activeId, disabled: disabled }"
-        @click="select(s.id)">
+        @click="select(s)">
         <div class="sp-item-title">{{ s.title || '未命名会话' }}</div>
         <div class="sp-item-meta">
-          <span class="sp-time t-data">{{ relTime(s.updatedAt) }}</span>
+          <span class="sp-meta-left">
+            <!-- 链路归属徽标（簇⑥ E2E 补强四）：存量会话无 mode 不显示 -->
+            <span v-if="s.mode" class="sp-mode t-data" :class="s.mode">{{ modeLabel(s.mode) }}</span>
+            <span class="sp-time t-data">{{ relTime(s.updatedAt) }}</span>
+          </span>
           <el-popconfirm title="删除该会话？消息将一并清除且不可恢复" width="220"
             confirm-button-text="删除" cancel-button-text="取消" @confirm="remove(s)">
             <template #reference>
@@ -41,7 +45,7 @@ import { ElMessage } from 'element-plus'
 import { DArrowLeft, ChatDotSquare, Delete } from '@element-plus/icons-vue'
 
 const props = defineProps<{ activeId: string; disabled?: boolean }>()
-const emit = defineEmits<{ select: [id: string]; deleted: [id: string] }>()
+const emit = defineEmits<{ select: [id: string, mode: 'rag' | 'tool' | 'agent' | null | undefined]; deleted: [id: string] }>()
 
 const PAGE_SIZE = 50
 
@@ -72,10 +76,14 @@ function refresh() {
   load(0, false)
 }
 
-function select(id: string) {
-  if (props.disabled || id === props.activeId) return
-  emit('select', id)
+/** 选中会话：id + 链路归属一并上抛（簇⑥ E2E 补强四——打开会话恢复对应链路 tab） */
+function select(s: SessionSummary) {
+  if (props.disabled || s.id === props.activeId) return
+  emit('select', s.id, s.mode)
 }
+
+const modeLabel = (m: string) =>
+  ({ rag: '知识', tool: '工具', agent: '编排' } as Record<string, string>)[m] || m
 
 async function remove(s: SessionSummary) {
   try {
@@ -156,7 +164,15 @@ onMounted(refresh)
 }
 .sp-item.active .sp-item-title { color: var(--pine-900); }
 .sp-item-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
+.sp-meta-left { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .sp-time { font-size: 11px; color: var(--ink-3); }
+/* 链路徽标（簇⑥ E2E 补强四）：三链三色，与对话页链路语境一致 */
+.sp-mode {
+  font-size: 10px; padding: 0 5px; border-radius: 4px; line-height: 16px; flex-shrink: 0;
+}
+.sp-mode.rag { background: var(--pine-50); color: var(--pine-700); }
+.sp-mode.tool { background: var(--gold-100); color: var(--gold-600); }
+.sp-mode.agent { background: #E8F1F8; color: var(--c-vector, #3A6FA8); }
 /* 隐藏用 visibility/opacity 而非 display:none：popconfirm 弹出后鼠标移入确认框
    会脱离卡片 hover，display:none 会使引用元素失去布局盒，popper 定位回退到页面左上角 */
 .sp-del {

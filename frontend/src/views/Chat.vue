@@ -256,9 +256,12 @@ function onModeSwitch() {
 }
 
 /** 打开历史会话（3.15 补齐）：拉 PG 归档消息映射为 Message[]——sources 即 citations、
- *  messageId 即 kb_message.id（反馈链路复用）、feedback 回显；sessionId 续用即真续聊 */
-async function openHistory(id: string) {
+ *  messageId 即 kb_message.id（反馈链路复用）、feedback 回显；sessionId 续用即真续聊。
+ *  链路 tab 恢复（簇⑥ E2E 补强四）：会话的 mode 归属（kb_session.mode，归档首轮写入）
+ *  随选中上抛——切到对应链路后续聊走该链路；存量会话 mode 缺失保持当前不切 */
+async function openHistory(id: string, mode?: 'rag' | 'tool' | 'agent' | null) {
   if (streaming.value || id === store.sessionId) return
+  if (mode === 'rag' || mode === 'tool' || mode === 'agent') store.mode = mode
   try {
     const history = await getSessionMessages(id)
     store.openSession(id, history.map(toMessage))

@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-07 · v2.114（簇⑥ 体验批3 补强三：进度行常驻至流结束——编排链散落叙述 token 不再吞没进度推送，§11.3）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-08 · v2.115（簇⑥ 体验补强四：kb_session.mode 会话链路归属——历史会话恢复对应链路 tab，§11.7）
 >
 > **v2.108（2026-09-07，簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
@@ -116,6 +116,22 @@
 > 悬挂）——`Sinks.Empty` 主流终结信号 + `takeUntilOther` 联动终止；token 主链
 > 唯一订阅（冷流重复订阅 = 二次 LLM 调用）。前端：流中卡片实时渲染
 > （`streamToolCalls`）+ 进度行（PROGRESS，token 到达后让位正文）。
+
+> **v2.115（2026-09-08，簇⑥ 体验补强四：会话链路归属——历史会话恢复对应链路 tab）**：
+> 用户反馈：三链路会话回显恒显第一个 tab（rag）——会话的链路归属只落
+> kb_audit_log.mode（审计视角表，§11.7.1 已定谳不当产品读取事实源），
+> kb_session 无此列，前端 `openHistory` 无从得知会话属哪条链路。修复 =
+> **kb_session.mode 列（Flyway V3）**：mode 是**会话级属性**（前端「切换链路即
+> 新会话」——一会话恒属一链路；HITL 确认轮显式 tool 链复用同会话与归属一致）；
+> 归档链 `archiveTurn` 第 4 参（Controller 同步/流式两入口 mode 均在作用域），
+> `ensureSession` **首建写入首轮 mode、已存在不覆写**（不覆写由 existsById 短路
+> 天然成立——链路**逐轮**事实源仍是审计表，本列为会话归属快照，两表语义不同）；
+> `SessionItem` 回传 mode；前端三处——打开会话恢复 `store.mode`（合法
+> rag|tool|agent 才切，续聊即走该链路；存量会话 NULL 保持当前不切 = 降级
+> 语义）、会话列表条目链路徽标（知识/工具/编排三色，存量不显示）、select
+> 事件携带 mode 上抛。**否决零 DDL 的消息级 metadata 方案**（语义错位：归属是
+> 会话级非消息级；会话列表无法展示）。ddl-auto=validate：V3 迁移 + schema.sql
+> 双源同步，用户侧重启即 Flyway 自动执行。§11.7.1 补注。
 
 > **v2.114（2026-09-07，簇⑥ 体验批3 补强三：进度行常驻至流结束）**：
 > 补强二复验通过（检索/读档卡片逐次出现）后用户再反馈：编排链**进度行被
@@ -1066,6 +1082,11 @@ kb-eval 评估链不挂本 Advisor（评估流量不污染审计）。`rag.audit
 > `loadMessages` 经 readTree 取键反解 `HistoryMessageItem.toolCalls` 回传，前端
 > `toMessage` 映射复用 ToolCallCard 渲染链路。无键/解析失败降级 null（存量消息
 > 形态），rag 链恒空。
+>
+> **v2.115 补注（簇⑥ 体验补强四）**：会话链路归属 mode 随归档落 kb_session.mode
+> （V3 列，`ensureSession` 首建写入不覆写）——列表 `SessionItem` 回传、前端打开
+> 会话恢复对应链路 tab（续聊即走该链路）、列表条目链路徽标；存量会话 NULL 降级
+> 不切。链路逐轮事实源仍是 kb_audit_log.mode（本列为会话归属快照，两表语义不同）。
 
 ### 11.7.2 会话 API（SessionController，`/api/v1/sessions`）
 

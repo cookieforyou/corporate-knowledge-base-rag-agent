@@ -30,6 +30,10 @@ public class KbSession {
     @Column(name = "knowledge_base", length = 100)
     private String knowledgeBase;
 
+    /** 会话链路归属（rag|tool|agent，V3）：归档首建写入首轮 mode，已存在不覆写；存量行为 NULL */
+    @Column(name = "mode", length = 10)
+    private String mode;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)
     private SessionStatus status = SessionStatus.ACTIVE;
