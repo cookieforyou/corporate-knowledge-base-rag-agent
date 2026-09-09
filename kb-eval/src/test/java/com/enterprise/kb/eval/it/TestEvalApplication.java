@@ -4,8 +4,10 @@ import com.enterprise.kb.ai.config.SmartRoutingConfig;
 import com.enterprise.kb.eval.EvalApplication;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.config.JudgeModelConfig;
+import com.enterprise.kb.eval.runner.AnswerDraftRunner;
 import com.enterprise.kb.eval.runner.AnnotationRunner;
 import com.enterprise.kb.eval.runner.EvalRunner;
+import com.enterprise.kb.eval.runner.IndirectInjectionRunner;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -21,6 +23,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * <ul>
  *   <li>{@code EvalApplication}——防嵌套 @ComponentScan 重复装配</li>
  *   <li>{@code EvalRunner / AnnotationRunner}——避免 ApplicationReady 触发全量评估</li>
+ *   <li>{@code AnswerDraftRunner / IndirectInjectionRunner}——构造器依赖
+ *       {@code judgeChatClient}（定义于被排除的 {@code JudgeModelConfig}），
+ *       IT 上下文装配即 NoSuchBeanDefinition；两运行器均为显式参数触发的
+ *       评估工具，IT 面无消费者</li>
  *   <li>{@code JudgeModelConfig}——judge api-key 空时 Bean 创建阶段即抛异常</li>
  *   <li>{@code SmartRoutingConfig}——其主模型装配（v2.77 双形态：glm/deepseek）
  *       校验真实 api-key；排除后由 {@link com.enterprise.kb.eval.it.config.ItModelConfig}
@@ -41,6 +47,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             EvalApplication.class,
             EvalRunner.class,
             AnnotationRunner.class,
+            AnswerDraftRunner.class,
+            IndirectInjectionRunner.class,
             JudgeModelConfig.class,
             SmartRoutingConfig.class
         }))

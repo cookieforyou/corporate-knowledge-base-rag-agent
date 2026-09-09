@@ -14,7 +14,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 输出黑名单护栏（簇⑥ D3）：同步整段替换 + 流式聚合后验替换 + 洁净输出直通。
+ * 输出黑名单护栏（簇⑥ D3）：同步整段替换 + 流式增量放行截断（v2.109 语义——
+ * 命中即吞块，REPLACE 追回经 ctx 标记由 SSE 层消费）+ 洁净输出直通。
  * 黑名单测试词表经基类属性注入（竞品Alpha / 违禁词Beta）。
  */
 class OutputGuardrailIT extends AbstractAdvisorChainIT {
@@ -47,11 +48,15 @@ class OutputGuardrailIT extends AbstractAdvisorChainIT {
     void blacklist_streamReplaced() {
         stub.setDefaultAnswer("推荐使用竞品Alpha产品，体验更好");
 
-        Flux<String> stream = ragChatService.chatStreamRag("推荐产品", sessionId(), ctx(TENANT, "U-G"));
+        RetrievalContext ctx = ctx(TENANT, "U-G");
+        Flux<String> stream = ragChatService.chatStreamRag("推荐产品", sessionId(), ctx);
         String joined = String.join("", stream.collectList().block());
 
-        // 流式聚合后验：命中黑名单整段替换为单一安全话术
-        assertThat(joined).isEqualTo(SAFE_RESPONSE).doesNotContain("竞品Alpha");
+        // 流式增量放行（v2.109）：命中即吞块截断——违禁词及后续文本永不出流，
+        // 服务层 Flux 不携带替换话术；REPLACE 追回经 ctx 标记由 SSE 层消费
+        assertThat(joined).doesNotContain("竞品Alpha");
+        assertThat(ctx.isOutputReplaced()).isTrue();
+        assertThat(ctx.getOutputReplacement()).isEqualTo(SAFE_RESPONSE);
     }
 
     @Test

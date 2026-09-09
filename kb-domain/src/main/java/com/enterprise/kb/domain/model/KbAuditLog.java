@@ -103,8 +103,16 @@ public class KbAuditLog {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    /**
+     * 缺省服务端钉死创建时刻；显式指定优先（测试种子/回填可自定时间）。
+     * 原无条件覆写形态致显式 setter 值静默失效——IT 固定日期种子被覆写为
+     * 运行时刻，时间窗过滤断言随运行日期漂移（运行日移出查询窗即必挂）。
+     * 生产写入点（AuditTraceAdvisor / McpAuditRecorder）均不设值，行为零漂移。
+     */
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 }

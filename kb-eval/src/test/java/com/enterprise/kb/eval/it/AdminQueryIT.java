@@ -51,13 +51,13 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
         sessionRepository.deleteAllInBatch();
         auditLogRepository.deleteAllInBatch();
 
-        audit(TENANT_A, "u-1", "s-1", "SUCCESS", "NEGATIVE", "RETRIEVAL_MISS",
+        audit(TENANT_A, "u-1", "s-1", "rag", "SUCCESS", "NEGATIVE", "RETRIEVAL_MISS",
             LocalDateTime.of(2026, 8, 10, 10, 0));
-        audit(TENANT_A, "u-2", null, "REJECTED", null, null,
+        audit(TENANT_A, "u-2", null, null, "REJECTED", null, null,
             LocalDateTime.of(2026, 8, 12, 10, 0));
-        audit(TENANT_A, "u-1", null, "ERROR", "POSITIVE", null,
+        audit(TENANT_A, "u-1", null, "agent", "ERROR", "POSITIVE", null,
             LocalDateTime.of(2026, 8, 14, 10, 0));
-        audit(TENANT_B, "u-9", null, "SUCCESS", null, null,
+        audit(TENANT_B, "u-9", null, "rag", "SUCCESS", null, null,
             LocalDateTime.of(2026, 8, 14, 12, 0));
 
         session("s-a1", TENANT_A, "u-1");
@@ -77,32 +77,37 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
     void auditSearch_filtersTenantScopeAndOrdering() {
         // 无过滤：仅本租户，created_at 倒序
         var all = auditLogRepository.findAll(
-            AuditLogSpecs.search(TENANT_A, null, null, null, null, null, null, null, null),
+            AuditLogSpecs.search(TENANT_A, null, null, null, null, null, null, null, null, null),
             PageRequest.of(0, 20));
         assertThat(all.getTotalElements()).isEqualTo(3);
         assertThat(all.getContent().get(0).getStatus()).isEqualTo("ERROR");
         assertThat(all.getContent().get(2).getFeedback()).isEqualTo("NEGATIVE");
 
-        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             "NEGATIVE", null, null, null))).isEqualTo(1);
-        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             null, "REJECTED", null, null))).isEqualTo(1);
-        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             null, null, "RETRIEVAL_MISS", null))).isEqualTo(1);
-        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             null, null, null, true))).isEqualTo(1);   // 已标注
-        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             null, null, null, false))).isEqualTo(2);  // 未标注
-        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, "u-1", null,
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, "u-1", null, null,
             null, null, null, null))).isEqualTo(2);
+        // 链路过滤（簇⑤ mode 位，真 PG 回归补覆盖）
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+            "rag", null, null, null, null))).isEqualTo(1);
+        assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+            "agent", null, null, null, null))).isEqualTo(1);
         // 时间窗闭区间
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A,
             LocalDateTime.of(2026, 8, 11, 0, 0), LocalDateTime.of(2026, 8, 13, 0, 0),
-            null, null, null, null, null, null)))
+            null, null, null, null, null, null, null)))
             .isEqualTo(1);
         // 分页 total
         var page = auditLogRepository.findAll(
-            AuditLogSpecs.search(TENANT_A, null, null, null, null, null, null, null, null),
+            AuditLogSpecs.search(TENANT_A, null, null, null, null, null, null, null, null, null),
             PageRequest.of(0, 2));
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getTotalElements()).isEqualTo(3);
@@ -112,15 +117,17 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
     void auditSearch_repeatedExecution_survivesPreparedStatementPromotion() {
         // 各形态 ≥6 次执行：覆盖 PgJDBC prepareThreshold（5）后的命名预编译提升路径
         for (int i = 0; i < 6; i++) {
-            assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+            assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
                 null, null, null, null))).as("无过滤 第%d次", i + 1).isEqualTo(3);
-            assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+            assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
                 "NEGATIVE", null, null, null))).as("feedback 第%d次", i + 1).isEqualTo(1);
             assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
+                "agent", null, null, null, null))).as("mode 第%d次", i + 1).isEqualTo(1);
+            assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
                 null, null, null, true))).as("annotated 第%d次", i + 1).isEqualTo(1);
             assertThat(countAudit(AuditLogSpecs.search(TENANT_A,
                 LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2026, 8, 31, 0, 0),
-                null, null, null, null, null, null)))
+                null, null, null, null, null, null, null)))
                 .as("时间窗 第%d次", i + 1).isEqualTo(3);
         }
     }
@@ -155,12 +162,13 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
         return feedbackRepository.count(spec);
     }
 
-    private void audit(String tenantId, String userId, String sessionId,
+    private void audit(String tenantId, String userId, String sessionId, String mode,
                        String status, String feedback, String rootCause, LocalDateTime createdAt) {
         KbAuditLog row = new KbAuditLog();
         row.setTenantId(tenantId);
         row.setUserId(userId);
         row.setSessionId(sessionId);
+        row.setMode(mode);
         row.setQueryText("问题-" + UUID.randomUUID());
         row.setStatus(status);
         row.setFeedback(feedback);
