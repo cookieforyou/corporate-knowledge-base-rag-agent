@@ -1,0 +1,13 @@
+# build context 白名单收窄（2026-09-10，F3 前核验）：镜像构建只需三物——
+# Dockerfile + docker-entrypoint.sh + fat jar。仓库根做 context 时排除
+# frontend/node_modules、.git、docs、各模块 target 等大目录（此前无本文件，
+# context 全量传输数百 MB）。嵌套 include 语法 = docker 官方「排除目录内
+# 白名单」手法（父目录先放行、内容重排除、目标再放行）。
+*
+!Dockerfile
+!docker-entrypoint.sh
+!kb-api
+kb-api/*
+!kb-api/target
+kb-api/target/*
+!kb-api/target/kb-api-*.jar
