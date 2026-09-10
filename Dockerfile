@@ -14,7 +14,7 @@
 #
 # HEALTHCHECK 依赖 curl（temurin JRE 基础镜像无 curl，构建期安装）。
 # ============================================================
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jre-jammy
 
 ARG JAR_FILE=kb-api/target/kb-api-1.0.0-SNAPSHOT.jar
 
