@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**模型层批B 主模型 GLM-5.3-Flash 切换收官（MB1，2026-09-02）**：四轮治理证伪后降线定案——门禁线 CA≥0.75/HR≤8% + 基线 md1-final-3；生产形态 = temperature 0.2 + effort low。**簇①-④ 全部收官**（簇② 2026-09-01 md1-final-2 全量门禁退出码 0，四线销账详 16 章/06 卷；簇③ 语义缓存已合入 main；簇④ GraphRAG 2026-08-27 收官、分支已合并）。**簇⑤ Agent 编排收官（2026-09-06 演示 E2E 10/10，方案 §八）**；余簇⑥ 产品化收尾。**机器侧就绪、用户侧待跑的运维回传项**唯一源 `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段，六簇推进）**：推进基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；**模型层批B 主模型 GLM-5.3-Flash 切换收官（MB1，2026-09-02）**：四轮治理定案：门禁线 CA≥0.75/HR≤8% + 基线 md1-final-3；生产 = temperature 0.2 + effort low。**簇①-④ 全部收官**（簇② 2026-09-01 md1-final-2 门禁退出码 0 销账，详 16 章/06 卷；簇③ 语义缓存已合入 main；簇④ GraphRAG 08-27 收官合并）。**簇⑤ Agent 编排收官（2026-09-06 演示 E2E 10/10）**；余簇⑥ 产品化收尾。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -39,7 +39,7 @@ kb-rag-agent/
 - **基础设施托管于 ECS**（均远程，本地无需搭建）。
 - **API 端口 8090**（8080 被占，`SERVER_PORT=8090`）；前端 `.env` BACKEND_URL 配套。
 - 环境变量名与默认值见 infra/ai.yml。
-- 启动：本地开发 fat jar 直起（坑位㉘）；**生产 ECS 容器化形态（v2.55 簇⑥）**：根 Dockerfile + `infra/docker-compose.app.yml`（禁 latest / healthcheck / AppCDS 训练服务）+ `infra/.env.example` Secrets 模板 + kb-api.service 开机自启，见 17 章 §17.4；前端 `npm run dev`。
+- 启动：本地开发 fat jar 直起（坑位㉘）；**生产 ECS 容器化形态（v2.55 簇⑥）**：根 Dockerfile + `infra/docker-compose.app.yml`（禁 latest / healthcheck / CDS 训练）+ `infra/.env.example` Secrets 模板 + kb-api.service 开机自启，见 17 章 §17.4；实操手册 docs/delivery/；前端开发 `npm run dev`，生产 = 宿主 nginx 同源反代（`infra/nginx/frontend.conf`）。
 
 ## 当前实现要点
 
