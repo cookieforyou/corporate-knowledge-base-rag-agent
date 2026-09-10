@@ -26,7 +26,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - kb-cds:/opt/cds
       - kb-guardrail-rules:/rules   # 词表导出存档目录（RAG_GUARDRAIL_RULES_EXPORT_DIR=/rules）
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8090/actuator/health"]
@@ -50,23 +49,5 @@ services:
   # docker compose -f docker-compose.app.yml --profile tools run --rm kb-api-cds-train
   # 训练跑 = 完整启动（infra 须可达）+ 超时 SIGTERM 退出即写档
   # ArchiveClassesAtExit；CDS_TRAIN_TIMEOUT 按 ECS 冷启动时余上调。
-  kb-api-cds-train:
-    image: kb-rag-agent:${KB_IMAGE_TAG:?KB_IMAGE_TAG 未设——禁 latest}
-    profiles: ["tools"]
-    env_file: .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - kb-cds:/opt/cds
-    entrypoint: >
-      bash -c 'echo "[cds-train] training start (timeout $${CDS_TRAIN_TIMEOUT:-150}s)";
-      timeout $${CDS_TRAIN_TIMEOUT:-150} java --enable-preview
-      -XX:ArchiveClassesAtExit=/opt/cds/app.jsa $$JAVA_OPTS -jar /app/app.jar;
-      ec=$$?; ls -la /opt/cds/;
-      if [ -f /opt/cds/app.jsa ]; then echo "[cds-train] archive written OK";
-      else echo "[cds-train] WARN: archive absent (training failed or timed out pre-dump)"; fi;
-      exit 0'
-
 volumes:
-  kb-cds:
   kb-guardrail-rules:

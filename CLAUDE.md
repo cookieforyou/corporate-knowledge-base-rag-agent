@@ -39,7 +39,7 @@ kb-rag-agent/
 - **基础设施托管于 ECS**（均远程，本地无需搭建）。
 - **API 端口 8090**（8080 被占，`SERVER_PORT=8090`）；前端 `.env` BACKEND_URL 配套。
 - 环境变量名与默认值见 infra/ai.yml。
-- 启动：本地开发 fat jar 直起（坑位㉘）；**生产 ECS 容器化形态（v2.55 簇⑥）**：根 Dockerfile + `infra/docker-compose.app.yml`（禁 latest / healthcheck / CDS 训练）+ `infra/.env.example` Secrets 模板 + kb-api.service 开机自启，见 17 章 §17.4；实操手册 docs/delivery/；前端开发 `npm run dev`，生产 = 宿主 nginx 同源反代（`infra/nginx/frontend.conf`）。
+- 启动：本地开发 fat jar 直起（坑位㉘）；**生产 ECS 容器化形态（v2.55 簇⑥）**：根 Dockerfile + `infra/docker-compose.app.yml`（禁 latest / healthcheck）+ `infra/.env.example` Secrets 模板 + kb-api.service 开机自启，见 17 章 §17.4；实操手册 docs/delivery/；前端开发 `npm run dev`，生产 = 宿主 nginx 同源反代（`infra/nginx/frontend.conf`）。
 
 ## 当前实现要点
 
