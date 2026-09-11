@@ -333,7 +333,7 @@ rag:
     ttl: ${RAG_CACHE_TTL:1h}                      # 条目 TTL 兜底（知识库变更另有事件驱动即时失效）
     embedding-dim: ${RAG_CACHE_EMBEDDING_DIM:1024}  # 与主检索链路 EmbeddingModel 同源（1024 钉死）
   rerank:
-    endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/compatible-api/v1/reranks}
+    endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank}
     model: ${RERANK_MODEL:qwen3.7-text-rerank}
     api-key: ${DASHSCOPE_API_KEY:}
     timeout-seconds: ${RERANK_TIMEOUT_SECONDS:5}   # connect/read 超时（簇③ D2），与单路检索超时对齐；超时走 fusion_score 截断降级

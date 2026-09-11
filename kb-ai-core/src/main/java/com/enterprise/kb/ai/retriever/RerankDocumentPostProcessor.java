@@ -39,7 +39,7 @@ import java.util.Map;
  * 此前无超时配置，rerank 端点长尾不可控、拖垮整链 TTFT；超时异常走既有
  * catch 降级路径。
  *
- * <p>可插拔：未来切换 qwen3.7-text-rerank 私有部署 / Jina v3 等只需替换本实现 + 配置。
+ * <p>可插拔：未来切换私有部署 / Jina v3 等只需替换本实现 + 配置。
  *
  * <p><b>观测（Phase 5 簇①）</b>：rerank HTTP 调用经 {@link Observation} 包裹
  * （{@code kb.rerank}），寻父 = 当前线程观测——RAA 双执行器已两级传播包裹
@@ -124,17 +124,23 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             return truncateByFusionScore(documents);
         }
         try {
-            // qwen3.7-text-rerank compatible-api/v1/reranks 为扁平契约（2026-08-04 E2E 修正）：
-            // query/documents/top_n 与 model 同层——嵌套 input/parameters 是 gte-rerank 系
-            // DashScope 原生端点的旧契约，误用会被拒（400 Field required: input.query）。
-            // top_n 超过候选数同样报 InvalidParameter，按候选数收敛。
-            // 契约外参数不传：return_documents（gte 系参数，官方容忍但非契约字段）；
-            // instruct（可选任务指令，默认即问答检索任务，与 RAG 场景契合，显式传值无增益）。
+            // DashScope text-rerank 端点为嵌套契约（2026-09-11 随 qwen3.7-text-rerank 切换）：
+            // query/documents 收敛于 input，top_n 收敛于 parameters。两套契约不可跨端点混用——
+            // 扁平形态仅旧 compatible-api/v1/reranks 端点适用（2026-08-04 实证：嵌套误投该端点
+            // 即 400 Field required: input.query；反之亦然，端点切换必须连契约一起切）。
+            // query/documents 用字符串形态（官方 qwen3.7-text-rerank 示例即此形态，
+            // {"text":...} 对象形态是 vl 多模态系专用）。
+            // top_n 按候选数收敛（历史端点超候选数报 InvalidParameter，防御性保留）。
+            // 契约外参数不传：return_documents（qwen3.7-text-rerank 不在支持列表，仅
+            // gte/vl 系；index+score 已够用，原文自持无需回传）；instruct（本模型支持，
+            // 但缺省即问答检索任务，与 RAG 场景契合，显式传值无增益）。
             Map<String, Object> body = Map.of(
                 "model", model,
-                "query", query.text(),
-                "documents", documents.stream().map(Document::getText).toList(),
-                "top_n", Math.min(properties.getTopK(), documents.size()));
+                "input", Map.of(
+                    "query", query.text(),
+                    "documents", documents.stream().map(Document::getText).toList()),
+                "parameters", Map.of(
+                    "top_n", Math.min(properties.getTopK(), documents.size())));
 
             // kb.rerank 观测包裹（Phase 5 簇①）：observeChecked 自动 start/openScope/
             // error/stop——调用异常记录后经既有 catch 走降级，不改变容错语义。
@@ -221,9 +227,9 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
         return d.getScore() != null ? d.getScore() : 0.0;
     }
 
-    // ── rerank API 响应模型（2026-08-04 实证修正）──
-    // qwen3.7-text-rerank compatible 端点：results 位于响应顶层；旧 gte-rerank 原生端点在
-    // output.results——双形态兼容解析，切换后端不改代码。
+    // ── rerank API 响应模型 ──
+    // DashScope 端点（2026-09-11 切换）：results 位于 output 包装之下；旧 compatible 端点在
+    // 响应顶层——双形态兼容解析，两代端点皆可解析，回切不改代码。
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record RerankResponse(List<RerankResult> results, Output output) {
