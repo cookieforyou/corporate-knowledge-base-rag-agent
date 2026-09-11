@@ -22,7 +22,7 @@
 # 告警自检：promtool 单测文件挂 /etc/prometheus/rules-selfcheck/，
 # 执行形态见 用户侧待执行项清单.md M1。
 #
-# 端口口径（2026-09-11 迁移）：宿主映射 9091/3001/16687/4319（容器内
+# 端口口径（2026-09-11 迁移）：宿主映射 9092/3001/16687/4319（容器内
 # 服务端口不变）——ECS 共存的 deepresearch 栈已占 9090/3000/16686/4318
 # （其 prometheus/jaeger/otel-collector/frontend），+1 错开。容器间通信
 # （datasource http://prometheus:9090、healthcheck、node-exporter:9100）
@@ -45,7 +45,7 @@ services:
       - ./prometheus/alert-selfcheck:/etc/prometheus/rules-selfcheck:ro
       - prometheus-data:/prometheus
     ports:
-      - "9091:9090"   # 宿主 9091（deepresearch 占 9090）
+      - "9092:9090"   # 宿主 9092（deepresearch 占 9090）
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
