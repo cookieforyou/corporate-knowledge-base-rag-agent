@@ -135,7 +135,7 @@ groups:
           severity: warning
         annotations:
           summary: "主模型熔断 OPEN——已降级备用模型服务"
-          description: "近 5 分钟熔断 OPEN 事件数={{ $value }}（主模型连续失败达阈值 rag.routing.circuit.failure-threshold）；OPEN 窗口内请求直发备用模型，经 rag_routing_fallback_invoked_total 确认接管。核查主模型端点可用性/凭据/配额；HALF_OPEN 试探成功后自动闭合（计数清零）。"
+          description: "近 5 分钟熔断 OPEN 事件数={{ printf \"%.0f\" $value }}（主模型连续失败达阈值 rag.routing.circuit.failure-threshold）；OPEN 窗口内请求直发备用模型，经 rag_routing_fallback_invoked_total 确认接管。核查主模型端点可用性/凭据/配额；HALF_OPEN 试探成功后自动闭合（计数清零）。"
 
       - alert: KbTokenSpike
         expr: |
@@ -147,7 +147,7 @@ groups:
         annotations:
           summary: "Token 消耗突增（近 1 小时 >3× 日均小时速率）"
           description: |
-            小时消耗={{ $value }}；调研参考值为 >2σ，PromQL 无法直接计算标准差，
+            小时消耗={{ printf "%.0f" $value }}；调研参考值为 >2σ，PromQL 无法直接计算标准差，
             以 3× 日均速率近似（校准锚点：积累 1 周基线后按实际方差收紧/放宽）。
             排查长上下文会话洪峰与异常租户。
 

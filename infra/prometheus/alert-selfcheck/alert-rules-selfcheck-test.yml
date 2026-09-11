@@ -64,6 +64,7 @@ tests:
           - exp_labels:
               alertname: KbJvmGcPressureHigh
               severity: warning
+              application: kb-rag-agent
             exp_annotations:
               summary: "GC 开销 >20%（jvm_gc_overhead 平滑 gauge）"
               description: "GC 开销=0.5；影响 TTFT 分位，检查堆配置与对象分配热点。备选表达式：rate(jvm_gc_pause_seconds_sum[5m]) > 0.2。"
@@ -119,6 +120,7 @@ tests:
           - exp_labels:
               alertname: KbTokenSpike
               severity: warning
+              application: kb-rag-agent
             exp_annotations:
               summary: "Token 消耗突增（近 1 小时 >3× 日均小时速率）"
               description: |
@@ -165,12 +167,15 @@ tests:
 
   # ── 8. KbPrimaryModelDegraded：熔断 OPEN counter 8m→10m 跳变 0→1（簇⑥ 批4） ──
   # eval 11m（奇数）：[5m] 窗口 (6m,11m] 内样本 8m(0)/10m(1)，
-  # durationToStart=2m=avg/2 外推 +1m、durationToEnd=1m≥avg/2 外推 +1m，
-  # increase = 1×(2+1+1)/2 = 2 精确整数。for=0m 首评估即 FIRING。
+  # 2.55.1 实测修订（2026-09-12，坑位㊽）：promtool 序列语法 xN 为「首点+重复 N 次」
+  # （0x4 = 5 点 ts 0-8m；2x10 = 11 点 ts 10-30m）——旧构造 0x5 1x10 在 2.55 下跳变
+  # 实际落 10m→12m，11m 求值窗口全 0 值样本致不触发（2.32 引擎语义有异故首跑曾过）。
+  # 新构造：跳变 0→2 于 8m→10m，11m 求值窗口 (6m,11m] 含 {8m:0, 10m:2}，
+  # increase 外推实测 = 2（v2.55.1），事件数渲染 printf "%.0f" = 2。for=0m 首评估即 FIRING。
   - interval: 2m
     input_series:
       - series: 'rag_routing_circuit_opened_total{application="kb-rag-agent"}'
-        values: '0x5 1x10'
+        values: '0x4 2x10'
     alert_rule_test:
       - eval_time: 11m
         alertname: KbPrimaryModelDegraded
