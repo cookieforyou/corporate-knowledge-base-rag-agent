@@ -1,0 +1,24 @@
+# ============================================================
+# kb-rag-agent 全栈合并入口（app + 监控一键起停，2026-09-11 定案）
+#
+# 形态 = include 引用两分栈文件（compose ≥ v2.20）——本文件零服务
+# 定义，单一事实源仍为 docker-compose.app.yml 与
+# docker-compose.monitoring.yml（改配置改分栈，本文件永不漂移）；
+# include 相对路径按本文件所在目录解析，env_file .env / 卷名 /
+# :? 守卫（KB_IMAGE_TAG / GRAFANA_ADMIN_PASSWORD）与分栈两态同源，
+# project 同名（infra）——从分栈命令切本入口零迁移，容器直接复用。
+#
+# 用法（infra/ 目录，无 -f 默认即本文件）：
+#   docker compose up -d      # 全栈：kb-api + prometheus/grafana/jaeger/node-exporter
+#   docker compose down       # 全栈停（卷保留）
+#   docker compose ps / logs <服务名>
+# 分栈命令照旧可用（-f docker-compose.app.yml 只起应用 /
+# -f docker-compose.monitoring.yml 只起监控）；⚠ 唯一纪律：分栈命令
+# 勿加 --remove-orphans——与全栈同 project（infra）混用时会把不在该
+# 分栈定义的服务容器判为孤儿删除（互杀，kb-stack.service 头注在案）。
+#
+# 开机自启 = infra/kb-stack.service（单 unit 引用本文件）。
+# ============================================================
+include:
+  - docker-compose.app.yml
+  - docker-compose.monitoring.yml

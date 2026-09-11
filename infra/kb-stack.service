@@ -1,0 +1,37 @@
+# ============================================================
+# kb-rag 全栈 systemd 开机自启单元（app + 监控合并单 unit，2026-09-11 定案）
+#
+# 职责分层（定案承继）：进程级自愈归 compose restart: unless-stopped +
+# HEALTHCHECK；systemd 只管开机自启与一键起停。
+# 引用 infra/docker-compose.yml（include 两分栈）——up 的定义集 = 全栈
+# 五服务，--remove-orphans 只清真正孤儿，无分栈互杀面。
+# 互杀根因在案（两分栈 unit 已退役删除）：kb-api.service /
+# kb-monitoring.service 各带 -f 分栈 + --remove-orphans，与全栈同
+# project（infra）混用时会把不在本分栈定义的服务容器判为孤儿删除。
+#
+# 部署（全栈 unit 首装）：
+#   cp infra/kb-stack.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now kb-stack
+# 旧形态换装（ECS 已 enable kb-api 者，2026-09-11 前部署形态）：
+#   systemctl disable --now kb-api && rm -f /etc/systemd/system/kb-api.service
+#   systemctl daemon-reload && systemctl enable --now kb-stack
+# WorkingDirectory 按 ECS 实际代码目录调整。
+# ============================================================
+[Unit]
+Description=KB RAG Agent full stack (app + monitoring, compose include)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/kb-rag-agent/infra
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
