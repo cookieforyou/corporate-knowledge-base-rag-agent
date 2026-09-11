@@ -149,7 +149,7 @@ flowchart TB
 查询 → 多轮改写 → ┌ 向量路（Milvus/pgvector，租户+软删过滤）
                   ├ BM25 路（Elasticsearch）            ╟ 并行 5s 超时单路降级
                   └ Graph 路（Neo4j，可选，零 LLM）
-        → RRF 融合（K=60）→ Rerank 精排（qwen3-rerank，故障降级截断）
+        → RRF 融合（K=60）→ Rerank 精排（qwen3.7-text-rerank，故障降级截断）
         → 间接注入扫描 → 编号化证据增强（ref-N 契约）→ 主答生成
 ```
 

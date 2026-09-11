@@ -50,7 +50,7 @@ import java.util.concurrent.Executors;
  * 检索组件 + RetrievalAugmentationAdvisor 装配（设计文档 10.6，任务 2.10）
  *
  * <p>替代 Phase 1 的 QuestionAnswerAdvisor：查询改写（默认开）→ 双路混合检索 →
- * RRF 融合 → qwen3-rerank 精排 → Grounding 证据注入。kb-eval 注入的
+ * RRF 融合 → qwen3.7-text-rerank 精排 → Grounding 证据注入。kb-eval 注入的
  * {@code chatClient} Bean 名不变，被测链路切换对评估器零感知。
  */
 @Configuration

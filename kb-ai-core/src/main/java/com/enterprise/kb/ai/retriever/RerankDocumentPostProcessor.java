@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 重排序后处理器（设计文档 10.5）—— DashScope rerank API（qwen3-rerank）
+ * 重排序后处理器（设计文档 10.5）—— DashScope rerank API（qwen3.7-text-rerank）
  *
  * <p>对 RRF 融合后的 recallSize（topK×2）候选精排并截断至 topK。
  * 实现 {@link DocumentPostProcessor}，2.10 组装 Advisor 链时挂载。
@@ -39,7 +39,7 @@ import java.util.Map;
  * 此前无超时配置，rerank 端点长尾不可控、拖垮整链 TTFT；超时异常走既有
  * catch 降级路径。
  *
- * <p>可插拔：未来切换 Qwen3-Reranker 私有部署 / Jina v3 等只需替换本实现 + 配置。
+ * <p>可插拔：未来切换 qwen3.7-text-rerank 私有部署 / Jina v3 等只需替换本实现 + 配置。
  *
  * <p><b>观测（Phase 5 簇①）</b>：rerank HTTP 调用经 {@link Observation} 包裹
  * （{@code kb.rerank}），寻父 = 当前线程观测——RAA 双执行器已两级传播包裹
@@ -70,7 +70,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             AiBusinessMetrics metrics,
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
             @Value("${rag.rerank.endpoint:}") String endpoint,
-            @Value("${rag.rerank.model:qwen3-rerank}") String model,
+            @Value("${rag.rerank.model:qwen3.7-text-rerank}") String model,
             @Value("${rag.rerank.api-key:}") String apiKey,
             @Value("${rag.rerank.timeout-seconds:5}") int timeoutSeconds) {
         this.jsonMapper = jsonMapper;
@@ -124,7 +124,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             return truncateByFusionScore(documents);
         }
         try {
-            // qwen3-rerank compatible-api/v1/reranks 为扁平契约（2026-08-04 E2E 修正）：
+            // qwen3.7-text-rerank compatible-api/v1/reranks 为扁平契约（2026-08-04 E2E 修正）：
             // query/documents/top_n 与 model 同层——嵌套 input/parameters 是 gte-rerank 系
             // DashScope 原生端点的旧契约，误用会被拒（400 Field required: input.query）。
             // top_n 超过候选数同样报 InvalidParameter，按候选数收敛。
@@ -222,7 +222,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     }
 
     // ── rerank API 响应模型（2026-08-04 实证修正）──
-    // qwen3-rerank compatible 端点：results 位于响应顶层；旧 gte-rerank 原生端点在
+    // qwen3.7-text-rerank compatible 端点：results 位于响应顶层；旧 gte-rerank 原生端点在
     // output.results——双形态兼容解析，切换后端不改代码。
 
     @JsonIgnoreProperties(ignoreUnknown = true)

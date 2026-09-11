@@ -13,7 +13,7 @@
       <div class="head-badges">
         <span class="chip chip-pine">GLM-5.3-Flash</span>
         <span class="chip chip-gold">多路混合检索</span>
-        <span class="chip chip-rerank">qwen3-rerank 精排</span>
+        <span class="chip chip-rerank">qwen3.7-text-rerank 精排</span>
         <el-button size="small" round :disabled="streaming" @click="newChat">
           <el-icon><Refresh /></el-icon>&nbsp;新对话
         </el-button>

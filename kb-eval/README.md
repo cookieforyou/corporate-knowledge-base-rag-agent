@@ -298,6 +298,6 @@ Negative Rejection:  0.8667
 | 时点 | 内容 |
 |---|---|
 | ~~Phase 2.7+~~ | ~~`HybridRetrievalProbe`（order=0）自动替换单路探针~~ ✅ 已落地（2026-08-01，双探针共存 + `eval.probe` A/B 开关） |
-| Phase 2 后续 | Golden 语料扩容至 50+（当前 DDD 文档 12 条 + 负向 15 条）；rerank 排序质量调优（簇 C 验证观测：正解 chunk 被 qwen3-rerank 压至 Top-5 末位） |
+| Phase 2 后续 | Golden 语料扩容至 50+（当前 DDD 文档 12 条 + 负向 15 条）；rerank 排序质量调优（簇 C 验证观测：正解 chunk 被 qwen3.7-text-rerank 压至 Top-5 末位） |
 | Phase 5 | Answer Correctness（启用 expectedAnswer）/ Citation Attribution / Noise Robustness 指标；Judge 人类校准（85-90% 一致率）；基线回归对比门禁；阈值收紧 |
 | 持续 | 反馈闭环（16.6）：Bad Case → Golden Dataset 增补 → 回归测试 |

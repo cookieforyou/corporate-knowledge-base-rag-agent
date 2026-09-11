@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  * 以携带按请求的过滤表达式（VectorStoreDocumentRetriever 的 filterExpression supplier
  * 无 Query 入口，无法参数化）。
  *
- * <p>重排序（2.9 qwen3-rerank）不在本组件内——以 DocumentPostProcessor 形态
+ * <p>重排序（2.9 qwen3.7-text-rerank）不在本组件内——以 DocumentPostProcessor 形态
  * 挂在 Advisor 链上（10.5/10.6），职责分离。
  */
 @Slf4j

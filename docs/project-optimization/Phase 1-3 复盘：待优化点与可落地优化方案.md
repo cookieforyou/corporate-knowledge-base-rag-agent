@@ -67,7 +67,7 @@ Phase 1-3 已实质收尾：基础设施与 ETL（Phase 1）、混合检索引�
 
 以下能力经对照行业基线**已是标配或超出**，Phase 4 不应重复投入：
 
-- **混合检索全链**：双路并行（向量+ES ik BM25）→ RRF(K=60) → qwen3-rerank 重排 → 编号化证据注入——2026 业界标准形态（hybrid + rerank 已是共识标配）
+- **混合检索全链**：双路并行（向量+ES ik BM25）→ RRF(K=60) → qwen3.7-text-rerank 重排 → 编号化证据注入——2026 业界标准形态（hybrid + rerank 已是共识标配）
 - **幻觉防线**：空证据拒答模板（`allowEmptyContext=false`，NR 基线 1.00）+ [ref-N] 引用纪律 + 三路溯源——对应行业「兜底层 + 后处理层」两级
 - **双链架构**（3.19）：rag/tool 显式分流、HITL 审批账本 fail-closed——Agentic 治理的审慎形态
 - **审计/配额/反馈闭环**：全链路审计（含被拒请求）+ 租户令牌桶/日 token 预算 + 反馈回填审计——多数开源 RAG 平台（RAGFlow/Dify/FastGPT）在此深度之下
@@ -114,7 +114,7 @@ Phase 1-3 已实质收尾：基础设施与 ETL（Phase 1）、混合检索引�
 
 **行业基线**：Hybrid（Dense+BM25）+ Reranker 已是标配；Query 改写/扩展（Multi-Query/HyDE/Step-back）为精度杠杆；Agentic RAG/GraphRAG 为复杂问题演进方向。
 
-**项目现状**：`HybridDocumentRetriever` 双路虚拟线程并行（recallSize=2×topK、单路 5s 超时降级、tenant/is_deleted 过滤）+ `RrfFusion`(K=60) + `RerankDocumentPostProcessor`（qwen3-rerank 扁平契约 + fusion_score 截断降级）+ `RewriteQueryTransformer`（且 QueryRoutingAdvisor 已把分类+改写合并为单次调用，知识问零新增延迟）。**标配全齐**。
+**项目现状**：`HybridDocumentRetriever` 双路虚拟线程并行（recallSize=2×topK、单路 5s 超时降级、tenant/is_deleted 过滤）+ `RrfFusion`(K=60) + `RerankDocumentPostProcessor`（qwen3.7-text-rerank 扁平契约 + fusion_score 截断降级）+ `RewriteQueryTransformer`（且 QueryRoutingAdvisor 已把分类+改写合并为单次调用，知识问零新增延迟）。**标配全齐**。
 
 **调优空间（均有实证靶点）**：
 - `MultiQueryExpander` **代码已实装**（`RetrievalConfig` 装配、`numberOfQueries=3`），配置键 `rag.retrieval.expansion.enabled` 默认 `false`（注释：调用放大 N 倍损 TTFT）——对 cross-02（R=0.25 枚举型）恰是对症杠杆，但**从未做过开/关 A/B 实测**，纯靠直觉关闭

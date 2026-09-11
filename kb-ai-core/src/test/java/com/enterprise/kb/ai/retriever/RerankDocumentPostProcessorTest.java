@@ -40,7 +40,7 @@ class RerankDocumentPostProcessorTest {
     /** endpoint 为空 → 禁用态，走降级截断（超时参数簇③ D2 引入，禁用态不触达） */
     private final RerankDocumentPostProcessor disabled =
         new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
-            registryProvider(ObservationRegistry.NOOP), "", "qwen3-rerank", "", 5);
+            registryProvider(ObservationRegistry.NOOP), "", "qwen3.7-text-rerank", "", 5);
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
@@ -124,7 +124,7 @@ class RerankDocumentPostProcessorTest {
         RerankDocumentPostProcessor unreachable =
             new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
                 registryProvider(ObservationRegistry.NOOP),
-                "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
+                "http://127.0.0.1:1", "qwen3.7-text-rerank", "sk-test", 1);
 
         List<Document> result = unreachable.apply(new Query("q"), List.of(doc("a", 0.3), doc("b", 0.7)));
 
@@ -145,7 +145,7 @@ class RerankDocumentPostProcessorTest {
         RerankDocumentPostProcessor observed =
             new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
                 registryProvider(observationRegistry),
-                "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
+                "http://127.0.0.1:1", "qwen3.7-text-rerank", "sk-test", 1);
 
         List<Document> result = observed.apply(new Query("q"), List.of(doc("a", 0.3), doc("b", 0.7)));
 
@@ -153,9 +153,9 @@ class RerankDocumentPostProcessorTest {
         assertEquals(1, stopped.size());
         Observation.Context ctx = stopped.get(0);
         assertEquals("kb.rerank", ctx.getName());
-        assertEquals("rerank qwen3-rerank", ctx.getContextualName());
+        assertEquals("rerank qwen3.7-text-rerank", ctx.getContextualName());
         assertTrue(ctx.getLowCardinalityKeyValues().stream()
-            .anyMatch(kv -> "rerank.model".equals(kv.getKey()) && "qwen3-rerank".equals(kv.getValue())));
+            .anyMatch(kv -> "rerank.model".equals(kv.getKey()) && "qwen3.7-text-rerank".equals(kv.getValue())));
         assertNotNull(ctx.getError());
         // 降级路径不受观测影响：融合分截断兜底仍生效
         assertEquals(List.of("b", "a"), result.stream().map(Document::getId).toList());
@@ -172,7 +172,7 @@ class RerankDocumentPostProcessorTest {
         RerankDocumentPostProcessor observed =
             new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
                 registryProvider(observationRegistry),
-                "http://127.0.0.1:1", "qwen3-rerank", "sk-test", 1);
+                "http://127.0.0.1:1", "qwen3.7-text-rerank", "sk-test", 1);
 
         Observation parent = Observation.createNotStarted("retrieval_gate", observationRegistry).start();
         try (Observation.Scope ignored = parent.openScope()) {

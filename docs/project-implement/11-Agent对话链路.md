@@ -809,7 +809,7 @@ record DoneEvent(String sessionId) implements AgentStreamEvent {}
 > **v2.9 实现期定稿（2026-08-05，用户拍板）**：原 `agentChatClient` 单链揉合 RAG
 > 检索与工具调用（8 Advisor + defaultTools），实证三痛点：① HITL 确认轮模型被检索
 > 上下文带偏不调工具（3.4 E2E 实例，靠 system 指令加固才确定化）；② 工具请求白耗
-> 混合检索 + qwen3-rerank API（延迟与成本）；③ RAG 请求平白携带工具 schema 干扰
+> 混合检索 + qwen3.7-text-rerank API（延迟与成本）；③ RAG 请求平白携带工具 schema 干扰
 > 模型决策。**定案：拆两条链 + 拆 kb-ai-agent 独立模块**（先理清后不乱，不等工具膨胀）。
 
 ### 11.5.1 模块与 Bean 形态
@@ -1163,7 +1163,7 @@ kb-domain 仓储传递可达）；kb-ai-agent 不可反向依赖 kb-api——JWT
 SecurityContextHolder principal（同 kb-admin 纪律，不复用 JwtUtils 防成环）。
 
 **三件套**（工具粒度对齐业界共识）：
-1. `search(query)`——直调检索链（Compression 改写 → 双路召回 → RRF → qwen3-rerank，
+1. `search(query)`——直调检索链（Compression 改写 → 双路召回 → RRF → qwen3.7-text-rerank，
    同 RetrievalDebugController 形态），返回 Top-K SearchHitView（chunkId/文件名/
    标题路径/页码/正文/重排分/最终序）。top-k 不开放逐请求参数——`rag.retrieval.*`
    为 kb-eval 门禁关联参数（改参须配评估纪律），MCP 面与链路配置同源。
