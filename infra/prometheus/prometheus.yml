@@ -10,7 +10,8 @@
 # - node-exporter：监控 compose 内服务名直连（同网络，9100）。
 #
 # actuator 端点 SecurityConfig 已 permitAll（13.3 v2.11 ③）；
-# 生产源址限制（ECS 安全组收敛 8090/9090/3000）随簇⑥ 批4 落地（12.9 B4）。
+# 生产源址限制（ECS 安全组收敛 8090/9091/3001，2026-09-11 端口随共存栈迁移）
+# 随簇⑥ 批4 落地（12.9 B4）。
 
 global:
   scrape_interval: 15s

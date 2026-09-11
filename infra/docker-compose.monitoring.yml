@@ -22,6 +22,12 @@
 # 告警自检：promtool 单测文件挂 /etc/prometheus/rules-selfcheck/，
 # 执行形态见 用户侧待执行项清单.md M1。
 #
+# 端口口径（2026-09-11 迁移）：宿主映射 9091/3001/16687/4319（容器内
+# 服务端口不变）——ECS 共存的 deepresearch 栈已占 9090/3000/16686/4318
+# （其 prometheus/jaeger/otel-collector/frontend），+1 错开。容器间通信
+# （datasource http://prometheus:9090、healthcheck、node-exporter:9100）
+# 不经宿主映射，零影响；浏览器/安全组/SSH 隧道口径见实操手册 §6 与清单 SG1。
+#
 # 启停（从 infra/ 目录，消费同目录 .env）：
 #   docker compose -f docker-compose.monitoring.yml up -d
 # ============================================================
@@ -39,7 +45,7 @@ services:
       - ./prometheus/alert-selfcheck:/etc/prometheus/rules-selfcheck:ro
       - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      - "9091:9090"   # 宿主 9091（deepresearch 占 9090）
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -73,7 +79,7 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"   # 宿主 3001（deepresearch 前端占 3000）
     depends_on:
       prometheus:
         condition: service_healthy
@@ -104,8 +110,8 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "16686:16686"   # UI
-      - "4318:4318"     # OTLP HTTP（/v1/traces）
+      - "16687:16686"   # 宿主 16687（deepresearch 占 16686）
+      - "4319:4318"     # OTLP HTTP（/v1/traces；deepresearch otel-collector 占 4318）
     logging:
       driver: json-file
       options:
