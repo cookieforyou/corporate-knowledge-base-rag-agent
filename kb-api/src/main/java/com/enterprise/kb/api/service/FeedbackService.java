@@ -3,6 +3,7 @@ package com.enterprise.kb.api.service;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.api.dto.FeedbackItem;
 import com.enterprise.kb.api.dto.FeedbackRequest;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.FeedbackRating;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -86,16 +87,16 @@ public class FeedbackService {
         FeedbackRating rating = parseRating(request.rating());
         String messageId = request.messageId();
         if (messageId == null || messageId.isBlank()) {
-            throw new BusinessException("INVALID_FEEDBACK", "反馈缺少 messageId");
+            throw new BusinessException(Constants.ErrorCodes.INVALID_FEEDBACK, "反馈缺少 messageId");
         }
 
         KbMessage message = awaitMessage(messageId);
         KbSession session = sessionRepository.findById(message.getSessionId())
-            .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "消息归属会话不存在"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.MESSAGE_NOT_FOUND, "消息归属会话不存在"));
         // 租户隔离 fail-closed：跨租户/跨用户引用伪装为不存在
         if (!Objects.equals(session.getTenantId(), tenantId)
             || !Objects.equals(session.getUserId(), userId)) {
-            throw new BusinessException("MESSAGE_NOT_FOUND", "消息不存在或无权访问");
+            throw new BusinessException(Constants.ErrorCodes.MESSAGE_NOT_FOUND, "消息不存在或无权访问");
         }
 
         KbFeedback feedback = feedbackRepository.findByMessageIdAndUserId(messageId, userId)
@@ -146,16 +147,16 @@ public class FeedbackService {
         while (true) {
             if (messageRepository.existsById(messageId)) {
                 return messageRepository.findById(messageId).orElseThrow(
-                    () -> new BusinessException("MESSAGE_NOT_FOUND", "消息不存在: " + messageId));
+                    () -> new BusinessException(Constants.ErrorCodes.MESSAGE_NOT_FOUND, "消息不存在: " + messageId));
             }
             if (System.currentTimeMillis() >= deadline) {
-                throw new BusinessException("MESSAGE_NOT_FOUND", "消息不存在或归档未完成: " + messageId);
+                throw new BusinessException(Constants.ErrorCodes.MESSAGE_NOT_FOUND, "消息不存在或归档未完成: " + messageId);
             }
             try {
                 Thread.sleep(Math.min(200, Math.max(1, deadline - System.currentTimeMillis())));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new BusinessException("MESSAGE_NOT_FOUND", "消息查询被中断: " + messageId);
+                throw new BusinessException(Constants.ErrorCodes.MESSAGE_NOT_FOUND, "消息查询被中断: " + messageId);
             }
         }
     }
@@ -163,12 +164,12 @@ public class FeedbackService {
     /** rating 解析：大小写不敏感，非法值 400 INVALID_FEEDBACK */
     private static FeedbackRating parseRating(String rating) {
         if (rating == null || rating.isBlank()) {
-            throw new BusinessException("INVALID_FEEDBACK", "反馈缺少 rating");
+            throw new BusinessException(Constants.ErrorCodes.INVALID_FEEDBACK, "反馈缺少 rating");
         }
         try {
             return FeedbackRating.valueOf(rating.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BusinessException("INVALID_FEEDBACK",
+            throw new BusinessException(Constants.ErrorCodes.INVALID_FEEDBACK,
                 "不支持的反馈评分: " + rating + "（仅支持 POSITIVE|NEGATIVE）");
         }
     }

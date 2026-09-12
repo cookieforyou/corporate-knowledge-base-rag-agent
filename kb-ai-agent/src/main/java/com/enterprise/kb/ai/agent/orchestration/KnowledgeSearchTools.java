@@ -4,6 +4,7 @@ import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
@@ -147,7 +148,7 @@ public class KnowledgeSearchTools {
         // 租户 fail-closed：不存在与跨租户一律 KB_DOC_NOT_FOUND（对齐 MCP get_document 语义）
         KbDocument doc = documentRepository.findById(documentId).orElse(null);
         if (doc == null || !ctx.getTenantId().equals(doc.getTenantId())) {
-            throw new BusinessException("KB_DOC_NOT_FOUND", "文档不存在: " + documentId);
+            throw new BusinessException(Constants.ErrorCodes.KB_DOC_NOT_FOUND, "文档不存在: " + documentId);
         }
 
         List<ChunkText> chunks = chunkRepository.findByDocIdOrderByChunkIndex(documentId).stream()
@@ -206,7 +207,7 @@ public class KnowledgeSearchTools {
         Object value = toolContext == null ? null : toolContext.getContext().get(ToolContextKeys.RETRIEVAL_CONTEXT);
         RetrievalContext ctx = value instanceof RetrievalContext rc ? rc : null;
         if (ctx == null || ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：子代理工具无法执行租户过滤");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：子代理工具无法执行租户过滤");
         }
         return ctx;
     }

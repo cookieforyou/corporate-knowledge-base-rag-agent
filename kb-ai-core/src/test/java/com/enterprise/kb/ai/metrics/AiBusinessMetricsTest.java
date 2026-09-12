@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.metrics;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.security.pii.PiiType;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -225,8 +226,8 @@ class AiBusinessMetricsTest {
     void requestOutcomeCountersSplitByAuditSemantics() {
         // 与审计三态同语义：SUCCESS 计 total；BusinessException 计 rejected；其他异常计 error
         metrics.recordRequestOutcome(null);
-        metrics.recordRequestOutcome(new BusinessException("RATE_LIMITED", "限流"));
-        metrics.recordRequestOutcome(new BusinessException("PROMPT_INJECTION", "注入拦截"));
+        metrics.recordRequestOutcome(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "限流"));
+        metrics.recordRequestOutcome(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "注入拦截"));
         metrics.recordRequestOutcome(new IllegalStateException("供应商 5xx"));
 
         assertThat(registry.counter("rag.request.total").count()).isEqualTo(4.0);

@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -185,7 +186,7 @@ class SemanticInjectionAdvisorTest {
         assertThatThrownBy(() -> advisor(true).before(request(REGEX_HIT_TEXT), chain))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
         assertThat(counter("rag.guardrail.l2.blocked")).isEqualTo(1.0);
         assertThat(counter("rag.guardrail.l2.triggered")).isEqualTo(1.0);
     }

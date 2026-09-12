@@ -4,6 +4,7 @@ import com.enterprise.kb.api.dto.FeedbackItem;
 import com.enterprise.kb.api.dto.FeedbackRequest;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.FeedbackService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -74,7 +75,7 @@ public class FeedbackController {
     private String requireTenantId() {
         String tenantId = jwtUtils.getCurrentTenantId();
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

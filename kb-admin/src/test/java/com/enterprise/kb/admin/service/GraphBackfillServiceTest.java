@@ -1,6 +1,7 @@
 package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.GraphBackfillView;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.enums.GraphStatus;
@@ -106,7 +107,7 @@ class GraphBackfillServiceTest {
         assertThatThrownBy(() -> service.start(TENANT, null))
             .isInstanceOf(BusinessException.class)
             .extracting(e -> ((BusinessException) e).getErrorCode())
-            .isEqualTo("GRAPH_BACKFILL_RUNNING");
+            .isEqualTo(Constants.ErrorCodes.GRAPH_BACKFILL_RUNNING);
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.controller;
 
 import com.enterprise.kb.admin.dto.FeedbackExportSummary;
 import com.enterprise.kb.admin.service.FeedbackExportService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +58,7 @@ public class FeedbackExportAdminController {
         String tenantId = requireTenantId(jwt);
         FeedbackExportService.ExportFormat parsed = FeedbackExportService.ExportFormat.parse(format);
         if (parsed == null) {
-            throw new BusinessException("INVALID_EXPORT_FORMAT",
+            throw new BusinessException(Constants.ErrorCodes.INVALID_EXPORT_FORMAT,
                 "不支持的导出格式: " + format + "（合法值: sft|dpo）");
         }
         List<String> lines = feedbackExportService.exportLines(tenantId, parsed);
@@ -73,7 +74,7 @@ public class FeedbackExportAdminController {
     private static String requireTenantId(Jwt jwt) {
         String tenantId = jwt != null ? jwt.getClaimAsString("owner") : null;
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

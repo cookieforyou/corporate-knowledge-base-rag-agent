@@ -5,6 +5,7 @@ import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
@@ -99,7 +100,7 @@ public class McpKnowledgeTools {
     public List<SearchHitView> search(
         @McpArg(name = "query", description = "自然语言检索问题", required = true) String query) {
         if (query == null || query.isBlank()) {
-            throw new BusinessException("MCP_QUERY_EMPTY", "检索问题不可为空");
+            throw new BusinessException(Constants.ErrorCodes.MCP_QUERY_EMPTY, "检索问题不可为空");
         }
         RetrievalContext ctx = identityGuard.requireIdentity();
         metrics.recordMcpToolCall("search");
@@ -146,7 +147,7 @@ public class McpKnowledgeTools {
         // 租户 fail-closed：不存在与跨租户一律 MCP_DOC_NOT_FOUND（不泄露存在性）
         KbDocument doc = documentRepository.findById(documentId).orElse(null);
         if (doc == null || !ctx.getTenantId().equals(doc.getTenantId())) {
-            throw new BusinessException("MCP_DOC_NOT_FOUND", "文档不存在: " + documentId);
+            throw new BusinessException(Constants.ErrorCodes.MCP_DOC_NOT_FOUND, "文档不存在: " + documentId);
         }
 
         List<ChunkTextView> chunks = chunkRepository.findByDocIdOrderByChunkIndex(documentId).stream()
@@ -167,7 +168,7 @@ public class McpKnowledgeTools {
     public String ask(
         @McpArg(name = "question", description = "面向知识库的自然语言问题", required = true) String question) {
         if (question == null || question.isBlank()) {
-            throw new BusinessException("MCP_QUERY_EMPTY", "问题不可为空");
+            throw new BusinessException(Constants.ErrorCodes.MCP_QUERY_EMPTY, "问题不可为空");
         }
         RetrievalContext ctx = identityGuard.requireIdentity();
         metrics.recordMcpToolCall("ask");

@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.controller;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
@@ -330,7 +331,7 @@ public class AgentController {
         String mode = body.get("mode");
         mode = mode == null || mode.isBlank() ? MODE_RAG : mode.trim().toLowerCase();
         if (!MODE_RAG.equals(mode) && !MODE_TOOL.equals(mode) && !MODE_AGENT.equals(mode)) {
-            throw new BusinessException("INVALID_MODE", "不支持的问答模式: " + mode + "（仅支持 rag|tool|agent）");
+            throw new BusinessException(Constants.ErrorCodes.INVALID_MODE, "不支持的问答模式: " + mode + "（仅支持 rag|tool|agent）");
         }
         return mode;
     }
@@ -343,7 +344,7 @@ public class AgentController {
     private AgentOrchestratorService requireOrchestrator() {
         AgentOrchestratorService service = orchestratorServiceProvider.getIfAvailable();
         if (service == null) {
-            throw new BusinessException("ORCHESTRATOR_DISABLED",
+            throw new BusinessException(Constants.ErrorCodes.ORCHESTRATOR_DISABLED,
                 "编排模式未启用（rag.orchestrator.enabled=false），无法以 agent 模式问答");
         }
         return service;
@@ -372,7 +373,7 @@ public class AgentController {
         ctx.setTenantId(jwtUtils.getCurrentTenantId());
         ctx.setUserId(jwtUtils.getCurrentUserId());
         if (ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return ctx;
     }

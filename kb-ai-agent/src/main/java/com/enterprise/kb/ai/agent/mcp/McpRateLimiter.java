@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.agent.mcp;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RRateLimiter;
@@ -77,7 +78,7 @@ public class McpRateLimiter {
             if (!limiter.tryAcquire(1)) {
                 metrics.recordMcpRateLimited();
                 log.warn("租户 [{}] MCP 只读工具触发限流（{} 次/{}s），调用拒绝", tenantId, rate, intervalSeconds);
-                throw new BusinessException("RATE_LIMITED", "请求过于频繁，请稍后再试");
+                throw new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁，请稍后再试");
             }
         } catch (BusinessException e) {
             throw e;

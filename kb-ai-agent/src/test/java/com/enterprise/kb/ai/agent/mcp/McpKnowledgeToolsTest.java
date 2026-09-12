@@ -8,6 +8,7 @@ import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -112,12 +113,12 @@ class McpKnowledgeToolsTest {
 
     @Test
     void searchRateLimitedRejectsBeforeRetrieval() {
-        doThrow(new BusinessException("RATE_LIMITED", "请求过于频繁，请稍后再试"))
+        doThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁，请稍后再试"))
             .when(mcpRateLimiter).acquire(TENANT);
 
         assertThatThrownBy(() -> tools.search("质保期多久"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("RATE_LIMITED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
         // 超限不触达检索链、不落审计
         verifyNoInteractions(hybridRetriever);
         verifyNoInteractions(mcpAuditRecorder);
@@ -127,7 +128,7 @@ class McpKnowledgeToolsTest {
     void searchBlankQueryRejected() {
         assertThatThrownBy(() -> tools.search("  "))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MCP_QUERY_EMPTY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MCP_QUERY_EMPTY);
     }
 
     // ── get_document ──
@@ -141,10 +142,10 @@ class McpKnowledgeToolsTest {
 
         assertThatThrownBy(() -> tools.getDocument("d-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MCP_DOC_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MCP_DOC_NOT_FOUND);
         assertThatThrownBy(() -> tools.getDocument("d-none"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MCP_DOC_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MCP_DOC_NOT_FOUND);
     }
 
     @Test
@@ -190,7 +191,7 @@ class McpKnowledgeToolsTest {
     void askBlankQuestionRejected() {
         assertThatThrownBy(() -> tools.ask(null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MCP_QUERY_EMPTY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MCP_QUERY_EMPTY);
     }
 
     // ── helpers ──

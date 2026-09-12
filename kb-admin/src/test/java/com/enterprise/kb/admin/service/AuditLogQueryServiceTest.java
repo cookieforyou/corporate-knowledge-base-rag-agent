@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.AuditLogPage;
 import com.enterprise.kb.admin.dto.AuditLogView;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -105,7 +106,7 @@ class AuditLogQueryServiceTest {
         assertThatThrownBy(() -> service.search("t-1", "2026/08/01", null, null, null, null,
             null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_TIME_FORMAT");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_TIME_FORMAT);
     }
 
     @Test
@@ -113,11 +114,11 @@ class AuditLogQueryServiceTest {
         assertThatThrownBy(() -> service.search("t-1", null, null, null, null, null,
             "MAYBE", null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_FILTER");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_FILTER);
         assertThatThrownBy(() -> service.search("t-1", null, null, null, null, null,
             null, null, "UNKNOWN_CAUSE", null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_FILTER");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_FILTER);
     }
     /** 簇⑤ E2E 审计核对项：mode 小写存储形态归一（大写入参 → 小写谓词值，不误入 normalizeEnum 大写轨道） */
     @Test
@@ -132,6 +133,6 @@ class AuditLogQueryServiceTest {
         assertThatThrownBy(() -> service.search("t-1", null, null, null, null, "mcp",
             null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_FILTER");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_FILTER);
     }
 }

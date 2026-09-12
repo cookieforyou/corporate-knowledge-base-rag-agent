@@ -4,6 +4,7 @@ import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
@@ -166,7 +167,7 @@ class KnowledgeSearchToolsTest {
         assertThatThrownBy(() -> tools.searchKnowledge("问题", toolContext(null)))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("IDENTITY_INCOMPLETE");
+            .isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
     }
 
     @Test
@@ -222,7 +223,7 @@ class KnowledgeSearchToolsTest {
         assertThatThrownBy(() -> tools.getDocument("doc-1", toolContext("tenant-a")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("KB_DOC_NOT_FOUND");
+            .isEqualTo(Constants.ErrorCodes.KB_DOC_NOT_FOUND);
     }
 
     @Test

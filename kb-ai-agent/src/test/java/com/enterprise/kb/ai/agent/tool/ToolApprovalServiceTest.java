@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.tool;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,7 @@ class ToolApprovalServiceTest {
         assertThatThrownBy(() -> service.createPending("tenant-a", "user-1", "tool", "摘要"))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("APPROVAL_STORE_UNAVAILABLE");
+            .isEqualTo(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE);
     }
 
     @Test
@@ -130,6 +131,6 @@ class ToolApprovalServiceTest {
         assertThatThrownBy(() -> service.consume("apv-001", "tenant-a", "user-1"))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("APPROVAL_STORE_UNAVAILABLE");
+            .isEqualTo(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE);
     }
 }

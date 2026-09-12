@@ -3,6 +3,7 @@ package com.enterprise.kb.api.controller;
 import com.enterprise.kb.api.dto.FeedbackRequest;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.FeedbackService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.FeedbackRating;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -41,7 +42,7 @@ class FeedbackControllerTenantGuardTest {
         assertThatThrownBy(() -> controller.submit(new FeedbackRequest(
             "m-1", null, "POSITIVE", null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(feedbackService);
     }
 
@@ -51,7 +52,7 @@ class FeedbackControllerTenantGuardTest {
 
         assertThatThrownBy(() -> controller.search(null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(feedbackService);
     }
 

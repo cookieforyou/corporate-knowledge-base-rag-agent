@@ -3,6 +3,7 @@ package com.enterprise.kb.api.service;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.api.dto.FeedbackItem;
 import com.enterprise.kb.api.dto.FeedbackRequest;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.FeedbackRating;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -155,7 +156,7 @@ class FeedbackServiceTest {
         assertThatThrownBy(() -> service.submit(TENANT, USER, new FeedbackRequest(
             "m-ghost", null, "POSITIVE", null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MESSAGE_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MESSAGE_NOT_FOUND);
         verify(feedbackRepository, never()).save(any());
     }
 
@@ -171,7 +172,7 @@ class FeedbackServiceTest {
         assertThatThrownBy(() -> service.submit(TENANT, USER, new FeedbackRequest(
             "m-4", null, "POSITIVE", null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MESSAGE_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MESSAGE_NOT_FOUND);
         verify(feedbackRepository, never()).save(any());
     }
 
@@ -187,7 +188,7 @@ class FeedbackServiceTest {
         assertThatThrownBy(() -> service.submit(TENANT, USER, new FeedbackRequest(
             "m-5", null, "POSITIVE", null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MESSAGE_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MESSAGE_NOT_FOUND);
     }
 
     @Test
@@ -195,7 +196,7 @@ class FeedbackServiceTest {
         assertThatThrownBy(() -> service.submit(TENANT, USER, new FeedbackRequest(
             "m-1", null, "MAYBE", null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_FEEDBACK");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_FEEDBACK);
     }
 
     @Test
@@ -203,7 +204,7 @@ class FeedbackServiceTest {
         assertThatThrownBy(() -> service.submit(TENANT, USER, new FeedbackRequest(
             " ", null, "POSITIVE", null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_FEEDBACK");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_FEEDBACK);
     }
 
     @Test

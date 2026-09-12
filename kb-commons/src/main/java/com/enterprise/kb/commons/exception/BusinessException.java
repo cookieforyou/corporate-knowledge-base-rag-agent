@@ -1,5 +1,7 @@
 package com.enterprise.kb.commons.exception;
 
+import com.enterprise.kb.commons.constant.Constants;
+
 /**
  * 统一业务异常基类
  */
@@ -27,6 +29,6 @@ public class BusinessException extends RuntimeException {
  */
 class ResourceNotFoundException extends BusinessException {
     public ResourceNotFoundException(String message) {
-        super("RESOURCE_NOT_FOUND", message);
+        super(Constants.ErrorCodes.RESOURCE_NOT_FOUND, message);
     }
 }

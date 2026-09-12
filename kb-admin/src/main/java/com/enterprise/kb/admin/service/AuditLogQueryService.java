@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.AuditLogPage;
 import com.enterprise.kb.admin.dto.AuditLogView;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.RootCause;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -66,9 +67,9 @@ public class AuditLogQueryService {
         LocalDateTime fromTime = parseTime(from, "from");
         LocalDateTime toTime = parseTime(to, "to");
         String modeFilter = normalizeMode(mode);
-        String feedbackFilter = normalizeEnum(feedback, FEEDBACK_FILTERS, "feedback", "INVALID_FILTER");
-        String statusFilter = normalizeEnum(status, STATUS_FILTERS, "status", "INVALID_FILTER");
-        String rootCauseFilter = normalizeEnum(rootCause, ROOT_CAUSE_FILTERS, "rootCause", "INVALID_FILTER");
+        String feedbackFilter = normalizeEnum(feedback, FEEDBACK_FILTERS, "feedback", Constants.ErrorCodes.INVALID_FILTER);
+        String statusFilter = normalizeEnum(status, STATUS_FILTERS, "status", Constants.ErrorCodes.INVALID_FILTER);
+        String rootCauseFilter = normalizeEnum(rootCause, ROOT_CAUSE_FILTERS, "rootCause", Constants.ErrorCodes.INVALID_FILTER);
         int cappedSize = size == null || size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
         int pageIndex = page == null || page < 0 ? 0 : page;
 
@@ -94,7 +95,7 @@ public class AuditLogQueryService {
         try {
             return LocalDateTime.parse(value.trim());
         } catch (DateTimeParseException e) {
-            throw new BusinessException("INVALID_TIME_FORMAT",
+            throw new BusinessException(Constants.ErrorCodes.INVALID_TIME_FORMAT,
                 "时间参数 " + field + " 须为 ISO 格式（yyyy-MM-ddTHH:mm:ss）: " + value);
         }
     }
@@ -106,7 +107,7 @@ public class AuditLogQueryService {
         }
         String normalized = value.trim().toLowerCase();
         if (!MODE_FILTERS.contains(normalized)) {
-            throw new BusinessException("INVALID_FILTER",
+            throw new BusinessException(Constants.ErrorCodes.INVALID_FILTER,
                 "不支持的 mode 过滤值: " + value + "（合法值: " + MODE_FILTERS + "）");
         }
         return normalized;

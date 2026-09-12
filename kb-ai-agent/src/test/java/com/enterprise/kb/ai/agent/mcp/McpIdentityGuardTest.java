@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.agent.mcp;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class McpIdentityGuardTest {
 
         assertThatThrownBy(guard::requireIdentity)
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
     }
 
     @Test
@@ -49,7 +50,7 @@ class McpIdentityGuardTest {
 
         assertThatThrownBy(guard::requireIdentity)
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
     }
 
     @Test
@@ -97,7 +98,7 @@ class McpIdentityGuardTest {
 
         assertThatThrownBy(guard::requireIdentity)
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MCP_SCOPE_DENIED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MCP_SCOPE_DENIED);
     }
 
     @Test
@@ -107,6 +108,6 @@ class McpIdentityGuardTest {
 
         assertThatThrownBy(guard::requireIdentity)
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("MCP_SCOPE_DENIED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.MCP_SCOPE_DENIED);
     }
 }

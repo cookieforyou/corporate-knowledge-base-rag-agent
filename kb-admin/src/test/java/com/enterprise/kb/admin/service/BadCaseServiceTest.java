@@ -3,6 +3,7 @@ package com.enterprise.kb.admin.service;
 import com.enterprise.kb.admin.dto.ReingestRequest;
 import com.enterprise.kb.admin.dto.ReingestResult;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -87,12 +88,12 @@ class BadCaseServiceTest {
         when(auditLogRepository.findById(5L)).thenReturn(Optional.of(audit(5L, "t-other")));
         assertThatThrownBy(() -> service(goldenDir).annotate("t-1", 5L, "HALLUCINATION"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("AUDIT_LOG_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.AUDIT_LOG_NOT_FOUND);
 
         when(auditLogRepository.findById(6L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service(goldenDir).annotate("t-1", 6L, "HALLUCINATION"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("AUDIT_LOG_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.AUDIT_LOG_NOT_FOUND);
         verify(auditLogRepository, never()).save(any());
     }
 
@@ -102,7 +103,7 @@ class BadCaseServiceTest {
 
         assertThatThrownBy(() -> service(goldenDir).annotate("t-1", 5L, "OTHER"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_ROOT_CAUSE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_ROOT_CAUSE);
         verify(auditLogRepository, never()).save(any());
     }
 
@@ -159,12 +160,12 @@ class BadCaseServiceTest {
         assertThatThrownBy(() -> service(goldenDir).reingest("t-1",
             new ReingestRequest(9L, "INJECTION", null, null, null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GOLDEN_ENTRY_INVALID");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GOLDEN_ENTRY_INVALID);
 
         assertThatThrownBy(() -> service(goldenDir).reingest("t-other",
             new ReingestRequest(9L, null, null, null, null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("AUDIT_LOG_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.AUDIT_LOG_NOT_FOUND);
     }
 
     @Test
@@ -175,7 +176,7 @@ class BadCaseServiceTest {
         assertThatThrownBy(() -> service(missing).reingest("t-1",
             new ReingestRequest(9L, null, null, null, null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GOLDEN_DIR_UNAVAILABLE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GOLDEN_DIR_UNAVAILABLE);
     }
 
     // ── 反馈处理态 ──
@@ -197,7 +198,7 @@ class BadCaseServiceTest {
 
         assertThatThrownBy(() -> service(goldenDir).resolveFeedback("t-1", "f-1", true))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("FEEDBACK_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.FEEDBACK_NOT_FOUND);
         verify(feedbackRepository, never()).save(any());
     }
 

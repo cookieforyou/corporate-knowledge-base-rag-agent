@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
@@ -139,7 +140,7 @@ public class InputSanitizeAdvisor implements BaseAdvisor, GuardrailRulesListener
         if (blocked) {
             metrics.recordInjectionBlocked();
             log.warn("检测到 Prompt 注入攻击，请求已拦截（命中 {} 条规则）", matched.size());
-            throw new BusinessException("PROMPT_INJECTION", "检测到 Prompt 注入攻击，请求已被拦截");
+            throw new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "检测到 Prompt 注入攻击，请求已被拦截");
         }
         if (!matched.isEmpty()) {
             // FLAG 观察档（T7）：放行 + 计数 rag.guardrail.flagged + 审计标记（不拒绝）

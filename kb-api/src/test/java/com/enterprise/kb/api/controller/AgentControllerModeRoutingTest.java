@@ -2,6 +2,7 @@ package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.service.RagChatService;
@@ -121,7 +122,7 @@ class AgentControllerModeRoutingTest {
         assertThatThrownBy(() -> controller.chat(Map.of("query", "任务", "mode", "agent")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("ORCHESTRATOR_DISABLED");
+            .isEqualTo(Constants.ErrorCodes.ORCHESTRATOR_DISABLED);
         verifyNoInteractions(ragChatService, toolChatService);
     }
 
@@ -142,7 +143,7 @@ class AgentControllerModeRoutingTest {
         assertThatThrownBy(() -> controller.chat(Map.of("query", "问题", "mode", "invalid")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("INVALID_MODE");
+            .isEqualTo(Constants.ErrorCodes.INVALID_MODE);
         verifyNoInteractions(ragChatService);
         verifyNoInteractions(toolChatService);
     }

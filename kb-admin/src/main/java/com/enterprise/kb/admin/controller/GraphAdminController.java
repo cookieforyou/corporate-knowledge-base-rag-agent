@@ -3,6 +3,7 @@ package com.enterprise.kb.admin.controller;
 import com.enterprise.kb.admin.dto.GraphBackfillRequest;
 import com.enterprise.kb.admin.dto.GraphBackfillView;
 import com.enterprise.kb.admin.service.GraphBackfillService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,7 @@ public class GraphAdminController {
     private static String requireTenantId(Jwt jwt) {
         String tenantId = jwt != null ? jwt.getClaimAsString("owner") : null;
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

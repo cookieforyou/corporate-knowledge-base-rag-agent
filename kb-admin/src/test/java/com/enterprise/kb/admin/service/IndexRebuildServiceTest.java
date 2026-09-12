@@ -3,6 +3,7 @@ package com.enterprise.kb.admin.service;
 import com.enterprise.kb.admin.dto.RebuildTaskView;
 import com.enterprise.kb.admin.dto.RebuildTaskView.FailureView;
 import com.enterprise.kb.admin.gateway.ReindexGateway;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.model.KbChunk;
@@ -162,7 +163,7 @@ class IndexRebuildServiceTest {
         when(documentRepository.findByTenantIdAndStatusInOrderByUpdatedAtDesc(eq(TENANT), anyList()))
             .thenReturn(List.of(doc("d-1", DocumentStatus.SUCCESS), doc("d-2", DocumentStatus.SUCCESS)));
         when(reindexGateway.reparse("d-1", TENANT, null))
-            .thenThrow(new BusinessException("DOC_NOT_READY", "并发占用"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.DOC_NOT_READY, "并发占用"));
         when(reindexGateway.reparse("d-2", TENANT, null))
             .thenReturn(CompletableFuture.completedFuture(true));
         when(chunkRepository.findByDocIdOrderByChunkIndex(anyString())).thenReturn(List.of());

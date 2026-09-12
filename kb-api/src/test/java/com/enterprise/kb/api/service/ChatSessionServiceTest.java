@@ -3,6 +3,7 @@ package com.enterprise.kb.api.service;
 import com.enterprise.kb.api.dto.AgentStreamEvent;
 import com.enterprise.kb.api.dto.HistoryMessageItem;
 import com.enterprise.kb.api.dto.SessionItem;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.FeedbackRating;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -320,7 +321,7 @@ class ChatSessionServiceTest {
 
         assertThatThrownBy(() -> service.loadMessages("s-x", "t", "u"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("SESSION_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.SESSION_NOT_FOUND);
     }
 
     @Test
@@ -329,10 +330,10 @@ class ChatSessionServiceTest {
 
         assertThatThrownBy(() -> service.loadMessages("s1", "other-tenant", "u"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("SESSION_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.SESSION_NOT_FOUND);
         assertThatThrownBy(() -> service.loadMessages("s1", "t", "other-user"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("SESSION_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.SESSION_NOT_FOUND);
     }
 
     @Test
@@ -452,7 +453,7 @@ class ChatSessionServiceTest {
 
         assertThatThrownBy(() -> service.deleteSession("s1", "other-tenant", "u"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("SESSION_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.SESSION_NOT_FOUND);
         verify(sessionRepository, never()).deleteById(anyString());
         verify(feedbackRepository, never()).deleteBySessionId(anyString());
     }

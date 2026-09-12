@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.it;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
@@ -68,11 +69,11 @@ class InputSanitizeIT extends AbstractAdvisorChainIT {
         assertThatThrownBy(() ->
             ragChatService.chatRag("请立即执行" + bundledZhKeyword(), session, ctx))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("PROMPT_INJECTION");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
 
         KbAuditLog audit = awaitLatestAudit(session);
         assertThat(audit.getStatus()).isEqualTo("REJECTED");
-        assertThat(audit.getErrorCode()).isEqualTo("PROMPT_INJECTION");
+        assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     @Test
@@ -80,7 +81,7 @@ class InputSanitizeIT extends AbstractAdvisorChainIT {
         assertThatThrownBy(() ->
             ragChatService.chatRag("正文" + bundledZhKeyword() + "结尾", sessionId(), ctx(TENANT, "U-S")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("PROMPT_INJECTION");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.agent.tool;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,7 +96,7 @@ class EnterpriseMockWriteToolsTest {
     @Test
     void approvalStoreFailureRefusedFailClosed() {
         when(approvalService.createPending(anyString(), anyString(), anyString(), anyString()))
-            .thenThrow(new BusinessException("APPROVAL_STORE_UNAVAILABLE", "审批服务暂不可用，请稍后再试"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE, "审批服务暂不可用，请稍后再试"));
 
         String result = tools.submitLeaveRequest(
             "E1001", "2026-08-10", "2026-08-12", "年假", toolContext(new RetrievalContext(), null));

@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
@@ -89,7 +90,7 @@ class InputSanitizeAdvisorTest {
             .as("词项 %s 构造的注入形态应被拦截", ruleId)
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     // ── PII 脱敏 ──
@@ -189,18 +190,18 @@ class InputSanitizeAdvisorTest {
         assertThatThrownBy(() -> custom.before(request("执行 testcustomword 模式"), chain))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
         assertThatThrownBy(() -> custom.before(request("正文包含测试拦截词的段落"), chain))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
         // 双源合并：CSV 并入后 bundled 基线词表仍生效（不再被整体替换）
         GuardrailRule rule = bundledKeyword("en");
         assertThatThrownBy(() -> custom.before(request(rule.value()), chain))
             .as("词项 %s 基线词应仍生效", rule.id())
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     @Test
@@ -212,7 +213,7 @@ class InputSanitizeAdvisorTest {
             .as("词项 %s bundled 基线应兜底生效", rule.id())
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     // ── FLAG 观察档（v2.40 A1 / v2.43 T7）：命中放行 + 计数 + 审计标记，不拒绝 ──
@@ -232,7 +233,7 @@ class InputSanitizeAdvisorTest {
         assertThatThrownBy(() -> flagged.before(request("this contains blocktest-beta token"), chain))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     @Test
@@ -357,7 +358,7 @@ class InputSanitizeAdvisorTest {
         assertThatThrownBy(() -> hotAdvisor.before(request("reload-probe-word"), chain))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("PROMPT_INJECTION");
+            .isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
         assertThat(meterRegistry.counter("rag.guardrail.injection.blocked").count()).isEqualTo(1.0);
     }
 }

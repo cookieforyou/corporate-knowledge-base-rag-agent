@@ -2,6 +2,7 @@ package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.beans.factory.ObjectProvider;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
@@ -60,7 +61,7 @@ class AgentControllerTenantGuardTest {
         assertThatThrownBy(() -> controller.chat(Map.of("query", "问题")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("IDENTITY_INCOMPLETE");
+            .isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(ragChatService);
         verifyNoInteractions(toolChatService);
         verifyNoInteractions(chatSessionService);
@@ -74,7 +75,7 @@ class AgentControllerTenantGuardTest {
         assertThatThrownBy(() -> controller.chatStream(Map.of("query", "问题")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("IDENTITY_INCOMPLETE");
+            .isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(ragChatService);
         verifyNoInteractions(toolChatService);
     }

@@ -4,6 +4,7 @@ import com.enterprise.kb.api.dto.HistoryMessageItem;
 import com.enterprise.kb.api.dto.SessionItem;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class SessionControllerTest {
 
         assertThatThrownBy(() -> controller.listSessions(0, 50))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(chatSessionService);
     }
 
@@ -55,7 +56,7 @@ class SessionControllerTest {
 
         assertThatThrownBy(() -> controller.sessionMessages("s1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(chatSessionService);
     }
 
@@ -65,7 +66,7 @@ class SessionControllerTest {
 
         assertThatThrownBy(() -> controller.deleteSession("s1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(chatSessionService);
     }
 

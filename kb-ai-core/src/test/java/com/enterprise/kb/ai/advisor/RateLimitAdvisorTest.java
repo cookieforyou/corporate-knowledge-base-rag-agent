@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,7 +84,7 @@ class RateLimitAdvisorTest {
         assertThatThrownBy(() -> advisor.before(requestWithTenant("tenant-a"), chain))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("RATE_LIMITED");
+            .isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
     }
 
     @Test

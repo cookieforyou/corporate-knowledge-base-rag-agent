@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.agent.mcp;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -45,7 +46,7 @@ public class McpIdentityGuard {
         Jwt jwt = requireJwt();
         String tenantId = jwt.getClaimAsString("owner");
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         requireScope(jwt);
         RetrievalContext ctx = new RetrievalContext();
@@ -63,7 +64,7 @@ public class McpIdentityGuard {
             .map(Authentication::getPrincipal)
             .filter(Jwt.class::isInstance)
             .map(Jwt.class::cast)
-            .orElseThrow(() -> new BusinessException("IDENTITY_INCOMPLETE", "MCP 调用缺少 JWT 身份"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "MCP 调用缺少 JWT 身份"));
     }
 
     /** scope 治理：required 配置为空 = 仅租户纪律；非空则 JWT scope 声明须包含 */
@@ -72,7 +73,7 @@ public class McpIdentityGuard {
             return;
         }
         if (!scopesOf(jwt).contains(requiredScope)) {
-            throw new BusinessException("MCP_SCOPE_DENIED", "MCP 调用缺少授权 scope: " + requiredScope);
+            throw new BusinessException(Constants.ErrorCodes.MCP_SCOPE_DENIED, "MCP 调用缺少授权 scope: " + requiredScope);
         }
     }
 

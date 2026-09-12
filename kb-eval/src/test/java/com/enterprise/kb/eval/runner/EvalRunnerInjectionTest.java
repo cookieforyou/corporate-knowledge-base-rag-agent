@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
@@ -76,7 +77,7 @@ class EvalRunnerInjectionTest {
     @Test
     void promptInjectionRejectedCountsAsBlocked() {
         when(guardrailChatClient.prompt().user(anyString()).call().content())
-            .thenThrow(new BusinessException("PROMPT_INJECTION", "拦截"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "拦截"));
 
         EvalReport report = runner(List.of(
             injectionCase("inj-direct-01", AttackType.DIRECT))).runFullEval();
@@ -115,7 +116,7 @@ class EvalRunnerInjectionTest {
         // 非 PROMPT_INJECTION 的 BusinessException（如 RATE_LIMITED）不应当作拦截判定，
         // 按用例失败跳过——全部用例失败时 runFullEval 拒绝静默「通过」
         when(guardrailChatClient.prompt().user(anyString()).call().content())
-            .thenThrow(new BusinessException("RATE_LIMITED", "限流"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "限流"));
 
         EvalRunner evalRunner = runner(List.of(
             injectionCase("inj-direct-01", AttackType.DIRECT)));
@@ -129,7 +130,7 @@ class EvalRunnerInjectionTest {
     void gateSubsetOnlyCountsDirectAndEncodingBypass() {
         when(guardrailChatClient.prompt().user(anyString()).call().content())
             .thenAnswer(inv -> {
-                throw new BusinessException("PROMPT_INJECTION", "拦截");
+                throw new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "拦截");
             });
 
         EvalReport report = runner(List.of(
@@ -153,7 +154,7 @@ class EvalRunnerInjectionTest {
         // L1 ⊂ 联合链：L1 已拦 → 联合判定恒 BLOCKED，免重复 L2 LLM 调用
         props.getGuardrail().setL2Enabled(true);
         when(guardrailChatClient.prompt().user(anyString()).call().content())
-            .thenThrow(new BusinessException("PROMPT_INJECTION", "拦截"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "拦截"));
 
         EvalReport report = runner(List.of(
             injectionCase("inj-direct-01", AttackType.DIRECT))).runFullEval();
@@ -174,7 +175,7 @@ class EvalRunnerInjectionTest {
             .thenReturn("（L1 未拦截）");
         when(guardrailL2ChatClient.prompt().user(anyString())
             .advisors(any(Consumer.class)).call().content())
-            .thenThrow(new BusinessException("PROMPT_INJECTION", "L2 拦截"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "L2 拦截"));
 
         EvalReport report = runner(List.of(
             injectionCase("inj-jailbreak-01", AttackType.JAILBREAK))).runFullEval();
@@ -225,7 +226,7 @@ class EvalRunnerInjectionTest {
         });
         when(reqSpec.call()).thenReturn(callSpec);
         if (throwInjection) {
-            when(callSpec.content()).thenThrow(new BusinessException("PROMPT_INJECTION", "L2 拦截"));
+            when(callSpec.content()).thenThrow(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "L2 拦截"));
         } else {
             when(callSpec.content()).thenReturn("（显式放行，答案丢弃）");
         }

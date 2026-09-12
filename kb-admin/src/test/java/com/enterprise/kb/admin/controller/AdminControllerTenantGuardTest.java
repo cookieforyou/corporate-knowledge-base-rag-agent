@@ -8,6 +8,7 @@ import com.enterprise.kb.admin.service.FeedbackExportService;
 import com.enterprise.kb.admin.service.GuardrailAdminService;
 import com.enterprise.kb.admin.service.GuardrailRuleOpsService;
 import com.enterprise.kb.admin.service.IndexRebuildService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbChunk;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,23 +83,23 @@ class AdminControllerTenantGuardTest {
     void chunkEndpointsRejectMissingJwt() {
         assertThatThrownBy(() -> chunkController.edit(null, "c-1", new ChunkUpdateRequest("x")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> chunkController.softDelete(null, "c-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> chunkController.restore(null, "c-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
     }
 
     @Test
     void chunkEndpointsRejectBlankOwnerClaim() {
         assertThatThrownBy(() -> chunkController.edit(jwtWithOwner(" "), "c-1", new ChunkUpdateRequest("x")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> chunkController.edit(jwtWithOwner(null), "c-1", new ChunkUpdateRequest("x")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verify(chunkOpsService, never()).edit(anyString(), anyString(), anyString());
     }
 
@@ -137,13 +138,13 @@ class AdminControllerTenantGuardTest {
     void rebuildEndpointsRejectMissingTenant() {
         assertThatThrownBy(() -> rebuildController.start(null, new RebuildRequest(null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> rebuildController.tasks(null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> rebuildController.task(null, "task-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verify(indexRebuildService, never()).start(anyString(), any());
     }
 
@@ -165,7 +166,7 @@ class AdminControllerTenantGuardTest {
 
         assertThatThrownBy(() -> rebuildController.task(jwtWithOwner("t-1"), "missing"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("REBUILD_TASK_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.REBUILD_TASK_NOT_FOUND);
         verify(indexRebuildService).detail("t-1", "missing");
     }
 
@@ -190,18 +191,18 @@ class AdminControllerTenantGuardTest {
         assertThatThrownBy(() -> badCaseController.search(null, null, null, null, null, null,
             null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> badCaseController.annotate(jwtWithOwner(" "), 1L,
             new RootCauseRequest("HALLUCINATION")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> badCaseController.reingest(null,
             new ReingestRequest(1L, null, null, null, null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> badCaseController.resolve(null, "f-1", new ResolvedRequest(true)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verify(auditLogQueryService, never()).search(anyString(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any());
         verify(badCaseService, never()).annotate(anyString(), any(), anyString());
@@ -246,15 +247,15 @@ class AdminControllerTenantGuardTest {
         assertThatThrownBy(() -> guardrailController.listRules(null,
             null, null, null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> guardrailController.listRules(jwtWithOwner(" "),
             null, null, null, null, null, null, null, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> guardrailController.drill(jwtWithOwner(null),
             new DrillRequest("任意文本")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verify(guardrailAdminService, never())
             .listRules(any(), any(), any(), any(), any(), any(), any(), any());
         verify(guardrailAdminService, never()).drill(anyString());
@@ -266,20 +267,20 @@ class AdminControllerTenantGuardTest {
         assertThatThrownBy(() -> guardrailController.createRule(null,
             new GuardrailRuleCreateRequest("injection", "UNCLASSIFIED", "eA==", null, null, null, null)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> guardrailController.getRule(jwtWithOwner(" "), "r-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> guardrailController.updateRule(jwtWithOwner(null), "r-1",
             new GuardrailRuleUpdateRequest(null, null, null, null, null, false)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> guardrailController.deleteRule(null, "r-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> guardrailController.reload(jwtWithOwner(" ")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verify(guardrailRuleOpsService, never()).create(any(), anyString());
         verify(guardrailRuleOpsService, never()).get(anyString());
         verify(guardrailRuleOpsService, never()).update(anyString(), any(), anyString());
@@ -324,13 +325,13 @@ class AdminControllerTenantGuardTest {
     void exportEndpointsRejectMissingOrBlankTenant() {
         assertThatThrownBy(() -> exportController.summary(null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> exportController.export(jwtWithOwner(" "), "sft"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         assertThatThrownBy(() -> exportController.export(null, "dpo"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verify(feedbackExportService, never()).summary(anyString());
         verify(feedbackExportService, never()).exportLines(anyString(), any());
     }
@@ -355,7 +356,7 @@ class AdminControllerTenantGuardTest {
     void exportRejectsUnknownFormatBeforeReachingService() {
         assertThatThrownBy(() -> exportController.export(jwtWithOwner("t-1"), "kto"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("INVALID_EXPORT_FORMAT");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_EXPORT_FORMAT);
         verify(feedbackExportService, never()).exportLines(anyString(), any());
     }
 

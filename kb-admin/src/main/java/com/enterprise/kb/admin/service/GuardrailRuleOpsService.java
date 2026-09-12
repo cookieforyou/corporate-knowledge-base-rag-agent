@@ -7,6 +7,7 @@ import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
 import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.ai.guardrail.GuardrailReloadCoordinator;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesExporter;
@@ -314,14 +315,14 @@ public class GuardrailRuleOpsService {
         repository.findBySideAndTypeAndFingerprint(side, type.name(), fingerprint)
             .filter(existing -> excludeId == null || !existing.getId().equals(excludeId))
             .ifPresent(existing -> {
-                throw new BusinessException("GUARDRAIL_RULE_DUPLICATE",
+                throw new BusinessException(Constants.ErrorCodes.GUARDRAIL_RULE_DUPLICATE,
                     "同值词项已存在（去重指纹命中: " + existing.getId() + "）");
             });
     }
 
     private KbGuardrailRule findOrThrow(String id) {
         return repository.findById(id)
-            .orElseThrow(() -> new BusinessException("GUARDRAIL_RULE_NOT_FOUND", "词项不存在: " + id));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.GUARDRAIL_RULE_NOT_FOUND, "词项不存在: " + id));
     }
 
     /** id 自动生成（api-inj-/api-out- 前缀 + 同前缀最大序号+1），PK 冲突兜底重试一次。 */
@@ -368,10 +369,10 @@ public class GuardrailRuleOpsService {
     }
 
     private static BusinessException invalid(String message) {
-        return new BusinessException("GUARDRAIL_RULE_INVALID", message);
+        return new BusinessException(Constants.ErrorCodes.GUARDRAIL_RULE_INVALID, message);
     }
 
     private static BusinessException duplicate() {
-        return new BusinessException("GUARDRAIL_RULE_DUPLICATE", "词项唯一约束冲突（并发写入或同值重复）");
+        return new BusinessException(Constants.ErrorCodes.GUARDRAIL_RULE_DUPLICATE, "词项唯一约束冲突（并发写入或同值重复）");
     }
 }

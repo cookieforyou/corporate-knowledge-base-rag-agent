@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.exception;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,14 +30,14 @@ public class GlobalExceptionHandler {
      * （区别于一般业务错误的 400）。流式路径不经此处：由 AgentController
      * onErrorResume 承接为 SSE ERROR 事件（与 PROMPT_INJECTION 同形态）。
      */
-    private static final Set<String> QUOTA_ERROR_CODES = Set.of("RATE_LIMITED", "TOKEN_BUDGET_EXCEEDED");
+    private static final Set<String> QUOTA_ERROR_CODES = Set.of(Constants.ErrorCodes.RATE_LIMITED, Constants.ErrorCodes.TOKEN_BUDGET_EXCEEDED);
 
     /**
      * 资源状态冲突类错误码 — 目标资源当前状态不允许该操作（簇⑥ C1：文档处于
      * 处理中仍发起重入库 / 处理期发起删除；簇③ 4.4：对未软删 chunk 发起恢复），
      * 语义为「与现状冲突」，映射 HTTP 409（可重试语义）。
      */
-    private static final Set<String> CONFLICT_ERROR_CODES = Set.of("DOC_NOT_READY", "CHUNK_NOT_DELETED");
+    private static final Set<String> CONFLICT_ERROR_CODES = Set.of(Constants.ErrorCodes.DOC_NOT_READY, Constants.ErrorCodes.CHUNK_NOT_DELETED);
 
     /**
      * 依赖存储不可用类错误码 — Redis 故障致状态账本/任务表读写 fail-closed
@@ -44,14 +45,14 @@ public class GlobalExceptionHandler {
      * 映射 HTTP 503（区别于请求本身错误的 400，客户端可重试）。
      */
     private static final Set<String> STORE_UNAVAILABLE_ERROR_CODES =
-        Set.of("APPROVAL_STORE_UNAVAILABLE", "REBUILD_STORE_UNAVAILABLE");
+        Set.of(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE, Constants.ErrorCodes.REBUILD_STORE_UNAVAILABLE);
 
     /**
      * 载荷超限类错误码（安全簇② B2）— Service 层复核兜底拦截的大文件，
      * 语义为「请求载荷过大」，映射 HTTP 413（Servlet 层 multipart 超限
      * 另经 {@link #handleMaxUploadSizeExceeded} 同语义承接）。
      */
-    private static final Set<String> PAYLOAD_TOO_LARGE_ERROR_CODES = Set.of("FILE_TOO_LARGE");
+    private static final Set<String> PAYLOAD_TOO_LARGE_ERROR_CODES = Set.of(Constants.ErrorCodes.FILE_TOO_LARGE);
 
     /**
      * 业务异常 — 提取 errorCode 和 message；配额类（RATE_LIMITED /

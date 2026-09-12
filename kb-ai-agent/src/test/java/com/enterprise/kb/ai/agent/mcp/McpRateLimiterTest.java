@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.agent.mcp;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,7 +70,7 @@ class McpRateLimiterTest {
 
         assertThatThrownBy(() -> mcpRateLimiter.acquire("tenant-a"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("RATE_LIMITED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
         assertThat(meterRegistry.counter("rag.guardrail.mcp.ratelimited").count()).isEqualTo(1.0);
     }
 

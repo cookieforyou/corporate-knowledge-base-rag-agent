@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.it;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
@@ -91,7 +92,7 @@ class AuditTraceIT extends AbstractAdvisorChainIT {
 
         KbAuditLog audit = awaitLatestAudit(session);
         assertThat(audit.getStatus()).isEqualTo("REJECTED");
-        assertThat(audit.getErrorCode()).isEqualTo("PROMPT_INJECTION");
+        assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
         assertThat(audit.getFinalAnswer()).isNull();
     }
 }

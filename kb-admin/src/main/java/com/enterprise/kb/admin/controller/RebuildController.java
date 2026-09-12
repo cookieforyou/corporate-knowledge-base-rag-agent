@@ -3,6 +3,7 @@ package com.enterprise.kb.admin.controller;
 import com.enterprise.kb.admin.dto.RebuildRequest;
 import com.enterprise.kb.admin.dto.RebuildTaskView;
 import com.enterprise.kb.admin.service.IndexRebuildService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +52,7 @@ public class RebuildController {
                                              @PathVariable String taskId) {
         RebuildTaskView view = indexRebuildService.detail(requireTenantId(jwt), taskId);
         if (view == null) {
-            throw new BusinessException("REBUILD_TASK_NOT_FOUND", "重建任务不存在: " + taskId);
+            throw new BusinessException(Constants.ErrorCodes.REBUILD_TASK_NOT_FOUND, "重建任务不存在: " + taskId);
         }
         return ApiResponse.success(view);
     }
@@ -60,7 +61,7 @@ public class RebuildController {
     private static String requireTenantId(Jwt jwt) {
         String tenantId = jwt != null ? jwt.getClaimAsString("owner") : null;
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

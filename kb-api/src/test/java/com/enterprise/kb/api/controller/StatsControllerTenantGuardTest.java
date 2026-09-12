@@ -4,6 +4,7 @@ import com.enterprise.kb.api.dto.DocumentProcessingView;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.StatsService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class StatsControllerTenantGuardTest {
 
         assertThatThrownBy(() -> controller.overview())
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(statsService);
     }
 
@@ -47,7 +48,7 @@ class StatsControllerTenantGuardTest {
 
         assertThatThrownBy(() -> controller.processing())
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("IDENTITY_INCOMPLETE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(statsService);
     }
 

@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.RebuildTaskView;
 import com.enterprise.kb.admin.dto.RebuildTaskView.FailureView;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -99,7 +100,7 @@ class RedisRebuildTaskStoreTest {
 
         assertThatThrownBy(() -> store.create("t-1", "task-1", 1, List.of()))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("REBUILD_STORE_UNAVAILABLE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.REBUILD_STORE_UNAVAILABLE);
     }
 
     @Test
@@ -161,7 +162,7 @@ class RedisRebuildTaskStoreTest {
 
         assertThatThrownBy(() -> store.find("task-1", "t-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("REBUILD_STORE_UNAVAILABLE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.REBUILD_STORE_UNAVAILABLE);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.ai.prompt.PromptTemplates;
@@ -857,7 +858,7 @@ public class EvalRunner {
             return EvalResult.INJECTION_NOT_BLOCKED;
         } catch (Exception e) {
             BusinessException be = findBusinessException(e);
-            if (be != null && "PROMPT_INJECTION".equals(be.getErrorCode())) {
+            if (be != null && Constants.ErrorCodes.PROMPT_INJECTION.equals(be.getErrorCode())) {
                 return EvalResult.INJECTION_BLOCKED;
             }
             throw e;

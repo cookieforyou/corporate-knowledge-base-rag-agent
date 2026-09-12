@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.it;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
@@ -61,7 +62,7 @@ class RateLimitIT extends AbstractAdvisorChainIT {
 
         assertThatThrownBy(() -> ragChatService.chatRag("年假政策", session, ctx))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("RATE_LIMITED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
 
         Awaitility.await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(200))
             .untilAsserted(() -> {
@@ -69,7 +70,7 @@ class RateLimitIT extends AbstractAdvisorChainIT {
                 assertThat(logs).isNotEmpty();
                 KbAuditLog latest = logs.get(0);
                 assertThat(latest.getStatus()).isEqualTo("REJECTED");
-                assertThat(latest.getErrorCode()).isEqualTo("RATE_LIMITED");
+                assertThat(latest.getErrorCode()).isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
             });
     }
 
@@ -83,7 +84,7 @@ class RateLimitIT extends AbstractAdvisorChainIT {
         ragChatService.chatRag("年假政策", sessionId(), ctx(tenantA, "U-R"));
         assertThatThrownBy(() -> ragChatService.chatRag("年假政策", sessionId(), ctx(tenantA, "U-R")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("RATE_LIMITED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
 
         // 租户 B 独立桶不受影响
         assertThat(ragChatService.chatRag("年假政策", sessionId(), ctx(tenantB, "U-R")))

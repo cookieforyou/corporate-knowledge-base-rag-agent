@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.service;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -84,7 +85,7 @@ public class DocumentEtlService {
     @Async("etlExecutor")
     public void process(String docId, Consumer<EtlProgress> progressCallback, ParseRoute forcedRoute) {
         KbDocument doc = documentRepository.findById(docId)
-            .orElseThrow(() -> new BusinessException("DOC_NOT_FOUND", "文档不存在: " + docId));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.DOC_NOT_FOUND, "文档不存在: " + docId));
 
         // 簇⑥ C1：REINDEXING 由 reparse/replace 原子占用（KbDocumentRepository.acquireForReindex），
         // 处理期间保持该状态与前端「重入库中」展示；首次入库走 PARSING
@@ -176,7 +177,7 @@ public class DocumentEtlService {
             doc.setErrorMessage(e.getMessage());
             documentRepository.save(doc);
             progressCallback.accept(new EtlProgress(docId, EtlStage.FAILED));
-            throw new BusinessException("ETL_FAILED", "文档处理失败: " + e.getMessage(), e);
+            throw new BusinessException(Constants.ErrorCodes.ETL_FAILED, "文档处理失败: " + e.getMessage(), e);
         }
     }
 

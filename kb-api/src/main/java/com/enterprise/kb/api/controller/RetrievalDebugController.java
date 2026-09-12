@@ -7,6 +7,7 @@ import com.enterprise.kb.api.dto.RetrievalDebugResult;
 import com.enterprise.kb.api.dto.RetrievalDebugResult.Candidate;
 import com.enterprise.kb.api.dto.RetrievalDebugResult.Latency;
 import com.enterprise.kb.api.security.JwtUtils;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +55,7 @@ public class RetrievalDebugController {
         // 身份完整性守卫（3.9+3.10，与 AgentController 同策）：调试台可见双路原始命中，
         // 无租户过滤时泄露面更大，tenantId 缺失直接拒绝
         if (ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, ctx);
 

@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.exception;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void fileTooLargeMappedTo413() {
         ResponseEntity<ApiResponse<Void>> response = handler.handleBusinessException(
-            new BusinessException("FILE_TOO_LARGE", "上传文件超过单文件 50MB 上限"), request);
+            new BusinessException(Constants.ErrorCodes.FILE_TOO_LARGE, "上传文件超过单文件 50MB 上限"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
         assertThat(response.getBody().code()).isEqualTo(413);
@@ -40,16 +41,16 @@ class GlobalExceptionHandlerTest {
     void existingMappingsUnchanged() {
         // 配额类 429 / 冲突类 409 / 存储不可用 503 / 一般业务 400 回归
         assertThat(handler.handleBusinessException(
-            new BusinessException("RATE_LIMITED", "x"), request).getStatusCode())
+            new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "x"), request).getStatusCode())
             .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(handler.handleBusinessException(
-            new BusinessException("DOC_NOT_READY", "x"), request).getStatusCode())
+            new BusinessException(Constants.ErrorCodes.DOC_NOT_READY, "x"), request).getStatusCode())
             .isEqualTo(HttpStatus.CONFLICT);
         assertThat(handler.handleBusinessException(
-            new BusinessException("APPROVAL_STORE_UNAVAILABLE", "x"), request).getStatusCode())
+            new BusinessException(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE, "x"), request).getStatusCode())
             .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(handler.handleBusinessException(
-            new BusinessException("DOC_NOT_FOUND", "x"), request).getStatusCode())
+            new BusinessException(Constants.ErrorCodes.DOC_NOT_FOUND, "x"), request).getStatusCode())
             .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

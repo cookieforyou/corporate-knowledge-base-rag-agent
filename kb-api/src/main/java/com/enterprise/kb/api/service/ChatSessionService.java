@@ -4,6 +4,7 @@ import com.enterprise.kb.api.dto.AgentStreamEvent;
 import com.enterprise.kb.api.dto.AgentStreamEvent.SourceTrace;
 import com.enterprise.kb.api.dto.HistoryMessageItem;
 import com.enterprise.kb.api.dto.SessionItem;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbFeedback;
 import com.enterprise.kb.domain.model.KbMessage;
@@ -290,10 +291,10 @@ public class ChatSessionService {
     /** 归属校验 fail-closed：会话不存在或非本租户/用户 → SESSION_NOT_FOUND */
     private KbSession requireOwnedSession(String sessionId, String tenantId, String userId) {
         KbSession session = sessionRepository.findById(sessionId)
-            .orElseThrow(() -> new BusinessException("SESSION_NOT_FOUND", "会话不存在或无权访问"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.SESSION_NOT_FOUND, "会话不存在或无权访问"));
         if (!Objects.equals(session.getTenantId(), tenantId)
             || !Objects.equals(session.getUserId(), userId)) {
-            throw new BusinessException("SESSION_NOT_FOUND", "会话不存在或无权访问");
+            throw new BusinessException(Constants.ErrorCodes.SESSION_NOT_FOUND, "会话不存在或无权访问");
         }
         return session;
     }

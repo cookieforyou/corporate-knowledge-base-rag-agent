@@ -3,6 +3,7 @@ package com.enterprise.kb.admin.service;
 import com.enterprise.kb.admin.dto.ReingestRequest;
 import com.enterprise.kb.admin.dto.ReingestResult;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.RootCause;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -107,12 +108,12 @@ public class BadCaseService {
         String category = request.category() == null || request.category().isBlank()
             ? "FACTOID" : request.category().trim().toUpperCase();
         if (!REINGEST_CATEGORIES.contains(category)) {
-            throw new BusinessException("GOLDEN_ENTRY_INVALID",
+            throw new BusinessException(Constants.ErrorCodes.GOLDEN_ENTRY_INVALID,
                 "不支持的回灌分类: " + request.category() + "（合法值: " + REINGEST_CATEGORIES + "）");
         }
         String question = audit.getQueryText();
         if (question == null || question.isBlank()) {
-            throw new BusinessException("GOLDEN_ENTRY_INVALID", "审计行 query_text 为空，不可回灌");
+            throw new BusinessException(Constants.ErrorCodes.GOLDEN_ENTRY_INVALID, "审计行 query_text 为空，不可回灌");
         }
 
         String goldenId = "bc-" + audit.getId();
@@ -147,13 +148,13 @@ public class BadCaseService {
      */
     public boolean resolveFeedback(String tenantId, String feedbackId, boolean resolved) {
         KbFeedback feedback = feedbackRepository.findById(feedbackId)
-            .orElseThrow(() -> new BusinessException("FEEDBACK_NOT_FOUND", "反馈不存在或无权访问"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.FEEDBACK_NOT_FOUND, "反馈不存在或无权访问"));
         KbMessage message = messageRepository.findById(feedback.getMessageId())
-            .orElseThrow(() -> new BusinessException("FEEDBACK_NOT_FOUND", "反馈不存在或无权访问"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.FEEDBACK_NOT_FOUND, "反馈不存在或无权访问"));
         KbSession session = sessionRepository.findById(message.getSessionId())
-            .orElseThrow(() -> new BusinessException("FEEDBACK_NOT_FOUND", "反馈不存在或无权访问"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.FEEDBACK_NOT_FOUND, "反馈不存在或无权访问"));
         if (!tenantId.equals(session.getTenantId())) {
-            throw new BusinessException("FEEDBACK_NOT_FOUND", "反馈不存在或无权访问");
+            throw new BusinessException(Constants.ErrorCodes.FEEDBACK_NOT_FOUND, "反馈不存在或无权访问");
         }
         feedback.setResolved(resolved);
         feedbackRepository.save(feedback);
@@ -166,21 +167,21 @@ public class BadCaseService {
     /** 租户守卫：行不存在/跨租户同一错误码（不泄露存在性） */
     private KbAuditLog loadOwnedAudit(String tenantId, Long auditLogId) {
         KbAuditLog audit = auditLogRepository.findById(auditLogId)
-            .orElseThrow(() -> new BusinessException("AUDIT_LOG_NOT_FOUND", "审计记录不存在或无权访问"));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.AUDIT_LOG_NOT_FOUND, "审计记录不存在或无权访问"));
         if (!tenantId.equals(audit.getTenantId())) {
-            throw new BusinessException("AUDIT_LOG_NOT_FOUND", "审计记录不存在或无权访问");
+            throw new BusinessException(Constants.ErrorCodes.AUDIT_LOG_NOT_FOUND, "审计记录不存在或无权访问");
         }
         return audit;
     }
 
     private static RootCause parseRootCause(String rootCause) {
         if (rootCause == null || rootCause.isBlank()) {
-            throw new BusinessException("INVALID_ROOT_CAUSE", "rootCause 不能为空");
+            throw new BusinessException(Constants.ErrorCodes.INVALID_ROOT_CAUSE, "rootCause 不能为空");
         }
         try {
             return RootCause.valueOf(rootCause.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BusinessException("INVALID_ROOT_CAUSE",
+            throw new BusinessException(Constants.ErrorCodes.INVALID_ROOT_CAUSE,
                 "不支持的根因分类: " + rootCause + "（合法值: "
                     + Arrays.stream(RootCause.values()).map(Enum::name).collect(Collectors.joining("/")) + "）");
         }
@@ -219,21 +220,21 @@ public class BadCaseService {
                 Files.readString(file), new TypeReference<List<Map<String, Object>>>() {});
             return entries != null ? new ArrayList<>(entries) : new ArrayList<>();
         } catch (Exception e) {
-            throw new BusinessException("GOLDEN_FILE_CORRUPT",
+            throw new BusinessException(Constants.ErrorCodes.GOLDEN_FILE_CORRUPT,
                 "Golden 回灌文件解析失败（请人工检查）: " + file + " — " + e.getMessage());
         }
     }
 
     private void writeGoldenEntries(Path file, List<Map<String, Object>> entries) {
         if (!Files.isDirectory(goldenDir)) {
-            throw new BusinessException("GOLDEN_DIR_UNAVAILABLE",
+            throw new BusinessException(Constants.ErrorCodes.GOLDEN_DIR_UNAVAILABLE,
                 "Golden 语料目录不存在（检查 rag.admin.golden.dir，须从项目根启动或显式配置）: " + goldenDir);
         }
         try {
             String content = jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(entries) + "\n";
             Files.writeString(file, content);
         } catch (IOException e) {
-            throw new BusinessException("GOLDEN_DIR_UNAVAILABLE",
+            throw new BusinessException(Constants.ErrorCodes.GOLDEN_DIR_UNAVAILABLE,
                 "Golden 回灌文件写入失败: " + file + " — " + e.getMessage());
         }
     }

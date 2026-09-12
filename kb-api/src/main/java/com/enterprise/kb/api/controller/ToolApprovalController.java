@@ -2,6 +2,7 @@ package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.agent.tool.ToolApprovalService;
 import com.enterprise.kb.api.security.JwtUtils;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ public class ToolApprovalController {
     public ApiResponse<Map<String, Object>> approve(@PathVariable String approvalId) {
         String tenantId = jwtUtils.getCurrentTenantId();
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         boolean approved = approvalService.approve(approvalId, tenantId, jwtUtils.getCurrentUserId());
         return ApiResponse.success(Map.of("approved", approved));

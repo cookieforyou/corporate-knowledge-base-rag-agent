@@ -2,6 +2,7 @@ package com.enterprise.kb.api.service;
 
 import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.enums.ParseRoute;
@@ -218,7 +219,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.delete(DOC_ID, TENANT))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("DOC_NOT_READY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.DOC_NOT_READY);
         verifyNoInteractions(chunkCleanupService, minioClient);
         verify(documentRepository, never()).delete(any());
     }
@@ -276,7 +277,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.reparse(DOC_ID, TENANT, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("DOC_NOT_READY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.DOC_NOT_READY);
         verify(etlService, never()).process(anyString(), any(), any());
         verify(metrics, never()).recordReindexStarted();
     }
@@ -458,7 +459,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.replace(DOC_ID, TENANT, file, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("UPLOAD_FAILED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.UPLOAD_FAILED);
 
         // 占用已生效：落 FAILED 态（FAILED 可重试 reparse——原件未被破坏）
         ArgumentCaptor<KbDocument> captor = ArgumentCaptor.forClass(KbDocument.class);
@@ -479,7 +480,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.replace(DOC_ID, TENANT, file, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("DOC_NOT_READY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.DOC_NOT_READY);
         verifyNoInteractions(minioClient);   // 快速失败：无谓 MinIO 写入不发生
     }
 
@@ -491,7 +492,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.replace(DOC_ID, TENANT, empty, null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("FILE_EMPTY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.FILE_EMPTY);
     }
 
     // ── 上传大小守卫（安全簇② B2）：Service 层复核兜底，413 语义经 GlobalExceptionHandler ──
@@ -502,7 +503,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.upload(oversized, TENANT, "u-1", null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("FILE_TOO_LARGE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.FILE_TOO_LARGE);
         verifyNoInteractions(minioClient);
         verifyNoInteractions(documentRepository);
     }
@@ -568,7 +569,7 @@ class DocumentServiceTest {
 
         assertThatThrownBy(() -> service.upload(file, TENANT, "u-1", null))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("FILE_TYPE_UNSUPPORTED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.FILE_TYPE_UNSUPPORTED);
         verifyNoInteractions(minioClient);
         verify(documentRepository, never()).save(any());
     }

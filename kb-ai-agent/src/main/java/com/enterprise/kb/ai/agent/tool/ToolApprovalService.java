@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.tool;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RMap;
@@ -63,7 +64,7 @@ public class ToolApprovalService {
             ledger.expire(Duration.ofMinutes(ttlMinutes));
         } catch (Exception e) {
             log.error("审批单创建失败（Redis 故障），写操作 fail-closed 拒绝: {}", e.getMessage());
-            throw new BusinessException("APPROVAL_STORE_UNAVAILABLE", "审批服务暂不可用，请稍后再试");
+            throw new BusinessException(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE, "审批服务暂不可用，请稍后再试");
         }
         return approvalId;
     }
@@ -84,7 +85,7 @@ public class ToolApprovalService {
             return true;
         } catch (Exception e) {
             log.error("审批确认失败（Redis 故障）: {}", e.getMessage());
-            throw new BusinessException("APPROVAL_STORE_UNAVAILABLE", "审批服务暂不可用，请稍后再试");
+            throw new BusinessException(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE, "审批服务暂不可用，请稍后再试");
         }
     }
 
@@ -103,7 +104,7 @@ public class ToolApprovalService {
             return true;
         } catch (Exception e) {
             log.error("审批消费失败（Redis 故障），写操作 fail-closed 拒绝: {}", e.getMessage());
-            throw new BusinessException("APPROVAL_STORE_UNAVAILABLE", "审批服务暂不可用，请稍后再试");
+            throw new BusinessException(Constants.ErrorCodes.APPROVAL_STORE_UNAVAILABLE, "审批服务暂不可用，请稍后再试");
         }
     }
 

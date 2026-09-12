@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.it;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
@@ -65,7 +66,7 @@ class TokenBudgetIT extends AbstractAdvisorChainIT {
 
         assertThatThrownBy(() -> ragChatService.chatRag("年假政策", session, ctx(tenant, "U-B")))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("TOKEN_BUDGET_EXCEEDED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.TOKEN_BUDGET_EXCEEDED);
 
         Awaitility.await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(200))
             .untilAsserted(() -> {
@@ -73,7 +74,7 @@ class TokenBudgetIT extends AbstractAdvisorChainIT {
                 assertThat(logs).isNotEmpty();
                 KbAuditLog latest = logs.get(0);
                 assertThat(latest.getStatus()).isEqualTo("REJECTED");
-                assertThat(latest.getErrorCode()).isEqualTo("TOKEN_BUDGET_EXCEEDED");
+                assertThat(latest.getErrorCode()).isEqualTo(Constants.ErrorCodes.TOKEN_BUDGET_EXCEEDED);
             });
     }
 

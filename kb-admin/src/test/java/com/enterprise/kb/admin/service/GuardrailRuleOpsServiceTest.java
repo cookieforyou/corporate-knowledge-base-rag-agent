@@ -5,6 +5,7 @@ import com.enterprise.kb.admin.dto.GuardrailRuleMutationResult;
 import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
 import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesSupport;
@@ -118,14 +119,14 @@ class GuardrailRuleOpsServiceTest {
 
         assertThatThrownBy(() -> service.create(req, "t-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GUARDRAIL_RULE_INVALID");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_INVALID);
     }
 
     @Test
     void createRejectsFamilyMismatchForSide() {
         assertThatThrownBy(() -> service.create(create("output", "JAILBREAK", "probe"), "t-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GUARDRAIL_RULE_INVALID");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_INVALID);
     }
 
     @Test
@@ -136,7 +137,7 @@ class GuardrailRuleOpsServiceTest {
 
         assertThatThrownBy(() -> service.create(req, "t-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GUARDRAIL_RULE_INVALID");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_INVALID);
     }
 
     @Test
@@ -148,7 +149,7 @@ class GuardrailRuleOpsServiceTest {
 
         assertThatThrownBy(() -> service.create(create("injection", "UNCLASSIFIED", "probe"), "t-1"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GUARDRAIL_RULE_DUPLICATE");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_DUPLICATE);
     }
 
     @Test
@@ -157,7 +158,7 @@ class GuardrailRuleOpsServiceTest {
 
         assertThatThrownBy(() -> service.get("missing"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("GUARDRAIL_RULE_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_NOT_FOUND);
     }
 
     @Test

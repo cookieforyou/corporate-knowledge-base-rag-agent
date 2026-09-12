@@ -10,6 +10,7 @@ import com.enterprise.kb.admin.dto.GuardrailRuleUpdateRequest;
 import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.admin.service.GuardrailAdminService;
 import com.enterprise.kb.admin.service.GuardrailRuleOpsService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import jakarta.validation.Valid;
@@ -128,7 +129,7 @@ public class GuardrailAdminController {
     private static String requireTenantId(Jwt jwt) {
         String tenantId = jwt != null ? jwt.getClaimAsString("owner") : null;
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

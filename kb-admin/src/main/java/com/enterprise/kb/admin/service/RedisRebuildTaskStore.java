@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.RebuildTaskView;
 import com.enterprise.kb.admin.dto.RebuildTaskView.FailureView;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RAtomicLong;
@@ -253,6 +254,6 @@ public class RedisRebuildTaskStore implements RebuildTaskStore {
     }
 
     private static BusinessException storeUnavailable() {
-        return new BusinessException("REBUILD_STORE_UNAVAILABLE", "重建任务服务暂不可用，请稍后再试");
+        return new BusinessException(Constants.ErrorCodes.REBUILD_STORE_UNAVAILABLE, "重建任务服务暂不可用，请稍后再试");
     }
 }

@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -184,7 +185,7 @@ class AuditTraceAdvisorTest {
         freshCtx.setTenantId("tenant-a");
         freshCtx.setUserId("user-1");
         when(callChain.nextCall(any()))
-            .thenThrow(new BusinessException("RATE_LIMITED", "请求过于频繁"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁"));
 
         assertThatThrownBy(() -> advisor.adviseCall(request(freshCtx, "rag", "问题"), callChain))
             .isInstanceOf(BusinessException.class);
@@ -206,14 +207,14 @@ class AuditTraceAdvisorTest {
     @Test
     void rejectedRequestRecordedAndErrorPropagated() {
         when(callChain.nextCall(any()))
-            .thenThrow(new BusinessException("RATE_LIMITED", "请求过于频繁"));
+            .thenThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁"));
 
         assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain))
             .isInstanceOf(BusinessException.class);
 
         KbAuditLog audit = captureSaved();
         assertThat(audit.getStatus()).isEqualTo("REJECTED");
-        assertThat(audit.getErrorCode()).isEqualTo("RATE_LIMITED");
+        assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
         assertThat(audit.getFinalAnswer()).isNull();
     }
 
@@ -238,7 +239,7 @@ class AuditTraceAdvisorTest {
         advisor.adviseCall(request(ctxWithTrace(), "rag", "问题一"), callChain);
 
         // REJECTED（BusinessException）——重 stub 已抛异常方法须 doThrow 形态（坑位⑩）
-        doThrow(new BusinessException("RATE_LIMITED", "限流")).when(callChain).nextCall(any());
+        doThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "限流")).when(callChain).nextCall(any());
         assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题二"), callChain))
             .isInstanceOf(BusinessException.class);
 
@@ -281,7 +282,7 @@ class AuditTraceAdvisorTest {
     @Test
     void streamErrorRecordedAndPropagated() {
         when(streamChain.nextStream(any()))
-            .thenReturn(Flux.error(new BusinessException("PROMPT_INJECTION", "注入拦截")));
+            .thenReturn(Flux.error(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "注入拦截")));
 
         assertThatThrownBy(() -> advisor.adviseStream(request(ctxWithTrace(), "rag", "问题"), streamChain)
             .collectList().block())
@@ -289,7 +290,7 @@ class AuditTraceAdvisorTest {
 
         KbAuditLog audit = captureSaved();
         assertThat(audit.getStatus()).isEqualTo("REJECTED");
-        assertThat(audit.getErrorCode()).isEqualTo("PROMPT_INJECTION");
+        assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.enterprise.kb.api.dto.DocumentProcessingView;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.StatsService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -56,7 +57,7 @@ public class StatsController {
     private String requireTenantId() {
         String tenantId = jwtUtils.getCurrentTenantId();
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

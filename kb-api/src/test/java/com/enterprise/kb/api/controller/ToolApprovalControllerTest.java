@@ -2,6 +2,7 @@ package com.enterprise.kb.api.controller;
 
 import com.enterprise.kb.ai.agent.tool.ToolApprovalService;
 import com.enterprise.kb.api.security.JwtUtils;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,6 @@ class ToolApprovalControllerTest {
         assertThatThrownBy(() -> controller.approve("apv-001"))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("IDENTITY_INCOMPLETE");
+            .isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
     }
 }

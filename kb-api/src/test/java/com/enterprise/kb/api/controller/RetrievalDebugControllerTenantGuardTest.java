@@ -3,6 +3,7 @@ package com.enterprise.kb.api.controller;
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.ai.retriever.RerankDocumentPostProcessor;
 import com.enterprise.kb.api.security.JwtUtils;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.rag.preretrieval.query.transformation.RewriteQueryTransformer;
@@ -36,7 +37,7 @@ class RetrievalDebugControllerTenantGuardTest {
         assertThatThrownBy(() -> controller.search(Map.of("query", "问题")))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
-            .isEqualTo("IDENTITY_INCOMPLETE");
+            .isEqualTo(Constants.ErrorCodes.IDENTITY_INCOMPLETE);
         verifyNoInteractions(hybridRetriever);
         verifyNoInteractions(rewriteQueryTransformer);
     }

@@ -1,6 +1,7 @@
 package com.enterprise.kb.api.service;
 
 import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.etl.pipeline.EtlProgress;
 import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
@@ -124,7 +125,7 @@ public class DocumentService {
             );
             log.info("文档已上传 MinIO: bucket={}, path={}", bucket, ossPath);
         } catch (Exception e) {
-            throw new BusinessException("UPLOAD_FAILED", "文件上传失败: " + e.getMessage(), e);
+            throw new BusinessException(Constants.ErrorCodes.UPLOAD_FAILED, "文件上传失败: " + e.getMessage(), e);
         }
 
         // 2. 落库
@@ -166,7 +167,7 @@ public class DocumentService {
     /** 租户所有权校验的文档详情 */
     public KbDocument getOwned(String docId, String tenantId) {
         KbDocument doc = documentRepository.findById(docId)
-            .orElseThrow(() -> new BusinessException("DOC_NOT_FOUND", "文档不存在: " + docId));
+            .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.DOC_NOT_FOUND, "文档不存在: " + docId));
         checkOwnership(doc, tenantId);
         return doc;
     }
@@ -202,7 +203,7 @@ public class DocumentService {
 
         DocumentStatus status = doc.getStatus();
         if (status != null && status.isProcessing()) {
-            throw new BusinessException("DOC_NOT_READY",
+            throw new BusinessException(Constants.ErrorCodes.DOC_NOT_READY,
                 "文档处理中，禁止删除（当前 " + status + "）: " + docId);
         }
 
@@ -300,7 +301,7 @@ public class DocumentService {
             doc.setStatus(DocumentStatus.FAILED);
             doc.setErrorMessage("替换原件失败: " + e.getMessage());
             documentRepository.save(doc);
-            throw new BusinessException("UPLOAD_FAILED", "替换文件上传失败: " + e.getMessage(), e);
+            throw new BusinessException(Constants.ErrorCodes.UPLOAD_FAILED, "替换文件上传失败: " + e.getMessage(), e);
         }
 
         doc.setOssPath(newPath);
@@ -330,7 +331,7 @@ public class DocumentService {
         int acquired = documentRepository.acquireForReindex(doc.getId(),
             DocumentStatus.REINDEXING, List.of(DocumentStatus.SUCCESS, DocumentStatus.FAILED));
         if (acquired == 0) {
-            throw new BusinessException("DOC_NOT_READY",
+            throw new BusinessException(Constants.ErrorCodes.DOC_NOT_READY,
                 "文档当前不可重入库（仅 SUCCESS/FAILED 允许，当前 " + doc.getStatus() + "）: " + doc.getId());
         }
         doc.setStatus(DocumentStatus.REINDEXING);
@@ -374,7 +375,7 @@ public class DocumentService {
 
     private void checkOwnership(KbDocument doc, String tenantId) {
         if (!tenantId.equals(doc.getTenantId())) {
-            throw new BusinessException("DOC_FORBIDDEN", "无权访问该文档");
+            throw new BusinessException(Constants.ErrorCodes.DOC_FORBIDDEN, "无权访问该文档");
         }
     }
 
@@ -393,13 +394,13 @@ public class DocumentService {
 
     private void validateFile(MultipartFile file) {
         if (file.isEmpty()) {
-            throw new BusinessException("FILE_EMPTY", "上传文件为空");
+            throw new BusinessException(Constants.ErrorCodes.FILE_EMPTY, "上传文件为空");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new BusinessException("FILE_TOO_LARGE", "上传文件超过单文件 50MB 上限");
+            throw new BusinessException(Constants.ErrorCodes.FILE_TOO_LARGE, "上传文件超过单文件 50MB 上限");
         }
         if (file.getContentType() != null && !ALLOWED_TYPES.contains(file.getContentType())) {
-            throw new BusinessException("FILE_TYPE_UNSUPPORTED",
+            throw new BusinessException(Constants.ErrorCodes.FILE_TYPE_UNSUPPORTED,
                 "不支持的文件类型: " + file.getContentType() + "，仅支持 PDF/Docx/PPTX/XLSX/MD/TXT/HTML");
         }
     }

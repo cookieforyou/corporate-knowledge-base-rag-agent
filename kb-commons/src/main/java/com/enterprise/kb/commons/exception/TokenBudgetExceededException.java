@@ -1,5 +1,7 @@
 package com.enterprise.kb.commons.exception;
 
+import com.enterprise.kb.commons.constant.Constants;
+
 /**
  * Token 预算耗尽异常（任务 3.8，设计文档 12.3）
  *
@@ -13,6 +15,6 @@ package com.enterprise.kb.commons.exception;
 public class TokenBudgetExceededException extends BusinessException {
 
     public TokenBudgetExceededException(String message) {
-        super("TOKEN_BUDGET_EXCEEDED", message);
+        super(Constants.ErrorCodes.TOKEN_BUDGET_EXCEEDED, message);
     }
 }

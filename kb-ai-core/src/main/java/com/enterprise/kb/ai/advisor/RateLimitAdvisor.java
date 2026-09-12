@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RRateLimiter;
@@ -101,7 +102,7 @@ public class RateLimitAdvisor implements BaseAdvisor {
             if (!limiter.tryAcquire(1)) {
                 metrics.recordRateLimited();
                 log.warn("租户 [{}] 触发限流（{} 次/{}s），请求拒绝", tenantId, rate, intervalSeconds);
-                throw new BusinessException("RATE_LIMITED", "请求过于频繁，请稍后再试");
+                throw new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁，请稍后再试");
             }
         } catch (BusinessException e) {
             throw e;

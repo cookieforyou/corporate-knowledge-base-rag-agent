@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.enums.ChunkType;
@@ -180,7 +181,7 @@ class ChunkOpsServiceTest {
 
         assertThatThrownBy(() -> service.edit(CHUNK_ID, TENANT, "新内容"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("CHUNK_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.CHUNK_NOT_FOUND);
         verify(chunkRepository, never()).save(any());
     }
 
@@ -190,7 +191,7 @@ class ChunkOpsServiceTest {
 
         assertThatThrownBy(() -> service.edit(CHUNK_ID, TENANT, "新内容"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("CHUNK_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.CHUNK_NOT_FOUND);
     }
 
     @Test
@@ -199,7 +200,7 @@ class ChunkOpsServiceTest {
 
         assertThatThrownBy(() -> service.edit(CHUNK_ID, TENANT, "新内容"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("CHUNK_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.CHUNK_NOT_FOUND);
         verify(chunkRepository, never()).save(any());
     }
 
@@ -209,7 +210,7 @@ class ChunkOpsServiceTest {
 
         assertThatThrownBy(() -> service.edit(CHUNK_ID, TENANT, "新内容"))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("DOC_NOT_READY");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.DOC_NOT_READY);
         verify(chunkRepository, never()).save(any());
     }
 
@@ -244,7 +245,7 @@ class ChunkOpsServiceTest {
 
         assertThatThrownBy(() -> service.softDelete(CHUNK_ID, TENANT))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("CHUNK_NOT_FOUND");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.CHUNK_NOT_FOUND);
         verifyNoInteractions(chunkCleanupService);
     }
 
@@ -274,7 +275,7 @@ class ChunkOpsServiceTest {
 
         assertThatThrownBy(() -> service.restore(CHUNK_ID, TENANT))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo("CHUNK_NOT_DELETED");
+            .extracting("errorCode").isEqualTo(Constants.ErrorCodes.CHUNK_NOT_DELETED);
         verify(chunkRepository, never()).save(any());
     }
 

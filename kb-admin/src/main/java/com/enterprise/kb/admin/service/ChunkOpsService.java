@@ -2,6 +2,7 @@ package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.ai.cache.CacheInvalidationPublisher;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
@@ -163,7 +164,7 @@ public class ChunkOpsService {
         OwnedChunk owned = loadOwned(chunkId, tenantId);
         KbChunk chunk = owned.chunk();
         if (!Boolean.TRUE.equals(chunk.getIsDeleted())) {
-            throw new BusinessException("CHUNK_NOT_DELETED",
+            throw new BusinessException(Constants.ErrorCodes.CHUNK_NOT_DELETED,
                 "Chunk 未处于软删状态，无需恢复: " + chunkId);
         }
         guardNotProcessing(owned.doc(), chunkId);
@@ -214,7 +215,7 @@ public class ChunkOpsService {
     /** 文档处理中守卫：与在途 ETL 竞态会互覆 chunk → DOC_NOT_READY（409） */
     private static void guardNotProcessing(KbDocument doc, String chunkId) {
         if (doc.getStatus() != null && doc.getStatus().isProcessing()) {
-            throw new BusinessException("DOC_NOT_READY",
+            throw new BusinessException(Constants.ErrorCodes.DOC_NOT_READY,
                 "文档处理中，禁止 Chunk 运维操作（当前 " + doc.getStatus() + "）: chunkId=" + chunkId);
         }
     }
@@ -275,7 +276,7 @@ public class ChunkOpsService {
     }
 
     private static BusinessException chunkNotFound(String chunkId) {
-        return new BusinessException("CHUNK_NOT_FOUND", "Chunk 不存在: " + chunkId);
+        return new BusinessException(Constants.ErrorCodes.CHUNK_NOT_FOUND, "Chunk 不存在: " + chunkId);
     }
 
     /** 所有权校验通过的 chunk + 文档对 */

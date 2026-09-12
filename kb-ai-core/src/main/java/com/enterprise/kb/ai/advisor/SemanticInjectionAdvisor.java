@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.advisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.prompt.PromptTemplates;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
@@ -238,7 +239,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
         if (L2Verdict.VERDICT_BLOCK.equals(canonical)) {
             metrics.recordL2Blocked();
             log.warn("L2 语义判定拦截请求（族系 {}）", canonicalFamily(verdict.family()));
-            throw new BusinessException("PROMPT_INJECTION", "检测到 Prompt 注入攻击，请求已被拦截");
+            throw new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "检测到 Prompt 注入攻击，请求已被拦截");
         }
         if (L2Verdict.VERDICT_SUSPECT.equals(canonical)) {
             metrics.recordL2Suspect();

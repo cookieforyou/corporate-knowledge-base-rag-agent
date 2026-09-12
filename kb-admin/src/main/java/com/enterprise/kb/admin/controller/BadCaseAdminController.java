@@ -7,6 +7,7 @@ import com.enterprise.kb.admin.dto.ResolvedRequest;
 import com.enterprise.kb.admin.dto.RootCauseRequest;
 import com.enterprise.kb.admin.service.AuditLogQueryService;
 import com.enterprise.kb.admin.service.BadCaseService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.dto.ApiResponse;
 import com.enterprise.kb.commons.exception.BusinessException;
 import jakarta.validation.Valid;
@@ -95,7 +96,7 @@ public class BadCaseAdminController {
     private static String requireTenantId(Jwt jwt) {
         String tenantId = jwt != null ? jwt.getClaimAsString("owner") : null;
         if (tenantId == null || tenantId.isBlank()) {
-            throw new BusinessException("IDENTITY_INCOMPLETE", "身份不完整：缺少租户信息");
+            throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         return tenantId;
     }

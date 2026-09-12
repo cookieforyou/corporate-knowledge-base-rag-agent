@@ -1,6 +1,7 @@
 package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.GraphBackfillView;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.domain.enums.DocumentStatus;
 import com.enterprise.kb.domain.enums.GraphStatus;
@@ -81,7 +82,7 @@ public class GraphBackfillService {
     public GraphBackfillView start(String tenantId, List<String> docIds) {
         GraphExtractionService extractionService = extractionServiceProvider.getIfAvailable();
         if (extractionService == null) {
-            throw new BusinessException("GRAPH_DISABLED", "图谱功能未启用（rag.graph.enabled=false）");
+            throw new BusinessException(Constants.ErrorCodes.GRAPH_DISABLED, "图谱功能未启用（rag.graph.enabled=false）");
         }
         List<KbDocument> targets = new ArrayList<>();
         AtomicInteger preFailed = new AtomicInteger();
@@ -113,7 +114,7 @@ public class GraphBackfillService {
                 0, 0, preFailed.get(), null, null);
         }
         if (!store.tryStart(tenantId, targets.size())) {
-            throw new BusinessException("GRAPH_BACKFILL_RUNNING", "该租户已有图谱回填任务在途");
+            throw new BusinessException(Constants.ErrorCodes.GRAPH_BACKFILL_RUNNING, "该租户已有图谱回填任务在途");
         }
         log.info("图谱回填任务已受理: tenant={}, targets={}, preFailed={}",
             tenantId, targets.size(), preFailed.get());
