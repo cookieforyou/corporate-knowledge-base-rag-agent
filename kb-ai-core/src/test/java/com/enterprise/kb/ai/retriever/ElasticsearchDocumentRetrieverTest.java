@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.infrastructure.elasticsearch.EsChunkDoc;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -39,15 +40,15 @@ class ElasticsearchDocumentRetrieverTest {
         assertEquals("增值税发票认证期限", doc.getText());
 
         // 10.1 元数据约定
-        assertEquals("chunk-001", doc.getMetadata().get("chunk_id"));
-        assertEquals("doc-9", doc.getMetadata().get("doc_id"));
+        assertEquals("chunk-001", doc.getMetadata().get(Constants.Retrieval.META_CHUNK_ID));
+        assertEquals("doc-9", doc.getMetadata().get(Constants.Retrieval.META_DOC_ID));
         assertEquals("t-1", doc.getMetadata().get("tenant_id"));
         assertEquals("TEXT", doc.getMetadata().get("chunk_type"));
         assertEquals("发票手册.pdf", doc.getMetadata().get("file_name"));
         assertEquals(12, doc.getMetadata().get("page_num"));
-        assertEquals(8.75, doc.getMetadata().get("bm25_score"));
-        assertEquals(2, doc.getMetadata().get("bm25_rank"));
-        assertEquals("bm25", doc.getMetadata().get("retrieval_source"));
+        assertEquals(8.75, doc.getMetadata().get(Constants.Retrieval.META_BM25_SCORE));
+        assertEquals(2, doc.getMetadata().get(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertEquals(Constants.Retrieval.ROUTE_BM25, doc.getMetadata().get(Constants.Retrieval.META_RETRIEVAL_SOURCE));
     }
 
     @Test
@@ -63,7 +64,7 @@ class ElasticsearchDocumentRetrieverTest {
         // Spring AI metadata 禁止 null：可空字段缺省时不写入键
         assertFalse(doc.getMetadata().containsKey("page_num"));
         assertFalse(doc.getMetadata().containsKey("file_name"));
-        assertFalse(doc.getMetadata().containsKey("injection_hit"));
+        assertFalse(doc.getMetadata().containsKey(Constants.Retrieval.INJECTION_HIT));
     }
 
     /** 注入打标透传（安全簇④ D2）：命中时写元数据供 RrfFusion 降权消费，缺省不写键 */
@@ -81,7 +82,7 @@ class ElasticsearchDocumentRetrieverTest {
         Document hitMapped = retriever.toDocument(hit(hitDoc, 2.0), 1);
         Document cleanMapped = retriever.toDocument(hit(cleanDoc, 1.5), 2);
 
-        assertEquals(Boolean.TRUE, hitMapped.getMetadata().get("injection_hit"));
-        assertFalse(cleanMapped.getMetadata().containsKey("injection_hit"));
+        assertEquals(Boolean.TRUE, hitMapped.getMetadata().get(Constants.Retrieval.INJECTION_HIT));
+        assertFalse(cleanMapped.getMetadata().containsKey(Constants.Retrieval.INJECTION_HIT));
     }
 }

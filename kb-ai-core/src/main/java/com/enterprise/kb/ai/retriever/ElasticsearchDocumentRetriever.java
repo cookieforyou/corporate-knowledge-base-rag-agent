@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.retriever;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.infrastructure.elasticsearch.EsChunkDoc;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -62,7 +63,7 @@ public class ElasticsearchDocumentRetriever {
             // 溯源 trace 记录（SSE TRACE 数据源 11.3；无上下文降级跳过）；失败时不记录——
             // 条目缺失即降级信号（调试台 10.7 degradation 判据）
             if (ctx != null) {
-                ctx.addTraceEntry("bm25", docs, System.currentTimeMillis() - start);
+                ctx.addTraceEntry(Constants.Retrieval.ROUTE_BM25, docs, System.currentTimeMillis() - start);
             }
             return docs;
         } catch (IOException e) {
@@ -76,17 +77,17 @@ public class ElasticsearchDocumentRetriever {
         EsChunkDoc src = hit.source();
         // 注意：Spring AI Document metadata 禁止 null 值，可空字段仅在非空时写入
         Map<String, Object> meta = new HashMap<>();
-        meta.put("chunk_id", src.getChunkId());
-        meta.put("doc_id", src.getDocId());
+        meta.put(Constants.Retrieval.META_CHUNK_ID, src.getChunkId());
+        meta.put(Constants.Retrieval.META_DOC_ID, src.getDocId());
         meta.put("tenant_id", src.getTenantId());
         meta.put("chunk_type", src.getChunkType() != null ? src.getChunkType() : "TEXT");
         if (src.getFileName() != null) meta.put("file_name", src.getFileName());
         if (src.getPageNum() != null) meta.put("page_num", src.getPageNum());
         // 注入打标透传（安全簇④ D2）：供 RrfFusion 降权消费（默认关）；缺省不写键
         if (Boolean.TRUE.equals(src.getInjectionHit())) meta.put(RrfFusion.INJECTION_HIT_KEY, true);
-        meta.put("bm25_score", hit.score());
-        meta.put("bm25_rank", rank);
-        meta.put("retrieval_source", "bm25");
+        meta.put(Constants.Retrieval.META_BM25_SCORE, hit.score());
+        meta.put(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX, rank);
+        meta.put(Constants.Retrieval.META_RETRIEVAL_SOURCE, Constants.Retrieval.ROUTE_BM25);
         return Document.builder()
             .id(src.getChunkId())      // 融合键 = kb_chunk.id
             .text(src.getContent())

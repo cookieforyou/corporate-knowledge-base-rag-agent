@@ -95,4 +95,46 @@ public final class Constants {
         public static final String GOLDEN_ENTRY_INVALID = "GOLDEN_ENTRY_INVALID";
         public static final String GOLDEN_FILE_CORRUPT = "GOLDEN_FILE_CORRUPT";
     }
+
+    /**
+     * 检索域契约字面量（路名 + Document metadata 键 + TRACE 条目名）
+     *
+     * <p>写入侧（retriever / RrfFusion / Rerank / ETL）与读出侧（Controller 溯源 /
+     * 审计 / MCP / 编排工具 / 调试台 / eval 探针）共享的键面。排名键族为
+     * {@code ROUTE_X + RANK_KEY_SUFFIX} 拼接形态（编译期常量），不另立完整键常量
+     * 防双源漂移。
+     *
+     * <p>边界：PG 列名（@Column "doc_id"）、ES 文档字段名（@JsonProperty "chunk_id"
+     * 等）与 Cypher 参数名同字面分属 schema/存储契约，<strong>不经此类</strong>。
+     */
+    public static final class Retrieval {
+        private Retrieval() {}
+
+        // ── 检索路名（多路提交 / trace source / 调试台分流 / 降级矩阵 / 溯源判定）──
+        public static final String ROUTE_VECTOR = "vector";
+        public static final String ROUTE_BM25 = "bm25";
+        public static final String ROUTE_GRAPH = "graph";
+
+        // ── 排名键族后缀：{route}_rank（RrfFusion 动态拼接写入，SCORE_KEYS 读出）──
+        public static final String RANK_KEY_SUFFIX = "_rank";
+
+        // ── metadata 契约键 ──
+        public static final String META_RETRIEVAL_SOURCE = "retrieval_source";
+        public static final String META_FUSION_SCORE = "fusion_score";
+        public static final String META_RERANK_SCORE = "rerank_score";
+        public static final String META_RERANK_RANK = "rerank_rank";
+        public static final String META_BM25_SCORE = "bm25_score";
+        public static final String META_GRAPH_SCORE = "graph_score";
+        public static final String META_GRAPH_ENTITY_HITS = "graph_entity_hits";
+        public static final String META_DOC_ID = "doc_id";
+        public static final String META_CHUNK_ID = "chunk_id";
+        public static final String META_HEADING_PATH = "heading_path";
+
+        // ── 安全打标（安全簇④ D2：ETL 入库打标 ↔ RRF 融合降权 ↔ 间接注入扫描）──
+        public static final String INJECTION_HIT = "injection_hit";
+        public static final String INDIRECT_INJECTION_HIT = "indirect_injection_hit";
+
+        // ── TRACE 溯源条目 source 终结名（rerank 后终局文档集；审计命中判定消费）──
+        public static final String TRACE_SOURCE_FINAL = "final";
+    }
 }

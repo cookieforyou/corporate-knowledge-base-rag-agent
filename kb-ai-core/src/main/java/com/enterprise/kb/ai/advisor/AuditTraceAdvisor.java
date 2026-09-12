@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -241,7 +242,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             metrics.recordRequestOutcome(error);
             if ("rag".equals(snapshot.mode()) && !snapshot.traceEntries().isEmpty()) {
                 boolean hit = snapshot.traceEntries().stream()
-                    .anyMatch(e -> "final".equals(e.source()) && !e.documents().isEmpty());
+                    .anyMatch(e -> Constants.Retrieval.TRACE_SOURCE_FINAL.equals(e.source()) && !e.documents().isEmpty());
                 metrics.recordRetrieval(hit);
             }
             for (RetrievalContext.ToolCall toolCall : snapshot.toolCalls()) {
@@ -267,21 +268,21 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     private List<Map<String, Object>> retrievalProjection(List<RetrievalContext.TraceEntry> entries, boolean reranked) {
         List<Map<String, Object>> projection = new ArrayList<>();
         for (RetrievalContext.TraceEntry entry : entries) {
-            boolean isFinal = "final".equals(entry.source());
+            boolean isFinal = Constants.Retrieval.TRACE_SOURCE_FINAL.equals(entry.source());
             if (isFinal != reranked) {
                 continue;
             }
             for (Document doc : entry.documents()) {
                 Map<String, Object> item = new LinkedHashMap<>();
-                item.put("chunk_id", asString(doc.getMetadata().get("chunk_id")));
+                item.put(Constants.Retrieval.META_CHUNK_ID, asString(doc.getMetadata().get(Constants.Retrieval.META_CHUNK_ID)));
                 item.put("file_name", asString(doc.getMetadata().get("file_name")));
                 Object pageNum = doc.getMetadata().get("page_num");
                 if (pageNum != null) {
                     item.put("page_num", pageNum);
                 }
                 Object score = isFinal
-                    ? doc.getMetadata().get("rerank_score")
-                    : doc.getMetadata().get("fusion_score");
+                    ? doc.getMetadata().get(Constants.Retrieval.META_RERANK_SCORE)
+                    : doc.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE);
                 if (score != null) {
                     item.put("score", score);
                 }

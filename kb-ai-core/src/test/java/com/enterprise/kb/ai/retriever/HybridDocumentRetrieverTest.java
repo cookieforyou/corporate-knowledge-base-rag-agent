@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class HybridDocumentRetrieverTest {
 
     private Document doc(String id) {
         return Document.builder().id(id).text("t-" + id)
-            .metadata(Map.of("chunk_id", id)).build();
+            .metadata(Map.of(Constants.Retrieval.META_CHUNK_ID, id)).build();
     }
 
     /** Graph 路 ObjectProvider 桩：缺位（关闭态）= getIfAvailable → null */
@@ -95,8 +96,8 @@ class HybridDocumentRetrieverTest {
         List<Document> result = assertDoesNotThrow(() -> hybrid.retrieve(query));
 
         assertEquals(2, result.size());
-        assertTrue(result.stream().allMatch(d -> d.getMetadata().containsKey("vector_rank")));
-        assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey("bm25_rank")));
+        assertTrue(result.stream().allMatch(d -> d.getMetadata().containsKey(Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX)));
+        assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX)));
     }
 
     @Test
@@ -138,7 +139,7 @@ class HybridDocumentRetrieverTest {
 
         List<RetrievalContext.TraceEntry> trace = ctx.getTraceSummary();
         assertEquals(1, trace.size());
-        assertEquals("vector", trace.get(0).source());
+        assertEquals(Constants.Retrieval.ROUTE_VECTOR, trace.get(0).source());
         assertEquals(List.of("v1"), trace.get(0).documents().stream().map(Document::getId).toList());
     }
 
@@ -178,11 +179,11 @@ class HybridDocumentRetrieverTest {
         // v1 三路中占两路 → RRF 分最高
         assertEquals("v1", result.get(0).getId());
         Document g1 = result.stream().filter(d -> "g1".equals(d.getId())).findFirst().orElseThrow();
-        assertTrue(g1.getMetadata().containsKey("graph_rank"));
+        assertTrue(g1.getMetadata().containsKey(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX));
         // trace 含 vector + graph 两条目（bm25 路由 ES 检索器自记录，mock 不写）
         List<String> sources = ctx.getTraceSummary().stream()
             .map(RetrievalContext.TraceEntry::source).toList();
-        assertEquals(List.of("vector", "graph"), sources);
+        assertEquals(List.of(Constants.Retrieval.ROUTE_VECTOR, Constants.Retrieval.ROUTE_GRAPH), sources);
     }
 
     /** 簇④ 三路容错：Graph 路失败降级为空路，双路结果不受影响（降级矩阵三路扩展） */
@@ -198,7 +199,7 @@ class HybridDocumentRetrieverTest {
         List<Document> result = assertDoesNotThrow(() -> hybrid.retrieve(query));
 
         assertEquals(2, result.size());
-        assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey("graph_rank")));
+        assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX)));
     }
 
     /** 簇④ 关闭态零回归：Graph 路缺位时融合面仅双路，无 graph_rank、无 graph trace */
@@ -214,9 +215,9 @@ class HybridDocumentRetrieverTest {
         List<Document> result = hybrid.retrieve(ctxQuery);
 
         assertEquals(2, result.size());
-        assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey("graph_rank")));
+        assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX)));
         assertTrue(ctx.getTraceSummary().stream()
-            .noneMatch(e -> "graph".equals(e.source())));
+            .noneMatch(e -> Constants.Retrieval.ROUTE_GRAPH.equals(e.source())));
     }
 
     /**

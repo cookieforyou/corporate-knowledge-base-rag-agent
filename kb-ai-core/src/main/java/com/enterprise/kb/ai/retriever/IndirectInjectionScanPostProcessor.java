@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
@@ -63,7 +64,7 @@ public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor
      * 命中文档元数据标记键（warn 档）：编号格式器据此渲染逐条警示注记。
      * 值恒为 {@link Boolean#TRUE}（元数据禁 null，坑位④）。
      */
-    public static final String INDIRECT_HIT_KEY = "indirect_injection_hit";
+    public static final String INDIRECT_HIT_KEY = Constants.Retrieval.INDIRECT_INJECTION_HIT;
 
     /** exclude 策略配置值（warn 为缺省策略，非法值回落 warn 并启动 warn） */
     private static final String STRATEGY_EXCLUDE = "exclude";

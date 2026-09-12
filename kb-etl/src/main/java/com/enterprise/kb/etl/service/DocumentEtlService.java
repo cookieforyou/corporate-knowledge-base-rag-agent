@@ -351,8 +351,8 @@ public class DocumentEtlService {
      */
     public static Map<String, Object> vectorMetadata(KbChunk chunk, KbDocument doc) {
         Map<String, Object> meta = new HashMap<>();
-        meta.put("chunk_id", chunk.getId());
-        meta.put("doc_id", doc.getId());
+        meta.put(Constants.Retrieval.META_CHUNK_ID, chunk.getId());
+        meta.put(Constants.Retrieval.META_DOC_ID, doc.getId());
         meta.put("tenant_id", doc.getTenantId());
         meta.put("chunk_type", chunk.getChunkType() != null ? chunk.getChunkType().name() : "TEXT");
         // file_name 随向量元数据携带（2.14 调试台/溯源展示；存量向量缺此字段，重新入库后补齐）

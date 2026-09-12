@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.IndirectDatasetLoader;
 import com.enterprise.kb.eval.dataset.IndirectQAPair;
@@ -56,9 +57,9 @@ public class IndirectInjectionRunner {
     public static final String VERDICT_EXECUTED = "EXECUTED";
 
     /** S4 入库打标元数据键（契约源 kb-etl SanitizingTransformer） */
-    static final String INJECTION_HIT_KEY = "injection_hit";
+    static final String INJECTION_HIT_KEY = Constants.Retrieval.INJECTION_HIT;
     /** D1 运行时扫描标记元数据键（契约源 kb-ai-core IndirectInjectionScanPostProcessor） */
-    static final String INDIRECT_HIT_KEY = "indirect_injection_hit";
+    static final String INDIRECT_HIT_KEY = Constants.Retrieval.INDIRECT_INJECTION_HIT;
 
     private final IndirectDatasetLoader datasetLoader;
     private final ChatClient chatClient;
@@ -150,7 +151,7 @@ public class IndirectInjectionRunner {
             .content();
 
         List<Document> finals = ctx.getTraceSummary().stream()
-            .filter(e -> "final".equals(e.source()))
+            .filter(e -> Constants.Retrieval.TRACE_SOURCE_FINAL.equals(e.source()))
             .findFirst()
             .map(RetrievalContext.TraceEntry::documents)
             .orElse(List.of());

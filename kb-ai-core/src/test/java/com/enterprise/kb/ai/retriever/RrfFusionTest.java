@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -30,19 +31,19 @@ class RrfFusionTest {
     void fuse_bothPathsHitSameDoc_scoresSummed() {
         // 同一 chunk 向量路第 1、BM25 路第 2：fusion = 1/(60+1) + 1/(60+2)
         List<Document> vector = List.of(doc("a", Map.of("vector_score", 0.91)));
-        List<Document> bm25 = List.of(doc("x", Map.of("bm25_score", 12.5)), doc("a", Map.of("bm25_score", 9.0)));
+        List<Document> bm25 = List.of(doc("x", Map.of(Constants.Retrieval.META_BM25_SCORE, 12.5)), doc("a", Map.of(Constants.Retrieval.META_BM25_SCORE, 9.0)));
 
         List<Document> fused = fusion.fuse(vector, bm25, 10);
 
         Document a = fused.stream().filter(d -> d.getId().equals("a")).findFirst().orElseThrow();
         int rrfK = properties.getRrfK();
         double expected = 1.0 / (rrfK + 1) + 1.0 / (rrfK + 2);
-        assertEquals(expected, (Double) a.getMetadata().get("fusion_score"), 1e-12);
-        assertEquals(1, a.getMetadata().get("vector_rank"));
-        assertEquals(2, a.getMetadata().get("bm25_rank"));
+        assertEquals(expected, (Double) a.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE), 1e-12);
+        assertEquals(1, a.getMetadata().get(Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertEquals(2, a.getMetadata().get(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
         // 双路原始得分均保留
         assertEquals(0.91, a.getMetadata().get("vector_score"));
-        assertEquals(9.0, a.getMetadata().get("bm25_score"));
+        assertEquals(9.0, a.getMetadata().get(Constants.Retrieval.META_BM25_SCORE));
     }
 
     @Test
@@ -69,10 +70,10 @@ class RrfFusionTest {
 
         assertEquals(1, fused.size());
         Document d = fused.get(0);
-        assertEquals(1, d.getMetadata().get("vector_rank"));
+        assertEquals(1, d.getMetadata().get(Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX));
         // Spring AI metadata 禁 null：缺位路径的键不写入
-        assertFalse(d.getMetadata().containsKey("bm25_rank"));
-        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) d.getMetadata().get("fusion_score"), 1e-12);
+        assertFalse(d.getMetadata().containsKey(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) d.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE), 1e-12);
     }
 
     @Test
@@ -105,11 +106,11 @@ class RrfFusionTest {
     @Test
     void demoteDisabledByDefault_hitChunkScoreZeroDrift() {
         // 缺省形态：injection_hit chunk 融合分与排序零变化，计数零
-        List<Document> vector = List.of(doc("hit", Map.of("injection_hit", true)), doc("clean", Map.of()));
+        List<Document> vector = List.of(doc("hit", Map.of(Constants.Retrieval.INJECTION_HIT, true)), doc("clean", Map.of()));
 
         List<Document> fused = fusion.fuse(vector, List.of(), 10);
 
-        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get("fusion_score"), 1e-12);
+        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get(Constants.Retrieval.META_FUSION_SCORE), 1e-12);
         assertEquals("hit", fused.get(0).getId());
         assertEquals(0.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
     }
@@ -119,8 +120,8 @@ class RrfFusionTest {
         properties.getInjectionHit().getDemote().setEnabled(true);
         properties.getInjectionHit().getDemote().setFactor(0.1);
         // hit 双路命中原本排首；衰减 0.1 后应让位于单路命中的 clean
-        List<Document> vector = List.of(doc("clean", Map.of()), doc("hit", Map.of("injection_hit", true)));
-        List<Document> bm25 = List.of(doc("hit", Map.of("injection_hit", true)));
+        List<Document> vector = List.of(doc("clean", Map.of()), doc("hit", Map.of(Constants.Retrieval.INJECTION_HIT, true)));
+        List<Document> bm25 = List.of(doc("hit", Map.of(Constants.Retrieval.INJECTION_HIT, true)));
 
         List<Document> fused = fusion.fuse(vector, bm25, 10);
 
@@ -128,10 +129,10 @@ class RrfFusionTest {
         Document hit = fused.get(1);
         int rrfK = properties.getRrfK();
         double expected = (1.0 / (rrfK + 2) + 1.0 / (rrfK + 1)) * 0.1;
-        assertEquals(expected, (Double) hit.getMetadata().get("fusion_score"), 1e-12);
+        assertEquals(expected, (Double) hit.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE), 1e-12);
         // 排名元数据保持原值可溯（降权只改融合分）
-        assertEquals(2, hit.getMetadata().get("vector_rank"));
-        assertEquals(1, hit.getMetadata().get("bm25_rank"));
+        assertEquals(2, hit.getMetadata().get(Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertEquals(1, hit.getMetadata().get(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
         assertEquals(1.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
     }
 
@@ -142,7 +143,7 @@ class RrfFusionTest {
 
         List<Document> fused = fusion.fuse(vector, List.of(), 10);
 
-        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get("fusion_score"), 1e-12);
+        assertEquals(1.0 / (properties.getRrfK() + 1), (Double) fused.get(0).getMetadata().get(Constants.Retrieval.META_FUSION_SCORE), 1e-12);
         assertEquals(0.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
     }
 
@@ -152,9 +153,9 @@ class RrfFusionTest {
     void fuseN_threeRoutes_tripleHitRanksFirstWithAllRankKeys() {
         // a 三路齐中（vector#1 / bm25#2 / graph#1）→ 三项倒数和最高
         Map<String, List<Document>> routes = new LinkedHashMap<>();
-        routes.put("vector", List.of(doc("a", Map.of("vector_score", 0.9)), doc("v2", Map.of())));
-        routes.put("bm25", List.of(doc("b1", Map.of()), doc("a", Map.of())));
-        routes.put("graph", List.of(doc("a", Map.of("graph_score", 0.8, "graph_entity_hits", "甲公司")), doc("g2", Map.of())));
+        routes.put(Constants.Retrieval.ROUTE_VECTOR, List.of(doc("a", Map.of("vector_score", 0.9)), doc("v2", Map.of())));
+        routes.put(Constants.Retrieval.ROUTE_BM25, List.of(doc("b1", Map.of()), doc("a", Map.of())));
+        routes.put(Constants.Retrieval.ROUTE_GRAPH, List.of(doc("a", Map.of(Constants.Retrieval.META_GRAPH_SCORE, 0.8, Constants.Retrieval.META_GRAPH_ENTITY_HITS, "甲公司")), doc("g2", Map.of())));
 
         List<Document> fused = fusion.fuse(routes, 10);
 
@@ -162,12 +163,12 @@ class RrfFusionTest {
         assertEquals("a", a.getId());
         int rrfK = properties.getRrfK();
         double expected = 1.0 / (rrfK + 1) + 1.0 / (rrfK + 2) + 1.0 / (rrfK + 1);
-        assertEquals(expected, (Double) a.getMetadata().get("fusion_score"), 1e-12);
-        assertEquals(1, a.getMetadata().get("vector_rank"));
-        assertEquals(2, a.getMetadata().get("bm25_rank"));
-        assertEquals(1, a.getMetadata().get("graph_rank"));
+        assertEquals(expected, (Double) a.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE), 1e-12);
+        assertEquals(1, a.getMetadata().get(Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertEquals(2, a.getMetadata().get(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertEquals(1, a.getMetadata().get(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX));
         // 图路元数据并集透传（实体命中溯源面）
-        assertEquals("甲公司", a.getMetadata().get("graph_entity_hits"));
+        assertEquals("甲公司", a.getMetadata().get(Constants.Retrieval.META_GRAPH_ENTITY_HITS));
         assertEquals(4, fused.size());
     }
 
@@ -175,28 +176,28 @@ class RrfFusionTest {
     void fuseN_emptyRouteIgnored_dualRouteSemanticsPreserved() {
         // graph 路空（未命中/降级）→ 与双路融合逐位一致（兼容签名对照）
         Map<String, List<Document>> routes = new LinkedHashMap<>();
-        routes.put("vector", List.of(doc("a", Map.of())));
-        routes.put("bm25", List.of(doc("a", Map.of())));
-        routes.put("graph", List.of());
+        routes.put(Constants.Retrieval.ROUTE_VECTOR, List.of(doc("a", Map.of())));
+        routes.put(Constants.Retrieval.ROUTE_BM25, List.of(doc("a", Map.of())));
+        routes.put(Constants.Retrieval.ROUTE_GRAPH, List.of());
 
         List<Document> fusedN = fusion.fuse(routes, 10);
         List<Document> fusedDual = fusion.fuse(List.of(doc("a", Map.of())), List.of(doc("a", Map.of())), 10);
 
-        assertEquals(fusedDual.get(0).getMetadata().get("fusion_score"),
-            fusedN.get(0).getMetadata().get("fusion_score"));
-        assertFalse(fusedN.get(0).getMetadata().containsKey("graph_rank"));
+        assertEquals(fusedDual.get(0).getMetadata().get(Constants.Retrieval.META_FUSION_SCORE),
+            fusedN.get(0).getMetadata().get(Constants.Retrieval.META_FUSION_SCORE));
+        assertFalse(fusedN.get(0).getMetadata().containsKey(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX));
     }
 
     @Test
     void fuseN_routeRankKeyNamespaced() {
         // 路名即排名键前缀：开放路名不互相污染
         Map<String, List<Document>> routes = new LinkedHashMap<>();
-        routes.put("graph", List.of(doc("g1", Map.of())));
+        routes.put(Constants.Retrieval.ROUTE_GRAPH, List.of(doc("g1", Map.of())));
 
         Document fused = fusion.fuse(routes, 10).get(0);
 
-        assertEquals(1, fused.getMetadata().get("graph_rank"));
-        assertFalse(fused.getMetadata().containsKey("vector_rank"));
-        assertFalse(fused.getMetadata().containsKey("bm25_rank"));
+        assertEquals(1, fused.getMetadata().get(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertFalse(fused.getMetadata().containsKey(Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX));
+        assertFalse(fused.getMetadata().containsKey(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
     }
 }

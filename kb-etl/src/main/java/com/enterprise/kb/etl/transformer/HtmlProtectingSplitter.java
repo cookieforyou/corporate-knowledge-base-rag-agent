@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.domain.enums.ChunkType;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
@@ -45,7 +46,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     private static final int MIN_TABLE_CHARS = 30;
 
     /** chunk 元数据键：标题路径（「L1 &gt; L2 &gt; …」，缺省不写键——元数据禁 null） */
-    public static final String HEADING_PATH_KEY = "heading_path";
+    public static final String HEADING_PATH_KEY = Constants.Retrieval.META_HEADING_PATH;
 
     /** Markdown 标题行：{@code #{1,6} 标题文字}（MULTILINE 供整篇预检 find()） */
     private static final Pattern MARKDOWN_HEADING =

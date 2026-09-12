@@ -90,13 +90,13 @@ public class RetrievalDebugController {
 
         for (RetrievalContext.TraceEntry entry : ctx.getTraceSummary()) {
             switch (entry.source()) {
-                case "bm25" -> {
+                case Constants.Retrieval.ROUTE_BM25 -> {
                     bm25Present = true;
                     for (Document doc : entry.documents()) {
                         builder(merged, doc).fillBm25(doc);
                     }
                 }
-                case "vector" -> {
+                case Constants.Retrieval.ROUTE_VECTOR -> {
                     vectorHasHits = !entry.documents().isEmpty();
                     int rank = 0;
                     for (Document doc : entry.documents()) {
@@ -104,7 +104,7 @@ public class RetrievalDebugController {
                         builder(merged, doc).fillVector(doc, rank);
                     }
                 }
-                case "graph" -> {   // 簇④：图路仅在场时入视图（关闭态零形态变化）
+                case Constants.Retrieval.ROUTE_GRAPH -> {   // 簇④：图路仅在场时入视图（关闭态零形态变化）
                     graphPresent = true;
                     graphHasHits = !entry.documents().isEmpty();
                     for (Document doc : entry.documents()) {
@@ -138,10 +138,10 @@ public class RetrievalDebugController {
         });
 
         Map<String, String> degradation = new LinkedHashMap<>();
-        degradation.put("vector", vectorHasHits ? "OK" : "DEGRADED");
-        degradation.put("bm25", bm25Present ? "OK" : "DEGRADED");
+        degradation.put(Constants.Retrieval.ROUTE_VECTOR, vectorHasHits ? "OK" : "DEGRADED");
+        degradation.put(Constants.Retrieval.ROUTE_BM25, bm25Present ? "OK" : "DEGRADED");
         if (graphPresent) {   // 关闭态不出现 graph 键（响应形态零变化）
-            degradation.put("graph", graphHasHits ? "OK" : "DEGRADED");
+            degradation.put(Constants.Retrieval.ROUTE_GRAPH, graphHasHits ? "OK" : "DEGRADED");
         }
         return new RetrievalDebugResult(query, rewrittenQuery, latency, candidates, degradation);
     }
@@ -191,25 +191,25 @@ public class RetrievalDebugController {
 
         void fillBm25(Document doc) {
             Map<String, Object> meta = doc.getMetadata();
-            if (meta.get("bm25_score") instanceof Number n) this.bm25Score = n.doubleValue();
-            if (meta.get("bm25_rank") instanceof Number n) this.bm25Rank = n.intValue();
+            if (meta.get(Constants.Retrieval.META_BM25_SCORE) instanceof Number n) this.bm25Score = n.doubleValue();
+            if (meta.get(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX) instanceof Number n) this.bm25Rank = n.intValue();
             fillCommon(doc);
         }
 
         /** 图路得分/排名/命中实体（簇④）：元数据键族同双路契约 */
         void fillGraph(Document doc) {
             Map<String, Object> meta = doc.getMetadata();
-            if (meta.get("graph_score") instanceof Number n) this.graphScore = n.doubleValue();
-            if (meta.get("graph_rank") instanceof Number n) this.graphRank = n.intValue();
-            if (meta.get("graph_entity_hits") != null) this.graphEntityHits = String.valueOf(meta.get("graph_entity_hits"));
+            if (meta.get(Constants.Retrieval.META_GRAPH_SCORE) instanceof Number n) this.graphScore = n.doubleValue();
+            if (meta.get(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX) instanceof Number n) this.graphRank = n.intValue();
+            if (meta.get(Constants.Retrieval.META_GRAPH_ENTITY_HITS) != null) this.graphEntityHits = String.valueOf(meta.get(Constants.Retrieval.META_GRAPH_ENTITY_HITS));
             fillCommon(doc);
         }
 
         void fillFinal(Document doc, int rank) {
             Map<String, Object> meta = doc.getMetadata();
-            if (meta.get("fusion_score") instanceof Number n) this.fusionScore = n.doubleValue();
-            if (meta.get("rerank_score") instanceof Number n) this.rerankScore = n.doubleValue();
-            if (meta.get("rerank_rank") instanceof Number n) this.rerankRank = n.intValue();
+            if (meta.get(Constants.Retrieval.META_FUSION_SCORE) instanceof Number n) this.fusionScore = n.doubleValue();
+            if (meta.get(Constants.Retrieval.META_RERANK_SCORE) instanceof Number n) this.rerankScore = n.doubleValue();
+            if (meta.get(Constants.Retrieval.META_RERANK_RANK) instanceof Number n) this.rerankRank = n.intValue();
             this.finalRank = rank;
             fillCommon(doc);
         }

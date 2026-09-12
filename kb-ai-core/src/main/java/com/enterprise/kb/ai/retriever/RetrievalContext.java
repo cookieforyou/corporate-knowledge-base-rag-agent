@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
+import com.enterprise.kb.commons.constant.Constants;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.ai.document.Document;
@@ -202,7 +203,7 @@ public class RetrievalContext {
         return traceEntries.stream()
             .flatMap(e -> e.documents().stream())
             .mapToDouble(d -> {
-                Object fusion = d.getMetadata().get("fusion_score");
+                Object fusion = d.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE);
                 if (fusion instanceof Number n) return n.doubleValue();
                 return d.getScore() != null ? d.getScore() : 0.0;
             })

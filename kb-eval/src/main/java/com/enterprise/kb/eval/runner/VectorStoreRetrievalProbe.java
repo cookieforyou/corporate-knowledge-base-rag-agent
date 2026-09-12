@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -41,7 +42,7 @@ public class VectorStoreRetrievalProbe implements RetrievalProbe {
     }
 
     private ProbeHit toHit(Document doc) {
-        Object chunkId = doc.getMetadata().get("chunk_id");
+        Object chunkId = doc.getMetadata().get(Constants.Retrieval.META_CHUNK_ID);
         String id = chunkId != null ? chunkId.toString() : doc.getId();
         Object fileName = doc.getMetadata().get("file_name");
         double score = doc.getScore() != null ? doc.getScore() : 0.0;

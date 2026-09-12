@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -114,37 +115,37 @@ public class HybridDocumentRetriever implements DocumentRetriever {
                 List<Document> hits = vectorSearch(query, recallSize, ctx);
                 vectorLatency[0] = System.currentTimeMillis() - t0;
                 return hits;
-            }, "vector"));
+            }, Constants.Retrieval.ROUTE_VECTOR));
         Future<List<Document>> bm25Future = executor.submit(
-            () -> retrieveSafely(() -> esRetriever.retrieve(query, recallSize), "bm25"));
+            () -> retrieveSafely(() -> esRetriever.retrieve(query, recallSize), Constants.Retrieval.ROUTE_BM25));
         Future<List<Document>> graphFuture = graphRetriever == null ? null : executor.submit(
             () -> retrieveSafely(() -> {
                 long t0 = System.currentTimeMillis();
                 List<Document> hits = graphRetriever.retrieve(query, recallSize);
                 graphLatency[0] = System.currentTimeMillis() - t0;
                 return hits;
-            }, "graph"));
-        vectorHits = await(vectorFuture, "vector");
-        bm25Hits = await(bm25Future, "bm25");
+            }, Constants.Retrieval.ROUTE_GRAPH));
+        vectorHits = await(vectorFuture, Constants.Retrieval.ROUTE_VECTOR);
+        bm25Hits = await(bm25Future, Constants.Retrieval.ROUTE_BM25);
         if (graphFuture != null) {
-            graphHits = await(graphFuture, "graph");
+            graphHits = await(graphFuture, Constants.Retrieval.ROUTE_GRAPH);
         }
 
         // 向量路/图路 trace（bm25 路由 ES 检索器自记录；Future.get 建立 happens-before，
         // 此刻写入均已可见，CopyOnWriteArrayList 保证快照读安全）
         if (ctx != null) {
-            ctx.addTraceEntry("vector", vectorHits, vectorLatency[0]);
+            ctx.addTraceEntry(Constants.Retrieval.ROUTE_VECTOR, vectorHits, vectorLatency[0]);
             if (graphFuture != null) {
-                ctx.addTraceEntry("graph", graphHits, graphLatency[0]);
+                ctx.addTraceEntry(Constants.Retrieval.ROUTE_GRAPH, graphHits, graphLatency[0]);
             }
         }
 
         // N 路 RRF 融合（簇④ 5.2）：graph 路仅在场时入融合面；关闭态双路键序不变
         Map<String, List<Document>> routeHits = new LinkedHashMap<>();
-        routeHits.put("vector", vectorHits);
-        routeHits.put("bm25", bm25Hits);
+        routeHits.put(Constants.Retrieval.ROUTE_VECTOR, vectorHits);
+        routeHits.put(Constants.Retrieval.ROUTE_BM25, bm25Hits);
         if (graphFuture != null) {
-            routeHits.put("graph", graphHits);
+            routeHits.put(Constants.Retrieval.ROUTE_GRAPH, graphHits);
         }
         List<Document> fused = rrfFusion.fuse(routeHits, recallSize);
         long elapsed = System.currentTimeMillis() - start;

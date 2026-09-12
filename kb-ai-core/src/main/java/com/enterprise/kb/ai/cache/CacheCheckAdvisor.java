@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.cache;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -72,10 +73,10 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
     static final String OBSERVATION_NAME = "kb.cache.semantic";
 
     /** 重排后最终序列 trace 源标识（与检索/重排链路写入侧同值） */
-    private static final String SOURCE_FINAL = "final";
+    private static final String SOURCE_FINAL = Constants.Retrieval.TRACE_SOURCE_FINAL;
 
     /** 证据文档的文档标识元数据键（失效反查依赖，与 ETL vectorMetadata 契约同源） */
-    private static final String META_DOC_ID = "doc_id";
+    private static final String META_DOC_ID = Constants.Retrieval.META_DOC_ID;
 
     private final SemanticCacheService cacheService;
     private final EmbeddingModel embeddingModel;

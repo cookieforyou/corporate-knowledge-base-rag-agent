@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.cache;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,8 +102,8 @@ class CacheCheckAdvisorTest {
         return Document.builder()
             .text("证据正文")
             .score(0.88)
-            .metadata(Map.of("chunk_id", "c-1", "doc_id", docId, "file_name", "手册.pdf",
-                "page_num", 2, "rerank_score", 0.88))
+            .metadata(Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_DOC_ID, docId, "file_name", "手册.pdf",
+                "page_num", 2, Constants.Retrieval.META_RERANK_SCORE, 0.88))
             .build();
     }
 
@@ -177,10 +178,10 @@ class CacheCheckAdvisorTest {
     void callHitReturnsCachedAnswerReplaysTraceAndBypassesChain() {
         RetrievalContext ctx = ctx();
         ChatClientRequest req = request(ctx);
-        String traceJson = jsonMapper.writeValueAsString(List.of(new CacheTracePayload("final",
+        String traceJson = jsonMapper.writeValueAsString(List.of(new CacheTracePayload(Constants.Retrieval.TRACE_SOURCE_FINAL,
             List.of(new CacheTracePayload.CachedChunk("证据正文", 0.88,
-                Map.of("chunk_id", "c-1", "doc_id", "doc-9", "file_name", "手册.pdf",
-                    "page_num", 2, "rerank_score", 0.88))), 21L)));
+                Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_DOC_ID, "doc-9", "file_name", "手册.pdf",
+                    "page_num", 2, Constants.Retrieval.META_RERANK_SCORE, 0.88))), 21L)));
         when(cacheService.lookup(eq(TENANT), any(float[].class)))
             .thenReturn(Optional.of(hit("缓存回答 [ref-1]", traceJson)));
 
@@ -193,12 +194,12 @@ class CacheCheckAdvisorTest {
         // 溯源回填：Controller 流末 TRACE / 审计 / 归档同形消费
         assertThat(ctx.getTraceSummary()).hasSize(1);
         RetrievalContext.TraceEntry replayed = ctx.getTraceSummary().get(0);
-        assertThat(replayed.source()).isEqualTo("final");
+        assertThat(replayed.source()).isEqualTo(Constants.Retrieval.TRACE_SOURCE_FINAL);
         assertThat(replayed.latencyMs()).isEqualTo(21L);
         assertThat(replayed.documents().get(0).getText()).isEqualTo("证据正文");
         assertThat(replayed.documents().get(0).getScore()).isEqualTo(0.88);
         assertThat(replayed.documents().get(0).getMetadata())
-            .containsEntry("chunk_id", "c-1").containsEntry("doc_id", "doc-9");
+            .containsEntry(Constants.Retrieval.META_CHUNK_ID, "c-1").containsEntry(Constants.Retrieval.META_DOC_ID, "doc-9");
         // 内层链零触达：检索/重排/生成全套旁路
         verify(callChain, never()).nextCall(any());
     }
@@ -237,8 +238,8 @@ class CacheCheckAdvisorTest {
     @Test
     void callMissWritesEntryWithEvidenceDocIdsAndReusedVector() {
         RetrievalContext ctx = ctx();
-        ctx.addTraceEntry("vector", List.of(evidenceDoc("doc-9")), 30L);
-        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ctx.addTraceEntry(Constants.Retrieval.ROUTE_VECTOR, List.of(evidenceDoc("doc-9")), 30L);
+        ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(evidenceDoc("doc-9")), 21L);
         ChatClientRequest req = request(ctx);
         when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
         when(callChain.nextCall(req)).thenReturn(response("新生成的回答 [ref-1]"));
@@ -270,7 +271,7 @@ class CacheCheckAdvisorTest {
     @Test
     void streamMissWithOutputReplacedSkipsWrite() {
         RetrievalContext ctx = ctx();
-        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(evidenceDoc("doc-9")), 21L);
         ctx.markOutputReplaced("抱歉，由于合规要求，无法提供该信息。");
         ChatClientRequest req = request(ctx);
         when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
@@ -285,7 +286,7 @@ class CacheCheckAdvisorTest {
     @Test
     void callMissWithOutputReplacedSkipsWriteViaAsyncRecheck() {
         RetrievalContext ctx = ctx();
-        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(evidenceDoc("doc-9")), 21L);
         ChatClientRequest req = request(ctx);
         when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
         // 同步路径时序：460 写入判定先于 110 after() 替换——mock 内联替换模拟「替换
@@ -303,7 +304,7 @@ class CacheCheckAdvisorTest {
     @Test
     void streamMissAggregatesAnswerAndWritesOnComplete() {
         RetrievalContext ctx = ctx();
-        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(evidenceDoc("doc-9")), 21L);
         ChatClientRequest req = request(ctx);
         when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
         when(streamChain.nextStream(req)).thenReturn(Flux.just(response("分段一"), response("分段二")));
@@ -320,7 +321,7 @@ class CacheCheckAdvisorTest {
     @Test
     void streamErrorDoesNotWrite() {
         RetrievalContext ctx = ctx();
-        ctx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(evidenceDoc("doc-9")), 21L);
         ChatClientRequest req = request(ctx);
         when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
         when(streamChain.nextStream(req)).thenReturn(Flux.error(new RuntimeException("生成中断")));
@@ -351,7 +352,7 @@ class CacheCheckAdvisorTest {
     void tracePayloadSurvivesWriteThenReplayRoundTrip() {
         // 写入侧：未命中请求产出含元数据全量的条目
         RetrievalContext writeCtx = ctx();
-        writeCtx.addTraceEntry("final", List.of(evidenceDoc("doc-9")), 21L);
+        writeCtx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(evidenceDoc("doc-9")), 21L);
         ChatClientRequest writeReq = request(writeCtx);
         when(cacheService.lookup(eq(TENANT), any(float[].class))).thenReturn(Optional.empty());
         when(callChain.nextCall(writeReq)).thenReturn(response("回答 [ref-1]"));
@@ -372,8 +373,8 @@ class CacheCheckAdvisorTest {
         assertThat(doc.getText()).isEqualTo("证据正文");
         assertThat(doc.getScore()).isEqualTo(0.88);
         assertThat(doc.getMetadata())
-            .containsEntry("doc_id", "doc-9")
+            .containsEntry(Constants.Retrieval.META_DOC_ID, "doc-9")
             .containsEntry("file_name", "手册.pdf")
-            .containsEntry("rerank_score", 0.88);
+            .containsEntry(Constants.Retrieval.META_RERANK_SCORE, 0.88);
     }
 }

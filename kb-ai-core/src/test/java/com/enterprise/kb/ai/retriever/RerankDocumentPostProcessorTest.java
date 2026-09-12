@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -44,7 +45,7 @@ class RerankDocumentPostProcessorTest {
 
     private Document doc(String id, double fusionScore) {
         return Document.builder().id(id).text("t-" + id)
-            .metadata(Map.of("fusion_score", fusionScore)).build();
+            .metadata(Map.of(Constants.Retrieval.META_FUSION_SCORE, fusionScore)).build();
     }
 
     @Test
@@ -98,7 +99,7 @@ class RerankDocumentPostProcessorTest {
 
         assertEquals(1, ctx.getTraceSummary().size());
         RetrievalContext.TraceEntry entry = ctx.getTraceSummary().get(0);
-        assertEquals("final", entry.source());
+        assertEquals(Constants.Retrieval.TRACE_SOURCE_FINAL, entry.source());
         assertEquals(List.of("a", "b"), entry.documents().stream().map(Document::getId).toList());
     }
 
@@ -205,8 +206,8 @@ class RerankDocumentPostProcessorTest {
         // （旧实现按响应位序赋 rank，c=3 与首位矛盾——消费方 Debug 台按列表序展示徽标）
         assertEquals(List.of("c", "a", "b"), out.stream().map(Document::getId).toList());
         for (int i = 0; i < out.size(); i++) {
-            assertEquals(i + 1, out.get(i).getMetadata().get("rerank_rank"));
-            assertEquals(0.9 - i * 0.2, (Double) out.get(i).getMetadata().get("rerank_score"), 1e-9);
+            assertEquals(i + 1, out.get(i).getMetadata().get(Constants.Retrieval.META_RERANK_RANK));
+            assertEquals(0.9 - i * 0.2, (Double) out.get(i).getMetadata().get(Constants.Retrieval.META_RERANK_SCORE), 1e-9);
         }
     }
 
@@ -223,8 +224,8 @@ class RerankDocumentPostProcessorTest {
         List<Document> out = disabled.assembleReranked(results, docs);
 
         assertEquals(List.of("b", "a"), out.stream().map(Document::getId).toList());
-        assertEquals(1, out.get(0).getMetadata().get("rerank_rank"));
-        assertEquals(2, out.get(1).getMetadata().get("rerank_rank"));
+        assertEquals(1, out.get(0).getMetadata().get(Constants.Retrieval.META_RERANK_RANK));
+        assertEquals(2, out.get(1).getMetadata().get(Constants.Retrieval.META_RERANK_RANK));
     }
 
     /** 候选超 topK → 截断且 rank 连续；并列分稳定排序保持响应位序 */
@@ -247,7 +248,7 @@ class RerankDocumentPostProcessorTest {
         assertEquals(List.of("d1", "d2", "d3", "d4", "d5"),
             out.stream().map(Document::getId).toList());
         for (int i = 0; i < out.size(); i++) {
-            assertEquals(i + 1, out.get(i).getMetadata().get("rerank_rank"));
+            assertEquals(i + 1, out.get(i).getMetadata().get(Constants.Retrieval.META_RERANK_RANK));
         }
     }
 }

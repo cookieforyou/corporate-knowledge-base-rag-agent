@@ -123,11 +123,11 @@ public class McpKnowledgeTools {
             Map<String, Object> meta = doc.getMetadata();
             hits.add(new SearchHitView(doc.getId(),
                 asString(meta.get("file_name")),
-                asString(meta.get("heading_path")),
+                asString(meta.get(Constants.Retrieval.META_HEADING_PATH)),
                 meta.get("page_num") instanceof Number n ? n.intValue() : null,
                 asString(meta.get("chunk_type")),
                 doc.getText(),
-                meta.get("rerank_score") instanceof Number s ? s.doubleValue() : null,
+                meta.get(Constants.Retrieval.META_RERANK_SCORE) instanceof Number s ? s.doubleValue() : null,
                 rank));
         }
         return hits;
@@ -188,7 +188,7 @@ public class McpKnowledgeTools {
         }
         try {
             Map meta = jsonMapper.readValue(metadataJson, Map.class);
-            Object value = meta.get("heading_path");
+            Object value = meta.get(Constants.Retrieval.META_HEADING_PATH);
             return value != null ? String.valueOf(value) : null;
         } catch (Exception e) {
             return null;

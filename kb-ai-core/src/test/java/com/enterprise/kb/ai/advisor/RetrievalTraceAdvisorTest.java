@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.advisor;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -36,7 +37,7 @@ class RetrievalTraceAdvisorTest {
     @Test
     void after_writesTraceSummaryIntoResponseContext() {
         RetrievalContext ctx = new RetrievalContext();
-        ctx.addTraceEntry("vector", List.of());
+        ctx.addTraceEntry(Constants.Retrieval.ROUTE_VECTOR, List.of());
 
         ChatClientResponse out = advisor.after(ChatClientResponse.builder()
             .context(Map.of(RetrievalContext.CONTEXT_KEY, ctx)).build(), null);

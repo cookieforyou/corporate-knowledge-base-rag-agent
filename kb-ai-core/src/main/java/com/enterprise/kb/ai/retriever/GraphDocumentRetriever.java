@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.GraphRetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
@@ -138,8 +139,8 @@ public class GraphDocumentRetriever {
     /** 元数据契约与双路同键族（调试台/审计/溯源消费面零分叉） */
     private Document toDocument(KbChunk chunk, KbDocument doc, GraphRecords.GraphChunkHit hit, int rank) {
         Map<String, Object> meta = new HashMap<>();
-        meta.put("chunk_id", chunk.getId());
-        meta.put("doc_id", doc.getId());
+        meta.put(Constants.Retrieval.META_CHUNK_ID, chunk.getId());
+        meta.put(Constants.Retrieval.META_DOC_ID, doc.getId());
         meta.put("tenant_id", doc.getTenantId());
         meta.put("chunk_type", chunk.getChunkType() != null ? chunk.getChunkType().name() : "TEXT");
         if (doc.getName() != null) {
@@ -148,11 +149,11 @@ public class GraphDocumentRetriever {
         if (chunk.getPageNum() != null) {
             meta.put("page_num", chunk.getPageNum());
         }
-        meta.put("graph_score", hit.score());
-        meta.put("graph_rank", rank);
+        meta.put(Constants.Retrieval.META_GRAPH_SCORE, hit.score());
+        meta.put(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX, rank);
         meta.put("graph_hop", hit.hop());
-        meta.put("graph_entity_hits", String.join("，", hit.entityNames()));
-        meta.put("retrieval_source", "graph");
+        meta.put(Constants.Retrieval.META_GRAPH_ENTITY_HITS, String.join("，", hit.entityNames()));
+        meta.put(Constants.Retrieval.META_RETRIEVAL_SOURCE, Constants.Retrieval.ROUTE_GRAPH);
         return Document.builder()
             .id(chunk.getId())
             .text(chunk.getContent())

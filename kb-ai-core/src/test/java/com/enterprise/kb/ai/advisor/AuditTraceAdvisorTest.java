@@ -92,10 +92,10 @@ class AuditTraceAdvisorTest {
         ctx.setTenantId("tenant-a");
         ctx.setUserId("user-1");
         ctx.setRewrittenQuery("改写后的问题");
-        ctx.addTraceEntry("bm25", List.of(
-            new Document("命中内容", Map.of("chunk_id", "c-1", "file_name", "f.pdf", "fusion_score", 0.9))));
-        ctx.addTraceEntry("final", List.of(
-            new Document("命中内容", Map.of("chunk_id", "c-1", "file_name", "f.pdf", "rerank_score", 0.95))));
+        ctx.addTraceEntry(Constants.Retrieval.ROUTE_BM25, List.of(
+            new Document("命中内容", Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", "file_name", "f.pdf", Constants.Retrieval.META_FUSION_SCORE, 0.9))));
+        ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(
+            new Document("命中内容", Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", "file_name", "f.pdf", Constants.Retrieval.META_RERANK_SCORE, 0.95))));
         return ctx;
     }
 
@@ -168,8 +168,8 @@ class AuditTraceAdvisorTest {
         RetrievalContext emptyCtx = new RetrievalContext();
         emptyCtx.setTenantId("tenant-a");
         emptyCtx.setUserId("user-1");
-        emptyCtx.addTraceEntry("bm25", List.of());
-        emptyCtx.addTraceEntry("final", List.of());
+        emptyCtx.addTraceEntry(Constants.Retrieval.ROUTE_BM25, List.of());
+        emptyCtx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of());
         when(callChain.nextCall(any())).thenReturn(response("无相关信息"));
 
         advisor.adviseCall(request(emptyCtx, "rag", "库外问题"), callChain);

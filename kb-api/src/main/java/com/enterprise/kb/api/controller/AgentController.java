@@ -398,8 +398,8 @@ public class AgentController {
 
     /** 簇④：追加 graph 路得分/排名键（图路缺位时元数据无键，帧形态不变） */
     private static final List<String> SCORE_KEYS =
-        List.of("bm25_score", "bm25_rank", "vector_rank", "graph_score", "graph_rank",
-            "fusion_score", "rerank_score", "rerank_rank");
+        List.of(Constants.Retrieval.META_BM25_SCORE, Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX, Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX, Constants.Retrieval.META_GRAPH_SCORE, Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX,
+            Constants.Retrieval.META_FUSION_SCORE, Constants.Retrieval.META_RERANK_SCORE, Constants.Retrieval.META_RERANK_RANK);
 
     /** Chunk 轻量投影（不序列化全文，控制 SSE 帧体积） */
     private static ChunkTrace toChunkTrace(Document doc, String source) {
@@ -412,14 +412,14 @@ public class AgentController {
             }
         }
         // 向量路原始相似度（簇 C 观察补全：该路元数据无独立得分键）
-        if ("vector".equals(source) && doc.getScore() != null) {
+        if (Constants.Retrieval.ROUTE_VECTOR.equals(source) && doc.getScore() != null) {
             scores.put("similarity", doc.getScore());
         }
         String text = doc.getText() == null ? "" : doc.getText().replaceAll("\\s+", " ");
         String snippet = text.length() <= 120 ? text : text.substring(0, 120) + "…";
         return new ChunkTrace(
-            asString(meta.get("chunk_id")),
-            asString(meta.get("doc_id")),
+            asString(meta.get(Constants.Retrieval.META_CHUNK_ID)),
+            asString(meta.get(Constants.Retrieval.META_DOC_ID)),
             asString(meta.get("file_name")),
             meta.get("page_num") instanceof Number n ? n.intValue() : null,
             scores,

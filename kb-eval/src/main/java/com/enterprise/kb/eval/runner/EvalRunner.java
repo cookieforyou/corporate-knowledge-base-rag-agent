@@ -886,7 +886,7 @@ public class EvalRunner {
     }
 
     private static RetrievalProbe selectProbe(List<RetrievalProbe> probes, String mode) {
-        if ("vector".equalsIgnoreCase(mode)) {
+        if (Constants.Retrieval.ROUTE_VECTOR.equalsIgnoreCase(mode)) {
             return probes.stream().filter(p -> "vector-single".equals(p.name())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("eval.probe=vector 但无单路探针"));
         }

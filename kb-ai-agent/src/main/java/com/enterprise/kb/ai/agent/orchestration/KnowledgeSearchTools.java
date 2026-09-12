@@ -119,7 +119,7 @@ public class KnowledgeSearchTools {
             Map<String, Object> meta = doc.getMetadata();
             hits.add(new SearchHit(doc.getId(),
                 asString(meta.get("file_name")),
-                asString(meta.get("heading_path")),
+                asString(meta.get(Constants.Retrieval.META_HEADING_PATH)),
                 meta.get("page_num") instanceof Number n ? n.intValue() : null,
                 truncate(doc.getText()),
                 rank));
@@ -219,7 +219,7 @@ public class KnowledgeSearchTools {
         }
         try {
             Map meta = jsonMapper.readValue(metadataJson, Map.class);
-            Object value = meta.get("heading_path");
+            Object value = meta.get(Constants.Retrieval.META_HEADING_PATH);
             return value != null ? String.valueOf(value) : null;
         } catch (Exception e) {
             return null;

@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.config.RetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.micrometer.observation.Observation;
@@ -212,8 +213,8 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
         for (int i = 0; i < top.size(); i++) {
             ScoredCandidate c = top.get(i);
             Map<String, Object> meta = new HashMap<>(c.src().getMetadata());
-            meta.put("rerank_score", c.score());
-            meta.put("rerank_rank", i + 1);
+            meta.put(Constants.Retrieval.META_RERANK_SCORE, c.score());
+            meta.put(Constants.Retrieval.META_RERANK_RANK, i + 1);
             reranked.add(Document.builder()
                 .id(c.src().getId())
                 .text(c.src().getText())
@@ -231,12 +232,12 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
         }
         RetrievalContext ctx = RetrievalContext.from(query);
         if (ctx != null) {
-            ctx.addTraceEntry("final", top, latencyMs);
+            ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, top, latencyMs);
         }
     }
 
     private static double sortScore(Document d) {
-        Object fusion = d.getMetadata().get("fusion_score");
+        Object fusion = d.getMetadata().get(Constants.Retrieval.META_FUSION_SCORE);
         if (fusion instanceof Number n) return n.doubleValue();
         return d.getScore() != null ? d.getScore() : 0.0;
     }

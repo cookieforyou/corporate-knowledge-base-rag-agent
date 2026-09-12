@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
@@ -42,7 +43,7 @@ import java.util.List;
 public class SanitizingTransformer implements DocumentTransformer, GuardrailRulesListener {
 
     /** 注入命中标记键：Document 元数据 → kb_chunk.metadata JSONB */
-    public static final String INJECTION_HIT_KEY = "injection_hit";
+    public static final String INJECTION_HIT_KEY = Constants.Retrieval.INJECTION_HIT;
 
     private volatile List<GuardrailRule> injectionRules;
     private final PiiRecognizerRegistry piiRegistry;

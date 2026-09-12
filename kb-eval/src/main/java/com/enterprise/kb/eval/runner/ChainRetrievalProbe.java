@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -52,7 +53,7 @@ public class ChainRetrievalProbe implements RetrievalProbe {
             .call()
             .content();
         return ctx.getTraceSummary().stream()
-            .filter(e -> "final".equals(e.source()))
+            .filter(e -> Constants.Retrieval.TRACE_SOURCE_FINAL.equals(e.source()))
             .findFirst()
             .map(RetrievalContext.TraceEntry::documents)
             .orElse(List.of())
@@ -63,7 +64,7 @@ public class ChainRetrievalProbe implements RetrievalProbe {
     }
 
     private static ProbeHit toHit(Document d) {
-        Object chunkId = d.getMetadata().getOrDefault("chunk_id", d.getId());
+        Object chunkId = d.getMetadata().getOrDefault(Constants.Retrieval.META_CHUNK_ID, d.getId());
         Object fileName = d.getMetadata().get("file_name");
         double score = d.getScore() != null ? d.getScore() : 0.0;
         return new ProbeHit(String.valueOf(chunkId),
