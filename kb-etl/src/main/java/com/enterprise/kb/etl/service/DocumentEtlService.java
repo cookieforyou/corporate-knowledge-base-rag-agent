@@ -72,7 +72,7 @@ public class DocumentEtlService {
      * @param docId            文档 ID
      * @param progressCallback 进度回调（可选，Phase 1 传空函数即可）
      */
-    @Async("etlExecutor")
+    @Async(Constants.BeanNames.ETL_EXECUTOR)
     public void process(String docId, Consumer<EtlProgress> progressCallback) {
         process(docId, progressCallback, null);
     }
@@ -82,7 +82,7 @@ public class DocumentEtlService {
      *
      * @param forcedRoute 上传参数强制指定的解析路由（null = SmartParsingRouter 自动决策）
      */
-    @Async("etlExecutor")
+    @Async(Constants.BeanNames.ETL_EXECUTOR)
     public void process(String docId, Consumer<EtlProgress> progressCallback, ParseRoute forcedRoute) {
         KbDocument doc = documentRepository.findById(docId)
             .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.DOC_NOT_FOUND, "文档不存在: " + docId));
@@ -108,8 +108,8 @@ public class DocumentEtlService {
             List<Document> rawDocs = outcome.documents();
             doc.setParseRoute(outcome.route().name());
             doc.setPageCount(pageCountOf(rawDocs));
-            doc.setTableCount(countOf(rawDocs, "table_count"));
-            doc.setImageCount(countOf(rawDocs, "image_count"));
+            doc.setTableCount(countOf(rawDocs, SmartParsingRouter.TABLE_COUNT_KEY));
+            doc.setImageCount(countOf(rawDocs, SmartParsingRouter.IMAGE_COUNT_KEY));
             log.info("文档解析完成: docId={}, route={}, pages={}, tables={}, images={}",
                 docId, outcome.route(), doc.getPageCount(), doc.getTableCount(), doc.getImageCount());
 
@@ -231,7 +231,7 @@ public class DocumentEtlService {
     /** 页数：深度链路经元数据携带（解析服务回报），NATIVE 按 Tika 文档段数 */
     private static int pageCountOf(List<Document> rawDocs) {
         if (!rawDocs.isEmpty()) {
-            Object pages = rawDocs.get(0).getMetadata().get("page_count");
+            Object pages = rawDocs.get(0).getMetadata().get(SmartParsingRouter.PAGE_COUNT_KEY);
             if (pages instanceof Number n && n.intValue() > 0) {
                 return n.intValue();
             }
@@ -266,10 +266,10 @@ public class DocumentEtlService {
             entity.setChunkIndex(i);
             entity.setContent(chunk.getText());
             // chunk_type 由切分器标注（2.3 保护式切分：TABLE/IMAGE；缺省 TEXT）
-            Object chunkType = chunk.getMetadata().get("chunk_type");
+            Object chunkType = chunk.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE);
             entity.setChunkType(parseChunkType(chunkType));
             // 保护块原文 HTML（TABLE/IMAGE 回显与结构保真，9.2）
-            Object originalHtml = chunk.getMetadata().get("original_html");
+            Object originalHtml = chunk.getMetadata().get(HtmlProtectingSplitter.ORIGINAL_HTML_KEY);
             if (originalHtml != null) {
                 entity.setOriginalContent(originalHtml.toString());
             }
@@ -285,7 +285,7 @@ public class DocumentEtlService {
                 entity.setOriginalContent(ot);
             }
             // 从 Tika metadata 提取页码
-            Object page = chunk.getMetadata().get("page_number");
+            Object page = chunk.getMetadata().get(SmartParsingRouter.PAGE_NUMBER_KEY);
             if (page instanceof Integer pi) entity.setPageNum(pi);
             else if (page != null) {
                 try { entity.setPageNum(Integer.valueOf(page.toString())); } catch (Exception ignored) {}
@@ -353,12 +353,12 @@ public class DocumentEtlService {
         Map<String, Object> meta = new HashMap<>();
         meta.put(Constants.Retrieval.META_CHUNK_ID, chunk.getId());
         meta.put(Constants.Retrieval.META_DOC_ID, doc.getId());
-        meta.put("tenant_id", doc.getTenantId());
-        meta.put("chunk_type", chunk.getChunkType() != null ? chunk.getChunkType().name() : "TEXT");
+        meta.put(Constants.Retrieval.META_TENANT_ID, doc.getTenantId());
+        meta.put(Constants.Retrieval.META_CHUNK_TYPE, chunk.getChunkType() != null ? chunk.getChunkType().name() : ChunkType.TEXT.name());
         // file_name 随向量元数据携带（2.14 调试台/溯源展示；存量向量缺此字段，重新入库后补齐）
-        meta.put("file_name", doc.getName() != null ? doc.getName() : "unknown");
-        meta.put("page_num", chunk.getPageNum() != null ? chunk.getPageNum() : 0);
-        meta.put("is_deleted", Objects.requireNonNullElse(chunk.getIsDeleted(), false));
+        meta.put(Constants.Retrieval.META_FILE_NAME, doc.getName() != null ? doc.getName() : "unknown");
+        meta.put(Constants.Retrieval.META_PAGE_NUM, chunk.getPageNum() != null ? chunk.getPageNum() : 0);
+        meta.put(Constants.Retrieval.META_IS_DELETED, Objects.requireNonNullElse(chunk.getIsDeleted(), false));
         // heading 路径（簇④ A4）：调试台/溯源展示与后续检索消费；缺省不写键
         if (chunk.getHeadingPath() != null) {
             meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, chunk.getHeadingPath());

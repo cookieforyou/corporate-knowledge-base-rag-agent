@@ -1,6 +1,8 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.eval.config.EvalProperties;
+import com.enterprise.kb.eval.metric.CitationMetrics;
 import com.enterprise.kb.eval.metric.CohensKappa;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -39,9 +41,8 @@ import java.util.Map;
 @Component
 public class CalibrationReadbackRunner implements ApplicationRunner {
 
-    /** 报告维度顺序（固定，跨次复跑可比） */
-    static final List<String> DIMENSIONS = List.of(
-        "faithfulness", "answer_correctness", "citation_attribution", "hallucination", "noise_robustness");
+    /** 报告维度顺序（固定，跨次复跑可比）——单源 {@link EvalConstants#DIMENSIONS} */
+    static final List<String> DIMENSIONS = EvalConstants.DIMENSIONS;
 
     private final EvalProperties props;
 
@@ -112,8 +113,9 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
         return rows;
     }
 
-    /** 观察带维度缺省集（与 {@code eval.calibration.observation-dimensions} 默认值一致） */
-    static final List<String> DEFAULT_OBSERVATION_DIMENSIONS = List.of("noise_robustness");
+    /** 观察带维度缺省集——单源 {@link EvalConstants#DEFAULT_OBSERVATION_DIMENSIONS}
+     *  （与 {@code eval.calibration.observation-dimensions} 默认值一致） */
+    static final List<String> DEFAULT_OBSERVATION_DIMENSIONS = EvalConstants.DEFAULT_OBSERVATION_DIMENSIONS;
 
     /** 名义一致率主判目标缺省（κ 悖论治理裁决，16 章 v2.80；终值随 G1 校准窗口） */
     static final double DEFAULT_AGREEMENT_TARGET = 0.90;
@@ -211,7 +213,7 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
                          Double agreementA, Double agreementB) {}
 
     private static DimensionStat dimensionStat(String dimension, List<Row> rows) {
-        boolean rating = "faithfulness".equals(dimension) || "answer_correctness".equals(dimension);
+        boolean rating = EvalConstants.DIM_FAITHFULNESS.equals(dimension) || EvalConstants.DIM_ANSWER_CORRECTNESS.equals(dimension);
         if (rating) {
             List<Integer> judgeA = new ArrayList<>();
             List<Integer> humanA = new ArrayList<>();
@@ -309,26 +311,26 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
         }
         String v = value.strip().toUpperCase(Locale.ROOT);
         return switch (dimension) {
-            case "citation_attribution" -> {
-                if ("NO_CITATION".equals(v) || "NOT_SUPPORTED".equals(v)) {
-                    yield "NOT_SUPPORTED";
+            case EvalConstants.DIM_CITATION_ATTRIBUTION -> {
+                if (CitationMetrics.VERDICT_NO_CITATION.equals(v) || CitationMetrics.VERDICT_NOT_SUPPORTED.equals(v)) {
+                    yield CitationMetrics.VERDICT_NOT_SUPPORTED;
                 }
-                yield "SUPPORTED".equals(v) ? "SUPPORTED" : null;
+                yield CitationMetrics.VERDICT_SUPPORTED.equals(v) ? CitationMetrics.VERDICT_SUPPORTED : null;
             }
-            case "hallucination" -> switch (v) {
+            case EvalConstants.DIM_HALLUCINATION -> switch (v) {
                 case "YES", "HAS" -> "HAS";
                 case "NO", "NONE" -> "NONE";
                 default -> null;
             };
-            case "noise_robustness" ->
-                "CONSISTENT".equals(v) || "DRIFTED".equals(v) ? v : null;
+            case EvalConstants.DIM_NOISE_ROBUSTNESS ->
+                EvalConstants.VERDICT_CONSISTENT.equals(v) || EvalConstants.VERDICT_DRIFTED.equals(v) ? v : null;
             default -> v;
         };
     }
 
     /** Judge 值归一：名义维度按人工口径归一；hallucination 特例 = 原始比率二值化（>0 → HAS） */
     static String normalizeNominalJudge(String dimension, String value) {
-        if ("hallucination".equals(dimension)) {
+        if (EvalConstants.DIM_HALLUCINATION.equals(dimension)) {
             if (value == null || value.isBlank()) {
                 return null;
             }

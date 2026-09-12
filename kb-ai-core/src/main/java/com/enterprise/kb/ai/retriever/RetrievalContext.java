@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.ai.document.Document;
@@ -176,8 +177,8 @@ public class RetrievalContext {
                 if (securityFilter == null && tenantId != null) {
                     var b = new FilterExpressionBuilder();
                     securityFilter = b.and(
-                        b.eq("tenant_id", tenantId),
-                        b.eq("is_deleted", false)
+                        b.eq(Constants.Retrieval.META_TENANT_ID, tenantId),
+                        b.eq(Constants.Retrieval.META_IS_DELETED, false)
                     ).build();
                 }
             }
@@ -284,7 +285,7 @@ public class RetrievalContext {
      */
     public record FlagMark(String side, String family) {
         public FlagMark {
-            family = (family == null || family.isBlank()) ? "UNCLASSIFIED" : family.trim().toUpperCase();
+            family = (family == null || family.isBlank()) ? GuardrailFamily.UNCLASSIFIED.name() : family.trim().toUpperCase();
         }
     }
 }

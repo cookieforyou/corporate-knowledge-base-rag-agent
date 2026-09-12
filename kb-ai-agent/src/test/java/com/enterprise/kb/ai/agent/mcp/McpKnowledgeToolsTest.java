@@ -90,8 +90,8 @@ class McpKnowledgeToolsTest {
         when(rewriteQueryTransformer.apply(any(Query.class))).thenReturn(new Query("改写后"));
         when(hybridRetriever.retrieve(any(Query.class))).thenReturn(List.of());
         Document doc = new Document("c-1", "证据正文", Map.of(
-            "file_name", "产品手册.pdf", Constants.Retrieval.META_HEADING_PATH, "第三章 > 质保",
-            "page_num", 12, "chunk_type", "TEXT", Constants.Retrieval.META_RERANK_SCORE, 0.93));
+            Constants.Retrieval.META_FILE_NAME, "产品手册.pdf", Constants.Retrieval.META_HEADING_PATH, "第三章 > 质保",
+            Constants.Retrieval.META_PAGE_NUM, 12, Constants.Retrieval.META_CHUNK_TYPE, "TEXT", Constants.Retrieval.META_RERANK_SCORE, 0.93));
         when(rerankPostProcessor.process(any(Query.class), any())).thenReturn(List.of(doc));
 
         List<SearchHitView> hits = tools.search("质保期多久");

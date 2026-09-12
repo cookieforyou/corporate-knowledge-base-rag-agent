@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -74,7 +75,7 @@ class ContextualEnrichmentTransformerTest {
         var transformer = new ContextualEnrichmentTransformer(stubModel(CONTEXT), 2000);
 
         List<Document> out = transformer.apply(List.of(
-            chunk("<img src=\"arch.png\">", Map.of("chunk_type", "IMAGE"))));
+            chunk("<img src=\"arch.png\">", Map.of(Constants.Retrieval.META_CHUNK_TYPE, "IMAGE"))));
 
         assertThat(out.get(0).getText()).isEqualTo("<img src=\"arch.png\">");
         assertThat(out.get(0).getMetadata())

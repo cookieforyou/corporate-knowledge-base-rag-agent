@@ -102,8 +102,8 @@ class CacheCheckAdvisorTest {
         return Document.builder()
             .text("证据正文")
             .score(0.88)
-            .metadata(Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_DOC_ID, docId, "file_name", "手册.pdf",
-                "page_num", 2, Constants.Retrieval.META_RERANK_SCORE, 0.88))
+            .metadata(Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_DOC_ID, docId, Constants.Retrieval.META_FILE_NAME, "手册.pdf",
+                Constants.Retrieval.META_PAGE_NUM, 2, Constants.Retrieval.META_RERANK_SCORE, 0.88))
             .build();
     }
 
@@ -180,8 +180,8 @@ class CacheCheckAdvisorTest {
         ChatClientRequest req = request(ctx);
         String traceJson = jsonMapper.writeValueAsString(List.of(new CacheTracePayload(Constants.Retrieval.TRACE_SOURCE_FINAL,
             List.of(new CacheTracePayload.CachedChunk("证据正文", 0.88,
-                Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_DOC_ID, "doc-9", "file_name", "手册.pdf",
-                    "page_num", 2, Constants.Retrieval.META_RERANK_SCORE, 0.88))), 21L)));
+                Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_DOC_ID, "doc-9", Constants.Retrieval.META_FILE_NAME, "手册.pdf",
+                    Constants.Retrieval.META_PAGE_NUM, 2, Constants.Retrieval.META_RERANK_SCORE, 0.88))), 21L)));
         when(cacheService.lookup(eq(TENANT), any(float[].class)))
             .thenReturn(Optional.of(hit("缓存回答 [ref-1]", traceJson)));
 
@@ -374,7 +374,7 @@ class CacheCheckAdvisorTest {
         assertThat(doc.getScore()).isEqualTo(0.88);
         assertThat(doc.getMetadata())
             .containsEntry(Constants.Retrieval.META_DOC_ID, "doc-9")
-            .containsEntry("file_name", "手册.pdf")
+            .containsEntry(Constants.Retrieval.META_FILE_NAME, "手册.pdf")
             .containsEntry(Constants.Retrieval.META_RERANK_SCORE, 0.88);
     }
 }

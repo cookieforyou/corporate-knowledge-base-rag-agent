@@ -5,7 +5,8 @@ package com.enterprise.kb.commons.constant;
  *
  * <p>收敛原则（2026-09-12 定案）：仅收<strong>跨类/跨模块共享的协议性字面量</strong>——
  * 错误码（API 契约值）、检索路名与 metadata 键（写入↔读出契约）、对话协议值
- * （mode/SSE 事件/审计三态）。有枚举归属的值域（DocumentStatus 等状态机）以枚举
+ * （mode/SSE 事件/审计三态/消息角色）、身份协议值（JWT claims）、MCP 工具名
+ * （注册↔审计契约）。有枚举归属的值域（DocumentStatus 等状态机）以枚举
  * 为单一事实源不入此类；配置键（rag.*）归 @ConfigurationProperties；日志/描述/
  * 提示语不收敛。分页常量与检索调优参数例外说明见下。
  */
@@ -18,6 +19,9 @@ public final class Constants {
 
     /** 最大分页大小 */
     public static final int MAX_PAGE_SIZE = 100;
+
+    /** 摘要算法名（词表指纹 / 语义缓存键 / Golden 数据集与快照锚定共享） */
+    public static final String DIGEST_SHA_256 = "SHA-256";
 
     // 注：检索调优参数（topK / RRF_K / 召回倍数 / 相似度阈值 / 单路超时）已于簇① A3
     // 收编为 rag.retrieval.* 配置组（kb-ai-core RetrievalProperties），不再以常量硬编码。
@@ -105,7 +109,10 @@ public final class Constants {
      * 防双源漂移。
      *
      * <p>边界：PG 列名（@Column "doc_id"）、ES 文档字段名（@JsonProperty "chunk_id"
-     * 等）与 Cypher 参数名同字面分属 schema/存储契约，<strong>不经此类</strong>。
+     * 等，含查询 DSL {@code field(...)} 与部分更新 doc 键）与 Cypher 参数名同字面
+     * 分属 schema/存储契约，<strong>不经此类</strong>——ES/PG 侧字面与 metadata 键
+     * 同值但属两契约（EsChunkDoc 注解域 vs Document metadata Map 通道），改动须
+     * 双侧同步核验。
      */
     public static final class Retrieval {
         private Retrieval() {}
@@ -129,6 +136,18 @@ public final class Constants {
         public static final String META_DOC_ID = "doc_id";
         public static final String META_CHUNK_ID = "chunk_id";
         public static final String META_HEADING_PATH = "heading_path";
+
+        // ── metadata 契约键（续，批5）：溯源展示键与租户/软删过滤键 ──
+        // 写入侧 = DocumentEtlService.vectorMetadata（单一来源）+ ES/图路检索结果重组；
+        // 读出侧 = 审计/溯源/MCP/编排工具/调试台/eval 探针 + 检索 FilterExpression。
+        // tenant_id/is_deleted 承载租户隔离 fail-closed 与软删过滤语义，契约强度最高。
+        // 注意：值域 chunk_type 的取值（TEXT/TABLE/IMAGE）归 kb-domain ChunkType 枚举，
+        // 不在此列。
+        public static final String META_FILE_NAME = "file_name";
+        public static final String META_PAGE_NUM = "page_num";
+        public static final String META_CHUNK_TYPE = "chunk_type";
+        public static final String META_TENANT_ID = "tenant_id";
+        public static final String META_IS_DELETED = "is_deleted";
 
         // ── 安全打标（安全簇④ D2：ETL 入库打标 ↔ RRF 融合降权 ↔ 间接注入扫描）──
         public static final String INJECTION_HIT = "injection_hit";
@@ -180,5 +199,128 @@ public final class Constants {
         public static final String SUCCESS = "SUCCESS";
         public static final String REJECTED = "REJECTED";
         public static final String ERROR = "ERROR";
+    }
+
+    /**
+     * 对话消息角色（kb_message.role 落库值域，大写）
+     *
+     * <p>写侧（ChatSessionService 归档）↔ 读侧（记忆回填 switch / 历史投影 /
+     * 反馈与导出定位用户消息）共享的 DB 值域。与 Spring AI MessageType 解耦
+     * （自家约定不随框架演进）；SFT/DPO 导出的小写 "user"/"assistant" 是
+     * 开放训练格式契约，另有 "system" 语义缺省不落库，均不在此列。
+     */
+    public static final class MessageRole {
+        private MessageRole() {}
+
+        public static final String USER = "USER";
+        public static final String ASSISTANT = "ASSISTANT";
+    }
+
+    /**
+     * Casdoor JWT claims 键（sub→userId / name→username / owner→tenantId 映射）
+     *
+     * <p>身份协议字面量：JwtUtils 解析、SecurityConfig 超管判定、WS 握手、
+     * kb-admin 各 Controller 与 MCP 身份守卫消费。claim 名是 Casdoor 侧契约，
+     * 改动须与 IdP 配置同步。
+     */
+    public static final class JwtClaims {
+        private JwtClaims() {}
+
+        public static final String SUB = "sub";
+        public static final String NAME = "name";
+        public static final String OWNER = "owner";
+    }
+
+    /**
+     * MCP Server 工具名（@McpTool 注册 ↔ 审计/指标统计）
+     *
+     * <p>kb-ai-agent McpKnowledgeTools 注册、McpAuditRecorder 审计与
+     * AiBusinessMetrics 指标分流共享；外部 MCP 客户端按名发现，值即对外契约。
+     */
+    public static final class McpTool {
+        private McpTool() {}
+
+        public static final String SEARCH = "search";
+        public static final String GET_DOCUMENT = "get_document";
+        public static final String ASK = "ask";
+    }
+
+    /**
+     * Advisor 链序值（各 advisor getOrder()/order() 返回值，链序表 11.2 的代码伴生单源）
+     *
+     * <p>链上拦截次序即协议（审计外层 → 配额护栏 → 路由门控 → 检索 → 工具循环），
+     * 改动须同步 11.2 链序表。MEMORY 为 MessageChatMemoryAdvisor 构造序（rag/tool/
+     * orchestrator 三链同值）；TOOL_CALLING 为工具循环 advisorOrder（tool/orchestrator
+     * 共享 agentToolCallingAdvisor Bean）；RETRIEVAL_GATE(500) 与框架
+     * RetrievalAugmentationAdvisor 默认序同值为包裹关系，非本类定义。
+     */
+    public static final class ChainOrder {
+        private ChainOrder() {}
+
+        public static final int AUDIT_TRACE = 10;
+        public static final int TOKEN_BUDGET = 30;
+        public static final int RATE_LIMIT = 100;
+        public static final int OUTPUT_GUARDRAIL = 110;
+        public static final int INPUT_SANITIZE = 300;
+        public static final int SEMANTIC_INJECTION = 320;
+        public static final int MEMORY = 400;
+        public static final int TASK_BOUNDARY = 420;
+        public static final int QUERY_ROUTING = 440;
+        public static final int RETRIEVAL_TRACE = 450;
+        public static final int CACHE_CHECK = 460;
+        public static final int RETRIEVAL_GATE = 500;
+        public static final int TOOL_CALLING = 1000;
+    }
+
+    /**
+     * WS 进度协议键（ETL 进度 Redis Pub/Sub 帧 ↔ WS 订阅参数/帧解析）
+     *
+     * <p>EtlProgress record 字段经 Jackson 序列化为帧字段，WebSocketConfig 订阅
+     * 解析与 Handler 查询参数按同键消费。
+     */
+    public static final class Ws {
+        private Ws() {}
+
+        /** EtlProgress 帧字段名 / WS 订阅查询参数名 */
+        public static final String DOC_ID = "docId";
+    }
+
+    /**
+     * Spring Bean 名（@Bean 定义 ↔ @Qualifier/@Async 注入与执行路由）
+     *
+     * <p>Bean 名是装配契约：改名编译期无校验（坑位㊺ 同型风险），定义点显式
+     * name 引常量 + 消费点常量引用建立编译期单一来源。值 = 原方法名，零行为变化。
+     */
+    public static final class BeanNames {
+        private BeanNames() {}
+
+        // ── ChatModel 族 ──
+        public static final String SMART_ROUTING_CHAT_MODEL = "smartRoutingChatModel";
+        public static final String FALLBACK_CHAT_MODEL = "fallbackChatModel";
+        public static final String PRIMARY_CHAT_MODEL = "primaryChatModel";
+        public static final String GLM_CHAT_MODEL = "glmChatModel";
+        public static final String DEEP_SEEK_CHAT_MODEL = "deepSeekChatModel";
+
+        // ── ChatClient 族（多 Bean 纪律：注入点显式 @Qualifier）──
+        public static final String CHAT_CLIENT = "chatClient";
+        public static final String RAG_AGENT_CHAT_CLIENT = "ragAgentChatClient";
+        public static final String TOOL_AGENT_CHAT_CLIENT = "toolAgentChatClient";
+        public static final String ORCHESTRATOR_CHAT_CLIENT = "orchestratorChatClient";
+        public static final String JUDGE_CHAT_CLIENT = "judgeChatClient";
+        public static final String EVAL_GUARDRAIL_CHAT_CLIENT = "evalGuardrailChatClient";
+        public static final String EVAL_GUARDRAIL_L2_CHAT_CLIENT = "evalGuardrailL2ChatClient";
+
+        // ── Executor 族 ──
+        public static final String ETL_EXECUTOR = "etlExecutor";
+        public static final String RETRIEVAL_EXECUTOR = "retrievalExecutor";
+        public static final String AUDIT_EXECUTOR = "auditExecutor";
+        public static final String HYBRID_RETRIEVAL_EXECUTOR = "hybridRetrievalExecutor";
+        public static final String ORCHESTRATOR_SUB_AGENT_EXECUTOR = "orchestratorSubAgentExecutor";
+        public static final String GRAPH_CLEANUP_EXECUTOR = "graphCleanupExecutor";
+        public static final String SESSION_ARCHIVE_EXECUTOR = "sessionArchiveExecutor";
+
+        // ── 其他装配件 ──
+        public static final String AGENT_CHAT_MEMORY = "agentChatMemory";
+        public static final String REWRITE_QUERY_TRANSFORMER = "rewriteQueryTransformer";
     }
 }

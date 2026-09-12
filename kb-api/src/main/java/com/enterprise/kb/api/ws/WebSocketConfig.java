@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.ws;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.etl.pipeline.EtlProgressRedisWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +60,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
         container.addMessageListener((message, pattern) -> {
             String json = new String(message.getBody(), StandardCharsets.UTF_8);
             try {
-                String docId = jsonMapper.readTree(json).path("docId").asString(null);
+                String docId = jsonMapper.readTree(json).path(Constants.Ws.DOC_ID).asString(null);
                 if (docId != null) {
                     progressHandler.broadcast(docId, json);
                 }

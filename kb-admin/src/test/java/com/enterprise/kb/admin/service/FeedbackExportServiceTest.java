@@ -1,5 +1,6 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.admin.dto.FeedbackExportSummary;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.enums.FeedbackRating;
@@ -221,10 +222,10 @@ class FeedbackExportServiceTest {
         when(feedbackRepository.findAll(any(Specification.class)))
             .thenReturn(List.of(negative, positive));   // 查询侧倒序，服务内须正序化
 
-        KbMessage q1 = message("m-a1", "s-1", "USER", "问题甲");
-        KbMessage a1 = message("m-a2", "s-1", "ASSISTANT", "回答甲");
-        KbMessage q2 = message("m-b1", "s-2", "USER", "问题乙");
-        KbMessage a2 = message("m-b2", "s-2", "ASSISTANT", "回答乙");
+        KbMessage q1 = message("m-a1", "s-1", Constants.MessageRole.USER, "问题甲");
+        KbMessage a1 = message("m-a2", "s-1", Constants.MessageRole.ASSISTANT, "回答甲");
+        KbMessage q2 = message("m-b1", "s-2", Constants.MessageRole.USER, "问题乙");
+        KbMessage a2 = message("m-b2", "s-2", Constants.MessageRole.ASSISTANT, "回答乙");
         when(messageRepository.findAllById(anyList())).thenReturn(List.of(a1, a2));
         when(messageRepository.findBySessionIdOrderByCreatedAt("s-1")).thenReturn(List.of(q1, a1));
         when(messageRepository.findBySessionIdOrderByCreatedAt("s-2")).thenReturn(List.of(q2, a2));
@@ -272,8 +273,8 @@ class FeedbackExportServiceTest {
         KbFeedback positive = feedback("fb-1", "m-a2", FeedbackRating.POSITIVE, null, null,
             LocalDateTime.of(2026, 8, 1, 10, 0));
         when(feedbackRepository.findAll(any(Specification.class))).thenReturn(List.of(positive));
-        KbMessage q1 = message("m-a1", "s-1", "USER", "我的电话是13812345678，帮我查一下");
-        KbMessage a1 = message("m-a2", "s-1", "ASSISTANT", "已为您查询");
+        KbMessage q1 = message("m-a1", "s-1", Constants.MessageRole.USER, "我的电话是13812345678，帮我查一下");
+        KbMessage a1 = message("m-a2", "s-1", Constants.MessageRole.ASSISTANT, "已为您查询");
         when(messageRepository.findAllById(anyList())).thenReturn(List.of(a1));
         when(messageRepository.findBySessionIdOrderByCreatedAt("s-1")).thenReturn(List.of(q1, a1));
 

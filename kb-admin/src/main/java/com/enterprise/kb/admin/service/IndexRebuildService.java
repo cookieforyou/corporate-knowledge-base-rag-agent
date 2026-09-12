@@ -1,5 +1,6 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.admin.dto.RebuildTaskView;
 import com.enterprise.kb.admin.dto.RebuildTaskView.FailureView;
 import com.enterprise.kb.admin.gateway.ReindexGateway;
@@ -71,7 +72,7 @@ public class IndexRebuildService {
                                KbChunkRepository chunkRepository,
                                ReindexGateway reindexGateway,
                                EsIndexWriter esIndexWriter,
-                               @Qualifier("etlExecutor") Executor etlExecutor,
+                               @Qualifier(Constants.BeanNames.ETL_EXECUTOR) Executor etlExecutor,
                                RebuildTaskStore taskStore) {
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;

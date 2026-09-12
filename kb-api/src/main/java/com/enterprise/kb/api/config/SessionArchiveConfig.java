@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,7 +15,7 @@ import java.util.concurrent.Executors;
 @Configuration
 public class SessionArchiveConfig {
 
-    @Bean("sessionArchiveExecutor")
+    @Bean(Constants.BeanNames.SESSION_ARCHIVE_EXECUTOR)
     public Executor sessionArchiveExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();
     }

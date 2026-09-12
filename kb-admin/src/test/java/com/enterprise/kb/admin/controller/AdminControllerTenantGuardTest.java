@@ -72,7 +72,7 @@ class AdminControllerTenantGuardTest {
             .issuedAt(Instant.now())
             .expiresAt(Instant.now().plusSeconds(3600));
         if (owner != null) {
-            builder.claim("owner", owner);
+            builder.claim(Constants.JwtClaims.OWNER, owner);
         }
         return builder.build();
     }

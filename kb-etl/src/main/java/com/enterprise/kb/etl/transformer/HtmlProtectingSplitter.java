@@ -48,6 +48,9 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     /** chunk 元数据键：标题路径（「L1 &gt; L2 &gt; …」，缺省不写键——元数据禁 null） */
     public static final String HEADING_PATH_KEY = Constants.Retrieval.META_HEADING_PATH;
 
+    /** 保护块原文 HTML（保护式切分写 ↔ DocumentEtlService 落 kb_chunk.original_content） */
+    public static final String ORIGINAL_HTML_KEY = "original_html";
+
     /** Markdown 标题行：{@code #{1,6} 标题文字}（MULTILINE 供整篇预检 find()） */
     private static final Pattern MARKDOWN_HEADING =
         Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$", Pattern.MULTILINE);
@@ -186,8 +189,8 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     /** 保护块独立成 Chunk：chunk_type + original_html + heading_path 元数据 */
     private static Document protectedChunk(Document doc, String html, ChunkType type, String headingPath) {
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
-        meta.put("chunk_type", type.name());
-        meta.put("original_html", html);
+        meta.put(Constants.Retrieval.META_CHUNK_TYPE, type.name());
+        meta.put(ORIGINAL_HTML_KEY, html);
         if (headingPath != null && !headingPath.isBlank()) {
             meta.put(HEADING_PATH_KEY, headingPath);
         }

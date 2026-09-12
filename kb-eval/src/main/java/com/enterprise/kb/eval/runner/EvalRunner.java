@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
@@ -62,11 +63,11 @@ public class EvalRunner {
 
     public EvalRunner(GoldenDatasetLoader datasetLoader,
                       List<RetrievalProbe> probes,
-                      @Qualifier("chatClient") ChatClient chatClient,
+                      @Qualifier(Constants.BeanNames.CHAT_CLIENT) ChatClient chatClient,
                       ChatModel chatModel,
-                      @Qualifier("judgeChatClient") ChatClient judgeChatClient,
-                      @Qualifier("evalGuardrailChatClient") ChatClient guardrailChatClient,
-                      @Qualifier("evalGuardrailL2ChatClient") ChatClient guardrailL2ChatClient,
+                      @Qualifier(Constants.BeanNames.JUDGE_CHAT_CLIENT) ChatClient judgeChatClient,
+                      @Qualifier(Constants.BeanNames.EVAL_GUARDRAIL_CHAT_CLIENT) ChatClient guardrailChatClient,
+                      @Qualifier(Constants.BeanNames.EVAL_GUARDRAIL_L2_CHAT_CLIENT) ChatClient guardrailL2ChatClient,
                       IndirectInjectionRunner indirectInjectionRunner,
                       EvalProperties props,
                       JsonMapper jsonMapper,
@@ -510,22 +511,22 @@ public class EvalRunner {
             String id = r.pair().id();
             String category = r.pair().category().name();
             if (r.faithfulness() != null) {
-                sb.append(csvRow(id, category, "faithfulness",
+                sb.append(csvRow(id, category, EvalConstants.DIM_FAITHFULNESS,
                     String.format(Locale.ROOT, "%.0f", r.faithfulness())));
             }
             if (r.answerCorrectness() != null) {
-                sb.append(csvRow(id, category, "answer_correctness",
+                sb.append(csvRow(id, category, EvalConstants.DIM_ANSWER_CORRECTNESS,
                     String.format(Locale.ROOT, "%.0f", r.answerCorrectness())));
             }
             if (r.citationVerdict() != null) {
-                sb.append(csvRow(id, category, "citation_attribution", r.citationVerdict()));
+                sb.append(csvRow(id, category, EvalConstants.DIM_CITATION_ATTRIBUTION, r.citationVerdict()));
             }
             if (r.hallucinationRate() != null) {
-                sb.append(csvRow(id, category, "hallucination",
+                sb.append(csvRow(id, category, EvalConstants.DIM_HALLUCINATION,
                     String.format(Locale.ROOT, "%s", r.hallucinationRate())));
             }
             if (r.noiseVerdict() != null) {
-                sb.append(csvRow(id, category, "noise_robustness", r.noiseVerdict()));
+                sb.append(csvRow(id, category, EvalConstants.DIM_NOISE_ROBUSTNESS, r.noiseVerdict()));
             }
         }
         return sb.toString();
@@ -755,7 +756,7 @@ public class EvalRunner {
         if (js == null) {
             return null;
         }
-        return new NoiseOutcome("CONSISTENT".equalsIgnoreCase(js.verdict()) ? "CONSISTENT" : "DRIFTED",
+        return new NoiseOutcome(EvalConstants.VERDICT_CONSISTENT.equalsIgnoreCase(js.verdict()) ? EvalConstants.VERDICT_CONSISTENT : EvalConstants.VERDICT_DRIFTED,
             noisyAnswer);
     }
 
@@ -887,15 +888,15 @@ public class EvalRunner {
 
     private static RetrievalProbe selectProbe(List<RetrievalProbe> probes, String mode) {
         if (Constants.Retrieval.ROUTE_VECTOR.equalsIgnoreCase(mode)) {
-            return probes.stream().filter(p -> "vector-single".equals(p.name())).findFirst()
+            return probes.stream().filter(p -> EvalConstants.PROBE_VECTOR_SINGLE.equals(p.name())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("eval.probe=vector 但无单路探针"));
         }
-        if ("hybrid".equalsIgnoreCase(mode)) {
-            return probes.stream().filter(p -> "hybrid".equals(p.name())).findFirst()
+        if (EvalConstants.PROBE_HYBRID.equalsIgnoreCase(mode)) {
+            return probes.stream().filter(p -> EvalConstants.PROBE_HYBRID.equals(p.name())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("eval.probe=hybrid 但无混合探针"));
         }
-        if ("chain".equalsIgnoreCase(mode)) {
-            return probes.stream().filter(p -> "chain".equals(p.name())).findFirst()
+        if (EvalConstants.PROBE_CHAIN.equalsIgnoreCase(mode)) {
+            return probes.stream().filter(p -> EvalConstants.PROBE_CHAIN.equals(p.name())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("eval.probe=chain 但无全链路探针"));
         }
         // auto：order 最小者胜出
@@ -990,7 +991,7 @@ public class EvalRunner {
         long caSupported = ca.stream()
             .filter(r -> CitationMetrics.VERDICT_SUPPORTED.equals(r.citationVerdict())).count();
         long noiseConsistent = noise.stream()
-            .filter(r -> "CONSISTENT".equals(r.noiseVerdict())).count();
+            .filter(r -> EvalConstants.VERDICT_CONSISTENT.equals(r.noiseVerdict())).count();
         return new EvalReport.Phase5Metrics(
             ac.size(), avg(ac, EvalResult::answerCorrectness),
             ca.size(), ca.isEmpty() ? Double.NaN : (double) caSupported / ca.size(),

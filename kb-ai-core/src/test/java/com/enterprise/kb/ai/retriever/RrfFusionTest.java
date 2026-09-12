@@ -91,14 +91,14 @@ class RrfFusionTest {
     @Test
     void fuse_metadataUnion_bm25OnlyFieldsMerged() {
         // file_name 仅 BM25 路携带（向量元数据无此键的场景）→ 融合后并入
-        List<Document> vector = List.of(doc("a", Map.of("chunk_type", "TEXT")));
-        List<Document> bm25 = List.of(doc("a", Map.of("file_name", "手册.pdf", "page_num", 7)));
+        List<Document> vector = List.of(doc("a", Map.of(Constants.Retrieval.META_CHUNK_TYPE, "TEXT")));
+        List<Document> bm25 = List.of(doc("a", Map.of(Constants.Retrieval.META_FILE_NAME, "手册.pdf", Constants.Retrieval.META_PAGE_NUM, 7)));
 
         Document fused = fusion.fuse(vector, bm25, 10).get(0);
 
-        assertEquals("TEXT", fused.getMetadata().get("chunk_type"));
-        assertEquals("手册.pdf", fused.getMetadata().get("file_name"));
-        assertEquals(7, fused.getMetadata().get("page_num"));
+        assertEquals("TEXT", fused.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE));
+        assertEquals("手册.pdf", fused.getMetadata().get(Constants.Retrieval.META_FILE_NAME));
+        assertEquals(7, fused.getMetadata().get(Constants.Retrieval.META_PAGE_NUM));
     }
 
     // ── 入库打标降权（安全簇④ D2，§9 定案④默认关）──

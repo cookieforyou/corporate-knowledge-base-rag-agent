@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.RuleAction;
@@ -47,7 +48,7 @@ class SanitizingTransformerTest {
     void masksPiiBeforePersistence() {
         Document chunk = Document.builder()
             .text("紧急联系人张三 13812345678，邮箱 zhang.san@corp.com")
-            .metadata("chunk_type", "TEXT")
+            .metadata(Constants.Retrieval.META_CHUNK_TYPE, "TEXT")
             .build();
 
         Document result = transformer.apply(List.of(chunk)).get(0);
@@ -57,7 +58,7 @@ class SanitizingTransformerTest {
             .contains("***@***.***")
             .doesNotContain("13812345678");
         // 元数据保留（mutate 语义不丢既有键）
-        assertThat(result.getMetadata()).containsEntry("chunk_type", "TEXT");
+        assertThat(result.getMetadata()).containsEntry(Constants.Retrieval.META_CHUNK_TYPE, "TEXT");
     }
 
     // ── 注入扫描 ──
@@ -151,7 +152,7 @@ class SanitizingTransformerTest {
         // 占位词干对 bundled 基线词表零命中（换入前不打标）
         Document chunk = Document.builder()
             .text("文本含 reload-probe-sanitize 占位词")
-            .metadata("chunk_type", "TEXT").build();
+            .metadata(Constants.Retrieval.META_CHUNK_TYPE, "TEXT").build();
         assertThat(transformer.apply(List.of(chunk)).get(0).getMetadata())
             .doesNotContainKey(SanitizingTransformer.INJECTION_HIT_KEY);
 

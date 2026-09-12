@@ -70,7 +70,7 @@ public class DocumentService {
                            ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher,
                            ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher,
                            ObjectProvider<GraphGateway> graphGateway,
-                           @Qualifier("graphCleanupExecutor") TaskExecutor graphCleanupExecutor) {
+                           @Qualifier(Constants.BeanNames.GRAPH_CLEANUP_EXECUTOR) TaskExecutor graphCleanupExecutor) {
         this.minioClient = minioClient;
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;

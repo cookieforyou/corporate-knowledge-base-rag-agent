@@ -30,7 +30,7 @@ public class ToolChatService {
     private final ChatClient toolChatClient;
 
     /** 显式构造器注入：多 ChatClient Bean 必须 @Qualifier 限定（3.2 @Primary 歧义教训） */
-    public ToolChatService(@Qualifier("toolAgentChatClient") ChatClient toolChatClient) {
+    public ToolChatService(@Qualifier(Constants.BeanNames.TOOL_AGENT_CHAT_CLIENT) ChatClient toolChatClient) {
         this.toolChatClient = toolChatClient;
     }
 

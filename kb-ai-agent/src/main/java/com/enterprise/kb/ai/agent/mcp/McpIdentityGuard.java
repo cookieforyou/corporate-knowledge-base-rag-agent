@@ -44,14 +44,14 @@ public class McpIdentityGuard {
     /** 捕获请求线程 JWT 身份 → 纯实例检索上下文（tenantId 完整性 fail-closed） */
     public RetrievalContext requireIdentity() {
         Jwt jwt = requireJwt();
-        String tenantId = jwt.getClaimAsString("owner");
+        String tenantId = jwt.getClaimAsString(Constants.JwtClaims.OWNER);
         if (tenantId == null || tenantId.isBlank()) {
             throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
         requireScope(jwt);
         RetrievalContext ctx = new RetrievalContext();
         ctx.setTenantId(tenantId);
-        String userId = jwt.getClaimAsString("sub");
+        String userId = jwt.getClaimAsString(Constants.JwtClaims.SUB);
         ctx.setUserId(userId != null && !userId.isBlank() ? userId : "anonymous");
         return ctx;
     }

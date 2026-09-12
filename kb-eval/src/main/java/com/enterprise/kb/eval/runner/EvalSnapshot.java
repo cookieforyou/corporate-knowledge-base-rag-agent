@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 
@@ -148,7 +149,7 @@ public record EvalSnapshot(
             return null;
         }
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
+            byte[] digest = MessageDigest.getInstance(Constants.DIGEST_SHA_256)
                 .digest(text.getBytes(StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder(digest.length * 2);
             for (byte b : digest) {

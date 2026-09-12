@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -14,7 +15,7 @@ import java.util.concurrent.Executors;
 @EnableAsync
 public class EtlExecutorConfig {
 
-    @Bean("etlExecutor")
+    @Bean(Constants.BeanNames.ETL_EXECUTOR)
     public Executor etlExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();
     }

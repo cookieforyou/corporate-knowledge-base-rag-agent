@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
@@ -75,7 +76,7 @@ public class OrchestratorChatClientConfig {
      * 子代理执行线程池：虚拟线程 per-task（对齐 hybridRetrievalExecutor 先例）——
      * 委派为阻塞式 LLM 调用，有界超时经 {@link TaskTool} 的 Future.get 控制。
      */
-    @Bean(destroyMethod = "shutdown")
+    @Bean(name = Constants.BeanNames.ORCHESTRATOR_SUB_AGENT_EXECUTOR, destroyMethod = "shutdown")
     public ExecutorService orchestratorSubAgentExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -99,8 +100,8 @@ public class OrchestratorChatClientConfig {
     @Bean
     public SubAgentRegistry subAgentRegistry(KnowledgeSearchTools knowledgeSearchTools,
                                              EnterpriseMockReadTools enterpriseMockReadTools,
-                                             @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
-                                             @Qualifier("smartRoutingChatModel") ChatModel smartRoutingChatModel,
+                                             @Qualifier(Constants.BeanNames.FALLBACK_CHAT_MODEL) ChatModel fallbackChatModel,
+                                             @Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel smartRoutingChatModel,
                                              @Value("${rag.orchestrator.subagent-timeout-seconds:60}")
                                              int timeoutSeconds) {
         return new SubAgentRegistry(List.of(
@@ -134,7 +135,7 @@ public class OrchestratorChatClientConfig {
                              ObservationRegistry observationRegistry,
                              // 容器内 ExecutorService Bean 不唯一（另有 hybridRetrievalExecutor）——
                              // 显式限定防按类型歧义（坑位㊺，IDEA 编译无 -parameters 时按名消歧亦失效）
-                             @Qualifier("orchestratorSubAgentExecutor") ExecutorService orchestratorSubAgentExecutor,
+                             @Qualifier(Constants.BeanNames.ORCHESTRATOR_SUB_AGENT_EXECUTOR) ExecutorService orchestratorSubAgentExecutor,
                              AiBusinessMetrics aiBusinessMetrics,
                              @Value("${rag.orchestrator.max-delegations:6}") int maxDelegations) {
         ConcurrentHashMap<String, ChatClient> clientCache = new ConcurrentHashMap<>();
@@ -153,12 +154,12 @@ public class OrchestratorChatClientConfig {
 
     @Bean
     public AgentOrchestratorService agentOrchestratorService(
-            @Qualifier("orchestratorChatClient") ChatClient orchestratorChatClient) {
+            @Qualifier(Constants.BeanNames.ORCHESTRATOR_CHAT_CLIENT) ChatClient orchestratorChatClient) {
         return new AgentOrchestratorService(orchestratorChatClient);
     }
 
-    @Bean
-    public ChatClient orchestratorChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+    @Bean(name = Constants.BeanNames.ORCHESTRATOR_CHAT_CLIENT)
+    public ChatClient orchestratorChatClient(@Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel chatModel,
                                              ObservationRegistry observationRegistry,
                                              ChatMemory agentChatMemory,
                                              AuditTraceAdvisor auditTraceAdvisor,
@@ -188,7 +189,7 @@ public class OrchestratorChatClientConfig {
         if (memoryEnabled) {
             // TaskBoundaryAdvisor(420) 必须随 Memory(400) 在场（历史在场才有边界注入）；
             // 无历史时透传零变化，故关闭记忆时不挂（职责单一）
-            advisors.add(MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build());
+            advisors.add(MessageChatMemoryAdvisor.builder(agentChatMemory).order(Constants.ChainOrder.MEMORY).build());
             advisors.add(new TaskBoundaryAdvisor());
         }
         advisors.add(agentToolCallingAdvisor);

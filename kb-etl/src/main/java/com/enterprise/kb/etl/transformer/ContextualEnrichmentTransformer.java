@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.etl.prompt.PromptTemplates;
 import lombok.extern.slf4j.Slf4j;
@@ -155,7 +156,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
             final Document chunk = documents.get(i);
             final int slot = i;
             String text = chunk.getText();
-            boolean image = ChunkType.IMAGE.name().equals(String.valueOf(chunk.getMetadata().get("chunk_type")));
+            boolean image = ChunkType.IMAGE.name().equals(String.valueOf(chunk.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE)));
             if (image || text == null || text.strip().length() < MIN_ENRICH_CHARS) {
                 slots[slot] = stripExcerpt(chunk);
                 skipped.incrementAndGet();

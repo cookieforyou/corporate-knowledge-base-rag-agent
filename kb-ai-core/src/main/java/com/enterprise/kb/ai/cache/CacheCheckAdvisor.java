@@ -91,7 +91,7 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
     public CacheCheckAdvisor(SemanticCacheService cacheService,
                              EmbeddingModel embeddingModel,
                              JsonMapper jsonMapper,
-                             @Qualifier("auditExecutor") AsyncTaskExecutor writeExecutor,
+                             @Qualifier(Constants.BeanNames.AUDIT_EXECUTOR) AsyncTaskExecutor writeExecutor,
                              ObjectProvider<ObservationRegistry> observationRegistryProvider) {
         this.cacheService = cacheService;
         this.embeddingModel = embeddingModel;
@@ -332,6 +332,6 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
     /** 11.2 链序表：路由(440)/溯源(450)之后、门控(500)之前 */
     @Override
     public int getOrder() {
-        return 460;
+        return Constants.ChainOrder.CACHE_CHECK;
     }
 }

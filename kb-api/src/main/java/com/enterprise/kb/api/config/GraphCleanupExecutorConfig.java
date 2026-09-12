@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
@@ -18,7 +19,7 @@ import org.springframework.core.task.VirtualThreadTaskExecutor;
 @Configuration
 public class GraphCleanupExecutorConfig {
 
-    @Bean("graphCleanupExecutor")
+    @Bean(Constants.BeanNames.GRAPH_CLEANUP_EXECUTOR)
     public AsyncTaskExecutor graphCleanupExecutor() {
         return new VirtualThreadTaskExecutor("graph-cleanup-");
     }

@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.it;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.eval.it.stub.StubChatModel;
@@ -46,7 +47,7 @@ class TenantIsolationIT extends AbstractAdvisorChainIT {
         // 溯源帧内证据全部属于租户 A
         ctx.getTraceSummary().stream()
             .flatMap(e -> e.documents().stream())
-            .forEach(d -> assertThat(d.getMetadata().get("tenant_id")).isEqualTo(TENANT_A));
+            .forEach(d -> assertThat(d.getMetadata().get(Constants.Retrieval.META_TENANT_ID)).isEqualTo(TENANT_A));
     }
 
     @Test

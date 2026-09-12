@@ -1,5 +1,6 @@
 package com.enterprise.kb.commons.guardrail;
 
+import com.enterprise.kb.commons.constant.Constants;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -22,7 +23,7 @@ public final class GuardrailRulesSupport {
     /** SHA-256 十六进制全量（64 位）——DB 去重键指纹。 */
     public static String sha256Hex(String value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
+            byte[] digest = MessageDigest.getInstance(Constants.DIGEST_SHA_256)
                 .digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {

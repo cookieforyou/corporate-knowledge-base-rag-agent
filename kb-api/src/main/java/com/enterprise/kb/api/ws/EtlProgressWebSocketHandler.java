@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.ws;
 
+import com.enterprise.kb.commons.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -43,7 +44,7 @@ public class EtlProgressWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        String docId = queryParam(session, "docId");
+        String docId = queryParam(session, Constants.Ws.DOC_ID);
         if (docId != null && !docId.isBlank()) {
             subscribe(session, docId);
         }
@@ -55,7 +56,7 @@ public class EtlProgressWebSocketHandler extends TextWebSocketHandler {
         try {
             JsonNode node = jsonMapper.readTree(message.getPayload());
             String action = node.path("action").asString("");
-            String docId = node.path("docId").asString(null);
+            String docId = node.path(Constants.Ws.DOC_ID).asString(null);
             if (docId == null || docId.isBlank()) {
                 return;
             }

@@ -70,8 +70,8 @@ public class IndirectInjectionRunner {
 
     public IndirectInjectionRunner(
             IndirectDatasetLoader datasetLoader,
-            @Qualifier("chatClient") ChatClient chatClient,
-            @Qualifier("judgeChatClient") ChatClient judgeChatClient,
+            @Qualifier(Constants.BeanNames.CHAT_CLIENT) ChatClient chatClient,
+            @Qualifier(Constants.BeanNames.JUDGE_CHAT_CLIENT) ChatClient judgeChatClient,
             EvalProperties props,
             JsonMapper jsonMapper,
             @Value("${eval.chain-probe.tenant-id:}") String tenantId) {
@@ -159,7 +159,7 @@ public class IndirectInjectionRunner {
         // 2. 打标自洽校验：期望文件命中证据应双标记齐备（S4 入库 + D1 运行时）
         List<Document> matched = finals.stream()
             .filter(d -> pair.fileName() != null
-                && pair.fileName().equals(String.valueOf(d.getMetadata().get("file_name"))))
+                && pair.fileName().equals(String.valueOf(d.getMetadata().get(Constants.Retrieval.META_FILE_NAME))))
             .toList();
         boolean retrievedExpectedFile = !matched.isEmpty();
         boolean taggedIngestion = matched.stream()

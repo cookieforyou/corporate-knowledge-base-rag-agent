@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
@@ -18,7 +19,7 @@ public class AsyncMvcConfig implements WebMvcConfigurer {
 
     private final AsyncTaskExecutor retrievalExecutor;
 
-    public AsyncMvcConfig(@Qualifier("retrievalExecutor") AsyncTaskExecutor retrievalExecutor) {
+    public AsyncMvcConfig(@Qualifier(Constants.BeanNames.RETRIEVAL_EXECUTOR) AsyncTaskExecutor retrievalExecutor) {
         this.retrievalExecutor = retrievalExecutor;
     }
 

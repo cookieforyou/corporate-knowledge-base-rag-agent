@@ -72,7 +72,7 @@ class FeedbackServiceTest {
         KbMessage message = new KbMessage();
         message.setId(messageId);
         message.setSessionId(sessionId);
-        message.setRole("ASSISTANT");
+        message.setRole(Constants.MessageRole.ASSISTANT);
         message.setContent("回答内容");
         when(messageRepository.findById(messageId)).thenReturn(Optional.of(message));
 
@@ -238,12 +238,12 @@ class FeedbackServiceTest {
         KbMessage userMessage = new KbMessage();
         userMessage.setId("m-9");
         userMessage.setSessionId("s-9");
-        userMessage.setRole("USER");
+        userMessage.setRole(Constants.MessageRole.USER);
         userMessage.setContent("增值税税率是多少？");
         KbMessage assistantMessage = new KbMessage();
         assistantMessage.setId("m-10");
         assistantMessage.setSessionId("s-9");
-        assistantMessage.setRole("ASSISTANT");
+        assistantMessage.setRole(Constants.MessageRole.ASSISTANT);
         assistantMessage.setContent("3%");
         when(messageRepository.findAllById(List.of("m-10"))).thenReturn(List.of(assistantMessage));
         when(messageRepository.findBySessionIdOrderByCreatedAt("s-9"))

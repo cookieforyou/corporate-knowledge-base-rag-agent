@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.TokenBudgetExceededException;
@@ -116,7 +117,7 @@ public class TokenBudgetAdvisor implements BaseAdvisor {
 
     @Override
     public int getOrder() {
-        return 30;
+        return Constants.ChainOrder.TOKEN_BUDGET;
     }
 
     static String keyOf(String tenantId, LocalDate date) {

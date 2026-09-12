@@ -145,9 +145,9 @@ class ChunkOpsServiceTest {
         assertThat(vectorDoc.getMetadata())
             .containsEntry("chunk_id", CHUNK_ID)
             .containsEntry("doc_id", DOC_ID)
-            .containsEntry("tenant_id", TENANT)
-            .containsEntry("is_deleted", false)
-            .containsEntry("file_name", "手册.pdf");
+            .containsEntry(Constants.Retrieval.META_TENANT_ID, TENANT)
+            .containsEntry(Constants.Retrieval.META_IS_DELETED, false)
+            .containsEntry(Constants.Retrieval.META_FILE_NAME, "手册.pdf");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

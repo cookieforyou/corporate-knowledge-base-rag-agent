@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.advisor.QueryRoutingAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalGateAdvisor;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
@@ -134,10 +135,10 @@ public class RetrievalConfig {
      * <p><b>轻任务模型挂备（v2.77 模型层批B）</b>：改写 LLM 调用切换到备用模型
      * （qwen3.8-flash 思考关）——见 {@link #lightweightChatClientBuilder}。
      */
-    @Bean
+    @Bean(name = Constants.BeanNames.REWRITE_QUERY_TRANSFORMER)
     public QueryTransformer rewriteQueryTransformer(
             ChatModel smartRoutingChatModel,
-            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            @Nullable @Qualifier(Constants.BeanNames.FALLBACK_CHAT_MODEL) ChatModel fallbackChatModel,
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
             ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
             ObjectProvider<AdvisorObservationConvention> advisorConventionProvider) {
@@ -151,7 +152,7 @@ public class RetrievalConfig {
     @Bean
     public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
             ChatModel smartRoutingChatModel,
-            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            @Nullable @Qualifier(Constants.BeanNames.FALLBACK_CHAT_MODEL) ChatModel fallbackChatModel,
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
             ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
             ObjectProvider<AdvisorObservationConvention> advisorConventionProvider,
@@ -159,7 +160,7 @@ public class RetrievalConfig {
             IndirectInjectionScanPostProcessor indirectInjectionScanPostProcessor,
             RerankDocumentPostProcessor rerankPostProcessor,
             QueryTransformer rewriteQueryTransformer,
-            @Qualifier("retrievalExecutor") TaskExecutor retrievalExecutor,
+            @Qualifier(Constants.BeanNames.RETRIEVAL_EXECUTOR) TaskExecutor retrievalExecutor,
             RetrievalProperties properties,
             @Value("${rag.retrieval.rewrite.enabled:true}") boolean rewriteEnabled) {
 
@@ -232,7 +233,7 @@ public class RetrievalConfig {
      * 源码核验），检索任务内 rerank 观测得以挂回 Advisor 树。无当前观测的入口
      * （kb-eval / 检索调试台）捕获为空快照，行为不变。
      */
-    @Bean
+    @Bean(name = Constants.BeanNames.RETRIEVAL_EXECUTOR)
     public AsyncTaskExecutor retrievalExecutor() {
         return contextPropagatingRetrievalExecutor();
     }
@@ -247,7 +248,7 @@ public class RetrievalConfig {
      * submit/execute 全形态捕获-恢复，embedding 观测挂回检索任务上下文
      * （其上下文已由 retrievalExecutor 装饰器 restore，两级串联成链）。
      */
-    @Bean(destroyMethod = "close")
+    @Bean(name = Constants.BeanNames.HYBRID_RETRIEVAL_EXECUTOR, destroyMethod = "close")
     public ExecutorService hybridRetrievalExecutor() {
         return contextPropagatingHybridExecutor();
     }
@@ -301,7 +302,7 @@ public class RetrievalConfig {
     @Bean
     public QueryRoutingAdvisor queryRoutingAdvisor(
             ChatModel smartRoutingChatModel,
-            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            @Nullable @Qualifier(Constants.BeanNames.FALLBACK_CHAT_MODEL) ChatModel fallbackChatModel,
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
             ObjectProvider<ChatClientObservationConvention> clientConventionProvider,
             ObjectProvider<AdvisorObservationConvention> advisorConventionProvider,

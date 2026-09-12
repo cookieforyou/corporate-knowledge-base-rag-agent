@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.routing.SmartRoutingChatModel;
 import io.micrometer.observation.ObservationRegistry;
@@ -66,7 +67,7 @@ public class SmartRoutingConfig {
      * 主模型（DeepSeek 形态）——provider=deepseek 时在场。
      * 密钥缺失快失败：与备用/Judge 同策。Bean 名沿用 {@code deepSeekChatModel}。
      */
-    @Bean("deepSeekChatModel")
+    @Bean(Constants.BeanNames.DEEP_SEEK_CHAT_MODEL)
     @ConditionalOnProperty(name = "rag.routing.primary.provider", havingValue = "deepseek")
     public ChatModel deepSeekChatModel(
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
@@ -109,7 +110,7 @@ public class SmartRoutingConfig {
      * 密钥缺失快失败：与备用/Judge 同策。thinking 不传——官方唯一合法值 enabled
      * 即服务端默认，传 disabled 直接报错（官方文档实证）；effort 经原生字段透传。
      */
-    @Bean("glmChatModel")
+    @Bean(Constants.BeanNames.GLM_CHAT_MODEL)
     @ConditionalOnProperty(name = "rag.routing.primary.provider", havingValue = "glm", matchIfMissing = true)
     public ChatModel glmChatModel(
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
@@ -147,10 +148,10 @@ public class SmartRoutingConfig {
      * 主模型桥：当前 provider 选中的载体透传（互斥条件保证至多一个非空）。
      * 双空 = provider 配了非法值（如拼写错误），启动即失败并给出合法值域。
      */
-    @Bean
+    @Bean(name = Constants.BeanNames.PRIMARY_CHAT_MODEL)
     public ChatModel primaryChatModel(
-            @Nullable @Qualifier("deepSeekChatModel") ChatModel deepSeek,
-            @Nullable @Qualifier("glmChatModel") ChatModel glm) {
+            @Nullable @Qualifier(Constants.BeanNames.DEEP_SEEK_CHAT_MODEL) ChatModel deepSeek,
+            @Nullable @Qualifier(Constants.BeanNames.GLM_CHAT_MODEL) ChatModel glm) {
         if (deepSeek != null) {
             return deepSeek;
         }
@@ -170,11 +171,11 @@ public class SmartRoutingConfig {
      * 单一 ChatModel（源码核验），多 Bean 歧义致启动失败——路由模型即应用级模型，
      * 标记 @Primary 统一消解（显式 @Qualifier 注入点不受影响）。
      */
-    @Bean
+    @Bean(name = Constants.BeanNames.SMART_ROUTING_CHAT_MODEL)
     @Primary
     public ChatModel smartRoutingChatModel(
-            @Qualifier("primaryChatModel") ChatModel primary,
-            @Nullable @Qualifier("fallbackChatModel") ChatModel fallback,
+            @Qualifier(Constants.BeanNames.PRIMARY_CHAT_MODEL) ChatModel primary,
+            @Nullable @Qualifier(Constants.BeanNames.FALLBACK_CHAT_MODEL) ChatModel fallback,
             @Value("${rag.routing.circuit.failure-threshold:5}") int failureThreshold,
             @Value("${rag.routing.circuit.open-seconds:30}") long openSeconds,
             AiBusinessMetrics aiBusinessMetrics) {
@@ -205,7 +206,7 @@ public class SmartRoutingConfig {
      * 备用模型（qwen3.8-flash，百炼 OpenAI 兼容端点）。
      * 密钥缺失快失败：与 JudgeModelConfig 同策，避免落入 OpenAI SDK 晦涩凭证异常。
      */
-    @Bean
+    @Bean(name = Constants.BeanNames.FALLBACK_CHAT_MODEL)
     @ConditionalOnProperty(name = "rag.routing.fallback.enabled", havingValue = "true", matchIfMissing = true)
     public ChatModel fallbackChatModel(
             ObjectProvider<ObservationRegistry> observationRegistryProvider,

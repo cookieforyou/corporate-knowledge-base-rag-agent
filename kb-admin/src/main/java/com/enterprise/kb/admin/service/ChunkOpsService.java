@@ -78,7 +78,7 @@ public class ChunkOpsService {
                            SanitizingTransformer sanitizingTransformer,
                            AiBusinessMetrics metrics,
                            JsonMapper jsonMapper,
-                           @Qualifier("etlExecutor") Executor etlExecutor,
+                           @Qualifier(Constants.BeanNames.ETL_EXECUTOR) Executor etlExecutor,
                            ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher,
                            ObjectProvider<GraphGateway> graphGateway,
                            ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher) {

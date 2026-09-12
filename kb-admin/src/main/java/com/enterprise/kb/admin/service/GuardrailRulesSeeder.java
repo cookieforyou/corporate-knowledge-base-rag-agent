@@ -1,5 +1,6 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.domain.guardrail.DbGuardrailRulesSource;
 import com.enterprise.kb.ai.guardrail.GuardrailReloadCoordinator;
 import com.enterprise.kb.commons.guardrail.FileGuardrailRulesSource;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
@@ -46,7 +47,7 @@ import java.util.Set;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class GuardrailRulesSeeder implements ApplicationRunner {
 
-    private static final String SIDE_INJECTION = "injection";
+    private static final String SIDE_INJECTION = DbGuardrailRulesSource.SIDE_INJECTION;
     private static final String SIDE_OUTPUT = "output";
     private static final String ORIGIN_MIGRATION = "MIGRATION";
     private static final String OPERATOR = "migration-seeder";

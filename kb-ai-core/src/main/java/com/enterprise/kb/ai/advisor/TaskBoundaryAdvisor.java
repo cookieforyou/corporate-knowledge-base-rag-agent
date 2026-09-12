@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.commons.constant.Constants;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -84,6 +85,6 @@ public class TaskBoundaryAdvisor implements CallAdvisor, StreamAdvisor {
 
     @Override
     public int getOrder() {
-        return 420;
+        return Constants.ChainOrder.TASK_BOUNDARY;
     }
 }

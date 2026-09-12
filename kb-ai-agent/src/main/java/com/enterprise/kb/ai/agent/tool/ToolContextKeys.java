@@ -10,8 +10,10 @@ package com.enterprise.kb.ai.agent.tool;
  */
 public final class ToolContextKeys {
 
-    /** RetrievalContext 实例（工具写回工具调用记录，SSE TOOL_CALL 数据源） */
-    public static final String RETRIEVAL_CONTEXT = "kb.retrieval_context";
+    /** RetrievalContext 实例（工具写回工具调用记录，SSE TOOL_CALL 数据源）——
+     *  与 advisor 参数通道的 {@link com.enterprise.kb.ai.retriever.RetrievalContext#CONTEXT_KEY}
+     *  同值双通道（实例经两通道流转），值引用单一来源 */
+    public static final String RETRIEVAL_CONTEXT = com.enterprise.kb.ai.retriever.RetrievalContext.CONTEXT_KEY;
 
     /** 租户 ID（审批绑定校验用，fail-closed 身份链路的工具层延伸） */
     public static final String TENANT_ID = "kb.tenant_id";

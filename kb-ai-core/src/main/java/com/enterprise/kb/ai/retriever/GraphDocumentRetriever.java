@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.retriever;
 import com.enterprise.kb.ai.config.GraphRetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
@@ -141,13 +142,13 @@ public class GraphDocumentRetriever {
         Map<String, Object> meta = new HashMap<>();
         meta.put(Constants.Retrieval.META_CHUNK_ID, chunk.getId());
         meta.put(Constants.Retrieval.META_DOC_ID, doc.getId());
-        meta.put("tenant_id", doc.getTenantId());
-        meta.put("chunk_type", chunk.getChunkType() != null ? chunk.getChunkType().name() : "TEXT");
+        meta.put(Constants.Retrieval.META_TENANT_ID, doc.getTenantId());
+        meta.put(Constants.Retrieval.META_CHUNK_TYPE, chunk.getChunkType() != null ? chunk.getChunkType().name() : ChunkType.TEXT.name());
         if (doc.getName() != null) {
-            meta.put("file_name", doc.getName());
+            meta.put(Constants.Retrieval.META_FILE_NAME, doc.getName());
         }
         if (chunk.getPageNum() != null) {
-            meta.put("page_num", chunk.getPageNum());
+            meta.put(Constants.Retrieval.META_PAGE_NUM, chunk.getPageNum());
         }
         meta.put(Constants.Retrieval.META_GRAPH_SCORE, hit.score());
         meta.put(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX, rank);

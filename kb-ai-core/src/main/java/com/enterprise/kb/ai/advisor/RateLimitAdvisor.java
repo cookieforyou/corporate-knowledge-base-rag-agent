@@ -120,7 +120,7 @@ public class RateLimitAdvisor implements BaseAdvisor {
 
     @Override
     public int getOrder() {
-        return 100;
+        return Constants.ChainOrder.RATE_LIMIT;
     }
 
     /** 经 RetrievalContext 参数链提取租户；缺失返回 null */

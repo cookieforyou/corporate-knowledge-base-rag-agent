@@ -42,10 +42,10 @@ class ElasticsearchDocumentRetrieverTest {
         // 10.1 元数据约定
         assertEquals("chunk-001", doc.getMetadata().get(Constants.Retrieval.META_CHUNK_ID));
         assertEquals("doc-9", doc.getMetadata().get(Constants.Retrieval.META_DOC_ID));
-        assertEquals("t-1", doc.getMetadata().get("tenant_id"));
-        assertEquals("TEXT", doc.getMetadata().get("chunk_type"));
-        assertEquals("发票手册.pdf", doc.getMetadata().get("file_name"));
-        assertEquals(12, doc.getMetadata().get("page_num"));
+        assertEquals("t-1", doc.getMetadata().get(Constants.Retrieval.META_TENANT_ID));
+        assertEquals("TEXT", doc.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE));
+        assertEquals("发票手册.pdf", doc.getMetadata().get(Constants.Retrieval.META_FILE_NAME));
+        assertEquals(12, doc.getMetadata().get(Constants.Retrieval.META_PAGE_NUM));
         assertEquals(8.75, doc.getMetadata().get(Constants.Retrieval.META_BM25_SCORE));
         assertEquals(2, doc.getMetadata().get(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX));
         assertEquals(Constants.Retrieval.ROUTE_BM25, doc.getMetadata().get(Constants.Retrieval.META_RETRIEVAL_SOURCE));
@@ -60,10 +60,10 @@ class ElasticsearchDocumentRetrieverTest {
 
         Document doc = retriever.toDocument(hit(src, 1.0), 1);
 
-        assertEquals("TEXT", doc.getMetadata().get("chunk_type"));
+        assertEquals("TEXT", doc.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE));
         // Spring AI metadata 禁止 null：可空字段缺省时不写入键
-        assertFalse(doc.getMetadata().containsKey("page_num"));
-        assertFalse(doc.getMetadata().containsKey("file_name"));
+        assertFalse(doc.getMetadata().containsKey(Constants.Retrieval.META_PAGE_NUM));
+        assertFalse(doc.getMetadata().containsKey(Constants.Retrieval.META_FILE_NAME));
         assertFalse(doc.getMetadata().containsKey(Constants.Retrieval.INJECTION_HIT));
     }
 

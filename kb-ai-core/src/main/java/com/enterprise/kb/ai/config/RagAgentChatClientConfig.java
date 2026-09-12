@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
@@ -67,7 +68,7 @@ public class RagAgentChatClientConfig {
      * <p>maxMessages 默认 20（≈10 轮）：对齐 Phase 3 验收项「多轮对话（10轮）
      * 上下文连贯性 > 90%」，窗口再大对 TTFT 与 token 成本不友好。
      */
-    @Bean
+    @Bean(name = Constants.BeanNames.AGENT_CHAT_MEMORY)
     public ChatMemory agentChatMemory(
             ChatMemoryRepository chatMemoryRepository,
             @Value("${rag.chat.memory.max-messages:20}") int maxMessages) {
@@ -97,8 +98,8 @@ public class RagAgentChatClientConfig {
      * RetrievalGateAdvisor 旁路整套检索管线携记忆直答；defaultSystem 双形态措辞
      * 与之配套（知识问的证据约束仍由 GROUNDING_PROMPT 每请求注入保证，不受影响）。
      */
-    @Bean
-    public ChatClient ragAgentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+    @Bean(name = Constants.BeanNames.RAG_AGENT_CHAT_CLIENT)
+    public ChatClient ragAgentChatClient(@Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel chatModel,
                                          ObservationRegistry observationRegistry,
                                          ChatMemory agentChatMemory,
                                          AuditTraceAdvisor auditTraceAdvisor,
@@ -125,7 +126,7 @@ public class RagAgentChatClientConfig {
             outputGuardrailAdvisor,
             inputSanitizeAdvisor,
             semanticInjectionAdvisor,
-            MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
+            MessageChatMemoryAdvisor.builder(agentChatMemory).order(Constants.ChainOrder.MEMORY).build(),
             queryRoutingAdvisor,
             retrievalTraceAdvisor,
             retrievalGateAdvisor));

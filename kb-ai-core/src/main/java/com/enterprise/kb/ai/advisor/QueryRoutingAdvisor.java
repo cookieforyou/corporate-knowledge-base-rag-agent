@@ -165,6 +165,6 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
     /** 11.2 链序表（v2.13）：Memory(400) 之后、RetrievalTrace(450) 之前 */
     @Override
     public int getOrder() {
-        return 440;
+        return Constants.ChainOrder.QUERY_ROUTING;
     }
 }

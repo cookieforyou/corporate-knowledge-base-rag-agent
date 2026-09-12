@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.it;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.repository.KbAuditLogRepository;
@@ -76,6 +77,6 @@ class CrossTenantLeakIT extends AbstractAdvisorChainIT {
 
         assertThat(results).isNotEmpty();
         assertThat(results).allSatisfy(
-            d -> assertThat(d.getMetadata().get("tenant_id")).isEqualTo(TENANT_A));
+            d -> assertThat(d.getMetadata().get(Constants.Retrieval.META_TENANT_ID)).isEqualTo(TENANT_A));
     }
 }

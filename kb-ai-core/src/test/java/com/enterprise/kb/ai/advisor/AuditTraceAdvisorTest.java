@@ -93,9 +93,9 @@ class AuditTraceAdvisorTest {
         ctx.setUserId("user-1");
         ctx.setRewrittenQuery("改写后的问题");
         ctx.addTraceEntry(Constants.Retrieval.ROUTE_BM25, List.of(
-            new Document("命中内容", Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", "file_name", "f.pdf", Constants.Retrieval.META_FUSION_SCORE, 0.9))));
+            new Document("命中内容", Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_FILE_NAME, "f.pdf", Constants.Retrieval.META_FUSION_SCORE, 0.9))));
         ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(
-            new Document("命中内容", Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", "file_name", "f.pdf", Constants.Retrieval.META_RERANK_SCORE, 0.95))));
+            new Document("命中内容", Map.of(Constants.Retrieval.META_CHUNK_ID, "c-1", Constants.Retrieval.META_FILE_NAME, "f.pdf", Constants.Retrieval.META_RERANK_SCORE, 0.95))));
         return ctx;
     }
 

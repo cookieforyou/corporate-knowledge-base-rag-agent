@@ -1,5 +1,7 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.domain.guardrail.DbGuardrailRulesSource;
 import com.enterprise.kb.admin.dto.DrillResult;
 import com.enterprise.kb.admin.dto.GuardrailRulePage;
 import com.enterprise.kb.admin.dto.GuardrailRuleView;
@@ -30,7 +32,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class GuardrailAdminService {
 
-    private static final String SIDE_INJECTION = "injection";
+    private static final String SIDE_INJECTION = DbGuardrailRulesSource.SIDE_INJECTION;
     private static final String SIDE_OUTPUT = "output";
     private static final int FINGERPRINT_LENGTH = 12;
     /** 分页口径与审计日志（AuditLogQueryService）同款：0 基页码、缺省 20、上限 100 */
@@ -105,7 +107,7 @@ public class GuardrailAdminService {
 
     private static String fingerprint(String value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
+            byte[] digest = MessageDigest.getInstance(Constants.DIGEST_SHA_256)
                 .digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest).substring(0, FINGERPRINT_LENGTH);
         } catch (NoSuchAlgorithmException e) {

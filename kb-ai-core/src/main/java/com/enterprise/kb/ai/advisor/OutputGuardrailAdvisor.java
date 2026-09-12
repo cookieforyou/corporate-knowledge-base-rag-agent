@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.guardrail.PromptCanary;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
@@ -406,7 +407,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
 
     @Override
     public int getOrder() {
-        return 110;
+        return Constants.ChainOrder.OUTPUT_GUARDRAIL;
     }
 
     /**

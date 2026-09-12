@@ -177,9 +177,9 @@ public class RetrievalDebugController {
 
         private void fillCommon(Document doc) {
             Map<String, Object> meta = doc.getMetadata();
-            if (meta.get("file_name") != null) this.fileName = String.valueOf(meta.get("file_name"));
-            if (meta.get("page_num") instanceof Number n) this.pageNum = n.intValue();
-            if (meta.get("chunk_type") != null) this.chunkType = String.valueOf(meta.get("chunk_type"));
+            if (meta.get(Constants.Retrieval.META_FILE_NAME) != null) this.fileName = String.valueOf(meta.get(Constants.Retrieval.META_FILE_NAME));
+            if (meta.get(Constants.Retrieval.META_PAGE_NUM) instanceof Number n) this.pageNum = n.intValue();
+            if (meta.get(Constants.Retrieval.META_CHUNK_TYPE) != null) this.chunkType = String.valueOf(meta.get(Constants.Retrieval.META_CHUNK_TYPE));
             if (doc.getText() != null && !doc.getText().isBlank()) this.content = doc.getText();
         }
 

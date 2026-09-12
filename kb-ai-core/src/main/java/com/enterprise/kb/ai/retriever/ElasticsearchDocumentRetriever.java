@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.enterprise.kb.commons.constant.Constants;
+import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.infrastructure.elasticsearch.EsChunkDoc;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -79,10 +80,10 @@ public class ElasticsearchDocumentRetriever {
         Map<String, Object> meta = new HashMap<>();
         meta.put(Constants.Retrieval.META_CHUNK_ID, src.getChunkId());
         meta.put(Constants.Retrieval.META_DOC_ID, src.getDocId());
-        meta.put("tenant_id", src.getTenantId());
-        meta.put("chunk_type", src.getChunkType() != null ? src.getChunkType() : "TEXT");
-        if (src.getFileName() != null) meta.put("file_name", src.getFileName());
-        if (src.getPageNum() != null) meta.put("page_num", src.getPageNum());
+        meta.put(Constants.Retrieval.META_TENANT_ID, src.getTenantId());
+        meta.put(Constants.Retrieval.META_CHUNK_TYPE, src.getChunkType() != null ? src.getChunkType() : ChunkType.TEXT.name());
+        if (src.getFileName() != null) meta.put(Constants.Retrieval.META_FILE_NAME, src.getFileName());
+        if (src.getPageNum() != null) meta.put(Constants.Retrieval.META_PAGE_NUM, src.getPageNum());
         // 注入打标透传（安全簇④ D2）：供 RrfFusion 降权消费（默认关）；缺省不写键
         if (Boolean.TRUE.equals(src.getInjectionHit())) meta.put(RrfFusion.INJECTION_HIT_KEY, true);
         meta.put(Constants.Retrieval.META_BM25_SCORE, hit.score());

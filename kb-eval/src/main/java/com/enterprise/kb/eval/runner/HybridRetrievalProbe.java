@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.ai.retriever.HybridDocumentRetriever;
 import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.document.Document;
@@ -37,7 +38,7 @@ public class HybridRetrievalProbe implements RetrievalProbe {
 
     private static ProbeHit toHit(Document d) {
         Object chunkId = d.getMetadata().getOrDefault(Constants.Retrieval.META_CHUNK_ID, d.getId());
-        Object fileName = d.getMetadata().get("file_name");
+        Object fileName = d.getMetadata().get(Constants.Retrieval.META_FILE_NAME);
         double score = d.getScore() != null ? d.getScore() : 0.0;
         return new ProbeHit(String.valueOf(chunkId),
             fileName instanceof String fn ? fn : null, d.getText(), score);
@@ -45,7 +46,7 @@ public class HybridRetrievalProbe implements RetrievalProbe {
 
     @Override
     public String name() {
-        return "hybrid";
+        return EvalConstants.PROBE_HYBRID;
     }
 
     @Override

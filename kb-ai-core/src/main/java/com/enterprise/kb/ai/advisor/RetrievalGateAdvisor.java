@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -65,6 +66,6 @@ public class RetrievalGateAdvisor implements CallAdvisor, StreamAdvisor {
     /** 链序表槽位不变（11.2 v2.13）：承接原 RetrievalAugmentationAdvisor 的 500 位 */
     @Override
     public int getOrder() {
-        return 500;
+        return Constants.ChainOrder.RETRIEVAL_GATE;
     }
 }

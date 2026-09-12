@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.client.ChatClient;
@@ -34,7 +35,7 @@ public class ChainRetrievalProbe implements RetrievalProbe {
     private final ChatClient chatClient;
     private final String tenantId;
 
-    public ChainRetrievalProbe(@Qualifier("chatClient") ChatClient chatClient,
+    public ChainRetrievalProbe(@Qualifier(Constants.BeanNames.CHAT_CLIENT) ChatClient chatClient,
                                @Value("${eval.chain-probe.tenant-id:}") String tenantId) {
         this.chatClient = chatClient;
         this.tenantId = tenantId;
@@ -65,7 +66,7 @@ public class ChainRetrievalProbe implements RetrievalProbe {
 
     private static ProbeHit toHit(Document d) {
         Object chunkId = d.getMetadata().getOrDefault(Constants.Retrieval.META_CHUNK_ID, d.getId());
-        Object fileName = d.getMetadata().get("file_name");
+        Object fileName = d.getMetadata().get(Constants.Retrieval.META_FILE_NAME);
         double score = d.getScore() != null ? d.getScore() : 0.0;
         return new ProbeHit(String.valueOf(chunkId),
             fileName instanceof String fn ? fn : null, d.getText(), score);
@@ -73,7 +74,7 @@ public class ChainRetrievalProbe implements RetrievalProbe {
 
     @Override
     public String name() {
-        return "chain";
+        return EvalConstants.PROBE_CHAIN;
     }
 
     @Override

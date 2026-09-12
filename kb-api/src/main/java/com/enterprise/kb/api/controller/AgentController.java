@@ -420,8 +420,8 @@ public class AgentController {
         return new ChunkTrace(
             asString(meta.get(Constants.Retrieval.META_CHUNK_ID)),
             asString(meta.get(Constants.Retrieval.META_DOC_ID)),
-            asString(meta.get("file_name")),
-            meta.get("page_num") instanceof Number n ? n.intValue() : null,
+            asString(meta.get(Constants.Retrieval.META_FILE_NAME)),
+            meta.get(Constants.Retrieval.META_PAGE_NUM) instanceof Number n ? n.intValue() : null,
             scores,
             snippet);
     }

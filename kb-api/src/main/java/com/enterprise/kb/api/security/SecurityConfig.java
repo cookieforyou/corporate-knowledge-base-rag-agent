@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.security;
 
+import com.enterprise.kb.commons.constant.Constants;
 import java.util.Arrays;
 import java.util.List;
 
@@ -136,7 +137,7 @@ public class SecurityConfig {
             if (!Boolean.TRUE.equals(jwt.getClaimAsBoolean("isAdmin"))) {
                 return List.of();
             }
-            boolean superAdmin = SUPER_ADMIN_OWNER.equals(jwt.getClaimAsString("owner"));
+            boolean superAdmin = SUPER_ADMIN_OWNER.equals(jwt.getClaimAsString(Constants.JwtClaims.OWNER));
             return superAdmin
                 ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"),
                     new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))

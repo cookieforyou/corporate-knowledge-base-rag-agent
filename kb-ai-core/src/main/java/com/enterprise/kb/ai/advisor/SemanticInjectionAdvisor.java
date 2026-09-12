@@ -144,7 +144,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     public SemanticInjectionAdvisor(
             GuardrailRulesRegistry rulesRegistry,
             AiBusinessMetrics metrics,
-            @Nullable @Qualifier("fallbackChatModel") ChatModel fallbackChatModel,
+            @Nullable @Qualifier(Constants.BeanNames.FALLBACK_CHAT_MODEL) ChatModel fallbackChatModel,
             ObjectProvider<ObservationRegistry> observationRegistryProvider,
             ObjectProvider<ChatMemory> chatMemoryProvider,
             @Value("${rag.guardrail.l2.enabled:true}") boolean enabled,
@@ -384,6 +384,6 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     /** 链序：InputSanitize(300) 之后、Memory(400) 之前——L2 拒绝内容不入多轮记忆 */
     @Override
     public int getOrder() {
-        return 320;
+        return Constants.ChainOrder.SEMANTIC_INJECTION;
     }
 }

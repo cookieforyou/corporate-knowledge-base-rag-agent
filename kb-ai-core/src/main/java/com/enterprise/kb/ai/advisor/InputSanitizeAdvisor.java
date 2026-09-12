@@ -190,6 +190,6 @@ public class InputSanitizeAdvisor implements BaseAdvisor, GuardrailRulesListener
 
     @Override
     public int getOrder() {
-        return 300;
+        return Constants.ChainOrder.INPUT_SANITIZE;
     }
 }

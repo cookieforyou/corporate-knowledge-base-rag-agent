@@ -45,6 +45,16 @@ public class SmartParsingRouter {
 
     /** 文本密度阈值（字符/页）：低于此值疑似扫描件 → OCR 路由 */
     private static final double TEXT_DENSITY_THRESHOLD = 50.0;
+
+    // ── 解析中转 metadata 键（toDocuments 写 ↔ DocumentEtlService 读，模块内契约）──
+    /** 解析统计：表格数（深度链路经元数据携带） */
+    public static final String TABLE_COUNT_KEY = "table_count";
+    /** 解析统计：图片数 */
+    public static final String IMAGE_COUNT_KEY = "image_count";
+    /** 解析统计：页数（深度链路解析服务回报；NATIVE 按 Tika 文档段数回落） */
+    public static final String PAGE_COUNT_KEY = "page_count";
+    /** 页段页码（persistChunks 读取落 kb_chunk.page_num） */
+    public static final String PAGE_NUMBER_KEY = "page_number";
     /** 密度探测页数上限（避免大文档全量提取） */
     private static final int PROBE_PAGES = 3;
 
@@ -140,9 +150,9 @@ public class SmartParsingRouter {
      */
     private static List<Document> toDocuments(ParsingResult result) {
         Map<String, Object> stats = new HashMap<>();
-        stats.put("table_count", result.tableCount());
-        stats.put("image_count", result.imageCount());
-        stats.put("page_count", result.pageCount());
+        stats.put(TABLE_COUNT_KEY, result.tableCount());
+        stats.put(IMAGE_COUNT_KEY, result.imageCount());
+        stats.put(PAGE_COUNT_KEY, result.pageCount());
 
         if (result.pages() == null || result.pages().isEmpty()) {
             return List.of(Document.builder().text(result.markdown()).metadata(stats).build());
@@ -150,7 +160,7 @@ public class SmartParsingRouter {
         List<Document> documents = new ArrayList<>();
         for (ParsingResult.PageSegment page : result.pages()) {
             Map<String, Object> meta = new HashMap<>(stats);
-            meta.put("page_number", page.pageNum());   // ETL persistChunks 读取此键
+            meta.put(PAGE_NUMBER_KEY, page.pageNum());   // ETL persistChunks 读取此键
             documents.add(Document.builder().text(page.content()).metadata(meta).build());
         }
         return documents;

@@ -78,7 +78,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
 
     public AuditTraceAdvisor(KbAuditLogRepository auditLogRepository,
                              JsonMapper jsonMapper,
-                             @Qualifier("auditExecutor") AsyncTaskExecutor auditExecutor,
+                             @Qualifier(Constants.BeanNames.AUDIT_EXECUTOR) AsyncTaskExecutor auditExecutor,
                              AiBusinessMetrics metrics,
                              PiiRecognizerRegistry piiRegistry,
                              @Value("${rag.audit.enabled:true}") boolean enabled) {
@@ -150,7 +150,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
 
     @Override
     public int getOrder() {
-        return 10;
+        return Constants.ChainOrder.AUDIT_TRACE;
     }
 
     // ── 审计记录组装与落库 ──
@@ -275,10 +275,10 @@ public class AuditTraceAdvisor implements BaseAdvisor {
             for (Document doc : entry.documents()) {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put(Constants.Retrieval.META_CHUNK_ID, asString(doc.getMetadata().get(Constants.Retrieval.META_CHUNK_ID)));
-                item.put("file_name", asString(doc.getMetadata().get("file_name")));
-                Object pageNum = doc.getMetadata().get("page_num");
+                item.put(Constants.Retrieval.META_FILE_NAME, asString(doc.getMetadata().get(Constants.Retrieval.META_FILE_NAME)));
+                Object pageNum = doc.getMetadata().get(Constants.Retrieval.META_PAGE_NUM);
                 if (pageNum != null) {
-                    item.put("page_num", pageNum);
+                    item.put(Constants.Retrieval.META_PAGE_NUM, pageNum);
                 }
                 Object score = isFinal
                     ? doc.getMetadata().get(Constants.Retrieval.META_RERANK_SCORE)

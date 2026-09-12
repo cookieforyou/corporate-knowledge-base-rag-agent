@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -23,7 +24,7 @@ class HtmlProtectingSplitterTest {
 
         assertThat(chunks).isNotEmpty();
         // 快速路径产物不携带 chunk_type 元数据（落库时缺省 TEXT，Phase 1 行为不变）
-        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey("chunk_type"));
+        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(Constants.Retrieval.META_CHUNK_TYPE));
     }
 
     @Test
@@ -37,7 +38,7 @@ class HtmlProtectingSplitterTest {
         List<Document> chunks = splitter.apply(List.of(new Document(docText)));
 
         List<Document> tableChunks = chunks.stream()
-            .filter(c -> "TABLE".equals(c.getMetadata().get("chunk_type"))).toList();
+            .filter(c -> "TABLE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE))).toList();
         assertThat(tableChunks).hasSize(1);
 
         Document tableChunk = tableChunks.get(0);
@@ -45,7 +46,7 @@ class HtmlProtectingSplitterTest {
         // original_html 保留完整结构（落库写 kb_chunk.original_content）
         assertThat(tableChunk.getMetadata().get("original_html").toString()).contains("<table>");
         // 表格前后的文本仍正常切分
-        assertThat(chunks.stream().filter(c -> !c.getMetadata().containsKey("chunk_type"))
+        assertThat(chunks.stream().filter(c -> !c.getMetadata().containsKey(Constants.Retrieval.META_CHUNK_TYPE))
             .count()).isGreaterThanOrEqualTo(1);
     }
 
@@ -55,7 +56,7 @@ class HtmlProtectingSplitterTest {
 
         List<Document> chunks = splitter.apply(List.of(new Document(docText)));
 
-        assertThat(chunks).noneMatch(c -> "TABLE".equals(c.getMetadata().get("chunk_type")));
+        assertThat(chunks).noneMatch(c -> "TABLE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE)));
     }
 
     @Test
@@ -65,7 +66,7 @@ class HtmlProtectingSplitterTest {
         List<Document> chunks = splitter.apply(List.of(new Document(docText)));
 
         List<Document> imageChunks = chunks.stream()
-            .filter(c -> "IMAGE".equals(c.getMetadata().get("chunk_type"))).toList();
+            .filter(c -> "IMAGE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE))).toList();
         assertThat(imageChunks).hasSize(1);
         assertThat(imageChunks.get(0).getMetadata().get("original_html").toString())
             .contains("arch.png");
@@ -123,7 +124,7 @@ class HtmlProtectingSplitterTest {
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
         Document tableChunk = chunks.stream()
-            .filter(c -> "TABLE".equals(c.getMetadata().get("chunk_type")))
+            .filter(c -> "TABLE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE)))
             .findFirst().orElseThrow();
         assertThat(tableChunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
             .isEqualTo("合同条款 > 费用明细");

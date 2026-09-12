@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.dataset;
 
+import com.enterprise.kb.commons.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -102,7 +103,7 @@ public class IndirectDatasetLoader {
 
     private static String sha256(String text) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance(Constants.DIGEST_SHA_256).digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 不可用", e);

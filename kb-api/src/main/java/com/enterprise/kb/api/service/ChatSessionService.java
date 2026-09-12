@@ -72,7 +72,7 @@ public class ChatSessionService {
     public ChatSessionService(KbSessionRepository sessionRepository,
                               KbMessageRepository messageRepository,
                               KbFeedbackRepository feedbackRepository,
-                              @Qualifier("agentChatMemory") ChatMemory agentChatMemory,
+                              @Qualifier(Constants.BeanNames.AGENT_CHAT_MEMORY) ChatMemory agentChatMemory,
                               RedissonClient redissonClient,
                               JsonMapper jsonMapper) {
         this.sessionRepository = sessionRepository;
@@ -104,15 +104,15 @@ public class ChatSessionService {
      * <p><b>会话链路归属（簇⑥ E2E 补强四）</b>：mode 会话首建时写入 kb_session.mode
      * （首轮归属，已存在不覆写），会话列表回传供前端恢复对应链路 tab。
      */
-    @Async("sessionArchiveExecutor")
+    @Async(Constants.BeanNames.SESSION_ARCHIVE_EXECUTOR)
     public void archiveTurn(String sessionId, String tenantId, String userId, String mode,
                             String query, String answer, String assistantMessageId,
                             AgentStreamEvent.TraceEvent traceEvent, String traceId,
                             List<AgentStreamEvent.ToolCallInfo> toolCalls) {
         try {
             ensureSession(sessionId, tenantId, userId, mode, query);
-            messageRepository.save(newMessage(sessionId, "USER", query, null, null, null));
-            messageRepository.save(newMessage(sessionId, "ASSISTANT", answer, assistantMessageId,
+            messageRepository.save(newMessage(sessionId, Constants.MessageRole.USER, query, null, null, null));
+            messageRepository.save(newMessage(sessionId, Constants.MessageRole.ASSISTANT, answer, assistantMessageId,
                 serializeTrace(traceEvent), metadataOf(traceId, toolCalls)));
             sessionRepository.incrementMessageCount(sessionId, 2);
         } catch (Exception e) {
@@ -229,8 +229,8 @@ public class ChatSessionService {
                     continue;
                 }
                 switch (m.getRole()) {
-                    case "USER" -> messages.add(new UserMessage(m.getContent()));
-                    case "ASSISTANT" -> messages.add(new AssistantMessage(m.getContent()));
+                    case Constants.MessageRole.USER -> messages.add(new UserMessage(m.getContent()));
+                    case Constants.MessageRole.ASSISTANT -> messages.add(new AssistantMessage(m.getContent()));
                     default -> log.warn("回填跳过未知角色消息: sessionId={}, role={}", sessionId, m.getRole());
                 }
             }
@@ -300,7 +300,7 @@ public class ChatSessionService {
     /** 批量查当前用户对 assistant 消息的既有评价（upsert 语义下至多每消息一条） */
     private Map<String, KbFeedback> feedbackOf(List<KbMessage> messages, String userId) {
         List<String> assistantIds = messages.stream()
-            .filter(m -> "ASSISTANT".equals(m.getRole()))
+            .filter(m -> Constants.MessageRole.ASSISTANT.equals(m.getRole()))
             .map(KbMessage::getId)
             .toList();
         if (assistantIds.isEmpty()) {
@@ -311,7 +311,7 @@ public class ChatSessionService {
     }
 
     private HistoryMessageItem toItem(KbMessage m, KbFeedback feedback) {
-        boolean assistant = "ASSISTANT".equals(m.getRole());
+        boolean assistant = Constants.MessageRole.ASSISTANT.equals(m.getRole());
         return new HistoryMessageItem(
             m.getId(),
             m.getRole(),

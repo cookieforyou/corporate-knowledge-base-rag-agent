@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.cache;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RMap;
@@ -269,7 +270,7 @@ public class SemanticCacheService {
 
     static String fingerprint(String question) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance(Constants.DIGEST_SHA_256);
             byte[] hash = digest.digest(question.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash, 0, 8);
         } catch (NoSuchAlgorithmException e) {

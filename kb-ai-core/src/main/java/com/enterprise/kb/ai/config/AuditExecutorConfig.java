@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
@@ -12,7 +13,7 @@ import org.springframework.core.task.VirtualThreadTaskExecutor;
 @Configuration
 public class AuditExecutorConfig {
 
-    @Bean
+    @Bean(name = Constants.BeanNames.AUDIT_EXECUTOR)
     public AsyncTaskExecutor auditExecutor() {
         return new VirtualThreadTaskExecutor("audit-");
     }

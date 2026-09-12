@@ -20,7 +20,7 @@
 
 ```
 kb-rag-agent/
-├── kb-commons/        # ApiResponse/BusinessException/Constants（全局常量收敛五分区：ErrorCodes/Retrieval/ChatMode/SseEvent/AuditStatus，规约 §6.3）/TextSanitizer
+├── kb-commons/        # ApiResponse/BusinessException/Constants（全局常量收敛十一分区：ErrorCodes/Retrieval[含隔离过滤五键]/ChatMode/SseEvent/AuditStatus/MessageRole/JwtClaims/McpTool/ChainOrder/Ws/BeanNames，规约 §6.3；kb-eval 值域落模块本地 EvalConstants）/TextSanitizer
 ├── kb-domain/         # 8 Entity + 8 Repository + 6 枚举 + schema.sql + db/migration/（Flyway V1 基线）
 ├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
 ├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写

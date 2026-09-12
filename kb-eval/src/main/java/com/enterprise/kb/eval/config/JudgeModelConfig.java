@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -25,7 +26,7 @@ import java.util.Map;
 @Configuration
 public class JudgeModelConfig {
 
-    @Bean
+    @Bean(name = Constants.BeanNames.JUDGE_CHAT_CLIENT)
     public ChatClient judgeChatClient(EvalProperties props) {
         EvalProperties.Judge cfg = props.getJudge();
         // 快失败：密钥缺失直接报清晰错误，避免落入 OpenAI SDK 的晦涩 credential 异常

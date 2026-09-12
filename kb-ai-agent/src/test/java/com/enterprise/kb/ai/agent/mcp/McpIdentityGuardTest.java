@@ -27,7 +27,7 @@ class McpIdentityGuardTest {
     /** principal 为 Jwt 的已认证 Authentication（守卫只契约 principal 类型，不绑定具体令牌类） */
     private static void authenticate(Jwt jwt) {
         SecurityContextHolder.getContext()
-            .setAuthentication(new TestingAuthenticationToken(jwt, null, "USER"));
+            .setAuthentication(new TestingAuthenticationToken(jwt, null, Constants.MessageRole.USER));
     }
 
     private static Jwt.Builder jwt() {
@@ -45,7 +45,7 @@ class McpIdentityGuardTest {
 
     @Test
     void missingOwnerClaimRejectedFailClosed() {
-        authenticate(jwt().claim("sub", "u-1").build());
+        authenticate(jwt().claim(Constants.JwtClaims.SUB, "u-1").build());
         McpIdentityGuard guard = new McpIdentityGuard("");
 
         assertThatThrownBy(guard::requireIdentity)
@@ -55,7 +55,7 @@ class McpIdentityGuardTest {
 
     @Test
     void validJwtMaterializesRetrievalContext() {
-        authenticate(jwt().claim("owner", "t-1").claim("sub", "u-1").build());
+        authenticate(jwt().claim(Constants.JwtClaims.OWNER, "t-1").claim(Constants.JwtClaims.SUB, "u-1").build());
         McpIdentityGuard guard = new McpIdentityGuard("");
 
         RetrievalContext ctx = guard.requireIdentity();
@@ -66,7 +66,7 @@ class McpIdentityGuardTest {
 
     @Test
     void blankSubFallsBackToAnonymous() {
-        authenticate(jwt().claim("owner", "t-1").build());
+        authenticate(jwt().claim(Constants.JwtClaims.OWNER, "t-1").build());
         McpIdentityGuard guard = new McpIdentityGuard("");
 
         assertThat(guard.requireIdentity().getUserId()).isEqualTo("anonymous");
@@ -74,7 +74,7 @@ class McpIdentityGuardTest {
 
     @Test
     void scopeRequiredPresentInCollectionClaimPasses() {
-        authenticate(jwt().claim("owner", "t-1").claim("sub", "u-1")
+        authenticate(jwt().claim(Constants.JwtClaims.OWNER, "t-1").claim(Constants.JwtClaims.SUB, "u-1")
             .claim("scope", List.of("kb.read", "kb.write")).build());
         McpIdentityGuard guard = new McpIdentityGuard("kb.read");
 
@@ -83,7 +83,7 @@ class McpIdentityGuardTest {
 
     @Test
     void scopeRequiredPresentInSpaceDelimitedStringClaimPasses() {
-        authenticate(jwt().claim("owner", "t-1").claim("sub", "u-1")
+        authenticate(jwt().claim(Constants.JwtClaims.OWNER, "t-1").claim(Constants.JwtClaims.SUB, "u-1")
             .claim("scope", "kb.read kb.write").build());
         McpIdentityGuard guard = new McpIdentityGuard("kb.write");
 
@@ -92,7 +92,7 @@ class McpIdentityGuardTest {
 
     @Test
     void scopeRequiredMissingDenied() {
-        authenticate(jwt().claim("owner", "t-1").claim("sub", "u-1")
+        authenticate(jwt().claim(Constants.JwtClaims.OWNER, "t-1").claim(Constants.JwtClaims.SUB, "u-1")
             .claim("scope", "other.scope").build());
         McpIdentityGuard guard = new McpIdentityGuard("kb.read");
 
@@ -103,7 +103,7 @@ class McpIdentityGuardTest {
 
     @Test
     void scopeRequiredWithoutAnyScopeClaimDenied() {
-        authenticate(jwt().claim("owner", "t-1").claim("sub", "u-1").build());
+        authenticate(jwt().claim(Constants.JwtClaims.OWNER, "t-1").claim(Constants.JwtClaims.SUB, "u-1").build());
         McpIdentityGuard guard = new McpIdentityGuard("kb.read");
 
         assertThatThrownBy(guard::requireIdentity)

@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.OutputGuardrailAdvisor;
@@ -51,12 +52,12 @@ public class ToolAgentChatClientConfig {
     public ToolCallingAdvisor agentToolCallingAdvisor(ToolCallingManager toolCallingManager) {
         return ToolCallingAdvisor.builder()
             .toolCallingManager(toolCallingManager)
-            .advisorOrder(1000)
+            .advisorOrder(Constants.ChainOrder.TOOL_CALLING)
             .build();
     }
 
-    @Bean
-    public ChatClient toolAgentChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+    @Bean(name = Constants.BeanNames.TOOL_AGENT_CHAT_CLIENT)
+    public ChatClient toolAgentChatClient(@Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel chatModel,
                                           ObservationRegistry observationRegistry,
                                           ChatMemory agentChatMemory,
                                           AuditTraceAdvisor auditTraceAdvisor,
@@ -82,7 +83,7 @@ public class ToolAgentChatClientConfig {
                 outputGuardrailAdvisor,
                 inputSanitizeAdvisor,
                 semanticInjectionAdvisor,
-                MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
+                MessageChatMemoryAdvisor.builder(agentChatMemory).order(Constants.ChainOrder.MEMORY).build(),
                 agentToolCallingAdvisor)
             // 簇⑤ 5.3 Mock 拆类后双挂（读+写）——工具集与拆分前等价（三 @Tool 全在）
             .defaultTools(enterpriseMockReadTools, enterpriseMockWriteTools)

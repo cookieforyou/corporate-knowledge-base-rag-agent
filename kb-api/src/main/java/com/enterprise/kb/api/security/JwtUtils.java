@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.security;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,21 +24,21 @@ public class JwtUtils {
     /** 当前用户 ID（sub = UUID） */
     public String getCurrentUserId() {
         return getJwt()
-            .map(jwt -> jwt.getClaimAsString("sub"))
+            .map(jwt -> jwt.getClaimAsString(Constants.JwtClaims.SUB))
             .orElse("anonymous");
     }
 
     /** 当前租户 ID（owner） */
     public String getCurrentTenantId() {
         return getJwt()
-            .map(jwt -> jwt.getClaimAsString("owner"))
+            .map(jwt -> jwt.getClaimAsString(Constants.JwtClaims.OWNER))
             .orElse("default");
     }
 
     /** 当前用户名（name） */
     public String getCurrentUsername() {
         return getJwt()
-            .map(jwt -> jwt.getClaimAsString("name"))
+            .map(jwt -> jwt.getClaimAsString(Constants.JwtClaims.NAME))
             .orElse("anonymous");
     }
 
@@ -45,7 +46,7 @@ public class JwtUtils {
     public String getCurrentDisplayName() {
         return getJwt()
             .map(jwt -> jwt.getClaimAsString("displayName"))
-            .or(() -> getJwt().map(jwt -> jwt.getClaimAsString("name")))
+            .or(() -> getJwt().map(jwt -> jwt.getClaimAsString(Constants.JwtClaims.NAME)))
             .orElse("anonymous");
     }
 

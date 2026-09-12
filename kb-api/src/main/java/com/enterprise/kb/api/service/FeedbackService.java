@@ -235,7 +235,7 @@ public class FeedbackService {
             KbMessage m = timeline.get(i);
             if (m.getId().equals(assistantMessage.getId())) {
                 for (int j = i - 1; j >= 0; j--) {
-                    if ("USER".equals(timeline.get(j).getRole())) {
+                    if (Constants.MessageRole.USER.equals(timeline.get(j).getRole())) {
                         return timeline.get(j).getContent();
                     }
                 }

@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.advisor;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -56,6 +57,6 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
     /** 11.2 链序表：检索溯源先于 RetrievalAugmentationAdvisor(500) */
     @Override
     public int getOrder() {
-        return 450;
+        return Constants.ChainOrder.RETRIEVAL_TRACE;
     }
 }

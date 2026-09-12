@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.security;
 
+import com.enterprise.kb.commons.constant.Constants;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -118,7 +119,7 @@ class SecurityConfigTest {
             .doesNotContain("ROLE_ADMIN");
         // claim 缺失（旧 token / 其他 IdP）：fail-safe 不授
         Jwt noClaim = Jwt.withTokenValue("t").header("alg", "none")
-            .claim("owner", "tenant_001").build();
+            .claim(Constants.JwtClaims.OWNER, "tenant_001").build();
         assertThat(converter.convert(noClaim).getAuthorities())
             .extracting(GrantedAuthority::getAuthority)
             .doesNotContain("ROLE_ADMIN");
@@ -127,7 +128,7 @@ class SecurityConfigTest {
     private static Jwt jwt(String owner, boolean isAdmin) {
         return Jwt.withTokenValue("t")
             .header("alg", "none")
-            .claim("owner", owner)
+            .claim(Constants.JwtClaims.OWNER, owner)
             .claim("isAdmin", isAdmin)
             .build();
     }

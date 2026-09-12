@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.metrics;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
@@ -102,7 +103,7 @@ public class AiBusinessMetrics {
     public static final String SIDE_OUTPUT = "output";
 
     /** 族系兜底值（未标注/未知族系统一归口，防 tag 取值漂移） */
-    private static final String FAMILY_UNCLASSIFIED = "UNCLASSIFIED";
+    private static final String FAMILY_UNCLASSIFIED = GuardrailFamily.UNCLASSIFIED.name();
 
     private final Counter feedbackLike;
     private final Counter feedbackDislike;
@@ -422,9 +423,9 @@ public class AiBusinessMetrics {
     /** MCP 三件套工具调用计数（Phase 4 簇⑤ 4.10：search / get_document / ask，调用审计的指标面） */
     public void recordMcpToolCall(String operation) {
         switch (operation) {
-            case "search" -> mcpSearch.increment();
-            case "get_document" -> mcpGetDocument.increment();
-            case "ask" -> mcpAsk.increment();
+            case Constants.McpTool.SEARCH -> mcpSearch.increment();
+            case Constants.McpTool.GET_DOCUMENT -> mcpGetDocument.increment();
+            case Constants.McpTool.ASK -> mcpAsk.increment();
             default -> { /* 未知操作不计——零标签纪律下的键收口 */ }
         }
     }

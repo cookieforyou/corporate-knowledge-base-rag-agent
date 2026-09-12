@@ -94,7 +94,7 @@ public class BadCaseAdminController {
 
     /** 租户守卫（fail-closed）：JWT 缺失或 owner claim 空白 → IDENTITY_INCOMPLETE */
     private static String requireTenantId(Jwt jwt) {
-        String tenantId = jwt != null ? jwt.getClaimAsString("owner") : null;
+        String tenantId = jwt != null ? jwt.getClaimAsString(Constants.JwtClaims.OWNER) : null;
         if (tenantId == null || tenantId.isBlank()) {
             throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }

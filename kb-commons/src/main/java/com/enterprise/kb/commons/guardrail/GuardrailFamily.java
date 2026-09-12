@@ -35,6 +35,7 @@ public enum GuardrailFamily {
     /** 工具诱导族：诱导越权调用工具/执行操作 */
     TOOL_INDUCED,
 
-    /** 兼容档：存量迁移未标注族系 / legacy CSV 词条的过渡归属，词表运营期转正式族系 */
+    /** 兼容档：存量迁移未标注族系 / legacy CSV 词条的过渡归属，词表运营期转正式族系；
+     *  亦作运行期 family 空缺的归一化兜底（FlagMark / 指标 tag 单一来源） */
     UNCLASSIFIED
 }

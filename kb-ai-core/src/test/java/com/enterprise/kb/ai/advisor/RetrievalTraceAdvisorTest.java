@@ -56,6 +56,6 @@ class RetrievalTraceAdvisorTest {
 
     @Test
     void order_is450_beforeRetrievalAugmentationAdvisor() {
-        assertEquals(450, advisor.getOrder());
+        assertEquals(Constants.ChainOrder.RETRIEVAL_TRACE, advisor.getOrder());
     }
 }

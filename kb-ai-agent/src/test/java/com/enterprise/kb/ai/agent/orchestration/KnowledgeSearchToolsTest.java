@@ -70,9 +70,9 @@ class KnowledgeSearchToolsTest {
     @Test
     void searchKnowledgeProjectsRetrieverHits() {
         Map<String, Object> meta = new HashMap<>();
-        meta.put("file_name", "差旅制度.md");
+        meta.put(Constants.Retrieval.META_FILE_NAME, "差旅制度.md");
         meta.put(Constants.Retrieval.META_HEADING_PATH, "报销 > 标准");
-        meta.put("page_num", 3);
+        meta.put(Constants.Retrieval.META_PAGE_NUM, 3);
         Document doc = new Document("差旅报销标准正文", meta);
         when(hybridRetriever.retrieve(any(Query.class))).thenReturn(List.of(doc));
 

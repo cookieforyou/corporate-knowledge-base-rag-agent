@@ -54,7 +54,7 @@ public class KnowledgeSearchTools {
 
     public KnowledgeSearchTools(HybridDocumentRetriever hybridRetriever,
                                 RerankDocumentPostProcessor rerankPostProcessor,
-                                @Qualifier("rewriteQueryTransformer") QueryTransformer rewriteQueryTransformer,
+                                @Qualifier(Constants.BeanNames.REWRITE_QUERY_TRANSFORMER) QueryTransformer rewriteQueryTransformer,
                                 KbDocumentRepository documentRepository,
                                 KbChunkRepository chunkRepository,
                                 JsonMapper jsonMapper,
@@ -118,9 +118,9 @@ public class KnowledgeSearchTools {
             rank++;
             Map<String, Object> meta = doc.getMetadata();
             hits.add(new SearchHit(doc.getId(),
-                asString(meta.get("file_name")),
+                asString(meta.get(Constants.Retrieval.META_FILE_NAME)),
                 asString(meta.get(Constants.Retrieval.META_HEADING_PATH)),
-                meta.get("page_num") instanceof Number n ? n.intValue() : null,
+                meta.get(Constants.Retrieval.META_PAGE_NUM) instanceof Number n ? n.intValue() : null,
                 truncate(doc.getText()),
                 rank));
         }

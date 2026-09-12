@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.ws;
 
+import com.enterprise.kb.commons.constant.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
@@ -41,7 +42,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         try {
             Jwt jwt = jwtDecoder.decode(token);
             attributes.put("userId", jwt.getSubject());
-            attributes.put("tenantId", jwt.getClaimAsString("owner"));
+            attributes.put("tenantId", jwt.getClaimAsString(Constants.JwtClaims.OWNER));
             return true;
         } catch (Exception e) {
             log.warn("WS 握手拒绝：JWT 校验失败（{}）", e.getMessage());

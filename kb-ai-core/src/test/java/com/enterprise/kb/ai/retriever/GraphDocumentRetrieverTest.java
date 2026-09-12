@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.retriever;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.config.GraphRetrievalProperties;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.domain.enums.ChunkType;
@@ -110,7 +111,7 @@ class GraphDocumentRetrieverTest {
         assertEquals(1, first.getMetadata().get("graph_rank"));
         assertEquals(0.9, (Double) first.getMetadata().get("graph_score"), 1e-12);
         assertEquals("A公司，张工", first.getMetadata().get("graph_entity_hits"));
-        assertEquals("手册.pdf", first.getMetadata().get("file_name"));
+        assertEquals("手册.pdf", first.getMetadata().get(Constants.Retrieval.META_FILE_NAME));
         assertEquals("graph", first.getMetadata().get("retrieval_source"));
         assertEquals(1.0, registry.counter("rag.retrieval.graph.total").count());
         assertEquals(1.0, registry.counter("rag.retrieval.graph.hit").count());

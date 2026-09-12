@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
@@ -55,7 +56,7 @@ public class AnswerDraftRunner implements ApplicationRunner {
     public AnswerDraftRunner(GoldenDatasetLoader datasetLoader,
                              KbChunkRepository chunkRepository,
                              List<RetrievalProbe> probes,
-                             @Qualifier("judgeChatClient") ChatClient judgeChatClient,
+                             @Qualifier(Constants.BeanNames.JUDGE_CHAT_CLIENT) ChatClient judgeChatClient,
                              JsonMapper jsonMapper) {
         this.datasetLoader = datasetLoader;
         this.chunkRepository = chunkRepository;

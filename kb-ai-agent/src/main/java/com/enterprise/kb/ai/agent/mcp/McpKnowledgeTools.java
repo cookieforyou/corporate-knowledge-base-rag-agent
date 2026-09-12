@@ -69,7 +69,7 @@ public class McpKnowledgeTools {
 
     public McpKnowledgeTools(HybridDocumentRetriever hybridRetriever,
                              RerankDocumentPostProcessor rerankPostProcessor,
-                             @Qualifier("rewriteQueryTransformer") QueryTransformer rewriteQueryTransformer,
+                             @Qualifier(Constants.BeanNames.REWRITE_QUERY_TRANSFORMER) QueryTransformer rewriteQueryTransformer,
                              RagChatService ragChatService,
                              KbDocumentRepository documentRepository,
                              KbChunkRepository chunkRepository,
@@ -94,7 +94,7 @@ public class McpKnowledgeTools {
     }
 
     /** 混合检索：改写 → 双路召回 → RRF 融合 → 重排，返回 Top-K 候选（不经 LLM） */
-    @McpTool(name = "search",
+    @McpTool(name = Constants.McpTool.SEARCH,
         description = "在企业知识库中执行混合检索（向量 + BM25 + 重排序），返回与查询最相关的文档片段列表（含文件名/页码/标题路径/正文）。适用于查找事实、定位证据文档。",
         annotations = @McpTool.McpAnnotations(readOnlyHint = true))
     public List<SearchHitView> search(
@@ -103,11 +103,11 @@ public class McpKnowledgeTools {
             throw new BusinessException(Constants.ErrorCodes.MCP_QUERY_EMPTY, "检索问题不可为空");
         }
         RetrievalContext ctx = identityGuard.requireIdentity();
-        metrics.recordMcpToolCall("search");
+        metrics.recordMcpToolCall(Constants.McpTool.SEARCH);
         // 安全簇② B3：只读工具不经 advisor 链，限流/审计由此独立补位
         // （桶 rag:ratelimit:mcp:* 与对话链分账；超限 RATE_LIMITED 经 MCP 错误帧回传）
         mcpRateLimiter.acquire(ctx.getTenantId());
-        mcpAuditRecorder.record("search", query, ctx);
+        mcpAuditRecorder.record(Constants.McpTool.SEARCH, query, ctx);
 
         Query rewritten = rewriteQueryTransformer.apply(new Query(query));
         Map<String, Object> queryContext = Map.of(RetrievalContext.CONTEXT_KEY, ctx);
@@ -122,10 +122,10 @@ public class McpKnowledgeTools {
             rank++;
             Map<String, Object> meta = doc.getMetadata();
             hits.add(new SearchHitView(doc.getId(),
-                asString(meta.get("file_name")),
+                asString(meta.get(Constants.Retrieval.META_FILE_NAME)),
                 asString(meta.get(Constants.Retrieval.META_HEADING_PATH)),
-                meta.get("page_num") instanceof Number n ? n.intValue() : null,
-                asString(meta.get("chunk_type")),
+                meta.get(Constants.Retrieval.META_PAGE_NUM) instanceof Number n ? n.intValue() : null,
+                asString(meta.get(Constants.Retrieval.META_CHUNK_TYPE)),
                 doc.getText(),
                 meta.get(Constants.Retrieval.META_RERANK_SCORE) instanceof Number s ? s.doubleValue() : null,
                 rank));
@@ -134,15 +134,15 @@ public class McpKnowledgeTools {
     }
 
     /** 文档全文读取：文档元信息 + 存活 chunk 序列（软删行不返回，上限截断） */
-    @McpTool(name = "get_document",
+    @McpTool(name = Constants.McpTool.GET_DOCUMENT,
         description = "按文档 ID 读取知识库文档的完整内容（元信息 + 按序正文片段）。文档 ID 可经 search 工具结果的 chunkId 前缀或对话溯源获得。",
         annotations = @McpTool.McpAnnotations(readOnlyHint = true))
     public DocumentView getDocument(
         @McpArg(name = "documentId", description = "文档 ID（kb_document 主键）", required = true) String documentId) {
         RetrievalContext ctx = identityGuard.requireIdentity();
-        metrics.recordMcpToolCall("get_document");
+        metrics.recordMcpToolCall(Constants.McpTool.GET_DOCUMENT);
         mcpRateLimiter.acquire(ctx.getTenantId());
-        mcpAuditRecorder.record("get_document", documentId, ctx);
+        mcpAuditRecorder.record(Constants.McpTool.GET_DOCUMENT, documentId, ctx);
 
         // 租户 fail-closed：不存在与跨租户一律 MCP_DOC_NOT_FOUND（不泄露存在性）
         KbDocument doc = documentRepository.findById(documentId).orElse(null);
@@ -162,7 +162,7 @@ public class McpKnowledgeTools {
     }
 
     /** RAG 问答：经 ragAgentChatClient 全链（意图路由/护栏/配额/审计/多模型路由自动复用） */
-    @McpTool(name = "ask",
+    @McpTool(name = Constants.McpTool.ASK,
         description = "向企业知识库提问并获得带引用编号（[ref-N]）的 RAG 回答。适用于需要综合多个文档证据回答的问题；事实定位请优先用 search。",
         annotations = @McpTool.McpAnnotations(readOnlyHint = true))
     public String ask(
@@ -171,7 +171,7 @@ public class McpKnowledgeTools {
             throw new BusinessException(Constants.ErrorCodes.MCP_QUERY_EMPTY, "问题不可为空");
         }
         RetrievalContext ctx = identityGuard.requireIdentity();
-        metrics.recordMcpToolCall("ask");
+        metrics.recordMcpToolCall(Constants.McpTool.ASK);
         // MCP 调用无会话语义：每次调用独立会话 ID（记忆 Advisor 硬断言需非空）；
         // mcp- 前缀保留来源标记 + 去横线 UUID 钉死 36 字符——kb_audit_log.session_id
         // VARCHAR(36)，带横线 UUID 前缀形态 40 字符致审计落库失败（E2E 实证）

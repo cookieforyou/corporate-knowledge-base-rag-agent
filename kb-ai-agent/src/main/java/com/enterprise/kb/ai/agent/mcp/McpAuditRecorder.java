@@ -47,7 +47,7 @@ public class McpAuditRecorder {
     private final boolean dbAuditEnabled;
 
     public McpAuditRecorder(KbAuditLogRepository auditLogRepository,
-                            @Qualifier("auditExecutor") AsyncTaskExecutor auditExecutor,
+                            @Qualifier(Constants.BeanNames.AUDIT_EXECUTOR) AsyncTaskExecutor auditExecutor,
                             JsonMapper jsonMapper,
                             PiiRecognizerRegistry piiRegistry,
                             @Value("${rag.mcp.audit.enabled:false}") boolean dbAuditEnabled) {

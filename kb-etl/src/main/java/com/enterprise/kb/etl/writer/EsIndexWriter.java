@@ -5,6 +5,7 @@ import co.elastic.clients.elasticsearch._types.Refresh;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
+import com.enterprise.kb.domain.enums.ChunkType;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.model.KbDocument;
 import com.enterprise.kb.etl.service.DocumentEtlService;
@@ -51,7 +52,7 @@ public class EsIndexWriter {
                     .docId(doc.getId())
                     .tenantId(doc.getTenantId())
                     .content(e.getContent())
-                    .chunkType(e.getChunkType() != null ? e.getChunkType().name() : "TEXT")
+                    .chunkType(e.getChunkType() != null ? e.getChunkType().name() : ChunkType.TEXT.name())
                     .headingPath(e.getHeadingPath())
                     .fileName(doc.getOriginalName())
                     .pageNum(e.getPageNum())

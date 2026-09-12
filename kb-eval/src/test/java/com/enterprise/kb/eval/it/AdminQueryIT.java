@@ -190,7 +190,7 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
         KbMessage message = new KbMessage();
         message.setId(id);
         message.setSessionId(sessionId);
-        message.setRole("USER");
+        message.setRole(Constants.MessageRole.USER);
         message.setContent("消息-" + id);
         message.setCreatedAt(LocalDateTime.of(2026, 8, 14, 8, 0));
         messageRepository.save(message);

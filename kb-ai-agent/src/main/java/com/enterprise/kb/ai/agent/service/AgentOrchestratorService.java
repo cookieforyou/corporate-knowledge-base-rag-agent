@@ -30,7 +30,7 @@ public class AgentOrchestratorService {
     private final ChatClient orchestratorChatClient;
 
     /** 显式构造器注入：多 ChatClient Bean 必须 @Qualifier 限定（3.2 @Primary 歧义教训） */
-    public AgentOrchestratorService(@Qualifier("orchestratorChatClient") ChatClient orchestratorChatClient) {
+    public AgentOrchestratorService(@Qualifier(Constants.BeanNames.ORCHESTRATOR_CHAT_CLIENT) ChatClient orchestratorChatClient) {
         this.orchestratorChatClient = orchestratorChatClient;
     }
 

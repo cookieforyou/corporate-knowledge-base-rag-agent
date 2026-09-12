@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.advisor.InputSanitizeAdvisor;
 import com.enterprise.kb.ai.advisor.RetrievalTraceAdvisor;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
@@ -25,8 +26,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ChatConfig {
 
-    @Bean
-    public ChatClient chatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+    @Bean(name = Constants.BeanNames.CHAT_CLIENT)
+    public ChatClient chatClient(@Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel chatModel,
                                  RetrievalTraceAdvisor retrievalTraceAdvisor,
                                  RetrievalAugmentationAdvisor retrievalAugmentationAdvisor) {
         return ChatClient.builder(chatModel)
@@ -41,8 +42,8 @@ public class ChatConfig {
      * （免 429 污染判定、免审计表注入样本噪声、免输出替换干扰）。
      * 被测模型复用 smartRoutingChatModel（与被测 chatClient 同源）。
      */
-    @Bean
-    public ChatClient evalGuardrailChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+    @Bean(name = Constants.BeanNames.EVAL_GUARDRAIL_CHAT_CLIENT)
+    public ChatClient evalGuardrailChatClient(@Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel chatModel,
                                               InputSanitizeAdvisor inputSanitizeAdvisor) {
         return ChatClient.builder(chatModel)
             .defaultSystem(PromptTemplates.EVAL_SYSTEM_PROMPT)
@@ -58,8 +59,8 @@ public class ChatConfig {
      * 力判直通：L1 未拦样本逐条进 L2 判定——力判键只存在于 eval 链 context，
      * 生产链与 chain-probe 干净集不携带不受污染。
      */
-    @Bean
-    public ChatClient evalGuardrailL2ChatClient(@Qualifier("smartRoutingChatModel") ChatModel chatModel,
+    @Bean(name = Constants.BeanNames.EVAL_GUARDRAIL_L2_CHAT_CLIENT)
+    public ChatClient evalGuardrailL2ChatClient(@Qualifier(Constants.BeanNames.SMART_ROUTING_CHAT_MODEL) ChatModel chatModel,
                                                 InputSanitizeAdvisor inputSanitizeAdvisor,
                                                 SemanticInjectionAdvisor semanticInjectionAdvisor) {
         return ChatClient.builder(chatModel)

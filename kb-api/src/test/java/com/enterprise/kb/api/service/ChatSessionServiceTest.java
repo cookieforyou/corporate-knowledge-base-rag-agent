@@ -88,7 +88,7 @@ class ChatSessionServiceTest {
         ArgumentCaptor<KbMessage> messageCaptor = ArgumentCaptor.forClass(KbMessage.class);
         verify(messageRepository, Mockito.times(2)).save(messageCaptor.capture());
         List<KbMessage> messages = messageCaptor.getAllValues();
-        assertThat(messages).extracting(KbMessage::getRole).containsExactly("USER", "ASSISTANT");
+        assertThat(messages).extracting(KbMessage::getRole).containsExactly(Constants.MessageRole.USER, Constants.MessageRole.ASSISTANT);
         assertThat(messages).allSatisfy(m -> assertThat(m.getSessionId()).isEqualTo("s1"));
         assertThat(messages.get(0).getContent()).isEqualTo("什么是增值税发票？");
         assertThat(messages.get(1).getContent()).isEqualTo("增值税发票是……");
@@ -219,7 +219,7 @@ class ChatSessionServiceTest {
         when(agentChatMemory.get("s1")).thenReturn(List.of());
         // PG 倒序返回（新→旧）：期望反转为升序写入
         when(messageRepository.findTop20BySessionIdOrderByCreatedAtDesc("s1"))
-            .thenReturn(List.of(message("s1", "ASSISTANT", "回答一"), message("s1", "USER", "问题一")));
+            .thenReturn(List.of(message("s1", Constants.MessageRole.ASSISTANT, "回答一"), message("s1", Constants.MessageRole.USER, "问题一")));
 
         service.reseedMemoryIfAbsent("s1");
 
@@ -281,7 +281,7 @@ class ChatSessionServiceTest {
         stubGuardAcquired();
         when(agentChatMemory.get("s1")).thenReturn(List.of());
         when(messageRepository.findTop20BySessionIdOrderByCreatedAtDesc("s1"))
-            .thenReturn(List.of(message("s1", "USER", "问题一"), message("s1", "ASSISTANT", "  ")));
+            .thenReturn(List.of(message("s1", Constants.MessageRole.USER, "问题一"), message("s1", Constants.MessageRole.ASSISTANT, "  ")));
 
         service.reseedMemoryIfAbsent("s1");
 
@@ -343,9 +343,9 @@ class ChatSessionServiceTest {
         owned.setUserId("u");
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
 
-        KbMessage user = message("s1", "USER", "问题一");
+        KbMessage user = message("s1", Constants.MessageRole.USER, "问题一");
         user.setId("m-user");
-        KbMessage assistant = message("s1", "ASSISTANT", "回答一");
+        KbMessage assistant = message("s1", Constants.MessageRole.ASSISTANT, "回答一");
         assistant.setId("m-ast");
         assistant.setCitations(jsonMapper.writeValueAsString(sampleTrace()));
         assistant.setMetadata(jsonMapper.writeValueAsString(Map.of("traceId", "trace-xyz")));
@@ -394,7 +394,7 @@ class ChatSessionServiceTest {
         owned.setUserId("u");
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
 
-        KbMessage assistant = message("s1", "ASSISTANT", "回答");
+        KbMessage assistant = message("s1", Constants.MessageRole.ASSISTANT, "回答");
         assistant.setId("m-ast");
         assistant.setMetadata(jsonMapper.writeValueAsString(Map.of(
             "traceId", "trace-xyz",
@@ -418,7 +418,7 @@ class ChatSessionServiceTest {
         owned.setUserId("u");
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
 
-        KbMessage assistant = message("s1", "ASSISTANT", "回答");
+        KbMessage assistant = message("s1", Constants.MessageRole.ASSISTANT, "回答");
         assistant.setId("m-ast");
         assistant.setMetadata(jsonMapper.writeValueAsString(Map.of("traceId", "trace-xyz")));
         when(messageRepository.findBySessionIdOrderByCreatedAt("s1")).thenReturn(List.of(assistant));
@@ -434,7 +434,7 @@ class ChatSessionServiceTest {
         owned.setTenantId("t");
         owned.setUserId("u");
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(owned));
-        KbMessage assistant = message("s1", "ASSISTANT", "回答一");
+        KbMessage assistant = message("s1", Constants.MessageRole.ASSISTANT, "回答一");
         assistant.setId("m-ast");
         assistant.setCitations("{这不是合法 JSON");
         when(messageRepository.findBySessionIdOrderByCreatedAt("s1")).thenReturn(List.of(assistant));

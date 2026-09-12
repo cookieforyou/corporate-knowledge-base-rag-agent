@@ -75,7 +75,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
                                    RetrievalProperties properties,
                                    // 容器内 ExecutorService Bean 不唯一（编排开关开启态另有
                                    // orchestratorSubAgentExecutor）——显式限定防按类型歧义（坑位㊺）
-                                   @Qualifier("hybridRetrievalExecutor") ExecutorService executor,
+                                   @Qualifier(Constants.BeanNames.HYBRID_RETRIEVAL_EXECUTOR) ExecutorService executor,
                                    ObjectProvider<GraphDocumentRetriever> graphRetrieverProvider) {
         this.vectorStore = vectorStore;
         this.esRetriever = esRetriever;

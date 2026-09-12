@@ -70,7 +70,7 @@ public class GraphBackfillService {
 
     public GraphBackfillService(KbDocumentRepository documentRepository,
                                 ObjectProvider<GraphExtractionService> extractionServiceProvider,
-                                @Qualifier("etlExecutor") Executor etlExecutor,
+                                @Qualifier(Constants.BeanNames.ETL_EXECUTOR) Executor etlExecutor,
                                 RedisGraphBackfillStore store) {
         this.documentRepository = documentRepository;
         this.extractionServiceProvider = extractionServiceProvider;

@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.it;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import org.springframework.ai.document.Document;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -156,9 +157,9 @@ public abstract class AbstractAdvisorChainIT {
     protected static Document doc(String id, String text, String tenantId) {
         return Document.builder().id(id).text(text)
             .metadata(Map.of(
-                "tenant_id", tenantId,
-                "is_deleted", false,
-                "chunk_type", "TEXT",
+                Constants.Retrieval.META_TENANT_ID, tenantId,
+                Constants.Retrieval.META_IS_DELETED, false,
+                Constants.Retrieval.META_CHUNK_TYPE, "TEXT",
                 "doc_id", "doc-" + id))
             .build();
     }

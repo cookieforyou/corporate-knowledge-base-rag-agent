@@ -56,7 +56,7 @@ import java.util.regex.PatternSyntaxException;
 @Service
 public class GuardrailRuleOpsService {
 
-    private static final String SIDE_INJECTION = "injection";
+    private static final String SIDE_INJECTION = DbGuardrailRulesSource.SIDE_INJECTION;
     private static final String SIDE_OUTPUT = "output";
     private static final int MAX_VALUE_CHARS = 500;
     private static final String ORIGIN_API = "API";
