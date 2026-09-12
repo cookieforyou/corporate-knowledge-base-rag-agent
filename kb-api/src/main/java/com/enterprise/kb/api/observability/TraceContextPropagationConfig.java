@@ -8,7 +8,11 @@ import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Hooks;
 
 /**
- * Langfuse 观测接入配置（Phase 4 簇①）
+ * trace 上下文传播配置（Phase 4 簇①）
+ *
+ * <p>更名注记（2026-09-12）：原 LangfuseObservabilityConfig——簇① 时代观测后端唯
+ * 一为 Langfuse 云故随物命名；本类职责（Reactor 上下文传播接线）与后端无关，Jaeger
+ * 本栈形态实证同服务，随 env 键族 LANGFUSE_* → TRACING_* 归一化同批正名。
  *
  * <p>Reactor 自动上下文传播——簇① E2E 实证缺陷修复：ChatClient/检索/embedding 各
  * observation 在 SSE 流式链路上散为孤立 trace（不挂 HTTP 请求父 trace）。开
@@ -22,7 +26,7 @@ import reactor.core.publisher.Hooks;
  */
 @Slf4j
 @Configuration
-public class LangfuseObservabilityConfig {
+public class TraceContextPropagationConfig {
 
     @Bean
     ReactorContextPropagationEnabler reactorContextPropagationEnabler() {
