@@ -1,5 +1,6 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.spec.AuditLogSpecs;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -59,7 +60,7 @@ class AuditLogSpecsTest {
         LocalDateTime from = LocalDateTime.of(2026, 8, 1, 0, 0);
         LocalDateTime to = LocalDateTime.of(2026, 8, 15, 23, 59, 59);
 
-        apply(AuditLogSpecs.search("t-1", from, to, "u-9", "s-9", "agent",
+        apply(AuditLogSpecs.search("t-1", from, to, "u-9", "s-9", Constants.ChatMode.MODE_AGENT,
             "NEGATIVE", "REJECTED", "RETRIEVAL_MISS", false));
 
         verify(cb).equal(root.get("tenantId"), "t-1");
@@ -67,7 +68,7 @@ class AuditLogSpecsTest {
         verify(cb).lessThanOrEqualTo(root.get("createdAt"), to);
         verify(cb).equal(root.get("userId"), "u-9");
         verify(cb).equal(root.get("sessionId"), "s-9");
-        verify(cb).equal(root.get("mode"), "agent");
+        verify(cb).equal(root.get("mode"), Constants.ChatMode.MODE_AGENT);
         verify(cb).equal(root.get("feedback"), "NEGATIVE");
         verify(cb).equal(root.get("status"), "REJECTED");
         verify(cb).equal(root.get("rootCause"), "RETRIEVAL_MISS");
@@ -86,7 +87,7 @@ class AuditLogSpecsTest {
     /** 簇⑤ E2E 审计核对项：链路过滤谓词（mode 位独立在场/缺位） */
     @Test
     void modeFilterProducesPredicateOnlyWhenPresent() {
-        apply(AuditLogSpecs.search("t-1", null, null, null, null, "agent", null, null, null, null));
-        verify(cb).equal(root.get("mode"), "agent");
+        apply(AuditLogSpecs.search("t-1", null, null, null, null, Constants.ChatMode.MODE_AGENT, null, null, null, null));
+        verify(cb).equal(root.get("mode"), Constants.ChatMode.MODE_AGENT);
     }
 }

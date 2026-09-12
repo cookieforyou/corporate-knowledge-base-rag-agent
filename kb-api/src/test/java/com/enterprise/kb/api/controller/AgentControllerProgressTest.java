@@ -7,6 +7,7 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.ai.service.RagChatService;
 import com.enterprise.kb.api.security.JwtUtils;
 import com.enterprise.kb.api.service.ChatSessionService;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -56,7 +57,7 @@ class AgentControllerProgressTest {
     void progressEventFlowsAsProgressFrameBeforeTraceAndDone() {
         when(ragChatService.chatStreamRag(anyString(), anyString(), any())).thenAnswer(inv -> {
             RetrievalContext ctx = inv.getArgument(2);
-            ctx.emitProgress("stage", "意图识别与查询改写完成，检索知识库…");
+            ctx.emitProgress(Constants.SseEvent.PROGRESS_TYPE_STAGE, "意图识别与查询改写完成，检索知识库…");
             return Flux.just("回答");
         });
 
@@ -66,9 +67,9 @@ class AgentControllerProgressTest {
         // mock 的 emit 发生在组装期（先于 merge 订阅）被 sink 缓冲、TOKEN 先出——
         // 断言 PROGRESS 在场且先于 TRACE（真实生产 emit 在流订阅后的工具/检索期）
         List<String> names = events.stream().map(e -> e.event() == null ? "TOKEN" : e.event()).toList();
-        assertThat(names).contains("PROGRESS");
-        assertThat(names.indexOf("PROGRESS")).isLessThan(names.indexOf("TRACE"));
-        assertThat(events.get(names.indexOf("PROGRESS")).data().toString()).contains("意图识别");
+        assertThat(names).contains(Constants.SseEvent.PROGRESS);
+        assertThat(names.indexOf(Constants.SseEvent.PROGRESS)).isLessThan(names.indexOf(Constants.SseEvent.TRACE));
+        assertThat(events.get(names.indexOf(Constants.SseEvent.PROGRESS)).data().toString()).contains("意图识别");
     }
 
     @Test
@@ -86,7 +87,7 @@ class AgentControllerProgressTest {
 
         // 实时 TOOL_CALL 帧（rag 链流末投影走 TRACE 无 TOOL_CALL 兜底——快照帧恰 1 次）
         List<String> names = events.stream().map(e -> e.event() == null ? "TOKEN" : e.event()).toList();
-        assertThat(names).contains("TOOL_CALL");
-        assertThat(events.get(names.indexOf("TOOL_CALL")).data().toString()).contains("RUNNING");
+        assertThat(names).contains(Constants.SseEvent.TOOL_CALL);
+        assertThat(events.get(names.indexOf(Constants.SseEvent.TOOL_CALL)).data().toString()).contains("RUNNING");
     }
 }

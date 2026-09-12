@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.it;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.domain.enums.FeedbackRating;
 import com.enterprise.kb.domain.model.KbAuditLog;
 import com.enterprise.kb.domain.model.KbFeedback;
@@ -51,13 +52,13 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
         sessionRepository.deleteAllInBatch();
         auditLogRepository.deleteAllInBatch();
 
-        audit(TENANT_A, "u-1", "s-1", "rag", "SUCCESS", "NEGATIVE", "RETRIEVAL_MISS",
+        audit(TENANT_A, "u-1", "s-1", Constants.ChatMode.MODE_RAG, Constants.AuditStatus.SUCCESS, "NEGATIVE", "RETRIEVAL_MISS",
             LocalDateTime.of(2026, 8, 10, 10, 0));
-        audit(TENANT_A, "u-2", null, null, "REJECTED", null, null,
+        audit(TENANT_A, "u-2", null, null, Constants.AuditStatus.REJECTED, null, null,
             LocalDateTime.of(2026, 8, 12, 10, 0));
-        audit(TENANT_A, "u-1", null, "agent", "ERROR", "POSITIVE", null,
+        audit(TENANT_A, "u-1", null, Constants.ChatMode.MODE_AGENT, Constants.AuditStatus.ERROR, "POSITIVE", null,
             LocalDateTime.of(2026, 8, 14, 10, 0));
-        audit(TENANT_B, "u-9", null, "rag", "SUCCESS", null, null,
+        audit(TENANT_B, "u-9", null, Constants.ChatMode.MODE_RAG, Constants.AuditStatus.SUCCESS, null, null,
             LocalDateTime.of(2026, 8, 14, 12, 0));
 
         session("s-a1", TENANT_A, "u-1");
@@ -80,13 +81,13 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
             AuditLogSpecs.search(TENANT_A, null, null, null, null, null, null, null, null, null),
             PageRequest.of(0, 20));
         assertThat(all.getTotalElements()).isEqualTo(3);
-        assertThat(all.getContent().get(0).getStatus()).isEqualTo("ERROR");
+        assertThat(all.getContent().get(0).getStatus()).isEqualTo(Constants.AuditStatus.ERROR);
         assertThat(all.getContent().get(2).getFeedback()).isEqualTo("NEGATIVE");
 
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             "NEGATIVE", null, null, null))).isEqualTo(1);
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
-            null, "REJECTED", null, null))).isEqualTo(1);
+            null, Constants.AuditStatus.REJECTED, null, null))).isEqualTo(1);
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
             null, null, "RETRIEVAL_MISS", null))).isEqualTo(1);
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
@@ -97,9 +98,9 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
             null, null, null, null))).isEqualTo(2);
         // 链路过滤（簇⑤ mode 位，真 PG 回归补覆盖）
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
-            "rag", null, null, null, null))).isEqualTo(1);
+            Constants.ChatMode.MODE_RAG, null, null, null, null))).isEqualTo(1);
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
-            "agent", null, null, null, null))).isEqualTo(1);
+            Constants.ChatMode.MODE_AGENT, null, null, null, null))).isEqualTo(1);
         // 时间窗闭区间
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A,
             LocalDateTime.of(2026, 8, 11, 0, 0), LocalDateTime.of(2026, 8, 13, 0, 0),
@@ -122,7 +123,7 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
             assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
                 "NEGATIVE", null, null, null))).as("feedback 第%d次", i + 1).isEqualTo(1);
             assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
-                "agent", null, null, null, null))).as("mode 第%d次", i + 1).isEqualTo(1);
+                Constants.ChatMode.MODE_AGENT, null, null, null, null))).as("mode 第%d次", i + 1).isEqualTo(1);
             assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null, null,
                 null, null, null, true))).as("annotated 第%d次", i + 1).isEqualTo(1);
             assertThat(countAudit(AuditLogSpecs.search(TENANT_A,

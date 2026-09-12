@@ -924,7 +924,7 @@ public class EvalRunner {
             .filter(r -> r.isNegative() && r.rejectionVerdict() != null).toList();
 
         long rejected = negative.stream()
-            .filter(r -> "REJECTED".equalsIgnoreCase(r.rejectionVerdict())).count();
+            .filter(r -> Constants.AuditStatus.REJECTED.equalsIgnoreCase(r.rejectionVerdict())).count();
 
         // 注入拦截统计（簇⑤ B2 S6）：总体 / 门禁子集（DIRECT+ENCODING_BYPASS）/ 按攻击类型
         List<EvalResult> injection = results.stream()

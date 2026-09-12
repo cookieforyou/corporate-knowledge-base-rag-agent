@@ -67,9 +67,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AgentController {
 
     /** 问答模式（11.5 双链路 + 簇⑤ 5.3 第三链）：rag=知识库检索问答，tool=工具事务，agent=多子代理编排 */
-    private static final String MODE_RAG = "rag";
-    private static final String MODE_TOOL = "tool";
-    private static final String MODE_AGENT = "agent";
+    private static final String MODE_RAG = Constants.ChatMode.MODE_RAG;
+    private static final String MODE_TOOL = Constants.ChatMode.MODE_TOOL;
+    private static final String MODE_AGENT = Constants.ChatMode.MODE_AGENT;
 
     private final RagChatService ragChatService;
     private final ToolChatService toolChatService;
@@ -191,13 +191,13 @@ public class AgentController {
                             new ToolCallEvent(evt.toolCalls().stream()
                                 .map(tc -> new ToolCallInfo(tc.toolName(), tc.status(),
                                     tc.approvalId(), tc.summary())).toList()))
-                        .event("TOOL_CALL").build());
+                        .event(Constants.SseEvent.TOOL_CALL).build());
                 }
             } else {
                 synchronized (progressSink) {
                     progressSink.tryEmitNext(ServerSentEvent.<Object>builder(
                             new ProgressFrame(evt.kind(), evt.text()))
-                        .event("PROGRESS").build());
+                        .event(Constants.SseEvent.PROGRESS).build());
                 }
             }
         });
@@ -243,7 +243,7 @@ public class AgentController {
         // 话术；聚合形态话术即唯一输出，此帧缺席
         sseFlux = sseFlux.concatWith(Mono.defer(() -> traceCtx.isOutputReplaced()
             ? Mono.just(ServerSentEvent.<Object>builder(
-                new ReplaceEvent(traceCtx.getOutputReplacement())).event("REPLACE").build())
+                new ReplaceEvent(traceCtx.getOutputReplacement())).event(Constants.SseEvent.REPLACE).build())
             : Mono.empty()));
         // SSE 事件按链路精简（11.5）：tool/agent 链只可能产生 TOOL_CALL（无溯源数据不推空
         // TRACE）——agent 链的委派即工具调用（task），协议零变更（簇⑤ 5.3）；
@@ -253,12 +253,12 @@ public class AgentController {
             sseFlux = sseFlux.concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
                 ? Flux.empty()
                 : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx))
-                    .event("TOOL_CALL").build())));
+                    .event(Constants.SseEvent.TOOL_CALL).build())));
         } else {
             sseFlux = sseFlux.concatWith(Mono.defer(() -> traceCtx.isSkipRetrieval()
                 ? Mono.empty()
                 : Mono.fromSupplier(() ->
-                    ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event("TRACE").build())));
+                    ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event(Constants.SseEvent.TRACE).build())));
         }
         Flux<ServerSentEvent<Object>> result = sseFlux
             .concatWith(Mono.just(ServerSentEvent.<Object>builder(

@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.agent.service;
 import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -51,7 +52,7 @@ public class ToolChatService {
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
-                .param(AuditTraceAdvisor.MODE_KEY, "tool"))
+                .param(AuditTraceAdvisor.MODE_KEY, Constants.ChatMode.MODE_TOOL))
             .toolContext(buildToolContext(retrievalContext, approvedToolCallId));
         if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
             request.system(APPROVAL_CONFIRM_HINT);
@@ -67,7 +68,7 @@ public class ToolChatService {
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
-                .param(AuditTraceAdvisor.MODE_KEY, "tool"))
+                .param(AuditTraceAdvisor.MODE_KEY, Constants.ChatMode.MODE_TOOL))
             .toolContext(buildToolContext(retrievalContext, approvedToolCallId));
         if (approvedToolCallId != null && !approvedToolCallId.isBlank()) {
             request.system(APPROVAL_CONFIRM_HINT);

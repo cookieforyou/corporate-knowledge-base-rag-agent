@@ -70,8 +70,8 @@ class AuditTraceIT extends AbstractAdvisorChainIT {
         ragChatService.chatRag("年假政策", session, ctx(TENANT, "U-AUD"));
 
         KbAuditLog audit = awaitLatestAudit(session);
-        assertThat(audit.getStatus()).isEqualTo("SUCCESS");
-        assertThat(audit.getMode()).isEqualTo("rag");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.SUCCESS);
+        assertThat(audit.getMode()).isEqualTo(Constants.ChatMode.MODE_RAG);
         assertThat(audit.getTenantId()).isEqualTo(TENANT);
         assertThat(audit.getUserId()).isEqualTo("U-AUD");
         assertThat(audit.getQueryText()).isNotBlank();
@@ -91,7 +91,7 @@ class AuditTraceIT extends AbstractAdvisorChainIT {
             .isInstanceOf(BusinessException.class);
 
         KbAuditLog audit = awaitLatestAudit(session);
-        assertThat(audit.getStatus()).isEqualTo("REJECTED");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.REJECTED);
         assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
         assertThat(audit.getFinalAnswer()).isNull();
     }

@@ -1,6 +1,7 @@
 package com.enterprise.kb.admin.service;
 
 import com.enterprise.kb.admin.dto.FeedbackExportSummary;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.security.pii.PiiMaskResult;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.enums.FeedbackRating;
@@ -62,7 +63,7 @@ public class FeedbackExportService {
     static final int DPO_TARGET = 50;
 
     /** 审计三态中不入训练材料的结局 */
-    private static final Set<String> AUDIT_NOT_CLEAN = Set.of("REJECTED", "ERROR");
+    private static final Set<String> AUDIT_NOT_CLEAN = Set.of(Constants.AuditStatus.REJECTED, Constants.AuditStatus.ERROR);
 
     private final KbFeedbackRepository feedbackRepository;
     private final KbMessageRepository messageRepository;

@@ -4,6 +4,7 @@ import com.enterprise.kb.ai.advisor.AuditTraceAdvisor;
 import com.enterprise.kb.ai.agent.orchestration.TaskTool;
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -40,7 +41,7 @@ public class AgentOrchestratorService {
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
-                .param(AuditTraceAdvisor.MODE_KEY, "agent"))
+                .param(AuditTraceAdvisor.MODE_KEY, Constants.ChatMode.MODE_AGENT))
             .toolContext(buildToolContext(retrievalContext))
             .call().content();
     }
@@ -53,7 +54,7 @@ public class AgentOrchestratorService {
             .advisors(spec -> spec
                 .param(ChatMemory.CONVERSATION_ID, sessionId)
                 .param(RetrievalContext.CONTEXT_KEY, retrievalContext)
-                .param(AuditTraceAdvisor.MODE_KEY, "agent"))
+                .param(AuditTraceAdvisor.MODE_KEY, Constants.ChatMode.MODE_AGENT))
             .toolContext(buildToolContext(retrievalContext))
             .stream().content();
     }

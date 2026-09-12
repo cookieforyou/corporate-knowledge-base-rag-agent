@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.mcp;
 
+import com.enterprise.kb.commons.constant.Constants;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -86,7 +87,7 @@ public class McpAuditRecorder {
             audit.setUserId(userId);
             audit.setQueryText(maskedArgument == null ? "" : maskedArgument);
             audit.setToolCalls(toJsonOrNull(List.of(Map.of("tool", tool))));
-            audit.setStatus("SUCCESS");
+            audit.setStatus(Constants.AuditStatus.SUCCESS);
             auditLogRepository.save(audit);
         } catch (Exception e) {
             log.warn("MCP 审计落库失败，丢弃（旁路数据，不影响工具调用）: {}", e.getMessage());

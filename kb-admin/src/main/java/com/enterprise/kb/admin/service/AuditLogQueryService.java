@@ -40,9 +40,9 @@ public class AuditLogQueryService {
     static final int MAX_SIZE = 100;
 
     private static final Set<String> FEEDBACK_FILTERS = Set.of("POSITIVE", "NEGATIVE");
-    private static final Set<String> STATUS_FILTERS = Set.of("SUCCESS", "REJECTED", "ERROR");
+    private static final Set<String> STATUS_FILTERS = Set.of(Constants.AuditStatus.SUCCESS, Constants.AuditStatus.REJECTED, Constants.AuditStatus.ERROR);
     /** 链路过滤值（mode 落库为小写形态 rag/tool/agent——AuditTraceAdvisor.MODE_KEY 自由字符串） */
-    private static final Set<String> MODE_FILTERS = Set.of("rag", "tool", "agent");
+    private static final Set<String> MODE_FILTERS = Set.of(Constants.ChatMode.MODE_RAG, Constants.ChatMode.MODE_TOOL, Constants.ChatMode.MODE_AGENT);
     private static final Set<String> ROOT_CAUSE_FILTERS =
         Arrays.stream(RootCause.values()).map(Enum::name).collect(Collectors.toSet());
 

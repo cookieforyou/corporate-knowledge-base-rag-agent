@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.ai.advisor.L2Verdict;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.QACategory;
@@ -297,7 +298,7 @@ public record EvalReport(
         if (negativeEvaluated > 0) {
             List<EvalResult> notFullyRejected = results.stream()
                 .filter(r -> r.pair().isNegative() && r.rejectionVerdict() != null
-                    && !"REJECTED".equalsIgnoreCase(r.rejectionVerdict()))
+                    && !Constants.AuditStatus.REJECTED.equalsIgnoreCase(r.rejectionVerdict()))
                 .sorted(Comparator.comparing(r -> r.pair().id()))
                 .toList();
             if (!notFullyRejected.isEmpty()) {

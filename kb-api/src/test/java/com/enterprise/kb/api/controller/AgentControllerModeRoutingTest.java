@@ -67,7 +67,7 @@ class AgentControllerModeRoutingTest {
     void explicitToolModeRoutesToToolChain() {
         when(toolChatService.chatTool(anyString(), anyString(), any(), isNull())).thenReturn("tool 回答");
 
-        Map<String, Object> data = controller.chat(Map.of("query", "查员工", "mode", "tool")).data();
+        Map<String, Object> data = controller.chat(Map.of("query", "查员工", "mode", Constants.ChatMode.MODE_TOOL)).data();
 
         assertThat(data).containsEntry("answer", "tool 回答");
         verifyNoInteractions(ragChatService);
@@ -86,7 +86,7 @@ class AgentControllerModeRoutingTest {
     void approvedToolCallIdForwardedOnlyInToolMode() {
         when(toolChatService.chatTool(anyString(), anyString(), any(), anyString())).thenReturn("已提交");
 
-        controller.chat(Map.of("query", "确认", "mode", "tool", "approvedToolCallId", "apv-001"));
+        controller.chat(Map.of("query", "确认", "mode", Constants.ChatMode.MODE_TOOL, "approvedToolCallId", "apv-001"));
 
         verify(toolChatService).chatTool(anyString(), anyString(), any(), ArgumentMatchers.eq("apv-001"));
     }
@@ -95,7 +95,7 @@ class AgentControllerModeRoutingTest {
     void ragModeIgnoresStrayApprovalId() {
         when(ragChatService.chatRag(anyString(), anyString(), any())).thenReturn("rag 回答");
 
-        controller.chat(Map.of("query", "问题", "mode", "rag", "approvedToolCallId", "apv-001"));
+        controller.chat(Map.of("query", "问题", "mode", Constants.ChatMode.MODE_RAG, "approvedToolCallId", "apv-001"));
 
         // rag 链签名无 approvedToolCallId——物理隔离，凭证不可能流入
         verify(ragChatService).chatRag(anyString(), anyString(), any());
@@ -108,7 +108,7 @@ class AgentControllerModeRoutingTest {
         when(orchestratorProvider.getIfAvailable()).thenReturn(orchestrator);
         when(orchestrator.chatOrchestrator(anyString(), anyString(), any())).thenReturn("编排回答");
 
-        Map<String, Object> data = controller.chat(Map.of("query", "综合任务", "mode", "agent")).data();
+        Map<String, Object> data = controller.chat(Map.of("query", "综合任务", "mode", Constants.ChatMode.MODE_AGENT)).data();
 
         assertThat(data).containsEntry("answer", "编排回答");
         verifyNoInteractions(ragChatService, toolChatService);
@@ -119,7 +119,7 @@ class AgentControllerModeRoutingTest {
         when(orchestratorProvider.getIfAvailable()).thenReturn(null);
 
         // 开关关闭态显式拒绝（D3 定案），不静默回落 tool 改变语义
-        assertThatThrownBy(() -> controller.chat(Map.of("query", "任务", "mode", "agent")))
+        assertThatThrownBy(() -> controller.chat(Map.of("query", "任务", "mode", Constants.ChatMode.MODE_AGENT)))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode")
             .isEqualTo(Constants.ErrorCodes.ORCHESTRATOR_DISABLED);
@@ -133,7 +133,7 @@ class AgentControllerModeRoutingTest {
         when(orchestrator.chatOrchestrator(anyString(), anyString(), any())).thenReturn("编排回答");
 
         // 编排链无 HITL 消费方——凭证与 rag 链同语义忽略告警，不阻断问答
-        controller.chat(Map.of("query", "任务", "mode", "agent", "approvedToolCallId", "apv-001"));
+        controller.chat(Map.of("query", "任务", "mode", Constants.ChatMode.MODE_AGENT, "approvedToolCallId", "apv-001"));
 
         verify(orchestrator).chatOrchestrator(anyString(), anyString(), any());
     }

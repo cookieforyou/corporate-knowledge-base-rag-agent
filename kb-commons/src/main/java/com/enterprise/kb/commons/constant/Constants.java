@@ -137,4 +137,48 @@ public final class Constants {
         // ── TRACE 溯源条目 source 终结名（rerank 后终局文档集；审计命中判定消费）──
         public static final String TRACE_SOURCE_FINAL = "final";
     }
+
+    /**
+     * 对话链路 mode（请求体 mode 字段值 / 审计 mode 列 / admin 查询过滤值；小写落库）
+     *
+     * <p>三值封闭值域，AgentController 分流（tool/agent 条件链）与各 ChatService
+     * 的审计参数（AuditTraceAdvisor.MODE_KEY 的值）共享。
+     */
+    public static final class ChatMode {
+        private ChatMode() {}
+
+        public static final String MODE_RAG = "rag";
+        public static final String MODE_TOOL = "tool";
+        public static final String MODE_AGENT = "agent";
+    }
+
+    /**
+     * SSE 命名事件（协议帧名；无名 TOKEN/ERROR/DONE 帧不经事件名，不在此列）
+     *
+     * <p>前端 TS 侧同值契约各自持有（跨语言无法共享常量，改动须双侧同步）。
+     * PROGRESS_TYPE_STAGE 为 PROGRESS 事件的进度类型标签（检索/编排阶段播报）。
+     */
+    public static final class SseEvent {
+        private SseEvent() {}
+
+        public static final String TRACE = "TRACE";
+        public static final String TOOL_CALL = "TOOL_CALL";
+        public static final String REPLACE = "REPLACE";
+        public static final String PROGRESS = "PROGRESS";
+        public static final String PROGRESS_TYPE_STAGE = "stage";
+    }
+
+    /**
+     * 审计三态（kb_audit_log.status / 指标 request.* 标签 / MCP 审计 / 导出过滤）
+     *
+     * <p>边界：RetrievalContext.ToolCall 的 STATUS_REJECTED（HITL 审批拒绝）与
+     * 本三态同字面不同域，不引用此类。
+     */
+    public static final class AuditStatus {
+        private AuditStatus() {}
+
+        public static final String SUCCESS = "SUCCESS";
+        public static final String REJECTED = "REJECTED";
+        public static final String ERROR = "ERROR";
+    }
 }

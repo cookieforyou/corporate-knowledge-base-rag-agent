@@ -65,9 +65,9 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     /** advisor 参数键：问答模式（rag|tool），RagChatService/ToolChatService 注入 */
     public static final String MODE_KEY = "kb.audit_mode";
 
-    private static final String STATUS_SUCCESS = "SUCCESS";
-    private static final String STATUS_REJECTED = "REJECTED";
-    private static final String STATUS_ERROR = "ERROR";
+    private static final String STATUS_SUCCESS = Constants.AuditStatus.SUCCESS;
+    private static final String STATUS_REJECTED = Constants.AuditStatus.REJECTED;
+    private static final String STATUS_ERROR = Constants.AuditStatus.ERROR;
 
     private final KbAuditLogRepository auditLogRepository;
     private final JsonMapper jsonMapper;
@@ -240,7 +240,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     private void recordBusinessMetrics(AuditSnapshot snapshot, Throwable error) {
         try {
             metrics.recordRequestOutcome(error);
-            if ("rag".equals(snapshot.mode()) && !snapshot.traceEntries().isEmpty()) {
+            if (Constants.ChatMode.MODE_RAG.equals(snapshot.mode()) && !snapshot.traceEntries().isEmpty()) {
                 boolean hit = snapshot.traceEntries().stream()
                     .anyMatch(e -> Constants.Retrieval.TRACE_SOURCE_FINAL.equals(e.source()) && !e.documents().isEmpty());
                 metrics.recordRetrieval(hit);

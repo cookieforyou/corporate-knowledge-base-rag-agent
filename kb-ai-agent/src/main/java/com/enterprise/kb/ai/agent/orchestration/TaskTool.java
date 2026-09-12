@@ -3,6 +3,7 @@ package com.enterprise.kb.ai.agent.orchestration;
 import com.enterprise.kb.ai.agent.tool.ToolContextKeys;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
+import com.enterprise.kb.commons.constant.Constants;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -86,7 +87,7 @@ public class TaskTool {
             retrievalContext.emitToolCallsSnapshot();
             // 委派阶段进度（E2E 反馈补强）：进度行随委派轮转——消除上一子代理的
             // 「知识检索 x/6」进行时文案停留至流末的歧义（后续委派期看似仍在检索）
-            retrievalContext.emitProgress("stage",
+            retrievalContext.emitProgress(Constants.SseEvent.PROGRESS_TYPE_STAGE,
                 "委派子代理 " + spec.name() + "：" + abbreviate(description));
         }
 
@@ -176,7 +177,7 @@ public class TaskTool {
         if (ctx != null) {
             ctx.completeRunningToolCall("task:" + subAgentName, status, summary);
             ctx.emitToolCallsSnapshot();
-            ctx.emitProgress("stage", "子代理 " + subAgentName
+            ctx.emitProgress(Constants.SseEvent.PROGRESS_TYPE_STAGE, "子代理 " + subAgentName
                 + (RetrievalContext.ToolCall.STATUS_EXECUTED.equals(status) ? " 执行完成" : " 执行失败"));
         }
     }

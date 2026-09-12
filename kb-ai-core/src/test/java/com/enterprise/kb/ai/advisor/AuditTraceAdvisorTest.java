@@ -128,11 +128,11 @@ class AuditTraceAdvisorTest {
         RetrievalContext ctx = ctxWithTrace();
         when(callChain.nextCall(any())).thenReturn(response("回答内容"));
 
-        advisor.adviseCall(request(ctx, "rag", "什么是增值税发票？"), callChain);
+        advisor.adviseCall(request(ctx, Constants.ChatMode.MODE_RAG, "什么是增值税发票？"), callChain);
 
         KbAuditLog audit = captureSaved();
-        assertThat(audit.getStatus()).isEqualTo("SUCCESS");
-        assertThat(audit.getMode()).isEqualTo("rag");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.SUCCESS);
+        assertThat(audit.getMode()).isEqualTo(Constants.ChatMode.MODE_RAG);
         assertThat(audit.getSessionId()).isEqualTo("s-audit-1");
         assertThat(audit.getTenantId()).isEqualTo("tenant-a");
         assertThat(audit.getUserId()).isEqualTo("user-1");
@@ -157,7 +157,7 @@ class AuditTraceAdvisorTest {
         ctx.setTraceId("trace-from-controller");
         when(callChain.nextCall(any())).thenReturn(response("回答内容"));
 
-        advisor.adviseCall(request(ctx, "rag", "问题"), callChain);
+        advisor.adviseCall(request(ctx, Constants.ChatMode.MODE_RAG, "问题"), callChain);
 
         assertThat(captureSaved().getTraceId()).isEqualTo("trace-from-controller");
     }
@@ -172,7 +172,7 @@ class AuditTraceAdvisorTest {
         emptyCtx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of());
         when(callChain.nextCall(any())).thenReturn(response("无相关信息"));
 
-        advisor.adviseCall(request(emptyCtx, "rag", "库外问题"), callChain);
+        advisor.adviseCall(request(emptyCtx, Constants.ChatMode.MODE_RAG, "库外问题"), callChain);
 
         assertThat(meterRegistry.counter("rag.retrieval.total").count()).isEqualTo(1.0);
         assertThat(meterRegistry.counter("rag.retrieval.hit").count()).isZero();
@@ -187,7 +187,7 @@ class AuditTraceAdvisorTest {
         when(callChain.nextCall(any()))
             .thenThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁"));
 
-        assertThatThrownBy(() -> advisor.adviseCall(request(freshCtx, "rag", "问题"), callChain))
+        assertThatThrownBy(() -> advisor.adviseCall(request(freshCtx, Constants.ChatMode.MODE_RAG, "问题"), callChain))
             .isInstanceOf(BusinessException.class);
 
         assertThat(meterRegistry.counter("rag.retrieval.total").count()).isZero();
@@ -197,7 +197,7 @@ class AuditTraceAdvisorTest {
     void queryTextSanitizedBeforePersist() {
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
-        advisor.adviseCall(request(ctxWithTrace(), "rag", "我的手机号是 13911112222"), callChain);
+        advisor.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "我的手机号是 13911112222"), callChain);
 
         assertThat(captureSaved().getQueryText())
             .contains("1***-****-****")
@@ -209,11 +209,11 @@ class AuditTraceAdvisorTest {
         when(callChain.nextCall(any()))
             .thenThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "请求过于频繁"));
 
-        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain))
+        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题"), callChain))
             .isInstanceOf(BusinessException.class);
 
         KbAuditLog audit = captureSaved();
-        assertThat(audit.getStatus()).isEqualTo("REJECTED");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.REJECTED);
         assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
         assertThat(audit.getFinalAnswer()).isNull();
     }
@@ -226,7 +226,7 @@ class AuditTraceAdvisorTest {
             .isInstanceOf(IllegalStateException.class);
 
         KbAuditLog audit = captureSaved();
-        assertThat(audit.getStatus()).isEqualTo("ERROR");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.ERROR);
         assertThat(audit.getErrorCode()).isEqualTo("IllegalStateException");
         assertThat(audit.getMode()).isEqualTo("tool");
     }
@@ -236,16 +236,16 @@ class AuditTraceAdvisorTest {
     void requestOutcomeCountersMatchAuditSemantics() {
         // SUCCESS
         doReturn(response("回答")).when(callChain).nextCall(any());
-        advisor.adviseCall(request(ctxWithTrace(), "rag", "问题一"), callChain);
+        advisor.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题一"), callChain);
 
         // REJECTED（BusinessException）——重 stub 已抛异常方法须 doThrow 形态（坑位⑩）
         doThrow(new BusinessException(Constants.ErrorCodes.RATE_LIMITED, "限流")).when(callChain).nextCall(any());
-        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题二"), callChain))
+        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题二"), callChain))
             .isInstanceOf(BusinessException.class);
 
         // ERROR（其他异常）
         doThrow(new IllegalStateException("boom")).when(callChain).nextCall(any());
-        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), "rag", "问题三"), callChain))
+        assertThatThrownBy(() -> advisor.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题三"), callChain))
             .isInstanceOf(IllegalStateException.class);
 
         assertThat(meterRegistry.counter("rag.request.total").count()).isEqualTo(3.0);
@@ -258,7 +258,7 @@ class AuditTraceAdvisorTest {
         when(streamChain.nextStream(any())).thenReturn(
             Flux.just(response("增值"), response("税"), response("解答")));
 
-        advisor.adviseStream(request(ctxWithTrace(), "rag", "问题"), streamChain)
+        advisor.adviseStream(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题"), streamChain)
             .collectList().block();
 
         assertThat(captureSaved().getFinalAnswer()).isEqualTo("增值税解答");
@@ -271,7 +271,7 @@ class AuditTraceAdvisorTest {
         ctx.markOutputReplaced("抱歉，由于合规要求，无法提供该信息。");
         when(streamChain.nextStream(any())).thenReturn(Flux.just(response("已放行前缀")));
 
-        advisor.adviseStream(request(ctx, "rag", "问题"), streamChain)
+        advisor.adviseStream(request(ctx, Constants.ChatMode.MODE_RAG, "问题"), streamChain)
             .collectList()
             .block();
 
@@ -284,12 +284,12 @@ class AuditTraceAdvisorTest {
         when(streamChain.nextStream(any()))
             .thenReturn(Flux.error(new BusinessException(Constants.ErrorCodes.PROMPT_INJECTION, "注入拦截")));
 
-        assertThatThrownBy(() -> advisor.adviseStream(request(ctxWithTrace(), "rag", "问题"), streamChain)
+        assertThatThrownBy(() -> advisor.adviseStream(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题"), streamChain)
             .collectList().block())
             .isInstanceOf(BusinessException.class);
 
         KbAuditLog audit = captureSaved();
-        assertThat(audit.getStatus()).isEqualTo("REJECTED");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.REJECTED);
         assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
@@ -315,7 +315,7 @@ class AuditTraceAdvisorTest {
             SYNC_EXECUTOR, new AiBusinessMetrics(meterRegistry), PiiRecognizerRegistry.defaults(), false);
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
-        disabled.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain);
+        disabled.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题"), callChain);
 
         verifyNoInteractions(repository);
     }
@@ -330,10 +330,10 @@ class AuditTraceAdvisorTest {
         ctx.addGuardrailFlag(new RetrievalContext.FlagMark("input", "JAILBREAK"));
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
-        advisor.adviseCall(request(ctx, "rag", "问题"), callChain);
+        advisor.adviseCall(request(ctx, Constants.ChatMode.MODE_RAG, "问题"), callChain);
 
         KbAuditLog audit = captureSaved();
-        assertThat(audit.getStatus()).isEqualTo("SUCCESS");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.SUCCESS);
         assertThat(audit.getGuardrailFlags()).isEqualTo("input:JAILBREAK;output:COMPLIANCE_SENSITIVE");
     }
 
@@ -341,7 +341,7 @@ class AuditTraceAdvisorTest {
     void noFlagMarksLeavesGuardrailFlagsColumnNull() {
         when(callChain.nextCall(any())).thenReturn(response("回答"));
 
-        advisor.adviseCall(request(ctxWithTrace(), "rag", "问题"), callChain);
+        advisor.adviseCall(request(ctxWithTrace(), Constants.ChatMode.MODE_RAG, "问题"), callChain);
 
         assertThat(captureSaved().getGuardrailFlags()).isNull();
     }
