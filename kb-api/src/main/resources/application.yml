@@ -80,10 +80,10 @@ management:
     export:
       otlp:
         # OTLP 导出总开关（Phase 4 簇①）：默认关——未配端点凭据时零导出零噪音；
-        # 开启两形态（端点键沿用 LANGFUSE_* 族，实为通用 OTLP HTTP 端点，随时切换）：
-        # ① Langfuse 云：TRACING_OTLP_ENABLED=true + LANGFUSE_OTLP_AUTH 三件套同批（缺凭据 401 噪音）
-        # ② 本栈 Jaeger：LANGFUSE_OTLP_ENDPOINT=http://host.docker.internal:4319/v1/traces（AUTH 不设，
-        #   Jaeger 无鉴权）——操作序列见 docs/delivery/生产部署实操手册.md §6.8
+        # 开启两形态：
+        # ① Langfuse 云：TRACING_OTLP_ENABLED=true + TRACING_OTLP_AUTH 三件套同批（缺凭据 401 噪音）
+        # ② 本栈 Jaeger：TRACING_OTLP_ENABLED=true + TRACING_OTLP_ENDPOINT=http://host.docker.internal:4319/v1/traces
+        # （AUTH 不设，Jaeger 无鉴权）——操作序列见 docs/delivery/生产部署实操手册.md §6.8
         enabled: ${TRACING_OTLP_ENABLED:false}
   opentelemetry:
     tracing:
@@ -95,12 +95,13 @@ management:
           # 实证坑（簇①）：本属性为「信号专属 endpoint」，OTel Java SDK 原样使用、
           # 不自动追加 /v1/traces（仅 base endpoint 才追加）——必须带全路径，缺路径段
           # 则 Langfuse 回 404。直连实测 /api/public/otel/v1/traces=200、/api/public/otel=404。
-          # 两形态同开关（§6.8）：本栈 Jaeger = http://host.docker.internal:4319/v1/traces
-          # （宿主映射 4319→容器 4318；同样须带全路径；AUTH 留空——Jaeger 无鉴权）。
-          endpoint: ${LANGFUSE_OTLP_ENDPOINT:https://cloud.langfuse.com/api/public/otel/v1/traces}
+          #
+          # 两形态同开关：本栈 Jaeger = http://host.docker.internal:4319/v1/traces
+          # （宿主映射 4319 → 容器 4318；同样须带全路径；AUTH 留空——Jaeger 无鉴权）。
+          endpoint: ${TRACING_OTLP_ENDPOINT:https://cloud.langfuse.com/api/public/otel/v1/traces}
           transport: http
           headers:
-            Authorization: ${LANGFUSE_OTLP_AUTH:}
+            Authorization: ${TRACING_OTLP_AUTH:}
   prometheus:
     metrics:
       export:
