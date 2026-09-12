@@ -173,28 +173,8 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                 return truncateByFusionScore(documents);
             }
 
-            List<Document> reranked = new ArrayList<>();
-            for (int i = 0; i < results.size(); i++) {
-                RerankResult r = results.get(i);
-                if (r.index() < 0 || r.index() >= documents.size()) continue;
-                Document src = documents.get(r.index());
-                Map<String, Object> meta = new HashMap<>(src.getMetadata());
-                meta.put("rerank_score", r.relevanceScore());
-                meta.put("rerank_rank", i + 1);
-                reranked.add(Document.builder()
-                    .id(src.getId())
-                    .text(src.getText())
-                    .metadata(meta)
-                    .score(r.relevanceScore())
-                    .build());
-            }
-            // API 结果已按相关性降序；防御性再排序 + 截断
             metrics.recordRerank(false);
-            return reranked.stream()
-                .sorted(Comparator.comparingDouble(
-                    (Document d) -> (Double) d.getMetadata().get("rerank_score")).reversed())
-                .limit(properties.getTopK())
-                .toList();
+            return assembleReranked(results, documents);
         } catch (Exception e) {
             log.warn("rerank 调用失败，降级为 fusion_score 截断: {}", e.getMessage());
             metrics.recordRerank(true);
@@ -208,6 +188,40 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             .sorted(Comparator.comparingDouble(RerankDocumentPostProcessor::sortScore).reversed())
             .limit(properties.getTopK())
             .toList();
+    }
+
+    /**
+     * 响应结果 → 最终注入序列：防御性按 relevance_score 降序 + 截断至 topK，
+     * <b>rerank_rank 按最终序列位序赋值</b>——API 违约乱序时 rank 仍与注入位序
+     * 自洽（消费方 Debug 台/TRACE 按列表序展示 rank 徽标，rank 即名次，若按
+     * 响应位序赋值则与防御性重排互相矛盾）。并列分稳定排序保持响应位序；
+     * 越界 index 跳过不占位。包内可见供单测直驱（绕开 HTTP 路径）。
+     */
+    List<Document> assembleReranked(List<RerankResult> results, List<Document> documents) {
+        List<ScoredCandidate> candidates = new ArrayList<>(results.size());
+        for (RerankResult r : results) {
+            if (r.index() < 0 || r.index() >= documents.size()) continue;
+            candidates.add(new ScoredCandidate(documents.get(r.index()), r.relevanceScore()));
+        }
+        // API 结果契约上已按相关性降序（logs 官方 schema）；契约外不容信，防御性再排序
+        List<ScoredCandidate> top = candidates.stream()
+            .sorted(Comparator.comparingDouble(ScoredCandidate::score).reversed())
+            .limit(properties.getTopK())
+            .toList();
+        List<Document> reranked = new ArrayList<>(top.size());
+        for (int i = 0; i < top.size(); i++) {
+            ScoredCandidate c = top.get(i);
+            Map<String, Object> meta = new HashMap<>(c.src().getMetadata());
+            meta.put("rerank_score", c.score());
+            meta.put("rerank_rank", i + 1);
+            reranked.add(Document.builder()
+                .id(c.src().getId())
+                .text(c.src().getText())
+                .metadata(meta)
+                .score(c.score())
+                .build());
+        }
+        return reranked;
     }
 
     /** 最终序列写入检索上下文 trace（经 Query.context 参数化；无上下文降级跳过） */
@@ -246,4 +260,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record RerankResult(int index, @JsonProperty("relevance_score") double relevanceScore) {}
+
+    /** 响应候选轻量承载：源文档 + rerank 分（防御性排序比较键；rank 在排序截断后按位序赋） */
+    private record ScoredCandidate(Document src, double score) {}
 }

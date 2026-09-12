@@ -186,4 +186,68 @@ class RerankDocumentPostProcessorTest {
             .filter(c -> "kb.rerank".equals(c.getName())).findFirst().orElseThrow();
         assertSame(parent, rerankCtx.getParentObservation());
     }
+
+    // ── assembleReranked：组装段契约（包内直驱，绕开 HTTP 路径）──
+
+    /** 病灶用例：API 违约乱序（响应列表非严格降序）→ 输出按分数降序，rank 与最终位序自洽 */
+    @Test
+    void assemble_apiOutOfOrder_sortedByScore_rankMatchesFinalPosition() {
+        List<Document> docs = List.of(doc("a", 0.1), doc("b", 0.2), doc("c", 0.3));
+        // 响应位序 b(0.5)→a(0.7)→c(0.9)，分数非降序（违约形态）
+        List<RerankDocumentPostProcessor.RerankResult> results = List.of(
+            new RerankDocumentPostProcessor.RerankResult(1, 0.5),
+            new RerankDocumentPostProcessor.RerankResult(0, 0.7),
+            new RerankDocumentPostProcessor.RerankResult(2, 0.9));
+
+        List<Document> out = disabled.assembleReranked(results, docs);
+
+        // 防御性重排：c(0.9) > a(0.7) > b(0.5)；rank=最终位序而非响应位序
+        // （旧实现按响应位序赋 rank，c=3 与首位矛盾——消费方 Debug 台按列表序展示徽标）
+        assertEquals(List.of("c", "a", "b"), out.stream().map(Document::getId).toList());
+        for (int i = 0; i < out.size(); i++) {
+            assertEquals(i + 1, out.get(i).getMetadata().get("rerank_rank"));
+            assertEquals(0.9 - i * 0.2, (Double) out.get(i).getMetadata().get("rerank_score"), 1e-9);
+        }
+    }
+
+    /** 越界 index 跳过不占位：无异常，rank 连续稠密 */
+    @Test
+    void assemble_outOfBoundsIndex_skipped_ranksStayDense() {
+        List<Document> docs = List.of(doc("a", 0.1), doc("b", 0.2));
+        List<RerankDocumentPostProcessor.RerankResult> results = List.of(
+            new RerankDocumentPostProcessor.RerankResult(-1, 0.99),
+            new RerankDocumentPostProcessor.RerankResult(0, 0.4),
+            new RerankDocumentPostProcessor.RerankResult(99, 0.98),
+            new RerankDocumentPostProcessor.RerankResult(1, 0.6));
+
+        List<Document> out = disabled.assembleReranked(results, docs);
+
+        assertEquals(List.of("b", "a"), out.stream().map(Document::getId).toList());
+        assertEquals(1, out.get(0).getMetadata().get("rerank_rank"));
+        assertEquals(2, out.get(1).getMetadata().get("rerank_rank"));
+    }
+
+    /** 候选超 topK → 截断且 rank 连续；并列分稳定排序保持响应位序 */
+    @Test
+    void assemble_moreThanTopK_truncated_tieStableInResponseOrder() {
+        List<Document> docs = List.of(
+            doc("d1", 0.01), doc("d2", 0.02), doc("d3", 0.03),
+            doc("d4", 0.04), doc("d5", 0.05), doc("d6", 0.06));
+        // 两对并列（0.8/0.8、0.5/0.5）：排序稳定 → 并列保持响应位序；d6(0.1) 截断落选
+        List<RerankDocumentPostProcessor.RerankResult> results = List.of(
+            new RerankDocumentPostProcessor.RerankResult(0, 0.9),
+            new RerankDocumentPostProcessor.RerankResult(1, 0.8),
+            new RerankDocumentPostProcessor.RerankResult(2, 0.8),
+            new RerankDocumentPostProcessor.RerankResult(3, 0.5),
+            new RerankDocumentPostProcessor.RerankResult(4, 0.5),
+            new RerankDocumentPostProcessor.RerankResult(5, 0.1));
+
+        List<Document> out = disabled.assembleReranked(results, docs);
+
+        assertEquals(List.of("d1", "d2", "d3", "d4", "d5"),
+            out.stream().map(Document::getId).toList());
+        for (int i = 0; i < out.size(); i++) {
+            assertEquals(i + 1, out.get(i).getMetadata().get("rerank_rank"));
+        }
+    }
 }
