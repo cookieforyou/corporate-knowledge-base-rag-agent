@@ -224,7 +224,7 @@ curl http://localhost:8080/actuator/health
 
 ### 生产部署
 
-容器化形态：根 Dockerfile + `infra/docker-compose.app.yml`（healthcheck / 自动重启 / 日志轮转 / AppCDS 训练服务）+ `infra/docker-compose.monitoring.yml`（Prometheus / Grafana）+ `infra/.env.example` Secrets 模板。详见 `docs/delivery/运维手册.md`。
+容器化形态：根 Dockerfile + `infra/docker-compose.yml` 全栈入口（app + 监控一并部署，include 两分栈；healthcheck / 自动重启 / 日志轮转 / 镜像钉版）+ `infra/.env.example` Secrets 模板 + kb-stack.service 开机自启。详见 `docs/delivery/运维手册.md`。
 
 ## 配置参考
 

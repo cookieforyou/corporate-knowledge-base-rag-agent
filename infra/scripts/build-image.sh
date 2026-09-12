@@ -4,7 +4,7 @@
 #
 # 形态：宿主侧 mvn package（-DskipTests，测试归 CI/交付批）→
 # docker build。tag 缺省 = v{semver}-{git短哈希}（禁 latest 纪律）。
-# 输出 KB_IMAGE_TAG 供 docker-compose.app.yml 消费：
+# 输出 KB_IMAGE_TAG 供 compose 全栈入口（docker-compose.yml）消费：
 #   bash infra/scripts/build-image.sh              # 完整：mvn package + docker build
 #   bash infra/scripts/build-image.sh v1.0.0       # 显式 tag
 #   bash infra/scripts/build-image.sh --no-mvn     # 跳过 mvn（部署包形态：jar 已在场，
@@ -47,4 +47,4 @@ docker build -t "kb-rag-agent:${TAG}" .
 
 echo ""
 echo "KB_IMAGE_TAG=${TAG}"
-echo "部署：infra/.env 内 KB_IMAGE_TAG=${TAG} → docker compose -f infra/docker-compose.app.yml up -d"
+echo "部署：infra/.env 内 KB_IMAGE_TAG=${TAG} → cd infra && docker compose up -d（全栈入口，新 tag 只重建 kb-api）"
