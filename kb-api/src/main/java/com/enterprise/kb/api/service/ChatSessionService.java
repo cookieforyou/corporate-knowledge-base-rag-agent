@@ -61,8 +61,6 @@ public class ChatSessionService {
     /** 回填单发守卫键前缀与 TTL：只覆盖 check-then-act 竞态窗口，过期后允许再次回填 */
     private static final String RESEED_GUARD_PREFIX = "rag:session-reseed:";
     private static final long RESEED_GUARD_TTL_SECONDS = 30;
-    /** 会话列表分页上限 */
-    private static final int MAX_PAGE_SIZE = 100;
 
     private final KbSessionRepository sessionRepository;
     private final KbMessageRepository messageRepository;
@@ -247,10 +245,10 @@ public class ChatSessionService {
 
     // ── 历史会话查询/删除（3.15 补齐）──
 
-    /** 会话列表：tenant+user 双过滤，updated_at 倒序；size 上限 {@value #MAX_PAGE_SIZE}，page 负值归零 */
+    /** 会话列表：tenant+user 双过滤，updated_at 倒序；size 上限 {@value com.enterprise.kb.commons.constant.Constants#MAX_PAGE_SIZE}，page 负值归零 */
     public List<SessionItem> listSessions(String tenantId, String userId, int page, int size) {
         int safePage = Math.max(page, 0);
-        int safeSize = Math.clamp(size, 1, MAX_PAGE_SIZE);
+        int safeSize = Math.clamp(size, 1, Constants.MAX_PAGE_SIZE);
         return sessionRepository
             .findByTenantIdAndUserIdOrderByUpdatedAtDesc(tenantId, userId, PageRequest.of(safePage, safeSize))
             .map(s -> new SessionItem(s.getId(), s.getTitle(), s.getMode(), s.getMessageCount(), s.getUpdatedAt()))
