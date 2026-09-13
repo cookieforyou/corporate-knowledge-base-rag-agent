@@ -72,7 +72,7 @@ class InputSanitizeIT extends AbstractAdvisorChainIT {
             .extracting("errorCode").isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
 
         KbAuditLog audit = awaitLatestAudit(session);
-        assertThat(audit.getStatus()).isEqualTo("REJECTED");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.REJECTED);
         assertThat(audit.getErrorCode()).isEqualTo(Constants.ErrorCodes.PROMPT_INJECTION);
     }
 
@@ -91,7 +91,7 @@ class InputSanitizeIT extends AbstractAdvisorChainIT {
 
         assertThat(answer).isEqualTo(StubChatModel.DEFAULT_ANSWER);
         KbAuditLog audit = awaitLatestAudit(session);
-        assertThat(audit.getStatus()).isEqualTo("SUCCESS");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.SUCCESS);
         assertThat(audit.getErrorCode()).isNull();
     }
 

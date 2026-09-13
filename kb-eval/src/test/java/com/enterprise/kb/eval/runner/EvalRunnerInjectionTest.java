@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
@@ -55,7 +56,7 @@ class EvalRunnerInjectionTest {
         guardrailChatClient = mock(ChatClient.class, Answers.RETURNS_DEEP_STUBS);
         guardrailL2ChatClient = mock(ChatClient.class, Answers.RETURNS_DEEP_STUBS);
         probe = mock(RetrievalProbe.class);
-        when(probe.name()).thenReturn("hybrid");
+        when(probe.name()).thenReturn(EvalConstants.PROBE_HYBRID);
         when(probe.getOrder()).thenReturn(0);
         when(probe.probe(anyString(), anyInt())).thenReturn(List.of());
         props = new EvalProperties();

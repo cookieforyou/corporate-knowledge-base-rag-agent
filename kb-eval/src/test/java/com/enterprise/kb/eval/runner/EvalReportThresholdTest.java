@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.ai.advisor.L2Verdict;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;
 import com.enterprise.kb.eval.config.EvalProperties;
@@ -43,7 +44,7 @@ class EvalReportThresholdTest {
 
     private static EvalReport reportOf(List<EvalResult> results) {
         double avgF = results.stream().mapToDouble(EvalResult::faithfulness).average().orElse(Double.NaN);
-        return new EvalReport("chain", results.size(), 0, results.size(), 0,
+        return new EvalReport(EvalConstants.PROBE_CHAIN, results.size(), 0, results.size(), 0,
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             avgF, 4.0, Double.NaN,
@@ -84,7 +85,7 @@ class EvalReportThresholdTest {
             : gate.stream().filter(EvalResult::isInjectionBlocked).count() / (double) gate.size();
         double allRate = injection.isEmpty() ? Double.NaN
             : injection.stream().filter(EvalResult::isInjectionBlocked).count() / (double) injection.size();
-        return new EvalReport("chain", results.size(), 0, 0, 0,
+        return new EvalReport(EvalConstants.PROBE_CHAIN, results.size(), 0, 0, 0,
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN,
@@ -280,7 +281,7 @@ class EvalReportThresholdTest {
     @Test
     void negativeRejectionBelowThresholdStillFails() {
         // 容忍策略只作用于 Faithfulness——其余门禁语义不变
-        EvalReport report = new EvalReport("chain", 3, 0, 0, 3,
+        EvalReport report = new EvalReport(EvalConstants.PROBE_CHAIN, 3, 0, 0, 3,
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, 0.5,
@@ -320,7 +321,7 @@ class EvalReportThresholdTest {
      */
     @Test
     void summaryRendersDocLevelSectionOnlyWhenSampled() {
-        EvalReport withDoc = new EvalReport("chain", 5, 5, 5, 0,
+        EvalReport withDoc = new EvalReport(EvalConstants.PROBE_CHAIN, 5, 5, 5, 0,
             0.0, 0.0, 0.0,
             5, 0.9, 0.8, 0.7,
             4.5, 4.8, Double.NaN,
@@ -330,7 +331,7 @@ class EvalReportThresholdTest {
             .contains("Doc Recall")
             .contains("0.900");
 
-        EvalReport noDoc = new EvalReport("chain", 5, 5, 5, 0,
+        EvalReport noDoc = new EvalReport(EvalConstants.PROBE_CHAIN, 5, 5, 5, 0,
             0.9, 0.8, 0.7,
             0, Double.NaN, Double.NaN, Double.NaN,
             4.5, 4.8, Double.NaN,
@@ -405,7 +406,7 @@ class EvalReportThresholdTest {
         Map<AttackType, Double> byType = new LinkedHashMap<>();
         byType.put(AttackType.DIRECT, 1.0);
         byType.put(AttackType.JAILBREAK, 0.0);
-        EvalReport report = new EvalReport("chain", results.size(), 0, 0, 0,
+        EvalReport report = new EvalReport(EvalConstants.PROBE_CHAIN, results.size(), 0, 0, 0,
             Double.NaN, Double.NaN, Double.NaN,
             5, 0.9, 0.8, 0.7,
             Double.NaN, Double.NaN, Double.NaN,
@@ -414,7 +415,7 @@ class EvalReportThresholdTest {
             .contains("[观察]" + System.lineSeparator() + "── 检索侧（文档级兜底");
 
         // 无注入样本：鲁棒性行尾 → 文档级兜底标题（遗留缺陷原形态）
-        EvalReport noInjection = new EvalReport("chain", 1, 0, 0, 1,
+        EvalReport noInjection = new EvalReport(EvalConstants.PROBE_CHAIN, 1, 0, 0, 1,
             Double.NaN, Double.NaN, Double.NaN,
             5, 0.9, 0.8, 0.7,
             Double.NaN, Double.NaN, 1.0,
@@ -476,7 +477,7 @@ class EvalReportThresholdTest {
     private static EvalReport reportOfNegatives(List<EvalResult> results) {
         long rejected = results.stream()
             .filter(r -> "REJECTED".equalsIgnoreCase(r.rejectionVerdict())).count();
-        return new EvalReport("chain", results.size(), 0, 0, results.size(),
+        return new EvalReport(EvalConstants.PROBE_CHAIN, results.size(), 0, 0, results.size(),
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, rejected / (double) results.size(),

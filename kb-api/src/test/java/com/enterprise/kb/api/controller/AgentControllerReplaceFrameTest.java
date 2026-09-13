@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.controller;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.agent.service.AgentOrchestratorService;
 import com.enterprise.kb.ai.agent.service.ToolChatService;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
@@ -68,9 +69,9 @@ class AgentControllerReplaceFrameTest {
 
         // 2 TOKEN + REPLACE + TRACE + DONE；REPLACE 位于 TOKEN 之后、TRACE 之前
         assertThat(events).hasSize(5);
-        assertThat(events.get(2).event()).isEqualTo("REPLACE");
+        assertThat(events.get(2).event()).isEqualTo(Constants.SseEvent.REPLACE);
         assertThat(events.get(2).data().toString()).contains("抱歉，由于合规要求");
-        assertThat(events.get(3).event()).isEqualTo("TRACE");
+        assertThat(events.get(3).event()).isEqualTo(Constants.SseEvent.TRACE);
         assertThat(events.get(4).data().toString()).contains("messageId");
         // 归档话术（answerBuffer 前缀被替换）
         Mockito.verify(chatSessionService).archiveTurn(anyString(), anyString(), anyString(), anyString(),
@@ -88,6 +89,6 @@ class AgentControllerReplaceFrameTest {
 
         assertThat(events).hasSize(4);   // 2 TOKEN + TRACE + DONE，无 REPLACE
         assertThat(events.stream().map(ServerSentEvent::event))
-            .doesNotContain("REPLACE");
+            .doesNotContain(Constants.SseEvent.REPLACE);
     }
 }

@@ -112,7 +112,7 @@ class GraphDocumentRetrieverTest {
         assertEquals(0.9, (Double) first.getMetadata().get("graph_score"), 1e-12);
         assertEquals("A公司，张工", first.getMetadata().get("graph_entity_hits"));
         assertEquals("手册.pdf", first.getMetadata().get(Constants.Retrieval.META_FILE_NAME));
-        assertEquals("graph", first.getMetadata().get("retrieval_source"));
+        assertEquals(Constants.Retrieval.ROUTE_GRAPH, first.getMetadata().get(Constants.Retrieval.META_RETRIEVAL_SOURCE));
         assertEquals(1.0, registry.counter("rag.retrieval.graph.total").count());
         assertEquals(1.0, registry.counter("rag.retrieval.graph.hit").count());
     }

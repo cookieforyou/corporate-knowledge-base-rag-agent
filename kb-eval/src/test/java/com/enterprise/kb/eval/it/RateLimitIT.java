@@ -69,7 +69,7 @@ class RateLimitIT extends AbstractAdvisorChainIT {
                 List<KbAuditLog> logs = auditLogRepository.findBySessionIdOrderByCreatedAtDesc(session);
                 assertThat(logs).isNotEmpty();
                 KbAuditLog latest = logs.get(0);
-                assertThat(latest.getStatus()).isEqualTo("REJECTED");
+                assertThat(latest.getStatus()).isEqualTo(Constants.AuditStatus.REJECTED);
                 assertThat(latest.getErrorCode()).isEqualTo(Constants.ErrorCodes.RATE_LIMITED);
             });
     }

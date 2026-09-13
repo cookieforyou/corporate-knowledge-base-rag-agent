@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.agent.mcp;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.commons.security.pii.PiiRecognizerRegistry;
 import com.enterprise.kb.domain.model.KbAuditLog;
@@ -50,7 +51,7 @@ class McpAuditRecorderTest {
         McpAuditRecorder recorder = new McpAuditRecorder(
             auditLogRepository, auditExecutor, new JsonMapper(), PiiRecognizerRegistry.defaults(), false);
 
-        recorder.record("search", "检索问题", ctx());
+        recorder.record(Constants.McpTool.SEARCH, "检索问题", ctx());
 
         verifyNoInteractions(auditLogRepository);
         verifyNoInteractions(auditExecutor);
@@ -61,7 +62,7 @@ class McpAuditRecorderTest {
         McpAuditRecorder recorder = new McpAuditRecorder(
             auditLogRepository, auditExecutor, new JsonMapper(), PiiRecognizerRegistry.defaults(), true);
 
-        recorder.record("get_document", "doc-123", ctx());
+        recorder.record(Constants.McpTool.GET_DOCUMENT, "doc-123", ctx());
 
         ArgumentCaptor<KbAuditLog> captor = ArgumentCaptor.forClass(KbAuditLog.class);
         verify(auditLogRepository).save(captor.capture());
@@ -70,9 +71,9 @@ class McpAuditRecorderTest {
         assertThat(audit.getTenantId()).isEqualTo("t-1");
         assertThat(audit.getUserId()).isEqualTo("u-1");
         assertThat(audit.getQueryText()).isEqualTo("doc-123");
-        assertThat(audit.getStatus()).isEqualTo("SUCCESS");
+        assertThat(audit.getStatus()).isEqualTo(Constants.AuditStatus.SUCCESS);
         assertThat(audit.getTraceId()).hasSize(36);
-        assertThat(audit.getToolCalls()).contains("get_document");
+        assertThat(audit.getToolCalls()).contains(Constants.McpTool.GET_DOCUMENT);
         // 轻行形态：无检索快照/token/会话字段
         assertThat(audit.getSessionId()).isNull();
         assertThat(audit.getRetrievedChunks()).isNull();
@@ -86,7 +87,7 @@ class McpAuditRecorderTest {
             auditLogRepository, auditExecutor, new JsonMapper(), PiiRecognizerRegistry.defaults(), true);
 
         // 旁路数据哲学：落库失败绝不击穿工具调用
-        assertThatCode(() -> recorder.record("search", "检索问题", ctx()))
+        assertThatCode(() -> recorder.record(Constants.McpTool.SEARCH, "检索问题", ctx()))
             .doesNotThrowAnyException();
     }
 }

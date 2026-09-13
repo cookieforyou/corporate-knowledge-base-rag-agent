@@ -61,7 +61,7 @@ class AuditLogSpecsTest {
         LocalDateTime to = LocalDateTime.of(2026, 8, 15, 23, 59, 59);
 
         apply(AuditLogSpecs.search("t-1", from, to, "u-9", "s-9", Constants.ChatMode.MODE_AGENT,
-            "NEGATIVE", "REJECTED", "RETRIEVAL_MISS", false));
+            "NEGATIVE", Constants.AuditStatus.REJECTED, "RETRIEVAL_MISS", false));
 
         verify(cb).equal(root.get("tenantId"), "t-1");
         verify(cb).greaterThanOrEqualTo(root.get("createdAt"), from);
@@ -70,7 +70,7 @@ class AuditLogSpecsTest {
         verify(cb).equal(root.get("sessionId"), "s-9");
         verify(cb).equal(root.get("mode"), Constants.ChatMode.MODE_AGENT);
         verify(cb).equal(root.get("feedback"), "NEGATIVE");
-        verify(cb).equal(root.get("status"), "REJECTED");
+        verify(cb).equal(root.get("status"), Constants.AuditStatus.REJECTED);
         verify(cb).equal(root.get("rootCause"), "RETRIEVAL_MISS");
         verify(cb).isNull(root.get("rootCause"));       // annotated=false → root_cause 为空
         verify(cb, never()).isNotNull(any());

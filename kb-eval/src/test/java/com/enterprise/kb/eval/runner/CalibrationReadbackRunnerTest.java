@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.metric.CitationMetrics;
+import com.enterprise.kb.eval.EvalConstants;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -26,7 +28,7 @@ class CalibrationReadbackRunnerTest {
 
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).caseId()).isEqualTo("f-01");
-        assertThat(rows.get(0).dimension()).isEqualTo("faithfulness");
+        assertThat(rows.get(0).dimension()).isEqualTo(EvalConstants.DIM_FAITHFULNESS);
         assertThat(rows.get(0).humanA()).isEqualTo("4");
         assertThat(rows.get(0).humanB()).isEqualTo("5");
         assertThat(rows.get(1).humanA()).isEmpty();
@@ -79,7 +81,7 @@ class CalibrationReadbackRunnerTest {
             0.8);
 
         assertThat(report)
-            .contains("faithfulness")
+            .contains(EvalConstants.DIM_FAITHFULNESS)
             .contains("待样本")
             .doesNotContain("FAIL");
         assertThat(report).contains("总体判定：PASS");
@@ -206,30 +208,30 @@ class CalibrationReadbackRunnerTest {
     @Test
     void nominalNormalizationSemantics() {
         // CA：NO_CITATION 归并 NOT_SUPPORTED；大小写不敏感；无法识别 → 未标注
-        assertThat(CalibrationReadbackRunner.normalizeNominal("citation_attribution", "no_citation"))
-            .isEqualTo("NOT_SUPPORTED");
-        assertThat(CalibrationReadbackRunner.normalizeNominal("citation_attribution", "Supported"))
-            .isEqualTo("SUPPORTED");
-        assertThat(CalibrationReadbackRunner.normalizeNominal("citation_attribution", "随便写"))
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_CITATION_ATTRIBUTION, "no_citation"))
+            .isEqualTo(CitationMetrics.VERDICT_NOT_SUPPORTED);
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_CITATION_ATTRIBUTION, "Supported"))
+            .isEqualTo(CitationMetrics.VERDICT_SUPPORTED);
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_CITATION_ATTRIBUTION, "随便写"))
             .isNull();
         // HR：YES/NO 别名容忍
-        assertThat(CalibrationReadbackRunner.normalizeNominal("hallucination", " yes ")).isEqualTo("HAS");
-        assertThat(CalibrationReadbackRunner.normalizeNominal("hallucination", "NONE")).isEqualTo("NONE");
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_HALLUCINATION, " yes ")).isEqualTo("HAS");
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_HALLUCINATION, "NONE")).isEqualTo("NONE");
         // NRob：仅两判定值合法
-        assertThat(CalibrationReadbackRunner.normalizeNominal("noise_robustness", "drifted"))
-            .isEqualTo("DRIFTED");
-        assertThat(CalibrationReadbackRunner.normalizeNominal("noise_robustness", "MAYBE")).isNull();
-        assertThat(CalibrationReadbackRunner.normalizeNominal("faithfulness", null)).isNull();
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_NOISE_ROBUSTNESS, "drifted"))
+            .isEqualTo(EvalConstants.VERDICT_DRIFTED);
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_NOISE_ROBUSTNESS, "MAYBE")).isNull();
+        assertThat(CalibrationReadbackRunner.normalizeNominal(EvalConstants.DIM_FAITHFULNESS, null)).isNull();
     }
 
     @Test
     void hallucinationJudgeRateBinarization() {
-        assertThat(CalibrationReadbackRunner.normalizeNominalJudge("hallucination", "0.0")).isEqualTo("NONE");
-        assertThat(CalibrationReadbackRunner.normalizeNominalJudge("hallucination", "0.05")).isEqualTo("HAS");
-        assertThat(CalibrationReadbackRunner.normalizeNominalJudge("hallucination", "1.0")).isEqualTo("HAS");
-        assertThat(CalibrationReadbackRunner.normalizeNominalJudge("hallucination", "不是数字")).isNull();
+        assertThat(CalibrationReadbackRunner.normalizeNominalJudge(EvalConstants.DIM_HALLUCINATION, "0.0")).isEqualTo("NONE");
+        assertThat(CalibrationReadbackRunner.normalizeNominalJudge(EvalConstants.DIM_HALLUCINATION, "0.05")).isEqualTo("HAS");
+        assertThat(CalibrationReadbackRunner.normalizeNominalJudge(EvalConstants.DIM_HALLUCINATION, "1.0")).isEqualTo("HAS");
+        assertThat(CalibrationReadbackRunner.normalizeNominalJudge(EvalConstants.DIM_HALLUCINATION, "不是数字")).isNull();
         // 非 HR 维度走通用归一
-        assertThat(CalibrationReadbackRunner.normalizeNominalJudge("citation_attribution", "supported"))
-            .isEqualTo("SUPPORTED");
+        assertThat(CalibrationReadbackRunner.normalizeNominalJudge(EvalConstants.DIM_CITATION_ATTRIBUTION, "supported"))
+            .isEqualTo(CitationMetrics.VERDICT_SUPPORTED);
     }
 }

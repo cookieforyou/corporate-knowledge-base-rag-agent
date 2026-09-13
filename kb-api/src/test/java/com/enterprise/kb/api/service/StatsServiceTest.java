@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.service;
 
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.api.dto.DocumentProcessingView;
 import com.enterprise.kb.api.dto.StatsOverview;
 import com.enterprise.kb.domain.enums.DocumentStatus;
@@ -60,7 +61,7 @@ class StatsServiceTest {
         assertThat(overview.badCaseTotal()).isEqualTo(7);
         assertThat(overview.unannotatedTotal()).isEqualTo(3);
         assertThat(overview.documentsByStatus())
-            .containsEntry("SUCCESS", 3L)
+            .containsEntry(Constants.AuditStatus.SUCCESS, 3L)
             .containsEntry("FAILED", 2L)
             .containsEntry("UPLOADING", 0L)
             .containsEntry("PARSING", 0L)

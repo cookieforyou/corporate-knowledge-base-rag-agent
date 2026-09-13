@@ -103,7 +103,7 @@ class KnowledgeSearchToolsTest {
         assertThat(outcome.note()).contains("5/6");
         assertThat(ctx.getToolCalls()).hasSize(1);
         assertThat(ctx.getToolCalls().get(0).toolName()).isEqualTo("search:knowledge");
-        assertThat(ctx.getToolCalls().get(0).status()).isEqualTo("EXECUTED");
+        assertThat(ctx.getToolCalls().get(0).status()).isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
         assertThat(ctx.getToolCalls().get(0).summary()).contains("数据分级分类要点");
     }
 
@@ -113,7 +113,7 @@ class KnowledgeSearchToolsTest {
         RetrievalContext ctx = new RetrievalContext();
         ctx.setTenantId("tenant-a");
         for (int i = 0; i < 6; i++) {
-            ctx.addToolCall(new RetrievalContext.ToolCall("search:knowledge", "EXECUTED", null, "第 " + (i + 1) + " 次"));
+            ctx.addToolCall(new RetrievalContext.ToolCall("search:knowledge", RetrievalContext.ToolCall.STATUS_EXECUTED, null, "第 " + (i + 1) + " 次"));
         }
         Map<String, Object> map = new HashMap<>();
         map.put(ToolContextKeys.RETRIEVAL_CONTEXT, ctx);

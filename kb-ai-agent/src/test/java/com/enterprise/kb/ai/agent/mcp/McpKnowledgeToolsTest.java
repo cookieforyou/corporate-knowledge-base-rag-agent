@@ -105,10 +105,10 @@ class McpKnowledgeToolsTest {
         assertThat(hit.content()).isEqualTo("证据正文");
         assertThat(hit.rerankScore()).isEqualTo(0.93);
         assertThat(hit.finalRank()).isEqualTo(1);
-        verify(metrics).recordMcpToolCall("search");
+        verify(metrics).recordMcpToolCall(Constants.McpTool.SEARCH);
         // 安全簇② B3：限流与轻量审计接线（身份守卫后、工具执行前）
         verify(mcpRateLimiter).acquire(TENANT);
-        verify(mcpAuditRecorder).record(eq("search"), eq("质保期多久"), any(RetrievalContext.class));
+        verify(mcpAuditRecorder).record(eq(Constants.McpTool.SEARCH), eq("质保期多久"), any(RetrievalContext.class));
     }
 
     @Test
@@ -165,9 +165,9 @@ class McpKnowledgeToolsTest {
         // 软删行过滤后存活 3 条，maxChunks=2 截断 → c-1/c-3（c-4 不可达）
         assertThat(view.chunks()).extracting(ChunkTextView::chunkIndex).containsExactly(0, 2);
         assertThat(view.chunks().get(0).headingPath()).isEqualTo("第一章");
-        verify(metrics).recordMcpToolCall("get_document");
+        verify(metrics).recordMcpToolCall(Constants.McpTool.GET_DOCUMENT);
         verify(mcpRateLimiter).acquire(TENANT);
-        verify(mcpAuditRecorder).record(eq("get_document"), eq("d-1"), any(RetrievalContext.class));
+        verify(mcpAuditRecorder).record(eq(Constants.McpTool.GET_DOCUMENT), eq("d-1"), any(RetrievalContext.class));
     }
 
     // ── ask ──
@@ -184,7 +184,7 @@ class McpKnowledgeToolsTest {
         verify(ragChatService).chatRag(eq("质保期多久"), sessionId.capture(), any(RetrievalContext.class));
         // mcp- 来源标记 + 去横线 UUID = 36 字符钉死（kb_audit_log.session_id VARCHAR(36)）
         assertThat(sessionId.getValue()).startsWith("mcp-").hasSize(36);
-        verify(metrics).recordMcpToolCall("ask");
+        verify(metrics).recordMcpToolCall(Constants.McpTool.ASK);
     }
 
     @Test

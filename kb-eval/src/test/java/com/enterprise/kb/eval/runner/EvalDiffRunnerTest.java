@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
+import com.enterprise.kb.eval.metric.CitationMetrics;
 import com.enterprise.kb.eval.config.EvalProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -69,7 +71,7 @@ class EvalDiffRunnerTest {
 
     private static EvalSnapshot.Aggregates aggregates(double recall, double mrr, double faithfulness,
                                                       double hallucinationRate, double negativeRejection) {
-        return new EvalSnapshot.Aggregates("hybrid", 10, 8, 8, 2,
+        return new EvalSnapshot.Aggregates(EvalConstants.PROBE_HYBRID, 10, 8, 8, 2,
             recall, mrr, 0.7, 0, Double.NaN, Double.NaN, Double.NaN,
             faithfulness, 3.9, negativeRejection, 0, Double.NaN, 0, Double.NaN,
             Map.of(),
@@ -85,10 +87,10 @@ class EvalDiffRunnerTest {
 
     @Test
     void buildReportRendersAnchorsConfigAndAggregateVerdicts() {
-        EvalSnapshot a = snapshot("a", "hybrid",
+        EvalSnapshot a = snapshot("a", EvalConstants.PROBE_HYBRID,
             aggregates(0.90, 0.70, 4.00, 0.06, 0.9),
             List.of(caseScores("f-01", 4.0, "REJECTED")));
-        EvalSnapshot b = snapshot("b", "hybrid",
+        EvalSnapshot b = snapshot("b", EvalConstants.PROBE_HYBRID,
             aggregates(0.85, 0.70, 4.20, 0.02, Double.NaN),
             List.of(caseScores("f-01", 4.0, "REJECTED")));
 
@@ -111,8 +113,8 @@ class EvalDiffRunnerTest {
 
     @Test
     void buildReportFlagsConfigMismatch() {
-        EvalSnapshot a = snapshot("a", "hybrid", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN), List.of());
-        EvalSnapshot b = snapshot("b", "vector-single", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN), List.of());
+        EvalSnapshot a = snapshot("a", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN), List.of());
+        EvalSnapshot b = snapshot("b", EvalConstants.PROBE_VECTOR_SINGLE, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN), List.of());
 
         String report = EvalDiffRunner.buildReport(a, b, "base", "cand", 0.03);
 
@@ -124,16 +126,16 @@ class EvalDiffRunnerTest {
     void buildReportListsFlipsMovesAnswerChangesAndSetDrift() {
         EvalSnapshot.CaseScores a1 = new EvalSnapshot.CaseScores("f-01", "FACTOID", "hash-old",
             1.0, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-            4.0, 4.0, "REJECTED", null, null, null, null, "SUPPORTED", 1.0, 0.0, null);
+            4.0, 4.0, "REJECTED", null, null, null, null, CitationMetrics.VERDICT_SUPPORTED, 1.0, 0.0, null);
         EvalSnapshot.CaseScores b1 = new EvalSnapshot.CaseScores("f-01", "FACTOID", "hash-new",
             1.0, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-            3.5, 4.0, "PARTIAL", null, null, null, null, "SUPPORTED", 1.0, 0.0, null);
+            3.5, 4.0, "PARTIAL", null, null, null, null, CitationMetrics.VERDICT_SUPPORTED, 1.0, 0.0, null);
         EvalSnapshot.CaseScores aOnly = caseScores("f-02", 4.0, null);
         EvalSnapshot.CaseScores bOnly = caseScores("f-03", 4.0, null);
 
-        EvalSnapshot a = snapshot("a", "hybrid", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
+        EvalSnapshot a = snapshot("a", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
             List.of(a1, aOnly));
-        EvalSnapshot b = snapshot("b", "hybrid", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
+        EvalSnapshot b = snapshot("b", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
             List.of(b1, bOnly));
 
         String report = EvalDiffRunner.buildReport(a, b, "base", "cand", 0.03);
@@ -146,9 +148,9 @@ class EvalDiffRunnerTest {
 
     @Test
     void buildReportHandlesIdenticalRunsCleanly() {
-        EvalSnapshot a = snapshot("a", "hybrid", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
+        EvalSnapshot a = snapshot("a", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
             List.of(caseScores("f-01", 4.0, "REJECTED")));
-        EvalSnapshot b = snapshot("b", "hybrid", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
+        EvalSnapshot b = snapshot("b", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
             List.of(caseScores("f-01", 4.0, "REJECTED")));
 
         String report = EvalDiffRunner.buildReport(a, b, "base", "cand", 0.03);
@@ -163,9 +165,9 @@ class EvalDiffRunnerTest {
 
     @Test
     void runConsumesSnapshotFilesAndWritesDiffReport(@TempDir Path tempDir) throws Exception {
-        EvalSnapshot a = snapshot("a", "hybrid", aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
+        EvalSnapshot a = snapshot("a", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.0, 0.05, Double.NaN),
             List.of(caseScores("f-01", 4.0, "REJECTED")));
-        EvalSnapshot b = snapshot("b", "hybrid", aggregates(0.9, 0.7, 4.3, 0.05, Double.NaN),
+        EvalSnapshot b = snapshot("b", EvalConstants.PROBE_HYBRID, aggregates(0.9, 0.7, 4.3, 0.05, Double.NaN),
             List.of(caseScores("f-01", 4.0, "REJECTED")));
         Path pathA = tempDir.resolve("eval-results-baseA.json");
         Path pathB = tempDir.resolve("eval-results-baseB.json");

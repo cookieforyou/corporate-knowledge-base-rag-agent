@@ -128,7 +128,7 @@ class TaskToolTest {
         assertThat(result).isEqualTo("子代理结果");
         assertThat(ctx.getToolCalls()).hasSize(1);
         assertThat(ctx.getToolCalls().get(0).toolName()).isEqualTo("task:demo");
-        assertThat(ctx.getToolCalls().get(0).status()).isEqualTo("EXECUTED");
+        assertThat(ctx.getToolCalls().get(0).status()).isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
         assertThat(ctx.getToolCalls().get(0).summary()).contains("E1001");
     }
 
@@ -196,7 +196,7 @@ class TaskToolTest {
         // E2E 热修四：快照内已有 2 次 task:* 记录 + 预算 2 → 本次直接文本拒绝，
         // 不执行子代理，拒绝事件入快照（审计可见）
         RetrievalContext ctx = new RetrievalContext();
-        ctx.addToolCall(new RetrievalContext.ToolCall("task:demo", "EXECUTED", null, "第 1 次"));
+        ctx.addToolCall(new RetrievalContext.ToolCall("task:demo", RetrievalContext.ToolCall.STATUS_EXECUTED, null, "第 1 次"));
         ctx.addToolCall(new RetrievalContext.ToolCall("task:demo", "FAILED", null, "第 2 次"));
         TaskTool budgeted = new TaskTool(
             new SubAgentRegistry(List.of(new SubAgentSpec(
@@ -217,7 +217,7 @@ class TaskToolTest {
     void nonTaskToolCallsDoNotConsumeBudget() {
         // 预算只数 task:* 记录——叶子工具（如 mock 读工具）调用不占委派预算
         RetrievalContext ctx = new RetrievalContext();
-        ctx.addToolCall(new RetrievalContext.ToolCall("queryEmployee", "EXECUTED", null, "叶子工具"));
+        ctx.addToolCall(new RetrievalContext.ToolCall("queryEmployee", RetrievalContext.ToolCall.STATUS_EXECUTED, null, "叶子工具"));
         TaskTool budgeted = new TaskTool(
             new SubAgentRegistry(List.of(new SubAgentSpec(
                 "demo", "演示职责", "演示系统指令", List.of(), null, 60))),

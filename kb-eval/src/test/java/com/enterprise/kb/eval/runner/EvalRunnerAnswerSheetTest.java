@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.metric.CitationMetrics;
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
@@ -26,7 +28,7 @@ class EvalRunnerAnswerSheetTest {
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
-        return new EvalReport("hybrid", results.size(), results.size(), results.size(), 0,
+        return new EvalReport(EvalConstants.PROBE_HYBRID, results.size(), results.size(), results.size(), 0,
             0.9, 0.8, 0.7, 0, Double.NaN, Double.NaN, Double.NaN,
             4.2, 3.9, Double.NaN, 0, Double.NaN, 0, Double.NaN,
             Map.of(), results, EvalReport.Phase5Metrics.EMPTY);
@@ -36,8 +38,8 @@ class EvalRunnerAnswerSheetTest {
     @Test
     void answerSheetDumpsCleanDomainWithNotSupportedIndex() {
         String sheet = EvalRunner.renderAnswerSheet(reportOf(List.of(
-            result("f-01", QACategory.FACTOID, "回答甲[ref-1]", "SUPPORTED"),
-            result("f-02", QACategory.FACTOID, "回答乙[ref-2]", "NOT_SUPPORTED"))));
+            result("f-01", QACategory.FACTOID, "回答甲[ref-1]", CitationMetrics.VERDICT_SUPPORTED),
+            result("f-02", QACategory.FACTOID, "回答乙[ref-2]", CitationMetrics.VERDICT_NOT_SUPPORTED))));
 
         assertThat(sheet)
             .contains("# 答案人审表")
@@ -64,7 +66,7 @@ class EvalRunnerAnswerSheetTest {
             "SUSPECT", null, null, null, null, null, null);
 
         String sheet = EvalRunner.renderAnswerSheet(reportOf(List.of(
-            result("f-01", QACategory.FACTOID, "正向回答[ref-1]", "SUPPORTED"),
+            result("f-01", QACategory.FACTOID, "正向回答[ref-1]", CitationMetrics.VERDICT_SUPPORTED),
             result("neg-01", QACategory.NEGATIVE, "负向例回答-EXCL-NEG", null),
             injection)));
 

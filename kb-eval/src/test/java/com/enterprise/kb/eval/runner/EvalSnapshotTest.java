@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.metric.CitationMetrics;
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.AttackType;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
@@ -23,11 +25,11 @@ class EvalSnapshotTest {
         GoldenQAPair pair = new GoldenQAPair(id, QACategory.FACTOID, question, null, null, null, null, null, null, null);
         return new EvalResult(pair, List.of(), answer, 1.0, 0.5, 0.8,
             Double.NaN, Double.NaN, Double.NaN, 4.0, 3.5, null, null, "理由", null, null,
-            null, 4.5, "SUPPORTED", 1.0, 0.02, null, null);
+            null, 4.5, CitationMetrics.VERDICT_SUPPORTED, 1.0, 0.02, null, null);
     }
 
     private static EvalReport reportOf(List<EvalResult> results) {
-        return new EvalReport("hybrid", results.size(), results.size(), results.size(), 0,
+        return new EvalReport(EvalConstants.PROBE_HYBRID, results.size(), results.size(), results.size(), 0,
             0.9, 0.8, 0.7, 0, Double.NaN, Double.NaN, Double.NaN,
             4.2, 3.9, Double.NaN, 0, Double.NaN, 0, Double.NaN,
             Map.of(), results, EvalReport.Phase5Metrics.EMPTY);
@@ -44,7 +46,7 @@ class EvalSnapshotTest {
             reportOf(List.of(result("f-01", "问题一", "回答一"))), props, anchor);
 
         assertThat(snapshot.anchor()).isEqualTo(anchor);
-        assertThat(snapshot.runConfig().probe()).isEqualTo("hybrid");
+        assertThat(snapshot.runConfig().probe()).isEqualTo(EvalConstants.PROBE_HYBRID);
         assertThat(snapshot.runConfig().judgeModel()).isEqualTo("qwen3.8-flash");
         assertThat(snapshot.aggregates().avgFaithfulness()).isEqualTo(4.2);
         assertThat(snapshot.aggregates().phase5()).isEqualTo(EvalReport.Phase5Metrics.EMPTY);
@@ -53,7 +55,7 @@ class EvalSnapshotTest {
         assertThat(c.id()).isEqualTo("f-01");
         assertThat(c.category()).isEqualTo("FACTOID");
         assertThat(c.faithfulness()).isEqualTo(4.0);
-        assertThat(c.citationVerdict()).isEqualTo("SUPPORTED");
+        assertThat(c.citationVerdict()).isEqualTo(CitationMetrics.VERDICT_SUPPORTED);
         assertThat(c.answerSha256()).isEqualTo(EvalSnapshot.sha256("回答一"));
     }
 

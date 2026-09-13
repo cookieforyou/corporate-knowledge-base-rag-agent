@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.domain.model.KbChunk;
 import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
@@ -33,7 +34,7 @@ class AnswerDraftRunnerTest {
         chunkRepository = mock(KbChunkRepository.class);
         probe = mock(RetrievalProbe.class);
         when(probe.getOrder()).thenReturn(0);
-        when(probe.name()).thenReturn("hybrid");
+        when(probe.name()).thenReturn(EvalConstants.PROBE_HYBRID);
         runner = new AnswerDraftRunner(mock(GoldenDatasetLoader.class), chunkRepository,
             List.of(probe), mock(ChatClient.class), JsonMapper.builder().build());
     }

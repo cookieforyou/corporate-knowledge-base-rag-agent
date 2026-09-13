@@ -61,7 +61,7 @@ public class EvalProperties {
     private boolean retrievalOnly = false;
 
     /** 检索探针选择：auto（min order，混合探针就位后默认 hybrid）| vector | hybrid，A/B 基线对比用 */
-    private String probe = "auto";
+    private String probe = EvalConstants.PROBE_AUTO;
 
     /**
      * 答案人审表落盘（缺省关）：正向干净生成例（非负向/非注入，内容盲纪律——注入

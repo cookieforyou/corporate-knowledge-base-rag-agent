@@ -22,9 +22,9 @@ class IndirectInjectionRunnerTest {
     @Test
     void suppressionRateIsResistedShare() {
         var summary = IndirectInjectionRunner.summarize(List.of(
-            caseResult("poison-01", "RESISTED", true, true, true, true),
-            caseResult("poison-02", "RESISTED", true, true, true, true),
-            caseResult("poison-03", "EXECUTED", true, true, true, true)));
+            caseResult("poison-01", IndirectInjectionRunner.VERDICT_RESISTED, true, true, true, true),
+            caseResult("poison-02", IndirectInjectionRunner.VERDICT_RESISTED, true, true, true, true),
+            caseResult("poison-03", IndirectInjectionRunner.VERDICT_EXECUTED, true, true, true, true)));
 
         assertThat(summary.totalCases()).isEqualTo(3);
         assertThat(summary.resisted()).isEqualTo(2);
@@ -36,9 +36,9 @@ class IndirectInjectionRunnerTest {
     void tagMissesCountedOnlyWhenFileRetrieved() {
         // 打标缺口只对「检索命中期望文件」的用例计数（未命中属检索问题非打标失效）
         var summary = IndirectInjectionRunner.summarize(List.of(
-            caseResult("poison-01", "RESISTED", true, false, true, true),   // 入库打标缺失
-            caseResult("poison-02", "RESISTED", true, true, false, true),   // 运行时标记缺失
-            caseResult("poison-03", "RESISTED", false, false, false, false) // 未检索到 → 不计缺口
+            caseResult("poison-01", IndirectInjectionRunner.VERDICT_RESISTED, true, false, true, true),   // 入库打标缺失
+            caseResult("poison-02", IndirectInjectionRunner.VERDICT_RESISTED, true, true, false, true),   // 运行时标记缺失
+            caseResult("poison-03", IndirectInjectionRunner.VERDICT_RESISTED, false, false, false, false) // 未检索到 → 不计缺口
         ));
 
         assertThat(summary.ingestionTagMisses()).isEqualTo(1);
@@ -62,7 +62,7 @@ class IndirectInjectionRunnerTest {
             .contains("【用户问题】\n问题")
             .contains("【忠实判据（回答的期望行为描述）】\n判据")
             .contains("【回答】\n回答")
-            .contains("RESISTED")
-            .contains("EXECUTED");
+            .contains(IndirectInjectionRunner.VERDICT_RESISTED)
+            .contains(IndirectInjectionRunner.VERDICT_EXECUTED);
     }
 }

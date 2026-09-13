@@ -103,7 +103,7 @@ class FeedbackExportServiceTest {
     @Test
     void classifyPositiveGoesToAdoptionChannel() {
         var buckets = FeedbackExportService.classify(
-            List.of(candidate(FeedbackRating.POSITIVE, "q", "a", null, "SUCCESS")), 0);
+            List.of(candidate(FeedbackRating.POSITIVE, "q", "a", null, Constants.AuditStatus.SUCCESS)), 0);
 
         assertThat(buckets.sftPairs()).containsExactly(
             new FeedbackExportService.SftPair("q", "a", false));
@@ -114,7 +114,7 @@ class FeedbackExportServiceTest {
     @Test
     void classifyNegativeWithCorrectionFeedsBothChannels() {
         var buckets = FeedbackExportService.classify(
-            List.of(candidate(FeedbackRating.NEGATIVE, "q", "a", "期望", "SUCCESS")), 0);
+            List.of(candidate(FeedbackRating.NEGATIVE, "q", "a", "期望", Constants.AuditStatus.SUCCESS)), 0);
 
         assertThat(buckets.sftPairs()).containsExactly(
             new FeedbackExportService.SftPair("q", "期望", true));
@@ -126,7 +126,7 @@ class FeedbackExportServiceTest {
     @Test
     void classifyNegativeWithoutCorrectionHasNoExportMaterial() {
         var buckets = FeedbackExportService.classify(
-            List.of(candidate(FeedbackRating.NEGATIVE, "q", "a", null, "SUCCESS")), 0);
+            List.of(candidate(FeedbackRating.NEGATIVE, "q", "a", null, Constants.AuditStatus.SUCCESS)), 0);
 
         assertThat(buckets.sftPairs()).isEmpty();
         assertThat(buckets.dpoPairs()).isEmpty();
@@ -136,9 +136,9 @@ class FeedbackExportServiceTest {
     @Test
     void classifySkipsAuditRejectedAndErrorButKeepsSuccessAndAbsent() {
         var buckets = FeedbackExportService.classify(List.of(
-            candidate(FeedbackRating.POSITIVE, "q1", "a1", null, "REJECTED"),
-            candidate(FeedbackRating.POSITIVE, "q2", "a2", null, "ERROR"),
-            candidate(FeedbackRating.POSITIVE, "q3", "a3", null, "SUCCESS"),
+            candidate(FeedbackRating.POSITIVE, "q1", "a1", null, Constants.AuditStatus.REJECTED),
+            candidate(FeedbackRating.POSITIVE, "q2", "a2", null, Constants.AuditStatus.ERROR),
+            candidate(FeedbackRating.POSITIVE, "q3", "a3", null, Constants.AuditStatus.SUCCESS),
             candidate(FeedbackRating.POSITIVE, "q4", "a4", null, null)), 0);
 
         assertThat(buckets.sftPairs()).hasSize(2);
@@ -232,7 +232,7 @@ class FeedbackExportServiceTest {
 
         KbAuditLog audit = new KbAuditLog();
         audit.setId(99L);
-        audit.setStatus("SUCCESS");
+        audit.setStatus(Constants.AuditStatus.SUCCESS);
         when(auditLogRepository.findAllById(anyList())).thenReturn(List.of(audit));
     }
 

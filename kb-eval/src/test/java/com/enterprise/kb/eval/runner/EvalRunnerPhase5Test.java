@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.metric.CitationMetrics;
+import com.enterprise.kb.eval.EvalConstants;
 import com.enterprise.kb.eval.config.EvalProperties;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
@@ -124,9 +126,9 @@ class EvalRunnerPhase5Test {
     @Test
     void aggregateComputesRatesAndMeans() {
         List<EvalResult> results = new ArrayList<>();
-        results.add(genResult("a", 5.0, "SUPPORTED", 0.0, "CONSISTENT"));
-        results.add(genResult("b", 3.0, "NO_CITATION", 0.10, "DRIFTED"));
-        results.add(genResult("c", null, "NOT_SUPPORTED", 0.05, null));
+        results.add(genResult("a", 5.0, CitationMetrics.VERDICT_SUPPORTED, 0.0, EvalConstants.VERDICT_CONSISTENT));
+        results.add(genResult("b", 3.0, CitationMetrics.VERDICT_NO_CITATION, 0.10, EvalConstants.VERDICT_DRIFTED));
+        results.add(genResult("c", null, CitationMetrics.VERDICT_NOT_SUPPORTED, 0.05, null));
 
         EvalReport.Phase5Metrics m = EvalRunner.aggregatePhase5(results);
 
@@ -150,7 +152,7 @@ class EvalRunnerPhase5Test {
     // ── 报告渲染：观察带小节 ──
 
     private static EvalReport reportWith(EvalReport.Phase5Metrics phase5) {
-        return new EvalReport("chain", 3, 0, 3, 0,
+        return new EvalReport(EvalConstants.PROBE_CHAIN, 3, 0, 3, 0,
             Double.NaN, Double.NaN, Double.NaN,
             0, Double.NaN, Double.NaN, Double.NaN,
             4.5, 4.5, Double.NaN,
@@ -243,7 +245,7 @@ class EvalRunnerPhase5Test {
             null, "理想回答-" + id, null, null, null, null, null);
         return new EvalResult(pair, List.of(), "回答-" + id, Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 4.0, 4.0, null, null, null, null, null,
-            null, 5.0, "SUPPORTED", 1.0, 0.25, "CONSISTENT", "答案B-" + id);
+            null, 5.0, CitationMetrics.VERDICT_SUPPORTED, 1.0, 0.25, EvalConstants.VERDICT_CONSISTENT, "答案B-" + id);
     }
 
     @Test
@@ -265,16 +267,16 @@ class EvalRunnerPhase5Test {
         EvalResult minimal = new EvalResult(pair("f-01", QACategory.FACTOID, "问题"),
             List.of(), "回答", Double.NaN, Double.NaN, Double.NaN,
             Double.NaN, Double.NaN, Double.NaN, 3.0, 3.0, null, null, null, null, null,
-            null, null, "NO_CITATION", null, null, null, null);
+            null, null, CitationMetrics.VERDICT_NO_CITATION, null, null, null, null);
 
         String csv = EvalRunner.renderCalibrationCsv(List.of(minimal));
 
         assertThat(csv)
             .contains("f-01,FACTOID,faithfulness,3,,\n")
             .contains("f-01,FACTOID,citation_attribution,NO_CITATION,,\n")
-            .doesNotContain("answer_correctness")
-            .doesNotContain("hallucination")
-            .doesNotContain("noise_robustness");
+            .doesNotContain(EvalConstants.DIM_ANSWER_CORRECTNESS)
+            .doesNotContain(EvalConstants.DIM_HALLUCINATION)
+            .doesNotContain(EvalConstants.DIM_NOISE_ROBUSTNESS);
     }
 
     @Test
@@ -283,11 +285,11 @@ class EvalRunnerPhase5Test {
 
         assertThat(md)
             .contains("人类校准打分材料")
-            .contains("faithfulness")
-            .contains("answer_correctness")
-            .contains("citation_attribution")
-            .contains("hallucination")
-            .contains("noise_robustness")
+            .contains(EvalConstants.DIM_FAITHFULNESS)
+            .contains(EvalConstants.DIM_ANSWER_CORRECTNESS)
+            .contains(EvalConstants.DIM_CITATION_ATTRIBUTION)
+            .contains(EvalConstants.DIM_HALLUCINATION)
+            .contains(EvalConstants.DIM_NOISE_ROBUSTNESS)
             .contains("理想回答-t-01")          // AC 人审对照的理想回答材料
             .contains("答案 B（混噪生成，NRob 对照）")
             .contains("答案B-t-01")              // NRob 人审需见答案 B

@@ -1,5 +1,6 @@
 package com.enterprise.kb.api.service;
 
+import com.enterprise.kb.ai.retriever.RetrievalContext;
 import com.enterprise.kb.api.dto.AgentStreamEvent;
 import com.enterprise.kb.api.dto.HistoryMessageItem;
 import com.enterprise.kb.api.dto.SessionItem;
@@ -378,13 +379,13 @@ class ChatSessionServiceTest {
         when(sessionRepository.existsById("s1")).thenReturn(true);
 
         service.archiveTurn("s1", "t", "u", Constants.ChatMode.MODE_AGENT, "问题", "回答", "msg-1", null, "trace-xyz",
-            List.of(new AgentStreamEvent.ToolCallInfo("task:knowledge-searcher", "EXECUTED", null, "检索 DDD 反模式")));
+            List.of(new AgentStreamEvent.ToolCallInfo("task:knowledge-searcher", RetrievalContext.ToolCall.STATUS_EXECUTED, null, "检索 DDD 反模式")));
 
         ArgumentCaptor<KbMessage> captor = ArgumentCaptor.forClass(KbMessage.class);
         verify(messageRepository, Mockito.times(2)).save(captor.capture());
         String metadata = captor.getAllValues().get(1).getMetadata();
         assertThat(metadata).contains("trace-xyz").contains("toolCalls")
-            .contains("task:knowledge-searcher").contains("EXECUTED");
+            .contains("task:knowledge-searcher").contains(RetrievalContext.ToolCall.STATUS_EXECUTED);
     }
 
     @Test
@@ -399,7 +400,7 @@ class ChatSessionServiceTest {
         assistant.setMetadata(jsonMapper.writeValueAsString(Map.of(
             "traceId", "trace-xyz",
             "toolCalls", List.of(new AgentStreamEvent.ToolCallInfo(
-                "task:report-writer", "EXECUTED", null, "生成清单")))));
+                "task:report-writer", RetrievalContext.ToolCall.STATUS_EXECUTED, null, "生成清单")))));
         when(messageRepository.findBySessionIdOrderByCreatedAt("s1")).thenReturn(List.of(assistant));
         when(feedbackRepository.findByMessageIdInAndUserId(List.of("m-ast"), "u"))
             .thenReturn(List.of());
@@ -408,7 +409,7 @@ class ChatSessionServiceTest {
 
         assertThat(items.get(0).toolCalls()).hasSize(1);
         assertThat(items.get(0).toolCalls().get(0).toolName()).isEqualTo("task:report-writer");
-        assertThat(items.get(0).toolCalls().get(0).status()).isEqualTo("EXECUTED");
+        assertThat(items.get(0).toolCalls().get(0).status()).isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
     }
 
     @Test

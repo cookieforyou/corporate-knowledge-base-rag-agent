@@ -48,7 +48,7 @@ class AuditLogQueryServiceTest {
         audit.setId(id);
         audit.setTenantId(tenantId);
         audit.setQueryText("问题 " + id);
-        audit.setStatus("SUCCESS");
+        audit.setStatus(Constants.AuditStatus.SUCCESS);
         audit.setCreatedAt(LocalDateTime.of(2026, 8, 15, 10, 0));
         return audit;
     }

@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.metric;
 
+import com.enterprise.kb.eval.metric.CitationMetrics;
+import com.enterprise.kb.eval.EvalConstants;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -19,8 +21,8 @@ class CohensKappaTest {
     @Test
     void nominalPerfectAgreementIsOne() {
         assertThat(CohensKappa.nominal(
-            List.of("SUPPORTED", "NOT_SUPPORTED", "SUPPORTED"),
-            List.of("SUPPORTED", "NOT_SUPPORTED", "SUPPORTED"))).isEqualTo(1.0);
+            List.of(CitationMetrics.VERDICT_SUPPORTED, CitationMetrics.VERDICT_NOT_SUPPORTED, CitationMetrics.VERDICT_SUPPORTED),
+            List.of(CitationMetrics.VERDICT_SUPPORTED, CitationMetrics.VERDICT_NOT_SUPPORTED, CitationMetrics.VERDICT_SUPPORTED))).isEqualTo(1.0);
     }
 
     @Test
@@ -47,7 +49,7 @@ class CohensKappaTest {
     void nominalDegenerateSingleCategoryAgreementIsOne() {
         // 全 CONSISTENT：pe=1 但全一致 → 约定 1.0（不得误判未定拖垮校准）
         assertThat(CohensKappa.nominal(
-            List.of("CONSISTENT", "CONSISTENT"), List.of("CONSISTENT", "CONSISTENT")))
+            List.of(EvalConstants.VERDICT_CONSISTENT, EvalConstants.VERDICT_CONSISTENT), List.of(EvalConstants.VERDICT_CONSISTENT, EvalConstants.VERDICT_CONSISTENT)))
             .isEqualTo(1.0);
     }
 

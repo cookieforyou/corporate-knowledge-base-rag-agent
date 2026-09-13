@@ -69,7 +69,7 @@ class EnterpriseMockWriteToolsTest {
 
         assertThat(result).startsWith("✅ 请假申请已提交");
         verify(approvalService).consume("apv-001", "tenant-a", "user-1");
-        assertThat(ctx.getToolCalls().get(0).status()).isEqualTo("EXECUTED");
+        assertThat(ctx.getToolCalls().get(0).status()).isEqualTo(RetrievalContext.ToolCall.STATUS_EXECUTED);
     }
 
     @Test
