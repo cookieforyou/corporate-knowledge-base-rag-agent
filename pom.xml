@@ -38,6 +38,9 @@
              Simulation 类命名 *Simulation 避开 surefire，默认 mvn test 只编译不跑压测 -->
         <gatling.version>3.15.1</gatling.version>
         <gatling-maven-plugin.version>4.21.10</gatling-maven-plugin.version>
+        <!-- 钉钉 Stream 模式 SDK（Phase5簇⑥ 5.12 群机器人）：shaded jar（netty 等
+             已 relocate），与宿主 classpath 零冲突；仅 kb-ai-agent 消费 -->
+        <dingtalk-stream.version>1.3.12</dingtalk-stream.version>
         <!-- 2.0.5：1.20.1 的 docker-java 3.4 钉死 API 1.32，Docker Engine 29（最低 API 1.40+）
              全部请求 400；2.x 线 docker-java 3.7 兼容新引擎（2026-08-13 D3 实证） -->
         <testcontainers.version>2.0.5</testcontainers.version>
@@ -143,6 +146,13 @@
                 <groupId>io.gatling.highcharts</groupId>
                 <artifactId>gatling-charts-highcharts</artifactId>
                 <version>${gatling.version}</version>
+            </dependency>
+
+            <!-- 钉钉 Stream 模式 SDK（仅 kb-ai-agent 消费，Phase5簇⑥ 5.12） -->
+            <dependency>
+                <groupId>com.dingtalk.open</groupId>
+                <artifactId>dingtalk-stream</artifactId>
+                <version>${dingtalk-stream.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -36,5 +36,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-json</artifactId>
         </dependency>
+        <!-- 钉钉 Stream 模式 SDK（Phase5簇⑥ 5.12 群机器人）：WebSocket 出站长连接收 @ 消息，
+             shaded jar 与宿主零冲突（父 POM dependencyManagement 预埋版本） -->
+        <dependency>
+            <groupId>com.dingtalk.open</groupId>
+            <artifactId>dingtalk-stream</artifactId>
+        </dependency>
     </dependencies>
 </project>

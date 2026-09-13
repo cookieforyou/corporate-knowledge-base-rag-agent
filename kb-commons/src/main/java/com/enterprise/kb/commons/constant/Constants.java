@@ -318,6 +318,7 @@ public final class Constants {
         public static final String ORCHESTRATOR_SUB_AGENT_EXECUTOR = "orchestratorSubAgentExecutor";
         public static final String GRAPH_CLEANUP_EXECUTOR = "graphCleanupExecutor";
         public static final String SESSION_ARCHIVE_EXECUTOR = "sessionArchiveExecutor";
+        public static final String DINGTALK_EXECUTOR = "dingtalkExecutor";
 
         // ── 其他装配件 ──
         public static final String AGENT_CHAT_MEMORY = "agentChatMemory";

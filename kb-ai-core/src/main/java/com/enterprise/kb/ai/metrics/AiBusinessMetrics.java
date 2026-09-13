@@ -435,6 +435,41 @@ public class AiBusinessMetrics {
         guardrailMcpRateLimited.increment();
     }
 
+    // ── 钉钉群机器人入口域计数族（Phase5簇⑥ 5.12）：动态注册形态（orchestrator 族先例，
+    // 关闭态零 meter）；零标签纪律；四态计数 + 对话耗时 Timer ──
+
+    /** 收到 @ 文本消息计数（非文本消息忽略不计） */
+    public void recordDingTalkMessage() {
+        counter("rag.dingtalk.message", "钉钉群机器人收到 @ 消息次数").increment();
+    }
+
+    /** 成功回复计数（markdown 卡片经 sessionWebhook 推回） */
+    public void recordDingTalkReplied() {
+        counter("rag.dingtalk.replied", "钉钉群机器人成功回复次数").increment();
+    }
+
+    /** 限流拒绝计数（入口域独立桶超限） */
+    public void recordDingTalkRateLimited() {
+        counter("rag.dingtalk.ratelimited", "钉钉群机器人限流拒绝次数").increment();
+    }
+
+    /** 异常计数（对话失败/超时/回复失败三源汇聚；分维拆分待真实流量观察后定） */
+    public void recordDingTalkError() {
+        counter("rag.dingtalk.error", "钉钉群机器人异常次数（对话失败/超时/回复失败）").increment();
+    }
+
+    /** 单次对话链耗时（含检索与生成全程，p50/p95/p99） */
+    public void recordDingTalkChatDuration(Duration elapsed) {
+        Timer.builder("rag.dingtalk.chat.duration")
+            .description("钉钉群机器人单次对话链耗时（chatRag 同步全程）")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(meterRegistry).record(elapsed);
+    }
+
+    private Counter counter(String name, String description) {
+        return Counter.builder(name).description(description).register(meterRegistry);
+    }
+
     /** L2 语义判定触发计数（安全簇⑤ E1）：可疑请求进入二判（触发率分子） */
     public void recordL2Triggered() {
         guardrailL2Triggered.increment();

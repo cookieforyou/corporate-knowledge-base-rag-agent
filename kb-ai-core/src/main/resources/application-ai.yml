@@ -189,6 +189,26 @@ rag:
     # 先经日志面观察体量与价值再定口径（专项方案 §4.2 B3）
     audit:
       enabled: ${RAG_MCP_AUDIT_ENABLED:false}
+  # 钉钉群机器人（Phase5簇⑥ 5.12 收窄版）：企业内部应用机器人 + Stream 模式
+  # WebSocket 出站长连接（无公网入站端点，SecurityConfig/安全组零改动）；
+  # 复用 chatRag 同步链（全护栏/审计/记忆零减配，mode=rag），回复经消息自带
+  # sessionWebhook 推 markdown 卡片（答案 + [ref-N] 溯源附录）。
+  # 关闭态（缺省）Stream 客户端 Bean 缺位，全系统逐字节零变化；
+  # 开启态三要素 fail-closed 启动校验（D2-A：tenant-id 缺失即失败防裸租户）。
+  dingtalk:
+    enabled: ${RAG_DINGTALK_ENABLED:false}
+    client-id: ${RAG_DINGTALK_CLIENT_ID:}          # AppKey（钉钉开发者后台，env 注入）
+    client-secret: ${RAG_DINGTALK_CLIENT_SECRET:}  # AppSecret（env 注入，yml 零字面）
+    tenant-id: ${RAG_DINGTALK_TENANT_ID:}          # 服务账号绑定的唯一租户（D2-A）
+    chat-timeout-seconds: ${RAG_DINGTALK_CHAT_TIMEOUT_SECONDS:120}
+    ratelimit:
+      enabled: ${RAG_DINGTALK_RATELIMIT_ENABLED:true}
+      rate: ${RAG_DINGTALK_RATELIMIT_RATE:20}              # 群聊低频，保守起步
+      interval-seconds: ${RAG_DINGTALK_RATELIMIT_INTERVAL_SECONDS:60}
+    audit:
+      # 入口轻行（kb_audit_log mode=dingtalk）默认关——对话链审计行自然在场
+      # （mode=rag），轻行只做入口域标记，先经结构化日志面观察（MCP B3 同款）
+      enabled: ${RAG_DINGTALK_AUDIT_ENABLED:false}
   # 安全护栏（3.5/3.6，设计文档 12.1/12.2/12.7）—— 词表本体收编结构化文件
   # guardrail/injection-rules.yml / output-rules.yml（逐条 Base64 编码态，
   # 安全簇① T2 起字面词表退役；T3 增 REGEX 结构模式轨，词面经 T4 带外通道
