@@ -14,7 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 输出黑名单护栏（簇⑥ D3）：同步整段替换 + 流式增量放行截断（v2.109 语义——
+ * 输出黑名单护栏（冲刺簇⑥ D3）：同步整段替换 + 流式增量放行截断（v2.109 语义——
  * 命中即吞块，REPLACE 追回经 ctx 标记由 SSE 层消费）+ 洁净输出直通。
  * 黑名单测试词表经基类属性注入（竞品Alpha / 违禁词Beta）。
  */

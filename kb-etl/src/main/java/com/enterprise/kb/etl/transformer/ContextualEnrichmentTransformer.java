@@ -29,7 +29,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 上下文增强器（设计文档 9.5，任务 2.4 复活；簇④ A4）——可选环节，置于
+ * 上下文增强器（设计文档 9.5，任务 2.4 复活；冲刺簇④ A4）——可选环节，置于
  * {@link HtmlProtectingSplitter} 切分与入库消毒之后、落库向量化之前。
  *
  * <p>Anthropic Contextual Retrieval：embedding 前为每个 Chunk 生成一段
@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 元数据存原文（前端展示/结构保真）——9.5 数据模型契合。
  *
  * <p>位置在 {@link SanitizingTransformer} 之后的纪律：LLM 只看到脱敏态文本，
- * 原文 PII 不出库（与簇② B1 纵深一致）。
+ * 原文 PII 不出库（与冲刺簇② B1 纵深一致）。
  *
  * <p>容错：单 chunk 生成失败仅 WARN 并原样放行（增强是质量项，不阻断入库）；
  * IMAGE chunk（正文为 img 标签无语义）与超短 chunk 跳过。
@@ -83,11 +83,11 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
     private static final int MIN_ENRICH_CHARS = 20;
 
     // 语境增强模板收编于 com.enterprise.kb.etl.prompt.PromptTemplates#CONTEXT_ENRICHMENT_PROMPT
-    //（4.8 Git Ops 外部化，簇⑦ 批2；%s 双槽契约 = 概要, 片段）
+    //（4.8 Git Ops 外部化，Phase4簇⑦ 批2；%s 双槽契约 = 概要, 片段）
 
     private final ChatModel chatModel;
     private final int chunkMaxChars;
-    /** 虚拟线程执行器（单例 Bean 持有，非每请求 new——簇③ D2 执行器纪律同构） */
+    /** 虚拟线程执行器（单例 Bean 持有，非每请求 new——冲刺簇③ D2 执行器纪律同构） */
     private final ExecutorService enrichmentExecutor;
     /** 在飞 LLM 调用上限（防供应商限流 429；虚拟线程本身无界，须显式闸门） */
     private final Semaphore concurrencyGate;

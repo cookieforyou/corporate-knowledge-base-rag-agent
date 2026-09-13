@@ -1,7 +1,7 @@
-# kb-rag-agent Prometheus 主配置（簇② 4.3 落档 → Phase 4 簇⑥ 批2 生产化，v2.56）
+# kb-rag-agent Prometheus 主配置（Phase4簇② 4.3 落档 → Phase4簇⑥ 批2 生产化，v2.56）
 #
 # 挂载方式：infra/docker-compose.monitoring.yml 将本文件挂至 /etc/prometheus/prometheus.yml；
-# 告警规则经 rule_files 接线簇① 落档的 alert-rules-kb-rag.yml（同目录挂载 rules/ 子目录）。
+# 告警规则经 rule_files 接线Phase4簇① 落档的 alert-rules-kb-rag.yml（同目录挂载 rules/ 子目录）。
 #
 # scrape 目标口径（v2.56 生产化定案）：
 # - kb-rag-agent：分层 compose 形态下经 host.docker.internal:8090 抓宿主映射端口
@@ -11,7 +11,7 @@
 #
 # actuator 端点 SecurityConfig 已 permitAll（13.3 v2.11 ③）；
 # 生产源址限制（ECS 安全组收敛 8090/9092/3001，2026-09-11 端口随共存栈迁移）
-# 随簇⑥ 批4 落地（12.9 B4）。
+# 随Phase4簇⑥ 批4 落地（12.9 B4）。
 
 global:
   scrape_interval: 15s

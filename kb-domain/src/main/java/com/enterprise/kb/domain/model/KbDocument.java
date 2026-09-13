@@ -61,7 +61,7 @@ public class KbDocument {
     private String errorMessage;
 
     /**
-     * 文档版本号（簇⑥ C1）：首次入库 = 1，每次增量重入库成功 +1。
+     * 文档版本号（优化冲刺簇⑥ C1）：首次入库 = 1，每次增量重入库成功 +1。
      * 用途：运维审计追溯 + 前端版本展示；[ref-N] 引用经 docId 定位文档，
      * 重入库不碎引用（引用指向文档而非特定版本 chunk）。
      */
@@ -69,7 +69,7 @@ public class KbDocument {
     private Integer version = 1;
 
     /**
-     * 图谱构建状态（Phase 5 簇④，V2 迁移）：抽取是 ETL 成功后的异步旁路，
+     * 图谱构建状态（Phase5簇④，V2 迁移）：抽取是 ETL 成功后的异步旁路，
      * 独立于文档入库主状态追踪图覆盖形态；回填任务按 PENDING/FAILED 选目标。
      */
     @Enumerated(EnumType.STRING)

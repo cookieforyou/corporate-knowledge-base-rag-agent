@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Task 委派工具测试（簇⑤ 5.3）——路由/身份下传/超时与失败文本化语义：
+ * Task 委派工具测试（Phase5簇⑤ 5.3）——路由/身份下传/超时与失败文本化语义：
  * 委派失败不抛异常击穿主链，错误以文本回流主 Agent 决策
  */
 class TaskToolTest {
@@ -73,7 +73,7 @@ class TaskToolTest {
     }
 
     /**
-     * 委派进度快照实时推送（簇⑥ 体验批3）：RUNNING 发起即推 + 终态原地回写再推
+     * 委派进度快照实时推送（Phase5簇⑥ 体验批3）：RUNNING 发起即推 + 终态原地回写再推
      * ——两次 tool_call 快照事件；流末 ctx 快照恒全终态（RUNNING 被替换非追加）。
      * 委派阶段进度（E2E 反馈补强）：发起「委派子代理…」+ 终态「执行完成」
      * 两 stage 事件——进度行随委派轮转，检索进行时文案不停留。

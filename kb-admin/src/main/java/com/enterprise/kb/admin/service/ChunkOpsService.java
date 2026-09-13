@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * Chunk 运维服务（Phase 4 簇③ 4.4）——编辑（异步重嵌入）/ 软删 / 恢复三门面，
+ * Chunk 运维服务（Phase4簇③ 4.4）——编辑（异步重嵌入）/ 软删 / 恢复三门面，
  * 复用 C1 基座：软删委派 {@link ChunkCleanupService#softDelete}，向量元数据契约
  * 与 ES 双写复用 {@link DocumentEtlService#vectorMetadata} / {@link EsIndexWriter}。
  *
@@ -63,11 +63,11 @@ public class ChunkOpsService {
     private final AiBusinessMetrics metrics;
     private final JsonMapper jsonMapper;
     private final Executor etlExecutor;
-    /** 语义缓存失效发布器（簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
+    /** 语义缓存失效发布器（Phase5簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
-    /** 图谱网关（簇④ 批3）：软删/恢复同步图内锚点标记；缺省关时 Bean 缺位 */
+    /** 图谱网关（Phase5簇④ 批3）：软删/恢复同步图内锚点标记；缺省关时 Bean 缺位 */
     private final ObjectProvider<GraphGateway> graphGateway;
-    /** 图谱抽取派发器（簇④ 批3）：编辑变更内容后按文档重抽取；缺省关时 Bean 缺位 */
+    /** 图谱抽取派发器（Phase5簇④ 批3）：编辑变更内容后按文档重抽取；缺省关时 Bean 缺位 */
     private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
 
     public ChunkOpsService(KbChunkRepository chunkRepository,
@@ -126,9 +126,9 @@ public class ChunkOpsService {
         metrics.recordChunkOps("edit");
         log.info("Chunk 编辑完成: chunkId={}, docId={}, injectionHit={}",
             chunkId, chunk.getDocId(), injectionHit);
-        // 语义缓存按文档失效（簇③ 5.6 批2）：内容已变更，引用该文档的缓存回答即失效
+        // 语义缓存按文档失效（Phase5簇③ 5.6 批2）：内容已变更，引用该文档的缓存回答即失效
         cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
-        // 图谱重抽取（簇④ 批3）：内容已变更，按文档幂等重抽取收敛实体/关系
+        // 图谱重抽取（Phase5簇④ 批3）：内容已变更，按文档幂等重抽取收敛实体/关系
         // （实体锚定文本，无法单 chunk 局部更新）
         graphExtractionPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
 
@@ -150,7 +150,7 @@ public class ChunkOpsService {
 
         KbChunk deleted = chunkCleanupService.softDelete(chunkId);
         metrics.recordChunkOps("soft_delete");
-        // 语义缓存按文档失效（簇③ 5.6 批2）：软删后证据面收缩，既有缓存回答保守失效
+        // 语义缓存按文档失效（Phase5簇③ 5.6 批2）：软删后证据面收缩，既有缓存回答保守失效
         cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
         syncGraphChunkDeleted(tenantId, chunkId, true);
         return new ChunkOpsResult(deleted != null ? deleted : chunk, true);
@@ -174,7 +174,7 @@ public class ChunkOpsService {
         chunkRepository.save(chunk);
         metrics.recordChunkOps("restore");
         log.info("Chunk 恢复完成: chunkId={}, docId={}", chunkId, chunk.getDocId());
-        // 语义缓存按文档失效（簇③ 5.6 批2）：恢复后证据面扩张，既有缓存回答保守失效
+        // 语义缓存按文档失效（Phase5簇③ 5.6 批2）：恢复后证据面扩张，既有缓存回答保守失效
         cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, chunk.getDocId()));
         syncGraphChunkDeleted(tenantId, chunkId, false);
 
@@ -185,7 +185,7 @@ public class ChunkOpsService {
     // ── 内部方法 ──
 
     /**
-     * 图谱锚点软删标记同步（簇④ 批3）：翻转图内 Chunk 锚点 is_deleted——
+     * 图谱锚点软删标记同步（Phase5簇④ 批3）：翻转图内 Chunk 锚点 is_deleted——
      * 实体引用保留（恢复即复活，无需重抽取）。<b>尽力而为</b>：图故障仅告警，
      * 不击穿运维主流程（最坏 = 图路短暂多/少召回一条，下次重抽取收敛）。
      */

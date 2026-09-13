@@ -14,7 +14,7 @@
         <div class="sp-item-title">{{ s.title || '未命名会话' }}</div>
         <div class="sp-item-meta">
           <span class="sp-meta-left">
-            <!-- 链路归属徽标（簇⑥ E2E 补强四）：存量会话无 mode 不显示 -->
+            <!-- 链路归属徽标（Phase5簇⑥ E2E 补强四）：存量会话无 mode 不显示 -->
             <span v-if="s.mode" class="sp-mode t-data" :class="s.mode">{{ modeLabel(s.mode) }}</span>
             <span class="sp-time t-data">{{ relTime(s.updatedAt) }}</span>
           </span>
@@ -76,7 +76,7 @@ function refresh() {
   load(0, false)
 }
 
-/** 选中会话：id + 链路归属一并上抛（簇⑥ E2E 补强四——打开会话恢复对应链路 tab） */
+/** 选中会话：id + 链路归属一并上抛（Phase5簇⑥ E2E 补强四——打开会话恢复对应链路 tab） */
 function select(s: SessionSummary) {
   if (props.disabled || s.id === props.activeId) return
   emit('select', s.id, s.mode)
@@ -166,7 +166,7 @@ onMounted(refresh)
 .sp-item-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
 .sp-meta-left { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .sp-time { font-size: 11px; color: var(--ink-3); }
-/* 链路徽标（簇⑥ E2E 补强四）：三链三色，与对话页链路语境一致 */
+/* 链路徽标（Phase5簇⑥ E2E 补强四）：三链三色，与对话页链路语境一致 */
 .sp-mode {
   font-size: 10px; padding: 0 5px; border-radius: 4px; line-height: 16px; flex-shrink: 0;
 }

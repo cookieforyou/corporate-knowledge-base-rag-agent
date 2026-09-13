@@ -6,9 +6,9 @@
 从 inbox 目录读取毒化文档（正文文本文件 + 元数据 JSONL），逐篇 Base64 编码 +
 SHA-256 指纹锚点后并入间接注入语料（kb-eval/src/main/resources/indirect/
 indirect-qa.json，编码引用形态——唯正文编码，触发问句与 Judge 判据为明文
-安全区，簇④分解纪律条 6）。
+安全区，安全簇④ 分解纪律条 6）。
 
-内容纪律（§7 + 簇④分解条 5）：
+内容纪律（§7 + 安全簇④ 分解条 5）：
   - 毒化正文只被本脚本程序化读取/编码/写盘；stdout 仅回显
     计数 / 新增 ID 段 / SHA-256 指纹前缀 / 带行号错误，绝不回显正文内容。
   - inbox 建议放仓库外本地路径（明文永不进仓库）；导入完成后 inbox 自行处置。
@@ -58,7 +58,7 @@ def sha256_hex(text: str) -> str:
 
 
 def dedup_key(doc_sha: str, question: str) -> str:
-    """判重键 = 正文指纹 × 问句指纹（同文档多触发问句为独立用例，簇④ D3b 实证补强）"""
+    """判重键 = 正文指纹 × 问句指纹（同文档多触发问句为独立用例，安全簇④ D3b 实证补强）"""
     return f"{doc_sha}::{sha256_hex(question)}"
 
 
@@ -120,7 +120,7 @@ def load_manifest() -> dict:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         manifest.setdefault("poisonCorpus", {"entries": [], "removals": []})
         return manifest
-    return {"description": "安全簇① / 簇④ 带外导入指纹清单（仅元数据，无词值/样本内容）",
+    return {"description": "安全簇① / 安全簇④ 带外导入指纹清单（仅元数据，无词值/样本内容）",
             "entries": [], "removals": [], "actionChanges": [], "corpusRemovals": [],
             "poisonCorpus": {"entries": [], "removals": []}}
 

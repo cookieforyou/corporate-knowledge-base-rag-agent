@@ -20,7 +20,7 @@ import java.util.List;
  * <p>对给定问题跑检索探针 Top-10，输出 chunkId / 得分 / 内容片段，
  * 供人工判定 expectedChunkIds 并写入 golden/*.json（工作流见 golden/README-标注指南.md）。
  *
- * <p>全量重标注表（簇④ A4 修复，2026-08-12）：
+ * <p>全量重标注表（冲刺簇④ A4 修复，2026-08-12）：
  * {@code -Dspring-boot.run.arguments=--eval.annotate-all} ——对全部正向用例跑
  * 探针 Top-8，落盘 target/golden-reannotate-sheet.md，供一次性回填
  * expectedChunkIds（确定性 ID）与 expectedDocs（文档级兜底）。适用于 chunk ID
@@ -69,7 +69,7 @@ public class AnnotationRunner implements ApplicationRunner {
         List<GoldenQAPair> pairs = datasetLoader.loadAll().stream()
             .filter(p -> !p.isNegative()).toList();
         StringBuilder sb = new StringBuilder("""
-            # Golden Dataset 重标注表（簇④ A4 修复）
+            # Golden Dataset 重标注表（冲刺簇④ A4 修复）
 
             chunk ID 已从随机 UUID 迁为确定性 ID（文档名+序号+原文，重入库不变）。
             旧 expectedChunkIds 全部失效，请逐用例从 Top-8 候选中圈定真正包含答案的

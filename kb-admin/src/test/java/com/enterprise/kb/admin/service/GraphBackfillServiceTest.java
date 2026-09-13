@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * GraphBackfillService 单测（簇④ 批3）：选目标口径 / 单租户单任务守卫 /
+ * GraphBackfillService 单测（Phase5簇④ 批3）：选目标口径 / 单租户单任务守卫 /
  * 幂等收敛（跳过已完成）/ 越权过滤。
  */
 class GraphBackfillServiceTest {

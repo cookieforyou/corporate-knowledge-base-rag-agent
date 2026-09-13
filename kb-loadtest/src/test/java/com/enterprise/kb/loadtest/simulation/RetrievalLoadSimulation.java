@@ -17,7 +17,7 @@ import static io.gatling.javaapi.core.CoreDsl.jsonPath;
 import static io.gatling.javaapi.http.HttpDsl.status;
 
 /**
- * 场景 A：检索真压（簇⑥ 4.12 验收线：P95 &lt; 500ms）
+ * 场景 A：检索真压（Phase4簇⑥ 4.12 验收线：P95 &lt; 500ms）
  *
  * <p>直压检索调试端点 POST /api/v1/retrieval/search（不经 LLM 生成，
  * 链路 = 查询改写 LLM 调用 + 双路召回（Milvus/ES）+ RRF + rerank 外部调用）。

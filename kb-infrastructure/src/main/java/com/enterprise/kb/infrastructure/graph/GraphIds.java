@@ -5,7 +5,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 图谱确定性 ID 派生（Phase 5 簇④）。
+ * 图谱确定性 ID 派生（Phase5簇④）。
  *
  * <p>实体 ID = nameUUID v3（租户 × 规范化名称 × 类型）——同名同类型实体跨文档/跨次
  * 抽取收敛为同一节点（合并语义），租户入 ID 物理隔离（跨租户同名不同节点）。

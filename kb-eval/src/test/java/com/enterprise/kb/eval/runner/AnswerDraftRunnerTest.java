@@ -21,7 +21,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * expectedAnswer 草稿生成器单测（簇② 批2）——真值材料装配与回落语义
+ * expectedAnswer 草稿生成器单测（Phase5簇② 批2）——真值材料装配与回落语义
  */
 class AnswerDraftRunnerTest {
 

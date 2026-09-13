@@ -1,9 +1,9 @@
-# Phase 5 簇⑤ Agent 编排（Multi-Agent Orchestrator 收窄版）实施方案（批次推进版）
+# Phase5簇⑤ Agent 编排（Multi-Agent Orchestrator 收窄版）实施方案（批次推进版）
 
 > **版本**：v1.11（收官注记① 三轮：TaskBoundaryAdvisor 消息层注记 + memory-enabled 逃生舱）· **日期**：2026-09-06 · **工时**：3d · **模块跨度**：kb-ai-agent / kb-api / kb-ai-core（指标）/ frontend / docs
-> **性质**：簇⑤落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.3 / §五簇表；批次进展回填 07 卷簇⑤段。
+> **性质**：Phase5簇⑤落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.3 / §五簇表；批次进展回填 07 卷Phase5簇⑤段	。
 > **官方路径核验（2026-09-05）**：Spring AI 2.0.1 GA 无框架级 Agent 抽象，[Building Effective Agents 五模式](https://docs.spring.io/spring-ai/reference/api/effective-agents.html) 全为纯 Java 组合；[Agentic Patterns Part 4 Subagent Orchestration](https://spring.io/blog/2026/01/27/spring-ai-agentic-patterns-4-task-subagents) 的 Task tool 模式 = 主 Agent 仅持 task 工具、子代理各持隔离上下文/独立 system prompt/可差异化模型。与定案原文「主 Agent + TaskTool 子代理委派」完全对齐，自建成本即 3d 底气。
-> **分支纪律**：沿簇④先例拟分支 `phase5-cluster5-orchestrator`（开工时按 main 状态定，3d 小簇亦可直推 main——开工时定）。
+> **分支纪律**：沿Phase5簇④先例拟分支 `phase5-cluster5-orchestrator`（开工时按 main 状态定，3d 小簇亦可直推 main——开工时定）。
 
 ---
 
@@ -12,7 +12,7 @@
 1. **D1 入口形态** = A：`mode: agent` 第三链——orchestratorChatClient 独立装配，主 Agent 仅持 task 工具，既有 rag/tool 两链逐字节不变；
 2. **D2 子代理模型分工** = A：差异化挂载——知识检索/数据查询挂 `fallbackChatModel`（qwen3.8-flash），报告生成挂 `smartRoutingChatModel`；
 3. **D3 编排开关缺省值** = A：`rag.orchestrator.enabled` 缺省 false，关闭态 `mode: agent` → 400 `ORCHESTRATOR_DISABLED`，验收后用户侧自行开；
-4. **D4 Mock 工具留存** = A：保留至真实 OA/ERP 工具立项时替换（L1 换实现，HITL 机制层/链路层不动）；簇⑤ 数据查询子代理复用读工具；
+4. **D4 Mock 工具留存** = A：保留至真实 OA/ERP 工具立项时替换（L1 换实现，HITL 机制层/链路层不动）；Phase5簇⑤ 数据查询子代理复用读工具；
 5. **D5 并发子代理 / D6 验收形态**：按推荐默认执行（无异议）——D5 落码核验 `DefaultToolCallingManager` 后回填结论；D6 演示任务集 10 例 E2E 用户自测回传。
 
 ### 决策点选项集（裁决留档，推荐项置首位）
@@ -37,16 +37,16 @@
 
 | 选项 | 形态 | 依据 |
 |---|---|---|
-| **A（推荐）** | `rag.orchestrator.enabled` **缺省 false**；关闭态 `mode: agent` → 400 `ORCHESTRATOR_DISABLED`（显式拒绝不静默回落） | 对齐簇③④ 纪律：演示骨架未验收 + 真实工具未挂接前不默认暴露；rag/tool 两链逐字节零变化；验收后用户侧自行开 |
+| **A（推荐）** | `rag.orchestrator.enabled` **缺省 false**；关闭态 `mode: agent` → 400 `ORCHESTRATOR_DISABLED`（显式拒绝不静默回落） | 对齐Phase5簇③④ 纪律：演示骨架未验收 + 真实工具未挂接前不默认暴露；rag/tool 两链逐字节零变化；验收后用户侧自行开 |
 | B | 缺省 true | 演示即生产形态；但未经 E2E 验收的功能默认暴露不符合项目灰度惯例 |
 
 ### D4 Mock 工具留存（本轮专议，详析见 §五）
 
 | 选项 | 形态 | 依据 |
 |---|---|---|
-| **A（推荐）** | **保留至真实工具立项时替换**（L1 换实现，HITL 机制层/链路层不动）；簇⑤ 数据查询子代理复用 Mock 读工具 | Mock 是工具调用/HITL/双链/编排四项能力的唯一演示载体；维护成本近零；契约参照价值（11.2.1 定稿「契约按真实系统设计，逐个替换」）；与 5.3/5.4-A「真实工具立项」复活触发器同款 |
-| B | 簇⑤ 落地后移除写工具（submitLeaveRequest）仅留读工具 ×2 | 减一个 HITL 触发面；但 HITL 能力失去端到端演示载体（前端审批卡片死 UI） |
-| C | 簇⑤ 后 Mock 与 tool 链整体退役 | 双链架构（v2.9 用户拍板）回退 + 编排链失去落点与工具基座，不可行 |
+| **A（推荐）** | **保留至真实工具立项时替换**（L1 换实现，HITL 机制层/链路层不动）；Phase5簇⑤ 数据查询子代理复用 Mock 读工具 | Mock 是工具调用/HITL/双链/编排四项能力的唯一演示载体；维护成本近零；契约参照价值（11.2.1 定稿「契约按真实系统设计，逐个替换」）；与 5.3/5.4-A「真实工具立项」复活触发器同款 |
+| B | Phase5簇⑤ 落地后移除写工具（submitLeaveRequest）仅留读工具 ×2 | 减一个 HITL 触发面；但 HITL 能力失去端到端演示载体（前端审批卡片死 UI） |
+| C | Phase5簇⑤ 后 Mock 与 tool 链整体退役 | 双链架构（v2.9 用户拍板）回退 + 编排链失去落点与工具基座，不可行 |
 
 ### D5 并发子代理
 
@@ -66,7 +66,7 @@
 
 ---
 
-## 二、簇⑤边界与不可破纪律
+## 二、Phase5簇⑤边界与不可破纪律
 
 ### 2.1 边界（Phase 5 方案定案）
 
@@ -81,7 +81,7 @@
 
 ### 2.2 不可破纪律
 
-1. **`rag.orchestrator.enabled` 缺省 false**——关闭态编排族 Bean 缺位，rag/tool 两链逐字节零变化（簇③④ 同款条件装配纪律）
+1. **`rag.orchestrator.enabled` 缺省 false**——关闭态编排族 Bean 缺位，rag/tool 两链逐字节零变化（Phase5簇③④ 同款条件装配纪律）
 2. **租户身份链不断**：主请求 RetrievalContext（tenantId/userId）→ AgentOrchestratorService 组装 toolContext → TaskTool 下传 → 子代理内检索/数据工具消费同一身份，fail-closed 两层语义不变（有 ctx 无租户 → 空结果）
 3. **toolContext 仅编排服务组装**（物理消除凭证泄露进 rag 链——v2.9 纪律延伸）
 4. **子代理静态 Spec 不含 task 工具**——递归委派物理不可能，层级恒两层
@@ -93,7 +93,7 @@
 
 ## 三、现状基线与复用落点
 
-| 复用点 | 现状 | 簇⑤ 用法 |
+| 复用点 | 现状 | Phase5簇⑤ 用法 |
 |---|---|---|
 | `toolAgentChatClient` 链形态 | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→SemanticInjection(320)→Memory(400)→ToolCallingAdvisor(1000) | 编排链同构装配（仅 defaultTools 不同 = task 单工具） |
 | `agentToolCallingAdvisor`(1000) 自建 Bean | advisor 无状态 | **同一 Bean 实例共享挂载**编排链 |
@@ -176,8 +176,8 @@
 ### 5.2 引用面（grep 实测）
 
 - L1 仅两处生产引用：`ToolAgentChatClientConfig`（defaultTools 装配）+ 自身测试；L2 经 kb-api `ToolApprovalController` 暴露端点；前端 Chat.vue（mode 切换 + 审批确认回传 `ask('确认执行上述操作', { mode:'tool', approvedToolCallId })`）/ ToolCallCard.vue / chat.ts / api/index.ts。
-- **移除 L1 的连锁**：tool mode 变零工具空转链（ToolCallingAdvisor 空转、mode 分流失去意义）→ L2 全部退化为死码（审批端点/账本/卡片永无触发，比演示态更糟）→ `rag.tool.call.*` 指标恒零 → 簇⑤ 数据查询子代理失去演示基座 → 契约参照价值丢失。
-- **连 L2/L3 一并拆**：双链架构回退 + 簇⑤ 编排链失去落点（编排链 = tool 链工具循环基建的深化，TaskTool 走同一 ToolCallingAdvisor）。
+- **移除 L1 的连锁**：tool mode 变零工具空转链（ToolCallingAdvisor 空转、mode 分流失去意义）→ L2 全部退化为死码（审批端点/账本/卡片永无触发，比演示态更糟）→ `rag.tool.call.*` 指标恒零 → Phase5簇⑤ 数据查询子代理失去演示基座 → 契约参照价值丢失。
+- **连 L2/L3 一并拆**：双链架构回退 + Phase5簇⑤ 编排链失去落点（编排链 = tool 链工具循环基建的深化，TaskTool 走同一 ToolCallingAdvisor）。
 - **维护成本实测**：静态 Map 假数据、零外部依赖、不用即零执行（rag 链零触达）、测试稳定——近零。
 
 ### 5.3 结论（对应 D4）
@@ -190,7 +190,7 @@
 
 > **进展**：批1 ✅（2026-09-05 落码 + 验证通过：kb-ai-agent + kb-api 28 测试类 185 用例全绿）。批1 实现注记：① `SubAgentClientFactory` 接口化为 TaskTool 可测性设计（生产实现 = Config 内 Spec.name 缓存工厂，`ChatClient.Builder` 类型核验为嵌套接口）；② 落码前核验 N1 通过——`AuditTraceAdvisor.MODE_KEY` 为自由字符串、无白名单（仅 `"rag".equals(mode)` 特判 traceEntries，`'agent'` 落库零 DDL 零阻）；③ 批1 已注册 data-query / report-writer 两 Spec（D2 差异化模型），knowledge-searcher 批2 落；④ Mock 拆类双挂后 tool 链工具集等价（三 @Tool 全在）。
 > **进展**：批2 ✅（2026-09-05 落码 + 双端验证通过：后端 kb-ai-core/kb-ai-agent/kb-api 全绿 + vue-tsc 零错 + vite build 绿）。批2 实现注记：① N3 定谳——`McpKnowledgeTools` 身份经 `identityGuard.requireIdentity()`（MCP JWT 捕获）与编排链 toolContext 通道不同源，**不可复用实例**，按方案新写 `KnowledgeSearchTools` 薄委派（检索管线同构：改写→双路召回→重排零 LLM）；② 指标族落 `AiBusinessMetrics`（新增 meterRegistry 字段支撑 subagent 有限枚举 tag 动态注册）；③ 前端 mode 三态全量（radio/空态/placeholder/pipeline/suggestions/AskOpts 六处）。
-> **进展**：批3 ✅（2026-09-05，**簇⑤ 机器侧收官**）：§11.5.5 扩写（v2.102，含契约六条）+ §11.5.1 链序表第三行 + §11.5.6 后续演进重编号 + README/CLAUDE.md/07 卷簇⑤ 段/00 卷状态行 + 演示任务集与 E2E 步骤（§八）。D5 定谳：`DefaultToolCallingManager.executeToolCalls` 源码核验为**串行 for 循环**（同消息多 task 委派顺序执行），收窄版接受，并发升级形态登记契约第 5 条。
+> **进展**：批3 ✅（2026-09-05，**Phase5簇⑤ 机器侧收官**）：§11.5.5 扩写（v2.102，含契约六条）+ §11.5.1 链序表第三行 + §11.5.6 后续演进重编号 + README/CLAUDE.md/07 卷Phase5簇⑤ 段/00 卷状态行 + 演示任务集与 E2E 步骤（§八）。D5 定谳：`DefaultToolCallingManager.executeToolCalls` 源码核验为**串行 for 循环**（同消息多 task 委派顺序执行），收窄版接受，并发升级形态登记契约第 5 条。
 
 ### 批1：编排骨架（1d）
 
@@ -227,11 +227,11 @@
 | 序号 | 产出 | 说明 |
 |---|---|---|
 | 3.1 | 11 章 §11.5.5 扩写 | 「后续演进」→「Multi-Agent 收窄骨架设计」：骨架设计 + 真实工具挂接契约（§七大纲）+ 11.2 链序表注记 |
-| 3.2 | 07 卷簇⑤段 + 本文档 | 任务行进展回填 + 定案记录回填（D1-D6 裁决） |
+| 3.2 | 07 卷Phase5簇⑤段	 + 本文档 | 任务行进展回填 + 定案记录回填（D1-D6 裁决） |
 | 3.3 | CLAUDE.md | 双链路架构行更新（三 mode）+ 多 ChatClient Bean 纪律第五 Bean |
 | 3.4 | 演示任务集 10 例 + E2E 步骤 | 判定标准文档化，交付用户自测 |
 
-**提交**：`docs(orchestrator): 批3 真实工具挂接契约 + 簇⑤收官文档三件套`
+**提交**：`docs(orchestrator): 批3 真实工具挂接契约 + Phase5簇⑤ 收官文档三件套`
 
 ---
 
@@ -258,9 +258,9 @@
 
 > **E2E 热修五（2026-09-06，载荷滚胀型不收敛 + 审计膨胀 + 输出护栏误伤，用户侧步骤 2 复跑发现）**：热修四复查——收敛纪律生效一半（audit tool_calls 实证：委派①超时后主 Agent 确已「缩小范围重述」，委派②③④⑤全 EXECUTED），但 knowledge-searcher 单委派仍检索 40+ 次/2 分钟（prompt 纪律被滚胀上下文淹没——每轮 5 条全文命中累积数十万 token 后指令注意力失效）；伴生两缺陷：审计行 retrieved_chunks 累积 883 条（唯一 chunk 仅 43，子代理检索直写主请求 trace）；主 Agent 综合答案被输出侧词表 import-out-09（BUSINESS_CONFIDENTIAL, BLOCK）整段替换为 22 字拒答。修复（11 章 v2.105）= searchKnowledge 载荷截断（`max-chars` 缺省 400，全文经 getDocument）+ 检索预算闸（`max-searches` 缺省 6 次/请求，跨委派与超时弃任务同计数，SearchOutcome.note 携带剩余次数/停止指令）+ trace 隔离（检索管线喂仅拷贝租户身份的隔离 ctx，溯源改 `search:knowledge`/`get:document` ToolCall 审计记录）。**输出护栏误伤 = 词表运营项非代码缺陷，用户侧处置：Admin 第五 Tab 查词项 import-out-09（编辑弹窗回显词面）→ 降 FLAG / 收紧词面（A4 生命周期）；建议先 rag 模式同题对照判误伤面是否编排链特有。** kb-ai-agent 75 单测绿（KnowledgeSearchToolsTest +4）。
 
-> **E2E 验收收官（2026-09-06，用户侧执行回传，10/10 通过）**：演示任务集 10 例全过（判定线 ≥8/10），簇⑤收官。**读数汇总**：10 例全 SUCCESS；总检索 16 次/10 例（对照热修五前单任务 40+ 次不收敛——预算闸+截断+纪律三层治理实证生效）；例4 两次委派共 6 次 search 顶格预算后自然收敛 + 委派②缩小范围重述（热修四纪律生效实证）；latency 38-129s（三代理任务 64-129s，均在 1-3 分钟预期带）；token 3.4k-13k/例（对照滚胀期数十万 token）。**审计新形态确认**：agent 链行 retrieved_chunks/reranked_chunks/rewritten_query/retrieval_type 空值 = 热修五 trace 隔离结构性预期，溯源入 tool_calls（search:knowledge 携改写后检索词 + task:* 委派记录）。**两注记（不阻塞收官）**：① 例6/7、例8/9 同会话连发两任务，主 Agent 被 Memory(400) 历史带偏产生冗余委派（重做上一任务+多余 report-writer），核心答案均正确完整（例7 限界上下文定义/原则带章节锚、例9 E1003 全字段+年假）——多轮会话跨任务历史污染面，登记产品改进项（主 Agent prompt 补「每轮以当前用户消息为准，已完成的历史任务不重复执行」/演示形态每任务新会话）——**治理二轮迭代（2026-09-06 同日，用户裁决立即解决）**：一轮否定式禁令（v2.106）复验实测无效（纪律在场被无视，模型「会话=任务清单累积」心智）；二轮升程序式两分支 + 末尾重申（v2.107：先判断当前消息是否引用历史产物→独立新任务只处理当前消息，历史已交付产物不重新检索/委派/呈现）+ 契约锚点换钉；二轮复验仍无效（七连委派复合叙事）→ 三轮升消息层结构分隔注记 TaskBoundaryAdvisor(420) + 逃生舱 rag.orchestrator.memory-enabled（false = 摘记忆每轮独立，11 章 v2.108）；复验通过（2026-09-07）——消息层注记生效：第二问委派只含新任务（38s，对照被污染轮 128s），注记① 销账；逃生舱保留为运行形态选项；② graph 路偶发 5s 超时降级 2 次（簇④ 已知形态，单路容错设计内）。**质量亮点**：知识缺口诚实标注三例（例1 L4 截断标注/例3 功耗未提供+XS-200 配件清单未找到/例7 待补充项）——判④「有检索依据」的优秀形态（诚实优于编造）；例4 委派②任务书出现「获取 documentId 后调用 getDocument」深读意识（未实际调用，行为合规）。输出护栏零误伤（import-out-09 降 FLAG 后 10 例完整输出）。N4（Langfuse 子代理 span 合树）未回传，留观察项不阻塞。前端配套：链路 tab 切换即新启会话（6c3306f，用户 E2E 中途发现会话接龙问题定案修复）。
+> **E2E 验收收官（2026-09-06，用户侧执行回传，10/10 通过）**：演示任务集 10 例全过（判定线 ≥8/10），Phase5簇⑤ 收官。**读数汇总**：10 例全 SUCCESS；总检索 16 次/10 例（对照热修五前单任务 40+ 次不收敛——预算闸+截断+纪律三层治理实证生效）；例4 两次委派共 6 次 search 顶格预算后自然收敛 + 委派②缩小范围重述（热修四纪律生效实证）；latency 38-129s（三代理任务 64-129s，均在 1-3 分钟预期带）；token 3.4k-13k/例（对照滚胀期数十万 token）。**审计新形态确认**：agent 链行 retrieved_chunks/reranked_chunks/rewritten_query/retrieval_type 空值 = 热修五 trace 隔离结构性预期，溯源入 tool_calls（search:knowledge 携改写后检索词 + task:* 委派记录）。**两注记（不阻塞收官）**：① 例6/7、例8/9 同会话连发两任务，主 Agent 被 Memory(400) 历史带偏产生冗余委派（重做上一任务+多余 report-writer），核心答案均正确完整（例7 限界上下文定义/原则带章节锚、例9 E1003 全字段+年假）——多轮会话跨任务历史污染面，登记产品改进项（主 Agent prompt 补「每轮以当前用户消息为准，已完成的历史任务不重复执行」/演示形态每任务新会话）——**治理二轮迭代（2026-09-06 同日，用户裁决立即解决）**：一轮否定式禁令（v2.106）复验实测无效（纪律在场被无视，模型「会话=任务清单累积」心智）；二轮升程序式两分支 + 末尾重申（v2.107：先判断当前消息是否引用历史产物→独立新任务只处理当前消息，历史已交付产物不重新检索/委派/呈现）+ 契约锚点换钉；二轮复验仍无效（七连委派复合叙事）→ 三轮升消息层结构分隔注记 TaskBoundaryAdvisor(420) + 逃生舱 rag.orchestrator.memory-enabled（false = 摘记忆每轮独立，11 章 v2.108）；复验通过（2026-09-07）——消息层注记生效：第二问委派只含新任务（38s，对照被污染轮 128s），注记① 销账；逃生舱保留为运行形态选项；② graph 路偶发 5s 超时降级 2 次（Phase5簇④ 已知形态，单路容错设计内）。**质量亮点**：知识缺口诚实标注三例（例1 L4 截断标注/例3 功耗未提供+XS-200 配件清单未找到/例7 待补充项）——判④「有检索依据」的优秀形态（诚实优于编造）；例4 委派②任务书出现「获取 documentId 后调用 getDocument」深读意识（未实际调用，行为合规）。输出护栏零误伤（import-out-09 降 FLAG 后 10 例完整输出）。N4（Langfuse 子代理 span 合树）未回传，留观察项不阻塞。前端配套：链路 tab 切换即新启会话（6c3306f，用户 E2E 中途发现会话接龙问题定案修复）。
 
-- **簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）——**✅ 2026-09-06 E2E 10/10**；文档三件套回写 ✅；git 提交 ✅（三批三提交 + 六轮 E2E 交互热修）
+- **Phase5簇⑤ DoD**（Phase 5 方案 §5.3）：代码 + 单测绿 ✅；验证通道 = Mock 委派演示 E2E 通过率 ≥80% + 契约文档评审（§11.5.5 已入档，评审随 E2E 一并确认）——**✅ 2026-09-06 E2E 10/10**；文档三件套回写 ✅；git 提交 ✅（三批三提交 + 六轮 E2E 交互热修）
 - **判定标准**（逐例四条，10 例 ≥8 例全过 = 收官）：① 委派对象正确（子代理选择与任务语义匹配）；② 委派参数合理（description 自包含可执行）；③ 最终答案综合子代理结果（非凭空作答）；④ 知识类内容有检索依据（主 Agent 不越权直答）
 
 ### 8.1 演示任务集（10 例，跨子代理分层）
@@ -288,7 +288,7 @@
 4. **审计核对**：Admin 运维中心「日志查询」Tab 查本轮会话（可用「链路 = 任务编排」筛选快速定位）——mode 列 = `agent`、tool_calls 快照含各委派记录
 5. **指标核对**：`GET /actuator/metrics/rag.orchestrator.delegation`（tag subagent/outcome 计数与委派次数一致）+ `rag.orchestrator.subagent.duration`（p50/p95/p99 有读数）
 6. **关闭态零回归**：开关关重启 → mode=agent 请求返回 400 `ORCHESTRATOR_DISABLED`；rag/tool 两模式正常（含 HITL 审批流）
-7. 逐例按四判定标准记分回传（≥8/10 通过 = 簇⑤ 收官；失败例记录委派对象与答案偏差供归因）
+7. 逐例按四判定标准记分回传（≥8/10 通过 = Phase5簇⑤ 收官；失败例记录委派对象与答案偏差供归因）
 
 ## 附：落码前核验点清单（回填结论）
 
@@ -297,5 +297,5 @@
 | N1 | AuditTraceAdvisor / 查询端点对 mode 值的枚举假设 | ✅ `MODE_KEY` 自由字符串无白名单；仅 `"rag".equals(mode)` 特判 traceEntries——'agent' 落库零 DDL 零阻 |
 | N2 / D5 | DefaultToolCallingManager 同消息多 tool call 执行形态 | ✅ **串行 for 循环**（源码核验）——单消息多 task 委派顺序执行，收窄版接受；并发升级登记契约第 5 条 |
 | N3 | McpKnowledgeTools.search 身份消费签名 | ✅ 经 `identityGuard.requireIdentity()`（MCP JWT 捕获）与编排链 toolContext 通道不同源，**不可复用实例**——新写 KnowledgeSearchTools 薄委派（检索管线同构） |
-| N4 | 子代理调用 observation 传播（trace 合树可行性） | 🟡 子 ChatClient 已显式传应用 ObservationRegistry（簇① 单参 NOOP 坑规避）；工具执行线程内传播形态未深挖——**留 E2E 观察点**：Langfuse trace 树下子代理 chat_client span 是否与主请求合树，不合树登记为已知取舍（升级路径项） |
+| N4 | 子代理调用 observation 传播（trace 合树可行性） | 🟡 子 ChatClient 已显式传应用 ObservationRegistry（Phase4簇① 单参 NOOP 坑规避）；工具执行线程内传播形态未深挖——**留 E2E 观察点**：Langfuse trace 树下子代理 chat_client span 是否与主请求合树，不合树登记为已知取舍（升级路径项） |
 | N5 | ChatClient 按 Spec 缓存安全性 | ✅ 工厂 `computeIfAbsent` 落地；ChatClient 不可变配置线程安全（toolAgentChatClient 单 Bean 多请求共享既有先例） |

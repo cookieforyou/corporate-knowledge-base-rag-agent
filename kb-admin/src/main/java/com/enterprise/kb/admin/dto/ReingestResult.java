@@ -1,7 +1,7 @@
 package com.enterprise.kb.admin.dto;
 
 /**
- * Golden Set 回灌结果（Phase 4 簇④ 4.7）。
+ * Golden Set 回灌结果（Phase4簇④ 4.7）。
  *
  * @param goldenId          写入的 Golden 用例 ID（bc-{auditLogId} 确定性，重复回灌 upsert 覆写）
  * @param file              落盘文件路径（GoldenDatasetLoader classpath 扫描域内）

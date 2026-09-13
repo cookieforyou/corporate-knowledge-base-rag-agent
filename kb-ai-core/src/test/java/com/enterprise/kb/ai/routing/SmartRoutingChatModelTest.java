@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 多模型智能路由测试（3.2）—— 主备切换、熔断三态（CLOSED/OPEN/HALF_OPEN）、
- * 流式错误接管、options 委托；簇⑥ 批4 扩充：双供应商 SLA 计数 +
+ * 流式错误接管、options 委托；Phase4簇⑥ 批4 扩充：双供应商 SLA 计数 +
  * 流式 trace 父观测订阅期传播（POST span 合树修复机制）
  */
 class SmartRoutingChatModelTest {
@@ -200,7 +200,7 @@ class SmartRoutingChatModelTest {
         assertThat(router.getOptions()).isSameAs(options);
     }
 
-    // ── 双供应商 SLA 计数（簇⑥ 批4） ──
+    // ── 双供应商 SLA 计数（Phase4簇⑥ 批4） ──
 
     @Test
     void slaCountersTrackFailoverAndCircuitTransitions() {
@@ -258,7 +258,7 @@ class SmartRoutingChatModelTest {
         assertThat(counterValue("rag.routing.circuit.opened")).isZero();
     }
 
-    // ── 流式 trace 父观测订阅期传播（簇⑥ 批4 残余修复机制验证） ──
+    // ── 流式 trace 父观测订阅期传播（Phase4簇⑥ 批4 残余修复机制验证） ──
 
     @Test
     void streamOpensParentObservationScopeOnSubscribeThread() {

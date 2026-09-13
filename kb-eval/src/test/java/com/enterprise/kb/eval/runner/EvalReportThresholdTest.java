@@ -19,8 +19,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 门禁容忍策略单测（簇④ E1）—— Faithfulness 噪声带 + 分类均值地板（单维不崩）
- * + 注入拦截门禁（簇⑤ B2 S6）
+ * 门禁容忍策略单测（冲刺簇④ E1）—— Faithfulness 噪声带 + 分类均值地板（单维不崩）
+ * + 注入拦截门禁（冲刺簇⑤ B2 S6）
  */
 class EvalReportThresholdTest {
 
@@ -33,7 +33,7 @@ class EvalReportThresholdTest {
             null, null, null, null, null, null, null);
     }
 
-    /** 多跳用例（簇④）：携 AC 读数，faithfulness 取过门禁值隔离变量 */
+    /** 多跳用例（Phase5簇④）：携 AC 读数，faithfulness 取过门禁值隔离变量 */
     private static EvalResult multiHop(String id, double answerCorrectness) {
         GoldenQAPair pair = new GoldenQAPair(id, QACategory.MULTI_HOP, "多跳-" + id,
             null, "标准答案", null, null, null, null, null);
@@ -247,7 +247,7 @@ class EvalReportThresholdTest {
             .doesNotThrowAnyException();
     }
 
-    // ── 多跳准确率门禁（簇④ 5.2）──
+    // ── 多跳准确率门禁（Phase5簇④ 5.2）──
 
     @Test
     void multiHopAccuracyBelowThresholdFails() {
@@ -316,7 +316,7 @@ class EvalReportThresholdTest {
     }
 
     /**
-     * 文档级兜底小节（簇④ A4 修复，16 章 v2.21）：有文档级样本才渲染该小节，
+     * 文档级兜底小节（冲刺簇④ A4 修复，16 章 v2.21）：有文档级样本才渲染该小节，
      * chunk ID 失配（重入库换代）时给出方向性读数。
      */
     @Test
@@ -339,7 +339,7 @@ class EvalReportThresholdTest {
         assertThat(noDoc.summary()).doesNotContain("文档级兜底");
     }
 
-    // ── 注入拦截门禁（簇⑤ B2 S6）──
+    // ── 注入拦截门禁（冲刺簇⑤ B2 S6）──
 
     @Test
     void injectionGateBlockRateBelowThresholdFails() {
@@ -393,8 +393,8 @@ class EvalReportThresholdTest {
     }
 
     /**
-     * 小节间换行防回归（簇⑤ E2E 发现）：文档级兜底文本块无前导换行，直接 append
-     * 会与上一小节末行粘连——簇④ A4 遗留缺陷（鲁棒性行尾粘连），簇⑤ 安全性小节后同形再现。
+     * 小节间换行防回归（安全簇⑤ E2E 发现）：文档级兜底文本块无前导换行，直接 append
+     * 会与上一小节末行粘连——冲刺簇④ A4 遗留缺陷（鲁棒性行尾粘连），冲刺簇⑤ 安全性小节后同形再现。
      * 断言每个小节标题始终独立成行。
      */
     @Test
@@ -433,7 +433,7 @@ class EvalReportThresholdTest {
             null, null, null, null, null, null, null);
     }
 
-    // ── L2 原始裁决分布（簇② 批5 路径 a）──
+    // ── L2 原始裁决分布（Phase5簇② 批5 路径 a）──
 
     private static EvalResult injectionWithRaw(String id, AttackType attackType,
                                                String l2Verdict, String l2RawVerdict) {

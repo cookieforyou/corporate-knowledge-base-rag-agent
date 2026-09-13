@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * （rag.retrieval.*）注入，默认值 = Phase 2 基线形态，调参须配 kb-eval 基线对比。
  *
  * <p>双路并行执行器为共享 Bean {@code hybridRetrievalExecutor}（RetrievalConfig，
- * v2.19 簇③ D2）——此前每请求 new 虚拟线程 executor，高频请求下重复创建/关闭。
+ * v2.19 冲刺簇③ D2）——此前每请求 new 虚拟线程 executor，高频请求下重复创建/关闭。
  *
  * <p>租户/软删过滤与 trace 的 {@link RetrievalContext} 经 Query.context 参数化传入
  * （2026-08-02 重构：取代请求作用域代理——MVC 异步请求完结后作用域不可解析，
@@ -60,10 +60,10 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     private final AiBusinessMetrics metrics;
     /** 检索调优参数（rag.retrieval.*，默认值 = Phase 2 基线形态） */
     private final RetrievalProperties properties;
-    /** 双路并行共享执行器（v2.19 簇③ D2 收编为 Bean，取代每请求 new） */
+    /** 双路并行共享执行器（v2.19 冲刺簇③ D2 收编为 Bean，取代每请求 new） */
     private final ExecutorService executor;
     /**
-     * Graph 路检索器（簇④ 5.2，三路融合第三路）：{@code rag.graph.enabled=true}
+     * Graph 路检索器（Phase5簇④ 5.2，三路融合第三路）：{@code rag.graph.enabled=true}
      * 条件装配——关闭态 Bean 缺位，ObjectProvider 容忍，双路形态逐字节不变。
      */
     private final ObjectProvider<GraphDocumentRetriever> graphRetrieverProvider;
@@ -101,8 +101,8 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         long start = System.currentTimeMillis();
 
         // 虚拟线程并行多路召回；各路各自容错（失败/超时 → 空列表，降级矩阵 10.2 三路扩展）
-        // 共享执行器（簇③ D2）：await 阻塞 + 超时**非打断式**取消（坑位㊶）。
-        // Graph 路（簇④ 5.2）条件在场：关闭态 provider 空 → 双路形态逐字节不变
+        // 共享执行器（冲刺簇③ D2）：await 阻塞 + 超时**非打断式**取消（坑位㊶）。
+        // Graph 路（Phase5簇④ 5.2）条件在场：关闭态 provider 空 → 双路形态逐字节不变
         GraphDocumentRetriever graphRetriever = graphRetrieverProvider.getIfAvailable();
         List<Document> vectorHits;
         List<Document> bm25Hits;
@@ -140,7 +140,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
             }
         }
 
-        // N 路 RRF 融合（簇④ 5.2）：graph 路仅在场时入融合面；关闭态双路键序不变
+        // N 路 RRF 融合（Phase5簇④ 5.2）：graph 路仅在场时入融合面；关闭态双路键序不变
         Map<String, List<Document>> routeHits = new LinkedHashMap<>();
         routeHits.put(Constants.Retrieval.ROUTE_VECTOR, vectorHits);
         routeHits.put(Constants.Retrieval.ROUTE_BM25, bm25Hits);
@@ -154,7 +154,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         log.debug("混合检索完成: vector={} bm25={} graph={} fused={} 耗时={}ms",
             vectorHits.size(), bm25Hits.size(),
             graphFuture == null ? "off" : graphHits.size(), fused.size(), elapsed);
-        // rag 链阶段进度（簇⑥ 体验批3，PROGRESS 帧）：多路召回+融合完成；ctx 缺席 no-op
+        // rag 链阶段进度（Phase5簇⑥ 体验批3，PROGRESS 帧）：多路召回+融合完成；ctx 缺席 no-op
         if (ctx != null) {
             ctx.emitProgress(Constants.SseEvent.PROGRESS_TYPE_STAGE, "混合检索完成（" + fused.size() + " 条候选），重排中…");
         }
@@ -190,7 +190,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
             return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("检索路径 [{}] 超时（{}s），降级为空结果", route, timeoutSeconds);
-            // 非打断式取消（坑位㊶，簇④ 用户侧 E2E 五轮实证）：cancel(true) 中断正阻塞在
+            // 非打断式取消（坑位㊶，Phase5簇④ 用户侧 E2E 五轮实证）：cancel(true) 中断正阻塞在
             // Neo4j 驱动内的线程时，驱动终止并丢弃该 bolt 连接（「Thread interrupted while
             // running query in transaction」），负载下超时频发 → 池连接反复销毁重建的抖动 +
             // 大段噪声栈。cancel(false) 弃任务：虚拟线程廉价放任跑完，结果自然丢弃；

@@ -38,7 +38,7 @@ public class EsChunkDoc {
     private String chunkType;
 
     /**
-     * 标题路径（簇④ A4，9.2 v2.21），如「产品手册 &gt; 定价」。展示与后续检索两用；
+     * 标题路径（冲刺簇④ A4，9.2 v2.21），如「产品手册 &gt; 定价」。展示与后续检索两用；
      * 新建索引经 mapping 走 ik 分词，存量索引经 dynamic mapping 自动映射
      * （完全对齐需 Phase 4.6 索引重建窗口）。
      */

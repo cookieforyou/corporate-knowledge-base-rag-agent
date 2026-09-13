@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 首 token 前（连接/鉴权/配额类故障的常态形态）用户无感；极少数已流出部分 token
  * 后中断的场景会出现内容重复，优于流中断报错，已知取舍。
  *
- * <p><b>流式 trace 传播（簇⑥ 批4 残余修复，13 章 v2.58）</b>：Spring AI 2.0 GA 流式
+ * <p><b>流式 trace 传播（Phase4簇⑥ 批4 残余修复，13 章 v2.58）</b>：Spring AI 2.0 GA 流式
  * 链的 chat_model 观测只经 Reactor Context 传播（internalStream contextWrite），不在
  * 订阅线程开 ThreadLocal 作用域；而模型 HTTP 层（SpringAiOpenAiHttpClient 的 OkHttp
  * Observation 拦截器）按**线程当前观测**寻父，且其 dispatcher 执行器经
@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 作用域——同步订阅传播直达 enqueue，OkHttp dispatcher 捕获到父观测，POST span
  * 挂回父链（chat_client 观测之下，与 gen_ai 生成 span 同层合树）。
  *
- * <p><b>双供应商 SLA 计数（簇⑥ 批4）</b>：熔断 OPEN 转入（含试探失败重开）/
+ * <p><b>双供应商 SLA 计数（Phase4簇⑥ 批4）</b>：熔断 OPEN 转入（含试探失败重开）/
  * HALF_OPEN 试探 / 备用接管三事件经 {@link AiBusinessMetrics} 落 Prometheus
  * （rag.routing.circuit.* / rag.routing.fallback.invoked），供供应商 SLA 面板与
  * KbPrimaryModelDegraded 告警消费。
@@ -110,7 +110,7 @@ public class SmartRoutingChatModel implements ChatModel {
     @Override
     public Flux<ChatResponse> stream(Prompt prompt) {
         return Flux.deferContextual(contextView -> {
-            // 订阅期父观测（簇⑥ 批4 trace 修复）：DefaultChatClient 已把 chat_client
+            // 订阅期父观测（Phase4簇⑥ 批4 trace 修复）：DefaultChatClient 已把 chat_client
             // 观测写入 Context（KEY=micrometer.observation），取出供订阅线程开作用域
             Observation parentObservation = contextView.getOrDefault(ObservationThreadLocalAccessor.KEY, null);
             if (primaryBypassed()) {
@@ -131,7 +131,7 @@ public class SmartRoutingChatModel implements ChatModel {
     }
 
     /**
-     * 订阅线程开父观测作用域（簇⑥ 批4 trace 残余修复）：返回的 Flux 在 subscribe
+     * 订阅线程开父观测作用域（Phase4簇⑥ 批4 trace 残余修复）：返回的 Flux 在 subscribe
      * 信号传播瞬间打开 parentObservation 作用域——同步订阅链直达模型 HTTP 层
      * enqueue（Flux.create 消费者），OkHttp dispatcher 的 ContextExecutorService
      * 捕获该 ThreadLocal 并在回调线程恢复，POST span 遂寻得父观测不再成独立 trace。
@@ -151,7 +151,7 @@ public class SmartRoutingChatModel implements ChatModel {
         };
     }
 
-    /** HALF_OPEN 试探判定（簇⑥ 批4 SLA）：已过 bypass 判定而失败数仍达阈 = 窗口结束后的试探请求 */
+    /** HALF_OPEN 试探判定（Phase4簇⑥ 批4 SLA）：已过 bypass 判定而失败数仍达阈 = 窗口结束后的试探请求 */
     private void recordHalfOpenProbeIfDue() {
         if (consecutiveFailures.get() >= failureThreshold) {
             metrics.recordCircuitHalfOpened();
@@ -162,7 +162,7 @@ public class SmartRoutingChatModel implements ChatModel {
      * 跨厂商转发屏障（2026-08-05 E2E 缺陷实证修正）：流入的 Prompt 携带主模型
      * options（ChatClient 装配期经路由模型 getOptions() 注入），备用
      * OpenAiChatModel.createRequest 对 prompt.getOptions() 强转 + 非空断言
-     * （源码核验）。v2.19 簇③ D1 后主模型亦为 OpenAiChatOptions（类型同构，
+     * （源码核验）。v2.19 冲刺簇③ D1 后主模型亦为 OpenAiChatOptions（类型同构，
      * 不再 ClassCastException），但凭证/端点/模型名仍属主模型——转发必须重建
      * Prompt 换入备用模型自身 options（含备用 baseUrl/apiKey/model，且保留备用
      * 自身的 include_usage 等选项）。代价：请求级自定义 options 转发时丢弃——

@@ -1,6 +1,6 @@
 # 交付文档（docs/delivery/）
 
-> Phase 4 簇⑦（4.13 文档三件套）交付物——面向人的使用/运维文档，区别于设计文档（`project-implement/`）与进度记录（`project-progress/`）。
+> Phase4簇⑦（4.13 文档三件套）交付物——面向人的使用/运维文档，区别于设计文档（`project-implement/`）与进度记录（`project-progress/`）。
 
 | 文档 | 读者 | 内容 |
 |---|---|---|

@@ -24,8 +24,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 统计服务测试（Phase 4 簇② 任务 4.6）：聚合映射 + 补 0 口径；
- * chunkTotal 自簇③ 起走 kb_chunk 存活精确口径（countAliveByTenantId）
+ * 统计服务测试（Phase4簇② 任务 4.6）：聚合映射 + 补 0 口径；
+ * chunkTotal 自Phase4簇③ 起走 kb_chunk 存活精确口径（countAliveByTenantId）
  */
 class StatsServiceTest {
 

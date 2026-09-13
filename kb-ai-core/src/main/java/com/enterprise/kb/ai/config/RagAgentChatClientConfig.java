@@ -83,9 +83,9 @@ public class RagAgentChatClientConfig {
      * 纯 RAG 生产对话链（护栏 + 多轮记忆 + 意图路由 + 溯源 + 混合检索 RAG，**零工具**）。
      * CONVERSATION_ID 与 RetrievalContext 由 Controller 经 advisor 参数传入。
      *
-     * <p>链序（11.2 v2.13 表去掉工具位，簇③ 批2 增 CacheCheck 460）：Audit(10) → TokenBudget(30) → RateLimit(100) →
+     * <p>链序（11.2 v2.13 表去掉工具位，Phase5簇③ 批2 增 CacheCheck 460）：Audit(10) → TokenBudget(30) → RateLimit(100) →
      * OutputGuardrail(110) → InputSanitize(300) → SemanticInjection(320，安全簇⑤ E1) →
-     * Memory(400) → QueryRouting(440) → Trace(450) → **CacheCheck(460，簇③ 5.6 批2，
+     * Memory(400) → QueryRouting(440) → Trace(450) → **CacheCheck(460，Phase5簇③ 5.6 批2，
      * 条件挂载)** → RetrievalGate(500，内包 RetrievalAugmentationAdvisor)。
      * order 由各 Advisor getOrder() 决定，列表顺序不敏感。
      * 审计居最外层：被拒/被限流请求同样落 kb_audit_log（11.6）。
@@ -113,7 +113,7 @@ public class RagAgentChatClientConfig {
                                          RetrievalGateAdvisor retrievalGateAdvisor,
                                          ObjectProvider<CacheCheckAdvisor> cacheCheckAdvisorProvider,
                                          PromptCanary promptCanary) {
-        // 实证坑（Phase 4 簇① trace 碎片化定案）：ChatClient.builder(chatModel) 单参重载
+        // 实证坑（Phase4簇① trace 碎片化定案）：ChatClient.builder(chatModel) 单参重载
         // 默认传 ObservationRegistry.NOOP（ChatClient 接口源码）——chat_client 与全部
         // Advisor 观测静默 NOOP，Langfuse 只见模型层裸 span、主链树整体缺失。
         // 必须显式传入应用 ObservationRegistry Bean
@@ -130,7 +130,7 @@ public class RagAgentChatClientConfig {
             queryRoutingAdvisor,
             retrievalTraceAdvisor,
             retrievalGateAdvisor));
-        // 语义缓存（簇③ 5.6 批2）：缺省关时 Bean 缺位——经 ObjectProvider 容忍，
+        // 语义缓存（Phase5簇③ 5.6 批2）：缺省关时 Bean 缺位——经 ObjectProvider 容忍，
         // 链形态与批2 前完全一致（行为零变化纪律）
         cacheCheckAdvisorProvider.ifAvailable(advisors::add);
         return ChatClient.builder(chatModel, observationRegistry, null, null)

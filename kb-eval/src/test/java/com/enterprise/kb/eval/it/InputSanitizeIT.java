@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 输入消毒（簇⑥ D3）：注入拦截 PROMPT_INJECTION + 审计 REJECTED 行 + PII 掩码落审计。
+ * 输入消毒（冲刺簇⑥ D3）：注入拦截 PROMPT_INJECTION + 审计 REJECTED 行 + PII 掩码落审计。
  *
  * <p>注入载荷程序化构造：取 bundled 基线词表中文干词运行时拼装，
  * 测试源码不落字面载荷（第七节敏感词交付纪律）。

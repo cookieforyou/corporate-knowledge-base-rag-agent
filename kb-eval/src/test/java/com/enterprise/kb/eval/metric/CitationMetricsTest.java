@@ -8,7 +8,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Citation Attribution 确定性阶段单测（簇② 5.8）——[ref-N] 提取与可解析率
+ * Citation Attribution 确定性阶段单测（Phase5簇② 5.8）——[ref-N] 提取与可解析率
  */
 class CitationMetricsTest {
 

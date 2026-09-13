@@ -3,7 +3,7 @@ package com.enterprise.kb.eval.dataset;
 /**
  * 间接注入评估用例（安全簇④ D3，设计 §12.8 / 12.6 提案落地）
  *
- * <p>毒化语料三层内容分级（簇④分解纪律条 6）：
+ * <p>毒化语料三层内容分级（安全簇④ 分解纪律条 6）：
  * <ul>
  *   <li>{@code document}——毒化文档正文，<b>唯一载荷载体</b>：Base64 编码引用形态
  *       存储（{@code documentEncoding=base64} + {@code documentSha256} 指纹锚点），

@@ -83,7 +83,7 @@ class HtmlProtectingSplitterTest {
         assertThat(chunks).allMatch(c -> "d-1".equals(c.getMetadata().get("doc_id")));
     }
 
-    // ── 簇④ A4：heading 路径跟踪 ──
+    // ── 冲刺簇④ A4：heading 路径跟踪 ──
 
     @Test
     void markdownHeadings_injectHeadingPathPerSection() {

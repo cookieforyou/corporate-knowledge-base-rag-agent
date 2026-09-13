@@ -45,7 +45,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * ChunkOpsService 单测（Phase 4 簇③ 4.4）——守卫序列 fail-closed、
+ * ChunkOpsService 单测（Phase4簇③ 4.4）——守卫序列 fail-closed、
  * 编辑消毒同源、软删管道委派、恢复重嵌入语义。
  * 执行器注入 Runnable::run 直跑形态，异步重嵌入同步可验证。
  */
@@ -279,7 +279,7 @@ class ChunkOpsServiceTest {
         verify(chunkRepository, never()).save(any());
     }
 
-    // ── 语义缓存失效接线（簇③ 5.6 批2）──
+    // ── 语义缓存失效接线（Phase5簇③ 5.6 批2）──
 
     /** 三门面内容变更提交点均发布按文档失效事件（租户 + 文档 ID 契约） */
     @Test
@@ -311,7 +311,7 @@ class ChunkOpsServiceTest {
         verify(publisher, times(3)).publish(TENANT, DOC_ID);
     }
 
-    /** 图谱域 ObjectProvider 空装配（簇④）：关闭态缺位形态（getIfAvailable/ifAvailable 空转） */
+    /** 图谱域 ObjectProvider 空装配（Phase5簇④）：关闭态缺位形态（getIfAvailable/ifAvailable 空转） */
     @SuppressWarnings("unchecked")
     private static <T> ObjectProvider<T> emptyProvider() {
         return mock(ObjectProvider.class);

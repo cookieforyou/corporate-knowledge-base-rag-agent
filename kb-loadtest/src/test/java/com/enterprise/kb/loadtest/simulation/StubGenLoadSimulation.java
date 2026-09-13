@@ -16,7 +16,7 @@ import static io.gatling.javaapi.core.CoreDsl.scenario;
 import static io.gatling.javaapi.http.HttpDsl.sse;
 
 /**
- * 场景 B：生成桩压（簇⑥ 4.12：50 并发无 OOM/线程耗尽）
+ * 场景 B：生成桩压（Phase4簇⑥ 4.12：50 并发无 OOM/线程耗尽）
  *
  * <p>前置（ECS）：{@code StubChatServer} 宿主侧启动 + kb-api {@code DEEPSEEK_BASE_URL}
  * 指向桩（容器经 host.docker.internal）+ 对话限流/Token 预算调额或停用

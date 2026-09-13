@@ -1,7 +1,7 @@
 package com.enterprise.kb.ai.cache;
 
 /**
- * 缓存失效事件契约（Phase 5 簇③ 5.6 批2）：发布/订阅两侧共享，经
+ * 缓存失效事件契约（Phase5簇③ 5.6 批2）：发布/订阅两侧共享，经
  * {@link CacheInvalidationListener#INVALIDATION_CHANNEL} 频道以 JSON String 传递
  * （StringCodec，同护栏重载频道 {@code rag:guardrail:reload} 纪律）。
  *

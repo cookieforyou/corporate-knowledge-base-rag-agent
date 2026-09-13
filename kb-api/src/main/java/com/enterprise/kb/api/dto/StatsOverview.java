@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 知识库统计总览（Phase 4 簇② 任务 4.6：运维仪表盘数据接口）
+ * 知识库统计总览（Phase4簇② 任务 4.6：运维仪表盘数据接口）
  *
  * <p>全部按 JWT 租户隔离；聚合走 kb_document 单表（chunk 规模取
- * chunk_count 文档侧口径，软删精确口径属簇③ 运维域）。
+ * chunk_count 文档侧口径，软删精确口径属Phase4簇③ 运维域）。
  *
  * @param documentTotal       租户文档总数
  * @param documentsByStatus   解析状态分布（DocumentStatus 五值全量，缺省补 0）

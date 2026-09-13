@@ -40,7 +40,7 @@ spring:
       max-file-size: 50MB
       max-request-size: 60MB
 
-  # MCP Server（Phase 4 簇⑤ 4.10）：Streamable HTTP 传输，端点 /mcp（RouterFunction
+  # MCP Server（Phase4簇⑤ 4.10）：Streamable HTTP 传输，端点 /mcp（RouterFunction
   # 形态，SecurityConfig requestMatchers 拦截）。@McpTool 注解扫描器默认开——
   # kb-ai-agent McpKnowledgeTools 三件套自动收编；type=sync 同步执行（工具在
   # 请求线程跑，SecurityContext 可用，身份经 McpIdentityGuard 捕获转参数链）。
@@ -60,8 +60,8 @@ spring:
           get_document（按文档 ID 读全文）、ask（带 [ref-N] 引用的 RAG 问答）。
           调用受租户隔离、安全护栏与配额治理；注入载荷将被拒绝。
 
-# Spring AI 观测内容开关（Phase 4 簇①）唯一定义在 kb-ai-core/application-ai.yml
-# （spring.config.import 导入源优先级高于本文件——簇①实证：双源定义时导入源覆盖）
+# Spring AI 观测内容开关（Phase4簇①）唯一定义在 kb-ai-core/application-ai.yml
+# （spring.config.import 导入源优先级高于本文件——Phase4簇①实证：双源定义时导入源覆盖）
 
 # 日志 → 见 logback-spring.xml（dev 彩色控制台 / prod JSON 结构化）
 
@@ -79,7 +79,7 @@ management:
       probability: ${TRACING_SAMPLING:1.0}
     export:
       otlp:
-        # OTLP 导出总开关（Phase 4 簇①）：默认关——未配端点凭据时零导出零噪音；
+        # OTLP 导出总开关（Phase4簇①）：默认关——未配端点凭据时零导出零噪音；
         # 开启两形态：
         # ① Langfuse 云：TRACING_OTLP_ENABLED=true + TRACING_OTLP_AUTH 三件套同批（缺凭据 401 噪音）
         # ② 本栈 Jaeger：TRACING_OTLP_ENABLED=true + TRACING_OTLP_ENDPOINT=http://host.docker.internal:4319/v1/traces
@@ -92,7 +92,7 @@ management:
           # Boot 4.1 属性形态（实证：management.otlp.tracing.* 已迁此前缀）；
           # Langfuse OTLP 契约：EU Cloud /api/public/otel/v1/traces，仅 HTTP/protobuf（无 gRPC），
           # Basic Auth = base64(pk:sk)。endpoint 缺省 None 时自动配置不创建导出器。
-          # 实证坑（簇①）：本属性为「信号专属 endpoint」，OTel Java SDK 原样使用、
+          # 实证坑（Phase4簇①）：本属性为「信号专属 endpoint」，OTel Java SDK 原样使用、
           # 不自动追加 /v1/traces（仅 base endpoint 才追加）——必须带全路径，缺路径段
           # 则 Langfuse 回 404。直连实测 /api/public/otel/v1/traces=200、/api/public/otel=404。
           #
@@ -126,7 +126,7 @@ app:
 # ETL 管道（kb-etl）
 kb:
   etl:
-    # Contextual Retrieval 语境增强（簇④ A4，设计 9.5，默认开）：embedding 前
+    # Contextual Retrieval 语境增强（冲刺簇④ A4，设计 9.5，默认开）：embedding 前
     # LLM 生成文档级语境前缀。2026-08-12 A/B 定案转默认开：新 Golden 双臂
     # chain 探针 Recall 0.902→0.931 / MRR 0.888→0.933 / CP 0.851→0.886，
     # 靶点 dm-13（跨 3 chunk 拆分表）0.000→0.667；回退置 false

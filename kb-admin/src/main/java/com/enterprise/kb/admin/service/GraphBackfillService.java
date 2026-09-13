@@ -28,7 +28,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 图谱专项回填任务（簇④ 5.1 批3，用户定案形态）：存量语料首次建图——
+ * 图谱专项回填任务（Phase5簇④ 5.1 批3，用户定案形态）：存量语料首次建图——
  * <b>直读 PG 存量 chunk，跳过解析/嵌入，只走抽取 → 写图</b>（存量文档已有
  * 解析与向量结果，经重建端点回填会白付解析 + 嵌入费用）。
  *

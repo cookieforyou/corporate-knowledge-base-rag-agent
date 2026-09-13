@@ -6,7 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Citation Attribution 确定性阶段（簇② 5.8，16 章 §16.2 三步验证前两步）
+ * Citation Attribution 确定性阶段（Phase5簇② 5.8，16 章 §16.2 三步验证前两步）
  *
  * <p>三步验证：① 引用发出（回答含 [ref-N] 标注）→ ② 编号可解析（N ∈ [1, 上下文条数]）
  * → ③ 来源支撑（Judge 判定，{@link JudgePrompts#CITATION_ATTRIBUTION}）。

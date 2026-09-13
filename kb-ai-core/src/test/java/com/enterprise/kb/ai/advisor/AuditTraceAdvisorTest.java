@@ -231,7 +231,7 @@ class AuditTraceAdvisorTest {
         assertThat(audit.getMode()).isEqualTo("tool");
     }
 
-    /** 簇①：请求结果计数与审计三态同语义——告警拒绝率/错误率分母 */
+    /** Phase4簇①：请求结果计数与审计三态同语义——告警拒绝率/错误率分母 */
     @Test
     void requestOutcomeCountersMatchAuditSemantics() {
         // SUCCESS

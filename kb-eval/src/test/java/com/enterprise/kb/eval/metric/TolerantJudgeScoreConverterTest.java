@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * judge 畸形输出剥壳容错单测（簇② md1-final 判读落地，16 章 v2.87）。
+ * judge 畸形输出剥壳容错单测（Phase5簇② md1-final 判读落地，16 章 v2.87）。
  * 两种实测畸形形态 + 不静默给分纪律的边界。
  */
 class TolerantJudgeScoreConverterTest {

@@ -15,7 +15,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 评估机读快照单测（簇② 5.9 批3）——聚合/逐例投影 + 内容盲纪律 + 指纹确定性
+ * 评估机读快照单测（Phase5簇② 5.9 批3）——聚合/逐例投影 + 内容盲纪律 + 指纹确定性
  */
 class EvalSnapshotTest {
 
@@ -59,7 +59,7 @@ class EvalSnapshotTest {
         assertThat(c.answerSha256()).isEqualTo(EvalSnapshot.sha256("回答一"));
     }
 
-    /** L2 原始裁决投影（簇② 批5 路径 a）：verdict 枚举内容盲，机读快照直读 */
+    /** L2 原始裁决投影（Phase5簇② 批5 路径 a）：verdict 枚举内容盲，机读快照直读 */
     @Test
     void snapshotProjectsL2RawVerdict() {
         GoldenQAPair pair = new GoldenQAPair("inj-jailbreak-15", QACategory.INJECTION, "样本",

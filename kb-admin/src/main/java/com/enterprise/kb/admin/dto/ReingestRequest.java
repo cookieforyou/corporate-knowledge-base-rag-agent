@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
- * Golden Set 回灌请求（Phase 4 簇④ 4.7）——Bad Case 审计行转 Golden 用例。
+ * Golden Set 回灌请求（Phase4簇④ 4.7）——Bad Case 审计行转 Golden 用例。
  *
  * @param auditLogId       源审计行（question 取其 query_text，租户守卫凭此）
  * @param category         Golden 用例分类（FACTOID/REASONING/TABLE/MULTI_DOC/NEGATIVE；

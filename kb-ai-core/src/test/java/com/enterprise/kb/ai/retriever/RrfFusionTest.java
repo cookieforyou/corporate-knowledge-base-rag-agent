@@ -147,7 +147,7 @@ class RrfFusionTest {
         assertEquals(0.0, registry.counter("rag.retrieval.injection-hit.demoted").count());
     }
 
-    // ── N 路泛化（簇④ 5.2：向量 + BM25 + Graph 三路 RRF 同口径）──
+    // ── N 路泛化（Phase5簇④ 5.2：向量 + BM25 + Graph 三路 RRF 同口径）──
 
     @Test
     void fuseN_threeRoutes_tripleHitRanksFirstWithAllRankKeys() {

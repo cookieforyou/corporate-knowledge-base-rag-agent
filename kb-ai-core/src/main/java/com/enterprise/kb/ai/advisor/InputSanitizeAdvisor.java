@@ -35,7 +35,7 @@ import java.util.List;
  * （ChatClientRequest 为 record，仅 prompt()/context()），用户文本经
  * {@link Prompt#augmentUserMessage(String)} 替换末条用户消息后重建请求。
  *
- * <p><b>v2.18 修正（簇② B1，S1 输入归一化）</b>：注入检测前先经
+ * <p><b>v2.18 修正（冲刺簇② B1，S1 输入归一化）</b>：注入检测前先经
  * {@link TextSanitizer#normalize} 构造归一化检测视图（NFKC + 零宽剥离 +
  * 空白折叠），堵 G2 编码绕过（全角字符/零宽拆词/空白拆词）——视图仅供检测
  * 不回写（NFKC 归一全角标点，回写会改变正常中文查询形态）；PII 掩码落原文
@@ -46,7 +46,7 @@ import java.util.List;
  * 并容忍数字间空格/连字符（防长数字串内部误匹配、防拆词绕过）。语义化/多语言
  * 注入的 L2（LLM 辅助判定）与 L3（专用分类器）为升级路线。
  *
- * <p><b>v2.24 修正（簇⑤ B2，S3 护栏可观测）</b>：命中事件接
+ * <p><b>v2.24 修正（冲刺簇⑤ B2，S3 护栏可观测）</b>：命中事件接
  * {@link AiBusinessMetrics} 计数——注入拦截 {@code rag.guardrail.injection.blocked}
  * （抛异常前）、PII 掩码 {@code rag.guardrail.pii.masked}（非拒绝型干预，
  * 只记事实不落原文）；拒绝型拦截的审计行经 AuditTraceAdvisor REJECTED 三态
@@ -79,7 +79,7 @@ public class InputSanitizeAdvisor implements BaseAdvisor, GuardrailRulesListener
     /** 生效结构化词表：注册表快照（安全簇⑥ F1 起 volatile 承接热重载推送），action 分流 */
     private volatile List<GuardrailRule> injectionRules;
 
-    /** 护栏命中计数（簇⑤ B2 S3）——注入拦截/PII 掩码事件入 Prometheus */
+    /** 护栏命中计数（冲刺簇⑤ B2 S3）——注入拦截/PII 掩码事件入 Prometheus */
     private final AiBusinessMetrics metrics;
 
     /** PII 识别器注册表（安全簇③ C2）——与 ETL 入库消毒同 Bean 同源不漂移 */

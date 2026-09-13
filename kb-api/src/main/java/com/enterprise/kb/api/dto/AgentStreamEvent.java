@@ -37,7 +37,7 @@ public sealed interface AgentStreamEvent {
     record ReplaceEvent(String answer) implements AgentStreamEvent {}
 
     /**
-     * 阶段/检索进度（命名事件 PROGRESS，簇⑥ 体验批3）：编排链长任务静默期
+     * 阶段/检索进度（命名事件 PROGRESS，Phase5簇⑥ 体验批3）：编排链长任务静默期
      * （工具循环内零 token 输出，1-2 分钟级）与 rag 链检索前置期（路由/改写/
      * 检索/重排数秒-十余秒）的阶段可感知信号。kind ∈ {stage, retrieval}；
      * text 展示文本。尽力而为：旁路信号，通道故障不影响主链。

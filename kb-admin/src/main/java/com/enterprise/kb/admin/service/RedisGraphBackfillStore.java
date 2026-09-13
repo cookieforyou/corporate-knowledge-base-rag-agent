@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 图谱回填任务状态 Redis 形态（簇④ 5.1 批3）——{@code RedisRebuildTaskStore}
+ * 图谱回填任务状态 Redis 形态（Phase5簇④ 5.1 批3）——{@code RedisRebuildTaskStore}
  * 同源纪律的轻量变体：单租户单任务（图谱回填幂等收敛，无需多任务历史），
  * 键布局 {@code rag:graph-backfill:{tenantId}}（RMap 状态 + 双原子计数），
  * StringCodec 显式钉死、TTL 挂全部任务键（默认 24h，配置同源重建任务表）。

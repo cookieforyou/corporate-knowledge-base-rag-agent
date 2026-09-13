@@ -88,7 +88,7 @@
               @click="confirmReplace(row)">
               <el-icon><UploadFilled /></el-icon>&nbsp;替换
             </el-button>
-            <!-- 处理期禁删（与后端 DOC_NOT_READY 守卫同状态集，簇⑥ C1 收尾） -->
+            <!-- 处理期禁删（与后端 DOC_NOT_READY 守卫同状态集，优化冲刺簇⑥ C1 收尾） -->
             <el-button v-if="auth.isAdmin" size="small" text type="danger" :disabled="isLiveDocStatus(row.status)"
               @click="confirmDelete(row)">
               <el-icon><Delete /></el-icon>&nbsp;删除
@@ -118,7 +118,7 @@
       <div class="upload-note">上传后自动进入 ETL 管道（解析 → 切分 → 向量化 → ES 双写），进度实时显示在页面顶部。</div>
     </el-dialog>
 
-    <!-- 替换文件选择器（隐藏 input，簇⑥ C1） -->
+    <!-- 替换文件选择器（隐藏 input，优化冲刺簇⑥ C1） -->
     <input ref="replaceInput" type="file" accept=".pdf,.docx,.pptx,.xlsx,.md,.txt,.html"
       style="display:none" @change="onReplaceFile" />
 
@@ -224,7 +224,7 @@ function finish(docId: string) {
 
 onBeforeUnmount(() => Object.values(sockets).forEach(ws => ws.close()))
 
-// ── 增量重入库（簇⑥ C1）──
+// ── 增量重入库（优化冲刺簇⑥ C1）──
 
 /** 仅 SUCCESS/FAILED 可重入库（与后端状态守卫一致） */
 const canReindex = (s: string) => s === 'SUCCESS' || s === 'FAILED'

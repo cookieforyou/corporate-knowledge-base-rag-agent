@@ -19,7 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * HTML 结构保护式切分器（设计文档 9.2，任务 2.3；簇④ A4 增 heading 路径跟踪）
+ * HTML 结构保护式切分器（设计文档 9.2，任务 2.3；冲刺簇④ A4 增 heading 路径跟踪）
  *
  * <p>表格/图片作为一等公民保护：
  * <ul>
@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  *   <li>小表格（文本 &lt; 30 字符）退化为纯文本，避免噪声 Chunk。</li>
  * </ul>
  *
- * <p><b>heading 路径跟踪（簇④ A4，9.2 v2.21）</b>：切分时维护六级标题栈
+ * <p><b>heading 路径跟踪（冲刺簇④ A4，9.2 v2.21）</b>：切分时维护六级标题栈
  * （Markdown {@code #{1,6} } 行与 HTML {@code <h1>..<h6>} 双形态识别），
  * 每个 chunk 注入 {@code heading_path} 元数据（如「产品手册 &gt; 定价 &gt; 企业版」）——
  * 展示与检索两用（kb_chunk.metadata JSONB / 向量库元数据 / ES heading_path 字段）。

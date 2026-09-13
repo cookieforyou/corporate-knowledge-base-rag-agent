@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Mock 读工具测试（簇⑤ 5.3 拆类自 EnterpriseMockToolsTest）——读工具契约：
+ * Mock 读工具测试（Phase5簇⑤ 5.3 拆类自 EnterpriseMockToolsTest）——读工具契约：
  * 工号/姓名双路匹配、未知返回 null
  */
 class EnterpriseMockReadToolsTest {

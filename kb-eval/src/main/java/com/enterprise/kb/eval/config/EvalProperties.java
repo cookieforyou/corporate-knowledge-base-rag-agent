@@ -23,7 +23,7 @@ public class EvalProperties {
 
     /**
      * Top-K 召回的 K 值。与被测链路 rag.retrieval.top-k 同源（yml 均绑定
-     * RAG_RETRIEVAL_TOP_K，簇① A3）——独立配置存在漂移风险，度量 K 与链路产出 K
+     * RAG_RETRIEVAL_TOP_K，冲刺簇① A3）——独立配置存在漂移风险，度量 K 与链路产出 K
      * 不一致时 Recall@K/MRR 失真。
      */
     private int topK = 5;
@@ -38,14 +38,14 @@ public class EvalProperties {
     private int concurrency = 8;
 
     /**
-     * 运行标签（簇④ E1）：非空时报告落盘文件名变为 eval-report-{label}.txt——
+     * 运行标签（冲刺簇④ E1）：非空时报告落盘文件名变为 eval-report-{label}.txt——
      * Judge 校准复跑（thinking 开/关）与 A/B 基线快照各留独立文件，避免互相覆盖。
      * 空 = 默认 eval-report.txt。
      */
     private String runLabel = "";
 
     /**
-     * 人类校准抽样条数（簇④ E1 建基 / 簇② 批2 扩为五维校准通道；0 = 关闭）。
+     * 人类校准抽样条数（冲刺簇④ E1 建基 / Phase5簇② 批2 扩为五维校准通道；0 = 关闭）。
      * 非零时全量评估后按分类分层抽样，落盘双通道——
      * {@code target/judge-agreement-sheet.md}（打分材料）+
      * {@code target/judge-agreement-sheet.csv}（human_a/human_b 双标注打分表）。
@@ -81,7 +81,7 @@ public class EvalProperties {
     private final Calibration calibration = new Calibration();
 
     /**
-     * 人类校准（簇② 批2）：打分表回读（--eval.calibration-readback）后，逐维以
+     * 人类校准（Phase5簇② 批2）：打分表回读（--eval.calibration-readback）后，逐维以
      * 名义一致率主判（F/AC |差|≤1、CA/HR/NRob 全一致，对照 {@code agreementTarget}），
      * Cohen's κ 三对（Judge×A / Judge×B / A×B）降为观察报告不阻断（κ 悖论治理
      * 裁决，16 章 v2.80）。一致率达标为观察带四新指标接入门禁的前置判据。
@@ -106,7 +106,7 @@ public class EvalProperties {
     }
 
     /**
-     * Phase 5 扩展指标开关组（簇② 5.8，16 章 §16.2）——四新指标：
+     * Phase 5 扩展指标开关组（Phase5簇② 5.8，16 章 §16.2）——四新指标：
      * Answer Correctness（expectedAnswer 标注用例）/ Citation Attribution（三步）/
      * Hallucination Rate（声明级）/ Noise Robustness（抽样噪声对照）。
      * 门禁纪律（接线落地，16 章 v2.82）：一致率主判「连续 2 轮」达成后
@@ -116,7 +116,7 @@ public class EvalProperties {
     @Setter
     public static class Metrics {
         /**
-         * AC/CA/HR 三项逐用例 Judge 指标总开关（默认开——簇② 后标准管道组成）。
+         * AC/CA/HR 三项逐用例 Judge 指标总开关（默认开——Phase5簇② 后标准管道组成）。
          * 关闭后生成侧每例省 2-3 次 Judge 调用（CI 快跑降本通道）。
          */
         private boolean phase5Enabled = true;
@@ -172,7 +172,7 @@ public class EvalProperties {
         /**
          * qwen 商业版（3.5+ 各代）默认开思考模式（enable_thinking=true，官方文档实证）——
          * 评估期每条用例多次 Judge 调用，思维链大幅拉长耗时与 token，默认显式关闭。
-         * 簇④ E1 校准口径：thinking 开/关两形态漂移须经复跑定档（EVAL_JUDGE_ENABLE_THINKING
+         * 冲刺簇④ E1 校准口径：thinking 开/关两形态漂移须经复跑定档（EVAL_JUDGE_ENABLE_THINKING
          * 切换复跑，run-label 各留快照），基线口径定档前不得跨形态对比分数。
          */
         private boolean enableThinking = false;
@@ -193,13 +193,13 @@ public class EvalProperties {
         private double mrr = 0.70;
         private double faithfulness = 4.0;
         /**
-         * Faithfulness 噪声容忍带（簇④ E1）：Judge 分数本身带噪声，均值落在
+         * Faithfulness 噪声容忍带（冲刺簇④ E1）：Judge 分数本身带噪声，均值落在
          * [faithfulness − tolerance, faithfulness) 区间视为噪声带——门禁 WARN 不 FAIL，
          * 低于区间下沿才判真实击穿。规避「4.093 贴线」单次抖动误杀。
          */
         private double faithfulnessTolerance = 0.05;
         /**
-         * 分类均值地板（簇④ E1「单维不崩」）：整体均值可能被大类拉高而掩盖单一分类崩盘，
+         * 分类均值地板（冲刺簇④ E1「单维不崩」）：整体均值可能被大类拉高而掩盖单一分类崩盘，
          * 任一正向分类 Faithfulness 均值低于此地板即门禁失败。
          */
         private double faithfulnessCategoryFloor = 3.5;
@@ -211,13 +211,13 @@ public class EvalProperties {
          * 重审依据仅覆盖所列分类——MULTI_DOC 语料为全库横向枚举形态，锚点 3-5/例 vs
          * topK=5 物理零边际，F 均值上限被检索面钉死（MD1 三臂实证检索开关面无杠杆：
          * expansion 九例逐位零变化、graph 反现挤出劣化；7 轮实测 3.000-3.444 < 旧地板 3.5），
-         * 簇④ 预留口「届时地板基线随结构面重审」的承接。覆写 3.0 = 实测下界取整
+         * Phase5簇④ 预留口「届时地板基线随结构面重审」的承接。覆写 3.0 = 实测下界取整
          * （全部 7 轮 ≥3.000，单维崩盘回归检测语义保留）。
          */
         private Map<String, Double> faithfulnessCategoryFloorOverrides =
             new HashMap<>(Map.of(QACategory.MULTI_DOC.name(), 3.0));
         /**
-         * 多跳准确率门禁（簇④ 5.2，「多跳推理准确率 >80%」验收的度量承接）：
+         * 多跳准确率门禁（Phase5簇④ 5.2，「多跳推理准确率 >80%」验收的度量承接）：
          * MULTI_HOP 分类以 Answer Correctness 达 {@code multiHopAcPassScore}
          * 判通过，通过率低于此阈值门禁失败；样本不足 {@code multiHopMinSamples}
          * 只报告不门禁（测试集建设初期保护）。多跳用例须标注 expectedAnswer。
@@ -227,7 +227,7 @@ public class EvalProperties {
         private int multiHopMinSamples = 5;
         private double negativeRejection = 0.85;
         /**
-         * 注入拦截率门禁（簇⑤ B2 S6，12 章「拦截率 >95%」验收的度量承接）：
+         * 注入拦截率门禁（冲刺簇⑤ B2 S6，12 章「拦截率 >95%」验收的度量承接）：
          * 仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁——词表 + S1 归一化
          * 视图机制上覆盖此两类；JAILBREAK / MULTILINGUAL 为观察集只报告不门禁。
          */
@@ -239,7 +239,7 @@ public class EvalProperties {
          * eval.guardrail.l2-enabled=true 时生效。
          */
         private double injectionBlockRateL2 = 0.90;
-        // ── Phase 5 扩展指标阈值（簇② 5.8，16 章 §16.4）：接线落地（16 章 v2.82）——
+        // ── Phase 5 扩展指标阈值（Phase5簇② 5.8，16 章 §16.4）：接线落地（16 章 v2.82）——
         // AC/CA/HR 三维经 assertThresholds 门禁；NRob 承 M3 裁决观察，阈值键保留不消费 ──
         /** Answer Correctness（1-5 Judge 均值，目标 >85% 语义对应 ≈4.0 档） */
         private double answerCorrectness = 4.0;

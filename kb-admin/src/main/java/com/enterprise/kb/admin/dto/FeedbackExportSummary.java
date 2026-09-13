@@ -1,7 +1,7 @@
 package com.enterprise.kb.admin.dto;
 
 /**
- * 反馈微调数据导出概览（簇② 5.10 批4）——dry-run 计数 + 门槛对照，零内容输出。
+ * 反馈微调数据导出概览（Phase5簇② 5.10 批4）——dry-run 计数 + 门槛对照，零内容输出。
  *
  * <p>门槛值（{@code sftTarget}/{@code dpoTarget}）为百炼微调通道的数据量
  * 建议线（SFT≥100 / DPO≥50 对），导出只报告不阻断——是否送训由运营决策。

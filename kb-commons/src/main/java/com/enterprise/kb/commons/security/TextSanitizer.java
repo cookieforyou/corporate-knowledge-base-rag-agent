@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 文本安全消毒公共组件（簇② B1，设计文档 12.4 S1/S4）
+ * 文本安全消毒公共组件（冲刺簇② B1，设计文档 12.4 S1/S4）
  *
  * <p>对话链路（{@code InputSanitizeAdvisor}）与 ETL 入库链路
  * （{@code SanitizingTransformer}）的同源实现：归一化规则与结构化词表匹配入口

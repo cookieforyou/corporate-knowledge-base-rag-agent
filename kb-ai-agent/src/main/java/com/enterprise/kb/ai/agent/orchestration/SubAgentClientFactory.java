@@ -3,7 +3,7 @@ package com.enterprise.kb.ai.agent.orchestration;
 import org.springframework.ai.chat.client.ChatClient;
 
 /**
- * 子代理 ChatClient 工厂（簇⑤ 5.3）——轻链构建策略，TaskTool 经此获取子客户端
+ * 子代理 ChatClient 工厂（Phase5簇⑤ 5.3）——轻链构建策略，TaskTool 经此获取子客户端
  *
  * <p>生产实现（OrchestratorChatClientConfig）：按 Spec.name 缓存 +
  * {@code ChatClient.builder(spec.chatModel(), observationRegistry, null, null)}——

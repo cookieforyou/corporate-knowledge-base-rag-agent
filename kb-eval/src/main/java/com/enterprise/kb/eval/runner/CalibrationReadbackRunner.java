@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 人类校准 κ 回读器（簇② 5.8 批2，16 章 §16.2）
+ * 人类校准 κ 回读器（Phase5簇② 5.8 批2，16 章 §16.2）
  *
  * <p>用法：打分表（{@code judge-agreement-sheet.csv}）经两位标注人独立回填
  * human_a / human_b 列后——
@@ -155,7 +155,7 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
             bucket.add(r);
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("═══ 人类校准报告（簇② 批2） ═══").append(System.lineSeparator());
+        sb.append("═══ 人类校准报告（Phase5簇② 批2） ═══").append(System.lineSeparator());
         sb.append(String.format(Locale.ROOT,
             "名义一致率目标：%.2f（主判；F/AC=|差|≤1，CA/HR/NRob=全一致；观察带接入门禁前置判据）%n",
             agreementTarget));

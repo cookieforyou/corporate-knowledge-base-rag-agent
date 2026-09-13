@@ -22,7 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * RedisGraphBackfillStore 单测（簇④ 批3）——Redisson mock + HashMap 承接态：
+ * RedisGraphBackfillStore 单测（Phase5簇④ 批3）——Redisson mock + HashMap 承接态：
  * 受理守卫（单租户单任务）/ 状态流转 / 视图映射。
  */
 class RedisGraphBackfillStoreTest {

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 缓存失效事件发布器（Phase 5 簇③ 5.6 批2）：知识库内容变更写路径调用，
+ * 缓存失效事件发布器（Phase5簇③ 5.6 批2）：知识库内容变更写路径调用，
  * 经 Redis pub/sub 广播 {@link CacheInvalidationEvent}——多实例形态下全实例
  * 缓存同步失效（单实例亦经 Redis 回环送达，形态与多实例一致）。
  *

@@ -24,7 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 运维查询真 PG 回归（v2.35 簇④ 4.7 缺陷修复）——Specification 动态谓词的
+ * 运维查询真 PG 回归（v2.35 Phase4簇④ 4.7 缺陷修复）——Specification 动态谓词的
  * 过滤语义 + 租户收敛 + <b>服务端预编译提升安全</b>。
  *
  * <p><b>缺陷机理（修复前）</b>：{@code @Query} 可选参数 {@code (:p IS NULL OR ...)}
@@ -96,7 +96,7 @@ class AdminQueryIT extends AbstractAdvisorChainIT {
             null, null, null, false))).isEqualTo(2);  // 未标注
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, "u-1", null, null,
             null, null, null, null))).isEqualTo(2);
-        // 链路过滤（簇⑤ mode 位，真 PG 回归补覆盖）
+        // 链路过滤（Phase5簇⑤ mode 位，真 PG 回归补覆盖）
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,
             Constants.ChatMode.MODE_RAG, null, null, null, null))).isEqualTo(1);
         assertThat(countAudit(AuditLogSpecs.search(TENANT_A, null, null, null, null,

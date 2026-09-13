@@ -10,7 +10,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 向量库文档元数据契约测试（Phase 4 簇③）——ETL 入库与 Chunk 运维重嵌入
+ * 向量库文档元数据契约测试（Phase4簇③）——ETL 入库与 Chunk 运维重嵌入
  * 共享的单一契约（DocumentEtlService.vectorMetadata）：检索 FilterExpression
  * 消费的 tenant_id/is_deleted 与调试台展示的 file_name/page_num/heading_path。
  */

@@ -24,8 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Token 预算 429（簇⑥ D3，CTX-QUOTA 上下文）：Redis 日账本超额拦截 +
- * 成功请求 usage 累加真实落账（流式计账同族机制，簇③ D1）。
+ * Token 预算 429（冲刺簇⑥ D3，CTX-QUOTA 上下文）：Redis 日账本超额拦截 +
+ * 成功请求 usage 累加真实落账（流式计账同族机制，冲刺簇③ D1）。
  */
 @TestPropertySource(properties = {
     "rag.ratelimit.tenant.rate=2",

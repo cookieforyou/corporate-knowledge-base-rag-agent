@@ -66,14 +66,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class AgentController {
 
-    /** 问答模式（11.5 双链路 + 簇⑤ 5.3 第三链）：rag=知识库检索问答，tool=工具事务，agent=多子代理编排 */
+    /** 问答模式（11.5 双链路 + Phase5簇⑤ 5.3 第三链）：rag=知识库检索问答，tool=工具事务，agent=多子代理编排 */
     private static final String MODE_RAG = Constants.ChatMode.MODE_RAG;
     private static final String MODE_TOOL = Constants.ChatMode.MODE_TOOL;
     private static final String MODE_AGENT = Constants.ChatMode.MODE_AGENT;
 
     private final RagChatService ragChatService;
     private final ToolChatService toolChatService;
-    /** 编排服务 ObjectProvider 容忍缺位（簇⑤ D3：enabled=false 时 Bean 缺位 → 显式 400） */
+    /** 编排服务 ObjectProvider 容忍缺位（Phase5簇⑤ D3：enabled=false 时 Bean 缺位 → 显式 400） */
     private final ObjectProvider<AgentOrchestratorService> orchestratorServiceProvider;
     private final ChatSessionService chatSessionService;
     private final JwtUtils jwtUtils;
@@ -92,7 +92,7 @@ public class AgentController {
      * → { "code": 200, "data": { "answer": "...", "sessionId": "...", "toolCalls": [...] } }
      * </pre>
      *
-     * <p><b>三链分流（11.5 双链路 + 簇⑤ 5.3）</b>：mode=rag 走 ragAgentChatClient
+     * <p><b>三链分流（11.5 双链路 + Phase5簇⑤ 5.3）</b>：mode=rag 走 ragAgentChatClient
      * （纯检索、零工具，toolCalls 恒空）；mode=tool 走 toolAgentChatClient（纯工具
      * 事务、零检索）；mode=agent 走 orchestratorChatClient（多子代理编排，主 Agent
      * 仅持 task 委派工具，委派记录同经 toolCalls 透出）。toolCalls 为工具调用记录
@@ -168,7 +168,7 @@ public class AgentController {
         traceCtx.setTraceId(UUID.randomUUID().toString());
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
-        // TTFT 计量（rag.ttft，簇② 4.3）：请求进入 → 首个非空 token，双链共记；
+        // TTFT 计量（rag.ttft，Phase4簇② 4.3）：请求进入 → 首个非空 token，双链共记；
         // 计时起点取 Controller 入口（含 Advisor 链前置开销，端到端口径）
         long requestStartNanos = System.nanoTime();
         AtomicBoolean ttftRecorded = new AtomicBoolean();
@@ -178,7 +178,7 @@ public class AgentController {
         if (!toolMode) {
             warnIfStrayApprovalId(approvedToolCallId);
         }
-        // 进度旁路通道（簇⑥ 体验批3）：ctx 参数链 listener → Sinks 合流——TOOL_CALL
+        // 进度旁路通道（Phase5簇⑥ 体验批3）：ctx 参数链 listener → Sinks 合流——TOOL_CALL
         // 实时快照（TaskTool 委派 RUNNING/终态）与 PROGRESS 阶段/检索事件（rag 链
         // 四锚点 + KnowledgeSearchTools 预算进度）与主 token 流 merge 下发；同步
         // 经 synchronized 序列化多生产者 emit（tryEmitNext 并发 FAIL_NON_SERIALIZED）
@@ -231,7 +231,7 @@ public class AgentController {
                 mainTerminated.tryEmitError(e);
             });
         Flux<ServerSentEvent<Object>> sseFlux = tokenEvents
-            // 心跳注释帧（簇⑥ 体验批3）：长静默期（工具循环/思考期）防中间层 idle 掐断
+            // 心跳注释帧（Phase5簇⑥ 体验批3）：长静默期（工具循环/思考期）防中间层 idle 掐断
             // ——浏览器 SSE 解析层自动忽略注释帧；主流终结信号联动终止（merge 完成语义）
             .mergeWith(Flux.interval(Duration.ofSeconds(15))
                 .takeUntilOther(mainTerminated.asMono())
@@ -246,7 +246,7 @@ public class AgentController {
                 new ReplaceEvent(traceCtx.getOutputReplacement())).event(Constants.SseEvent.REPLACE).build())
             : Mono.empty()));
         // SSE 事件按链路精简（11.5）：tool/agent 链只可能产生 TOOL_CALL（无溯源数据不推空
-        // TRACE）——agent 链的委派即工具调用（task），协议零变更（簇⑤ 5.3）；
+        // TRACE）——agent 链的委派即工具调用（task），协议零变更（Phase5簇⑤ 5.3）；
         // rag 链只推 TRACE（零工具不产生 TOOL_CALL）；闲聊免检索直答路径（5.4 收窄版）
         // 无溯源数据，对齐「不推空帧」纪律同样省略 TRACE
         if (toolMode || agentMode) {
@@ -281,7 +281,7 @@ public class AgentController {
     }
 
     /**
-     * 请求线程观测桥入 Reactor Context（Phase 4 簇① trace 碎片化修复）。
+     * 请求线程观测桥入 Reactor Context（Phase4簇① trace 碎片化修复）。
      *
      * <p>Spring AI 2.0 流式链不依赖 ThreadLocal 上下文自动恢复——chat_client / Advisor
      * 观测在 {@code Flux.deferContextual} 内**显式**经 {@link ObservationThreadLocalAccessor#KEY}
@@ -306,7 +306,7 @@ public class AgentController {
     }
 
     /**
-     * 工具调用投影（簇⑥ 体验批2）：SSE TOOL_CALL 帧、同步响应 toolCalls、
+     * 工具调用投影（Phase5簇⑥ 体验批2）：SSE TOOL_CALL 帧、同步响应 toolCalls、
      * 归档 metadata 三消费面同形——历史会话恢复复用实时轮卡片渲染链路。
      */
     private static List<ToolCallInfo> toToolCallInfos(RetrievalContext ctx) {
@@ -322,7 +322,7 @@ public class AgentController {
     }
 
     /**
-     * 问答模式解析（11.5 双链路 + 簇⑤ 5.3 第三链）：缺省 rag 兼容现状；
+     * 问答模式解析（11.5 双链路 + Phase5簇⑤ 5.3 第三链）：缺省 rag 兼容现状；
      * 大小写归一；非法值 400 INVALID_MODE（协议层错误在请求处理期拒绝，
      * 不进 SSE 流）。mode=agent 的可用性守卫见 {@link #requireOrchestrator()}。
      * 跨链自动意图路由不实现（5.4-A 归档，真实工具立项触发复活）。
@@ -337,9 +337,9 @@ public class AgentController {
     }
 
     /**
-     * 编排链可用性守卫（簇⑤ D3）：rag.orchestrator.enabled=false 时编排族 Bean
+     * 编排链可用性守卫（Phase5簇⑤ D3）：rag.orchestrator.enabled=false 时编排族 Bean
      * 缺位——mode=agent 显式拒绝（ORCHESTRATOR_DISABLED 400），不静默回落 tool
-     * 改变语义。ObjectProvider 容忍缺位（簇③ CacheCheckAdvisor 同款先例）。
+     * 改变语义。ObjectProvider 容忍缺位（Phase5簇③ CacheCheckAdvisor 同款先例）。
      */
     private AgentOrchestratorService requireOrchestrator() {
         AgentOrchestratorService service = orchestratorServiceProvider.getIfAvailable();
@@ -396,7 +396,7 @@ public class AgentController {
             .toList());
     }
 
-    /** 簇④：追加 graph 路得分/排名键（图路缺位时元数据无键，帧形态不变） */
+    /** Phase5簇④：追加 graph 路得分/排名键（图路缺位时元数据无键，帧形态不变） */
     private static final List<String> SCORE_KEYS =
         List.of(Constants.Retrieval.META_BM25_SCORE, Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX, Constants.Retrieval.ROUTE_VECTOR + Constants.Retrieval.RANK_KEY_SUFFIX, Constants.Retrieval.META_GRAPH_SCORE, Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX,
             Constants.Retrieval.META_FUSION_SCORE, Constants.Retrieval.META_RERANK_SCORE, Constants.Retrieval.META_RERANK_RANK);

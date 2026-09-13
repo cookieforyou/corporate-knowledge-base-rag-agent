@@ -18,7 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Mock 写工具测试（簇⑤ 5.3 拆类自 EnterpriseMockToolsTest）——HITL 三段式
+ * Mock 写工具测试（Phase5簇⑤ 5.3 拆类自 EnterpriseMockToolsTest）——HITL 三段式
  * （预检挂起 / 校验消费执行 / 越权与故障 fail-closed）
  */
 class EnterpriseMockWriteToolsTest {

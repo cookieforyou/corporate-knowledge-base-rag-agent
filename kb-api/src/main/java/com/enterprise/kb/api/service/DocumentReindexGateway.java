@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * 重入库网关实现（Phase 4 簇③ 4.5）——kb-api 侧唯一实现 Bean，委派
+ * 重入库网关实现（Phase4簇③ 4.5）——kb-api 侧唯一实现 Bean，委派
  * {@link DocumentService#reparse}（C1 增量链路：原子占用 + 蓝绿管线 +
  * 进度回调指标），供 kb-admin IndexRebuildService 经接口消费。
  *

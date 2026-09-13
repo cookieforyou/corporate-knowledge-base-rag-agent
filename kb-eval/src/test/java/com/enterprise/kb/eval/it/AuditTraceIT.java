@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 全链路审计行完整性（簇⑥ D3）：异步虚拟线程落库 Awaitility 轮询——
+ * 全链路审计行完整性（冲刺簇⑥ D3）：异步虚拟线程落库 Awaitility 轮询——
  * SUCCESS 行字段齐备（mode/tenant/token_usage/latency/trace_id）+ REJECTED 行错误码。
  *
  * <p>注入载荷程序化构造：取 bundled 基线词表中文干词运行时拼装，

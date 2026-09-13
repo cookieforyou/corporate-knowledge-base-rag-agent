@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * GraphIds 确定性 ID 派生单测（簇④）：规范化收敛 + 确定性 + 租户物理隔离。
+ * GraphIds 确定性 ID 派生单测（Phase5簇④）：规范化收敛 + 确定性 + 租户物理隔离。
  */
 class GraphIdsTest {
 

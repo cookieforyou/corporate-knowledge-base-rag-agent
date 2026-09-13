@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * 任务边界 Advisor 契约测试（簇⑤ 收官注记① 三轮，11 章 v2.108）——消息层
+ * 任务边界 Advisor 契约测试（Phase5簇⑤ 收官注记① 三轮，11 章 v2.108）——消息层
  * 结构分隔注记：历史在场插入 / 首轮透传 / 注记为 SystemMessage 类型
  * （不进记忆回写——MessageChatMemoryAdvisor 的 user 写入取
  * getLastUserOrToolResponseMessage，SystemMessage 不被选中）。

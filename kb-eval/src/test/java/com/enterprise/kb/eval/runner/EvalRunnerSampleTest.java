@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 人工-Judge 一致率分层抽样单测（簇④ E1）
+ * 人工-Judge 一致率分层抽样单测（冲刺簇④ E1）
  */
 class EvalRunnerSampleTest {
 

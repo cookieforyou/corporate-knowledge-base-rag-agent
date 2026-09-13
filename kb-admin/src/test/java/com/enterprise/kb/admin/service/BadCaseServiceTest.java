@@ -33,7 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * BadCaseService 单测（Phase 4 簇④ 4.7）——根因标注守卫、Golden 回灌文件通道
+ * BadCaseService 单测（Phase4簇④ 4.7）——根因标注守卫、Golden 回灌文件通道
  * （upsert/联动 resolved/目录守卫）、反馈处理态租户校验。
  */
 class BadCaseServiceTest {

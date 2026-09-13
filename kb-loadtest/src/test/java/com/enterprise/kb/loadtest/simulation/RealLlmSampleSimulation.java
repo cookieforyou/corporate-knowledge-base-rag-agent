@@ -20,7 +20,7 @@ import static io.gatling.javaapi.core.CoreDsl.scenario;
 import static io.gatling.javaapi.http.HttpDsl.sse;
 
 /**
- * 场景 C：真实 LLM 小样本采样（簇⑥ 4.12 验收线：TTFT P95 &lt; 2s、TPOT &lt; 100ms）
+ * 场景 C：真实 LLM 小样本采样（Phase4簇⑥ 4.12 验收线：TTFT P95 &lt; 2s、TPOT &lt; 100ms）
  *
  * <p><b>计费敏感</b>：直压真实主模型（DeepSeek），缺省关闭——构造期即拒绝运行，
  * 须 {@code -Dloadtest.c.enabled=true} 显式确认（用户侧执行前确认口径）。

@@ -38,7 +38,7 @@ class RerankDocumentPostProcessorTest {
         };
     }
 
-    /** endpoint 为空 → 禁用态，走降级截断（超时参数簇③ D2 引入，禁用态不触达） */
+    /** endpoint 为空 → 禁用态，走降级截断（超时参数冲刺簇③ D2 引入，禁用态不触达） */
     private final RerankDocumentPostProcessor disabled =
         new RerankDocumentPostProcessor(JsonMapper.builder().build(), properties, metrics,
             registryProvider(ObservationRegistry.NOOP), "", "qwen3.7-text-rerank", "", 5);
@@ -110,7 +110,7 @@ class RerankDocumentPostProcessorTest {
         assertEquals(List.of("a"), result.stream().map(Document::getId).toList());
     }
 
-    /** 簇① 指标语义：endpoint 未配置的静态降级不计运行时计数（配置态非运行态，降级率分母不污染） */
+    /** Phase4簇① 指标语义：endpoint 未配置的静态降级不计运行时计数（配置态非运行态，降级率分母不污染） */
     @Test
     void disabled_staticFallback_notCountedInRuntimeMetrics() {
         disabled.apply(new Query("q"), List.of(doc("a", 0.9)));
@@ -119,7 +119,7 @@ class RerankDocumentPostProcessorTest {
         assertEquals(0.0, meterRegistry.counter("rag.rerank.fallback").count());
     }
 
-    /** 簇① 指标语义：运行时调用失败降级 → total 与 fallback 各计一次（降级率分子分母齐备） */
+    /** Phase4簇① 指标语义：运行时调用失败降级 → total 与 fallback 各计一次（降级率分子分母齐备） */
     @Test
     void enabledUnreachable_callFails_countsFallbackOnce() {
         RerankDocumentPostProcessor unreachable =
@@ -135,7 +135,7 @@ class RerankDocumentPostProcessorTest {
         assertEquals(1.0, meterRegistry.counter("rag.rerank.fallback").count());
     }
 
-    /** Phase 5 簇①：rerank HTTP 调用产观测——名称/标签钉死，失败记 error 且降级不扩散 */
+    /** Phase5簇①：rerank HTTP 调用产观测——名称/标签钉死，失败记 error 且降级不扩散 */
     @Test
     void enabled_callProducesObservation_failureRecordedAndFallbackServes() {
         List<Observation.Context> stopped = new ArrayList<>();
@@ -162,7 +162,7 @@ class RerankDocumentPostProcessorTest {
         assertEquals(List.of("b", "a"), result.stream().map(Document::getId).toList());
     }
 
-    /** Phase 5 簇①：父观测在场时 kb.rerank 挂其下（寻父 = registry 当前观测，合树前提） */
+    /** Phase5簇①：父观测在场时 kb.rerank 挂其下（寻父 = registry 当前观测，合树前提） */
     @Test
     void enabled_parentObservationPresent_childNestsUnderParent() {
         List<Observation.Context> stopped = new ArrayList<>();

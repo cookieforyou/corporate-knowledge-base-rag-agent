@@ -15,7 +15,7 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
    输出该问题的 Top-10 命中（chunkId + 文件名 + 得分 + 片段）。人工判定哪些 Chunk 确实能回答问题，
    记下其 chunkId。
 
-   **全量重标注**（chunk ID 换代后的存量迁移，簇④ A4 修复）：
+   **全量重标注**（chunk ID 换代后的存量迁移，冲刺簇④ A4 修复）：
    ```bash
    mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.annotate-all
    ```
@@ -53,7 +53,7 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
    （步骤 1-3，带锚点）承接；退役样本寄存 `boundary-qa-bench.json.example`（.example
    不加载，转正向标注或语料演进后复用）。
 
-## expectedAnswer 草稿审定（簇② 批2，AC 指标前置标注）
+## expectedAnswer 草稿审定（Phase5簇② 批2，AC 指标前置标注）
 
 Answer Correctness 指标依赖 `expectedAnswer` 字段（理想回答）。标注形态定案
 **机器侧草稿 + 人工审定**（2026-08-24 用户定案）：
@@ -77,7 +77,7 @@ mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.draft-answers
   id/category/question/expectedAnswer/expectedChunkIds/expectedDocs（同 multihop 先例）；
   AC 指标自此转可读数（下一轮全量复跑出首读数）
 
-## 人类校准打分表（簇② 批2，κ≥0.80 定档通道）
+## 人类校准打分表（Phase5簇② 批2，κ≥0.80 定档通道）
 
 ```bash
 # 全量评估时带出校准抽样表（judge-agreement-sample=50 → 50 例正交双标注）
@@ -122,7 +122,7 @@ Judge 判据同源）：
   任何资料条目的内容属模型自生成（归忠实性/幻觉维，非漂移），证据基结论
   一致仍判 CONSISTENT。「单侧无依据不计漂移」仅适用于③的情形
 
-## A/B 双跑差异报表（簇② 批3，Prompt 效果对比）
+## A/B 双跑差异报表（Phase5簇② 批3，Prompt 效果对比）
 
 Prompt Git Ops 形态：prompt 版本即 git 版本，双跑 = 两个 git 版本各跑一轮
 全量评估（每轮计费，注意窗口安排）：
@@ -146,7 +146,7 @@ mvn spring-boot:run -pl kb-eval \
 纪律**：两轮除被验证变量外配置须一致（探针/Judge 口径/开关组合），工作区脏
 时锚点 ⚠ 提示结论需谨慎；报表为观察面，不入门禁。
 
-## 多跳专项测试集（簇④ 5.2，GraphRAG 验收 ≥30 例）
+## 多跳专项测试集（Phase5簇④ 5.2，GraphRAG 验收 ≥30 例）
 
 多跳用例（`category=MULTI_HOP`）：答案须经实体链跨片段/跨文档推理得出
 （如「A 公司 CTO 曾任教的大学」= A 公司 →CTO→ 人名 →大学 二跳链）。
@@ -196,7 +196,7 @@ mvn spring-boot:run -pl kb-eval
 # 标注核验/检索回归用，秒级完成，不依赖 DASHSCOPE_API_KEY
 mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.retrieval-only=true
 
-# chain 探针（簇① A1）：走完整 advisor 链（改写→[扩展]→双路→RRF→重排）度量检索产出，
+# chain 探针（冲刺簇① A1）：走完整 advisor 链（改写→[扩展]→双路→RRF→重排）度量检索产出，
 # 是评估改写/扩展等前置组件收益的唯一探针（默认 hybrid 探针只测检索器本体）。
 # 每用例含一次生成调用（答案丢弃取 trace），比 hybrid 慢；须设语料租户（fail-closed 适配）。
 EVAL_PROBE=chain EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \

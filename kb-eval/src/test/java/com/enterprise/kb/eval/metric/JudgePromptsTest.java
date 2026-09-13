@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Judge Prompt 契约单测
  *
- * <p>κ 调优轮（2026-08-28，簇② 批5 κ 定档 FAIL 后）：低 κ 四维判据校准条款
+ * <p>κ 调优轮（2026-08-28，Phase5簇② 批5 κ 定档 FAIL 后）：低 κ 四维判据校准条款
  * 在场性 + 占位符数量钉死（防后续改写丢失校准语义或破坏 String.format 接线）。
  * 判据全文见 16 章 §16.2 κ 调优轮修订注记。
  */

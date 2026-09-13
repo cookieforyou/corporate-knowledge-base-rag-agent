@@ -38,7 +38,7 @@ public class EsIndexWriter {
     /**
      * 批量写入文档的全部 Chunk。
      *
-     * <p>刷新策略 {@code wait_for}（v2.19 簇③ D2）：请求挂起至下一次刷新周期完成、
+     * <p>刷新策略 {@code wait_for}（v2.19 冲刺簇③ D2）：请求挂起至下一次刷新周期完成、
      * 写入可检索后返回——语义上仍保证「返回即可检索」，但避免大文档 ETL 尾部每批
      * 强制全索引刷新（{@code true}）的长尾延迟；原 {@code Refresh.True} 强刷收编废弃。
      */
@@ -84,7 +84,7 @@ public class EsIndexWriter {
     }
 
     /**
-     * 查询指定文档在 ES 中的全部 chunk _id（Phase 4 簇③ 4.5 重建 ES 孤儿清扫）。
+     * 查询指定文档在 ES 中的全部 chunk _id（Phase4簇③ 4.5 重建 ES 孤儿清扫）。
      *
      * <p>重建漂移收敛语义：蓝绿管线以 PG 为事实源全量重写，ES 中「PG 已无对应行」
      * 的残留 doc 即孤儿——调用方以 PG chunk ID 集 diff 后经
@@ -127,7 +127,7 @@ public class EsIndexWriter {
     }
 
     /**
-     * 按 chunkId 批量物理删除（簇⑥ C1 蓝绿重入库 diff 清理）。
+     * 按 chunkId 批量物理删除（优化冲刺簇⑥ C1 蓝绿重入库 diff 清理）。
      *
      * <p>与 {@link #deleteByDocId(String)} 同为运维路径 {@code refresh(true)} 强刷
      * （删除即时可见性优先）；从属副本语义不变——失败仅告警不阻断，

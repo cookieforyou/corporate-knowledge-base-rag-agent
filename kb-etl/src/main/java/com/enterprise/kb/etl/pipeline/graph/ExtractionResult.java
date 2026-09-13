@@ -3,7 +3,7 @@ package com.enterprise.kb.etl.pipeline.graph;
 import java.util.List;
 
 /**
- * 知识图谱结构化抽取输出（簇④ 5.1，{@code .entity()} 映射目标）。
+ * 知识图谱结构化抽取输出（Phase5簇④ 5.1，{@code .entity()} 映射目标）。
  *
  * <p>纯 record 无注解——字段名即 JSON 契约（结构化输出转换器按名映射），
  * 规避 Jackson 3 命名空间注解面（坑位⑬ 同源纪律：不引注解即无命名空间风险）。

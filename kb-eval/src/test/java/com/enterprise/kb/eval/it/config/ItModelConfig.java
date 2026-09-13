@@ -12,12 +12,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 /**
- * IT 模型桩装配（簇⑥ D3）——替代被排除的 {@code SmartRoutingConfig} 与让位的
+ * IT 模型桩装配（冲刺簇⑥ D3）——替代被排除的 {@code SmartRoutingConfig} 与让位的
  * embedding 自动装配：
  *
  * <ul>
  *   <li>{@code smartRoutingChatModel}（@Primary）：真实 {@link SmartRoutingChatModel}
- *       包装桩主模型（fallback=null 单模型形态）——流式 usage 透传（簇③ D1 计账）、
+ *       包装桩主模型（fallback=null 单模型形态）——流式 usage 透传（冲刺簇③ D1 计账）、
  *       链上所有 ChatClient（ragAgentChatClient / chatClient / evalGuardrailChatClient /
  *       QueryRoutingAdvisor 分类器经 ChatClient.Builder）全走同一桩</li>
  *   <li>{@code EmbeddingModel}：确定性 hashing trick 桩，VectorStoreConfig 按类型注入</li>

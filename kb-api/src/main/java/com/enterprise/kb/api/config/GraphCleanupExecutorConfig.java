@@ -7,7 +7,7 @@ import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
 
 /**
- * 图谱清理异步执行器（簇④ 批3 生命周期补强）—— 虚拟线程，I/O 密集（Neo4j 多事务往返）
+ * 图谱清理异步执行器（Phase5簇④ 批3 生命周期补强）—— 虚拟线程，I/O 密集（Neo4j 多事务往返）
  *
  * <p>文档删除的图引用清理（锚点删除 + 引用摘除 + 孤儿清扫）自删除同步链改异步旁路：
  * removeDocument 含全图孤儿扫描，经 bolt+s 多事务往返可达数十秒（E2E 实测 ~20s），

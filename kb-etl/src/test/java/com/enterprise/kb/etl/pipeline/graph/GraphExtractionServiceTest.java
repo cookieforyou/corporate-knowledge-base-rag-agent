@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * GraphExtractionService 单测（簇④）：编排语义——合并收敛 / 租户守卫 /
+ * GraphExtractionService 单测（Phase5簇④）：编排语义——合并收敛 / 租户守卫 /
  * 维度快失败 / 越集关系丢弃 / 状态机流转。
  */
 class GraphExtractionServiceTest {

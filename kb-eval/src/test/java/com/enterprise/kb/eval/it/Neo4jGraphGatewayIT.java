@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 /**
- * Neo4j 图谱网关真跑集成测试（簇④ 四轮热修补防）。
+ * Neo4j 图谱网关真跑集成测试（Phase5簇④ 四轮热修补防）。
  *
  * <p>背景：图路展开查询的列表推导式曾写成集合记法形态（{@code [{…} | x IN list]}），
  * Cypher 正确语序为 {@code [x IN list | …]}——语法错仅在真库解析期暴露，

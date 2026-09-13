@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 索引重建 API（Phase 4 簇③ 4.5）——全量/目标文档重建任务编排与查询。
+ * 索引重建 API（Phase4簇③ 4.5）——全量/目标文档重建任务编排与查询。
  *
  * <p>任务为异步形态：POST 返回 taskId 即受理，进度经任务查询端点轮询；
  * 任务表 Redis 态（v2.36：重启保留 TTL 窗口内、租户域隔离——列表/详情均按

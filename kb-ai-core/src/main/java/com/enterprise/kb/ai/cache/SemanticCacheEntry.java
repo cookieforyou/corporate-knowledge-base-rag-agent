@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 语义缓存条目（Phase 5 簇③ 5.6）。
+ * 语义缓存条目（Phase5簇③ 5.6）。
  *
  * <p>问答对 + 可重放溯源载荷：命中时缓存回答经 SSE 重放，[ref-N] 锚定与 TRACE
  * 溯源事件须与原始回答一致——{@code traceJson} 承载流末 TRACE 事件的序列化载荷

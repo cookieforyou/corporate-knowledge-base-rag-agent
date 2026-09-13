@@ -11,7 +11,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * Neo4jGraphGateway 租户守卫单测（簇④）：空租户读路径零触达返回空、
+ * Neo4jGraphGateway 租户守卫单测（Phase5簇④）：空租户读路径零触达返回空、
  * 写路径快失败——与检索侧两层 fail-closed 纪律同口径。
  */
 class Neo4jGraphGatewayGuardTest {

@@ -19,7 +19,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 统计 Controller 身份守卫测试（Phase 4 簇② 任务 4.6，3.9 同款纪律）：tenantId 缺失即拒
+ * 统计 Controller 身份守卫测试（Phase4簇② 任务 4.6，3.9 同款纪律）：tenantId 缺失即拒
  */
 class StatsControllerTenantGuardTest {
 

@@ -20,8 +20,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 多跳候选题草稿工具（簇④ 5.2 批4，{@code --eval.draft-multihop}）——
- * 沿用簇② AC「机器侧草稿 + 人工审定」先例的选题材料形态。
+ * 多跳候选题草稿工具（Phase5簇④ 5.2 批4，{@code --eval.draft-multihop}）——
+ * 沿用Phase5簇② AC「机器侧草稿 + 人工审定」先例的选题材料形态。
  *
  * <p><b>形态</b>：图谱二跳实体链（a→b→c）采样 + 链首/尾实体关联的存活
  * chunk 原文摘录，产出「多跳候选题材料表」——多跳题即「经桥接实体 b
@@ -129,7 +129,7 @@ public class MultiHopDraftRunner implements ApplicationRunner {
     /** 审定表渲染——包内可见供单测覆盖 */
     String renderReviewSheet(List<DraftMaterial> materials) {
         StringBuilder sb = new StringBuilder();
-        sb.append("# 多跳候选题材料表（簇④ 5.2，机器侧起草 + 人工审定）\n\n");
+        sb.append("# 多跳候选题材料表（Phase5簇④ 5.2，机器侧起草 + 人工审定）\n\n");
         sb.append("> 每条材料 = 图谱二跳实体链（链首 →桥接 → 链尾）+ 链首/尾关联 chunk 摘录。\n");
         sb.append("> 审定动作：基于材料编写跨片段推理问题与标准答案，回写 `golden/multihop-qa.json`\n");
         sb.append("> （category=MULTI_HOP；expectedChunkIds 取下表 chunk ID；expectedAnswer 必填——\n");

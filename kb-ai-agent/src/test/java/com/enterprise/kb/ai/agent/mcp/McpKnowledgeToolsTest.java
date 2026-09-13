@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * McpKnowledgeTools 单测（簇⑤ 4.10）——三件套编排：检索投影、文档租户守卫
+ * McpKnowledgeTools 单测（Phase4簇⑤ 4.10）——三件套编排：检索投影、文档租户守卫
  * 与软删过滤/截断、ask 链委派与会话隔离。身份守卫语义见 McpIdentityGuardTest。
  */
 class McpKnowledgeToolsTest {

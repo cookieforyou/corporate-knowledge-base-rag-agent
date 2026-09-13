@@ -39,7 +39,7 @@ import java.util.Map;
  *   <li>{@code rag.token.total / rag.token.budget.rejected}——Token 消耗与预算
  *       拒绝（原 TokenBudgetAdvisor 分散注册，收编至此统一管理）</li>
  *   <li>{@code rag.guardrail.injection.blocked / pii.masked / output.replaced /
- *       rate.limited / token.budget}——护栏命中计数（簇⑤ B2，S3），按事件类型
+ *       rate.limited / token.budget}——护栏命中计数（冲刺簇⑤ B2，S3），按事件类型
  *       分列注册（与 tool.call 分桶同形态）；注入/限流/预算拒绝同时经
  *       AuditTraceAdvisor 落 kb_audit_log REJECTED 行，指标供 Prometheus 告警。
  *       安全簇① T5 扩充：{@code output.replaced.{business_confidential /
@@ -55,35 +55,35 @@ import java.util.Map;
  *       {@code rag.guardrail.reload.succeeded / failed} 词表热重载成败二态
  *       （协调器触发，fail-keep 保旧快照语义）</li>
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
- *       计数（簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
+ *       计数（优化冲刺簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
  *   <li>{@code rag.request.total / rejected / error}——双链问答请求结果计数
- *       （Phase 4 簇①）：AuditTraceAdvisor 遍历双链全量请求旁路计数；
+ *       （Phase4簇①）：AuditTraceAdvisor 遍历双链全量请求旁路计数；
  *       rejected = BusinessException（护栏/配额拒绝，审计 REJECTED），
  *       error = 其他异常（供应商/系统，审计 ERROR）；为告警规则提供
  *       拒绝率/错误率分母（4.2）</li>
  *   <li>{@code rag.rerank.total / rag.rerank.fallback}——rerank 执行/降级计数
- *       （Phase 4 簇①）：RerankDocumentPostProcessor 运行时调用计 total，
+ *       （Phase4簇①）：RerankDocumentPostProcessor 运行时调用计 total，
  *       解析失败/结构异常/调用失败降级 fusion_score 截断计 fallback；
  *       endpoint 未配置的静态降级不计入（配置态非运行态）</li>
- *   <li>{@code rag.ttft}——流式首 Token 延迟 Timer（p50/p95/p99，Phase 4 簇② 4.3）：
+ *   <li>{@code rag.ttft}——流式首 Token 延迟 Timer（p50/p95/p99，Phase4簇② 4.3）：
  *       AgentController 流式路径自请求进入至首个非空 token 送达的端到端时延，
  *       双链共记（无 mode 标签，延续零标签纪律）；同步路径无首 token 语义不记</li>
  *   <li>{@code rag.chunk.edit / soft.delete / restore}——Chunk 运维操作计数
- *       （Phase 4 簇③ 4.4）：kb-admin ChunkOpsService 成功路径计；操作类型经
+ *       （Phase4簇③ 4.4）：kb-admin ChunkOpsService 成功路径计；操作类型经
  *       recordChunkOps(String) 收口为独立 Counter（不加 operation 标签）</li>
  *   <li>{@code rag.badcase.annotate / rag.badcase.reingest}——Bad Case 运营闭环
- *       计数（Phase 4 簇④ 4.7）：根因标注 / Golden Set 回灌成功路径计，
+ *       计数（Phase4簇④ 4.7）：根因标注 / Golden Set 回灌成功路径计，
  *       recordBadCaseOps(String) 收口（同款零标签纪律）</li>
  *   <li>{@code rag.routing.circuit.opened / circuit.half-opened / fallback.invoked}
- *       ——双供应商 SLA 计数族（Phase 4 簇⑥ 批4）：熔断 OPEN 转入（含 HALF_OPEN
+ *       ——双供应商 SLA 计数族（Phase4簇⑥ 批4）：熔断 OPEN 转入（含 HALF_OPEN
  *       试探失败重开）/ 熔断窗口结束后主模型试探 / 备用模型接管请求，接线点
  *       SmartRoutingChatModel 熔断态变更与路由分支；主模型可用率与切换时序的
  *       指标底座（kb-rag-supplier-sla 面板 + KbPrimaryModelDegraded 告警消费）</li>
  *   <li>{@code rag.retrieval.cache.hit / cache.miss / cache.invalidated}
- *       ——语义缓存计数族（Phase 5 簇③ 5.6，13.3 预留位启用）：KNN 查找达阈命中
+ *       ——语义缓存计数族（Phase5簇③ 5.6，13.3 预留位启用）：KNN 查找达阈命中
  *       / 未命中（含索引空与相似度不足）/ 按文档失效删除条数，接线点
- *       SemanticCacheService；命中率 = hit/(hit+miss)，对照 08 章簇③验收
+ *       SemanticCacheService；命中率 = hit/(hit+miss)，对照 08 章Phase5簇③验收
  *       （>30% 真实流量）</li>
  * </ul>
  *
@@ -92,7 +92,7 @@ import java.util.Map;
  * （安全簇① T7）：side/family 均为有界中性枚举（任务分解定案的低基数标签形态）。
  *
  * <p>设计稿 13.3 其余指标暂不注册：{@code rag.llm.*}（模型层调用计数随
- * Phase 4 可观测增强）。{@code rag.retrieval.cache.hit} 已于 Phase 5 簇③ 5.6
+ * Phase 4 可观测增强）。{@code rag.retrieval.cache.hit} 已于 Phase5簇③ 5.6
  * 启用（语义缓存计数族，见上）。
  */
 @Component
@@ -133,7 +133,7 @@ public class AiBusinessMetrics {
     private final Counter guardrailOutputReplacedComplianceSensitive;
     private final Counter guardrailOutputReplacedCompetitorComparison;
     private final Counter guardrailOutputCanary;
-    /** 输出 PII 回显观察计数（安全簇③ / 簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 */
+    /** 输出 PII 回显观察计数（安全簇③ / 安全簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 */
     private final Counter guardrailOutputPiiEcho;
     /** 间接注入扫描命中条数（安全簇④ D1）：召回证据命中注入词表检测视图，按条计 */
     private final Counter guardrailIndirectFlagged;
@@ -162,7 +162,7 @@ public class AiBusinessMetrics {
     private final Counter mcpSearch;
     private final Counter mcpGetDocument;
     private final Counter mcpAsk;
-    /** 注册中心引用（簇⑤ 5.3）：编排委派指标 subagent 标签为有限枚举但随注册表扩展，
+    /** 注册中心引用（Phase5簇⑤ 5.3）：编排委派指标 subagent 标签为有限枚举但随注册表扩展，
      *  动态注册形态（Micrometer register 幂等）——零租户标签纪律不变 */
     private final MeterRegistry meterRegistry;
     /** MCP 只读工具限流拒绝计数（安全簇② B3）——独立桶，与对话链限流分账 */
@@ -185,25 +185,25 @@ public class AiBusinessMetrics {
     private final Counter guardrailRuleUpdated;
     /** 词表运营 CRUD 删除计数（v2.53 词表 DB 单轨） */
     private final Counter guardrailRuleDeleted;
-    /** 熔断 OPEN 转入计数（Phase 4 簇⑥ 批4）：首次达阈 OPEN + HALF_OPEN 试探失败重开均计 */
+    /** 熔断 OPEN 转入计数（Phase4簇⑥ 批4）：首次达阈 OPEN + HALF_OPEN 试探失败重开均计 */
     private final Counter routingCircuitOpened;
-    /** HALF_OPEN 试探计数（Phase 4 簇⑥ 批4）：熔断窗口结束后首个请求试探主模型 */
+    /** HALF_OPEN 试探计数（Phase4簇⑥ 批4）：熔断窗口结束后首个请求试探主模型 */
     private final Counter routingCircuitHalfOpened;
-    /** 备用模型接管计数（Phase 4 簇⑥ 批4）：OPEN 直发 + 失败即切，双路径合计 */
+    /** 备用模型接管计数（Phase4簇⑥ 批4）：OPEN 直发 + 失败即切，双路径合计 */
     private final Counter routingFallbackInvoked;
-    /** 语义缓存命中计数（Phase 5 簇③ 5.6，13.3 预留位启用）：KNN top-1 相似度达阈 */
+    /** 语义缓存命中计数（Phase5簇③ 5.6，13.3 预留位启用）：KNN top-1 相似度达阈 */
     private final Counter cacheHit;
-    /** 语义缓存未命中计数（Phase 5 簇③ 5.6）：索引空 / 相似度不足 / 运行期降级均计 */
+    /** 语义缓存未命中计数（Phase5簇③ 5.6）：索引空 / 相似度不足 / 运行期降级均计 */
     private final Counter cacheMiss;
-    /** 语义缓存按文档失效删除条数（Phase 5 簇③ 5.6）：知识库变更事件驱动 */
+    /** 语义缓存按文档失效删除条数（Phase5簇③ 5.6）：知识库变更事件驱动 */
     private final Counter cacheInvalidated;
-    /** Graph 路检索执行计数（Phase 5 簇④ 5.2，三路融合第三路） */
+    /** Graph 路检索执行计数（Phase5簇④ 5.2，三路融合第三路） */
     private final Counter graphRetrievalTotal;
     /** Graph 路命中计数（实体匹配 → chunk 反查结果非空）；命中率 = hit/total */
     private final Counter graphRetrievalHit;
     /** Graph 路检索耗时（查询嵌入 → 向量索引 → 邻域展开 → PG 反查全管线） */
     private final Timer graphRetrievalLatency;
-    /** 图谱抽取执行计数（簇④ 5.1，经 GraphExtractionListener SPI 委派） */
+    /** 图谱抽取执行计数（Phase5簇④ 5.1，经 GraphExtractionListener SPI 委派） */
     private final Counter graphExtractionTotal;
     /** 图谱抽取成功计数（实体/关系写图完成） */
     private final Counter graphExtractionSucceeded;
@@ -220,7 +220,7 @@ public class AiBusinessMetrics {
             .description("混合检索执行次数").register(registry);
         this.retrievalHit = Counter.builder("rag.retrieval.hit")
             .description("检索命中次数（final 序列非空）").register(registry);
-        // v2.11 草图承诺 p50/p95/p99，实现期遗漏——簇② 4.3 面板消费分位时补齐
+        // v2.11 草图承诺 p50/p95/p99，实现期遗漏——Phase4簇② 4.3 面板消费分位时补齐
         this.retrievalLatency = Timer.builder("rag.retrieval.latency")
             .description("混合检索耗时")
             .publishPercentiles(0.5, 0.95, 0.99)
@@ -240,9 +240,9 @@ public class AiBusinessMetrics {
         this.routingKnowledge = Counter.builder("rag.routing.knowledge")
             .description("意图分类为知识问答，走完整检索链路（5.4 收窄版）").register(registry);
         this.guardrailInjectionBlocked = Counter.builder("rag.guardrail.injection.blocked")
-            .description("Prompt 注入拦截次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
+            .description("Prompt 注入拦截次数（InputSanitizeAdvisor，冲刺簇⑤ B2 S3）").register(registry);
         this.guardrailPiiMasked = Counter.builder("rag.guardrail.pii.masked")
-            .description("PII 掩码触发次数（InputSanitizeAdvisor，簇⑤ B2 S3）").register(registry);
+            .description("PII 掩码触发次数（InputSanitizeAdvisor，冲刺簇⑤ B2 S3）").register(registry);
         // PII 掩码类型子项（安全簇③ C1/C2）：七类确定性识别器各一子项，命名
         // rag.guardrail.pii.masked.{type}（对齐 output.replaced.{分类} 子项形态）
         this.guardrailPiiMaskedPhone = Counter.builder("rag.guardrail.pii.masked.phone")
@@ -260,7 +260,7 @@ public class AiBusinessMetrics {
         this.guardrailPiiMaskedIpv4 = Counter.builder("rag.guardrail.pii.masked.ipv4")
             .description("PII 掩码类型子项——IPv4 地址（安全簇③ C1/C2）").register(registry);
         this.guardrailOutputReplaced = Counter.builder("rag.guardrail.output.replaced")
-            .description("输出敏感词表整段替换次数（OutputGuardrailAdvisor，簇⑤ B2 S3）").register(registry);
+            .description("输出敏感词表整段替换次数（OutputGuardrailAdvisor，冲刺簇⑤ B2 S3）").register(registry);
         // 输出面分类化子项（安全簇① T5）：按 OutputFamily 三分类分列——零标签纪律下
         // 经 recordOutputReplaced(family) switch 收口为独立 Counter（不加 family 标签）
         this.guardrailOutputReplacedBusinessConfidential =
@@ -275,7 +275,7 @@ public class AiBusinessMetrics {
         this.guardrailOutputCanary = Counter.builder("rag.guardrail.output.canary")
             .description("系统提示金丝雀回显拦截次数——确证提示泄露（安全簇① T5）").register(registry);
         this.guardrailOutputPiiEcho = Counter.builder("rag.guardrail.output.pii.echo")
-            .description("输出 PII 回显观察次数——回答检出未掩码强形态 PII，FLAG 观察起步只计数不替换（安全簇③ / 簇① T5 钩子）").register(registry);
+            .description("输出 PII 回显观察次数——回答检出未掩码强形态 PII，FLAG 观察起步只计数不替换（安全簇③ / 安全簇① T5 钩子）").register(registry);
         this.guardrailIndirectFlagged = Counter.builder("rag.guardrail.indirect.flagged")
             .description("间接注入扫描命中条数——召回证据命中注入词表检测视图，按条计（安全簇④ D1）").register(registry);
         this.guardrailIndirectExcluded = Counter.builder("rag.guardrail.indirect.excluded")
@@ -307,45 +307,45 @@ public class AiBusinessMetrics {
                 .register(registry));
         this.guardrailFlagged = Map.copyOf(flagged);
         this.guardrailRateLimited = Counter.builder("rag.guardrail.rate.limited")
-            .description("租户限流拒绝次数（RateLimitAdvisor，簇⑤ B2 S3）").register(registry);
+            .description("租户限流拒绝次数（RateLimitAdvisor，冲刺簇⑤ B2 S3）").register(registry);
         this.guardrailTokenBudget = Counter.builder("rag.guardrail.token.budget")
-            .description("Token 预算拒绝次数——安全域视图（成本域同事件见 rag.token.budget.rejected，簇⑤ B2 S3）").register(registry);
+            .description("Token 预算拒绝次数——安全域视图（成本域同事件见 rag.token.budget.rejected，冲刺簇⑤ B2 S3）").register(registry);
         this.documentReindexStarted = Counter.builder("rag.document.reindex.started")
-            .description("文档增量重入库发起次数（reparse/replace 占用成功，簇⑥ C1）").register(registry);
+            .description("文档增量重入库发起次数（reparse/replace 占用成功，优化冲刺簇⑥ C1）").register(registry);
         this.documentReindexSucceeded = Counter.builder("rag.document.reindex.succeeded")
-            .description("文档增量重入库成功次数（ETL 进度回调 COMPLETED，簇⑥ C1）").register(registry);
+            .description("文档增量重入库成功次数（ETL 进度回调 COMPLETED，优化冲刺簇⑥ C1）").register(registry);
         this.documentReindexFailed = Counter.builder("rag.document.reindex.failed")
-            .description("文档增量重入库失败次数（ETL 进度回调 FAILED，簇⑥ C1）").register(registry);
+            .description("文档增量重入库失败次数（ETL 进度回调 FAILED，优化冲刺簇⑥ C1）").register(registry);
         this.requestTotal = Counter.builder("rag.request.total")
-            .description("双链问答请求总数（审计旁路计数，Phase 4 簇①）").register(registry);
+            .description("双链问答请求总数（审计旁路计数，Phase4簇①）").register(registry);
         this.requestRejected = Counter.builder("rag.request.rejected")
-            .description("护栏/配额拒绝请求数（BusinessException → 审计 REJECTED，Phase 4 簇①）").register(registry);
+            .description("护栏/配额拒绝请求数（BusinessException → 审计 REJECTED，Phase4簇①）").register(registry);
         this.requestError = Counter.builder("rag.request.error")
-            .description("供应商/系统错误请求数（审计 ERROR，Phase 4 簇①）").register(registry);
+            .description("供应商/系统错误请求数（审计 ERROR，Phase4簇①）").register(registry);
         this.rerankTotal = Counter.builder("rag.rerank.total")
-            .description("rerank 运行时执行次数（Phase 4 簇①）").register(registry);
+            .description("rerank 运行时执行次数（Phase4簇①）").register(registry);
         this.rerankFallback = Counter.builder("rag.rerank.fallback")
-            .description("rerank 降级次数（解析失败/结构异常/调用失败 → fusion_score 截断，Phase 4 簇①）").register(registry);
+            .description("rerank 降级次数（解析失败/结构异常/调用失败 → fusion_score 截断，Phase4簇①）").register(registry);
         this.ttft = Timer.builder("rag.ttft")
-            .description("流式首 Token 延迟（Phase 4 簇② 4.3）")
+            .description("流式首 Token 延迟（Phase4簇② 4.3）")
             .publishPercentiles(0.5, 0.95, 0.99)
             .register(registry);
         this.chunkEdit = Counter.builder("rag.chunk.edit")
-            .description("Chunk 运维编辑次数（Phase 4 簇③ 4.4）").register(registry);
+            .description("Chunk 运维编辑次数（Phase4簇③ 4.4）").register(registry);
         this.chunkSoftDelete = Counter.builder("rag.chunk.soft.delete")
-            .description("Chunk 软删除次数（Phase 4 簇③ 4.4）").register(registry);
+            .description("Chunk 软删除次数（Phase4簇③ 4.4）").register(registry);
         this.chunkRestore = Counter.builder("rag.chunk.restore")
-            .description("Chunk 软删恢复次数（Phase 4 簇③ 4.4）").register(registry);
+            .description("Chunk 软删恢复次数（Phase4簇③ 4.4）").register(registry);
         this.badCaseAnnotate = Counter.builder("rag.badcase.annotate")
-            .description("Bad Case 根因标注次数（Phase 4 簇④ 4.7）").register(registry);
+            .description("Bad Case 根因标注次数（Phase4簇④ 4.7）").register(registry);
         this.badCaseReingest = Counter.builder("rag.badcase.reingest")
-            .description("Bad Case Golden Set 回灌次数（Phase 4 簇④ 4.7）").register(registry);
+            .description("Bad Case Golden Set 回灌次数（Phase4簇④ 4.7）").register(registry);
         this.mcpSearch = Counter.builder("rag.mcp.search")
-            .description("MCP search 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
+            .description("MCP search 工具调用次数（Phase4簇⑤ 4.10）").register(registry);
         this.mcpGetDocument = Counter.builder("rag.mcp.get_document")
-            .description("MCP get_document 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
+            .description("MCP get_document 工具调用次数（Phase4簇⑤ 4.10）").register(registry);
         this.mcpAsk = Counter.builder("rag.mcp.ask")
-            .description("MCP ask 工具调用次数（Phase 4 簇⑤ 4.10）").register(registry);
+            .description("MCP ask 工具调用次数（Phase4簇⑤ 4.10）").register(registry);
         this.guardrailMcpRateLimited = Counter.builder("rag.guardrail.mcp.ratelimited")
             .description("MCP 只读工具限流拒绝次数（安全簇② B3：search/get_document 独立配额桶）")
             .register(registry);
@@ -371,37 +371,37 @@ public class AiBusinessMetrics {
             .description("护栏词表运营更新词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
         this.guardrailRuleDeleted = Counter.builder("rag.guardrail.rule.deleted")
             .description("护栏词表运营删除词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
-        // 双供应商 SLA 计数族（Phase 4 簇⑥ 批4）：熔断三态迁移与备用接管事件，
+        // 双供应商 SLA 计数族（Phase4簇⑥ 批4）：熔断三态迁移与备用接管事件，
         // 零标签纪律；主模型可用率/切换时序经面板与告警表达式消费
         this.routingCircuitOpened = Counter.builder("rag.routing.circuit.opened")
-            .description("主模型熔断 OPEN 转入次数——达阈首开 + HALF_OPEN 试探失败重开（簇⑥ 批4 SLA）").register(registry);
+            .description("主模型熔断 OPEN 转入次数——达阈首开 + HALF_OPEN 试探失败重开（Phase4簇⑥ 批4 SLA）").register(registry);
         this.routingCircuitHalfOpened = Counter.builder("rag.routing.circuit.half-opened")
-            .description("主模型 HALF_OPEN 试探次数——熔断窗口结束后首个请求试探（簇⑥ 批4 SLA）").register(registry);
+            .description("主模型 HALF_OPEN 试探次数——熔断窗口结束后首个请求试探（Phase4簇⑥ 批4 SLA）").register(registry);
         this.routingFallbackInvoked = Counter.builder("rag.routing.fallback.invoked")
-            .description("备用模型接管请求次数——OPEN 直发 + 失败即切双路径（簇⑥ 批4 SLA）").register(registry);
+            .description("备用模型接管请求次数——OPEN 直发 + 失败即切双路径（Phase4簇⑥ 批4 SLA）").register(registry);
         this.cacheHit = Counter.builder("rag.retrieval.cache.hit")
-            .description("语义缓存命中次数——KNN top-1 相似度达阈（簇③ 5.6，13.3 预留位启用）").register(registry);
+            .description("语义缓存命中次数——KNN top-1 相似度达阈（Phase5簇③ 5.6，13.3 预留位启用）").register(registry);
         this.cacheMiss = Counter.builder("rag.retrieval.cache.miss")
-            .description("语义缓存未命中次数——索引空/相似度不足/运行期降级均计（簇③ 5.6）").register(registry);
+            .description("语义缓存未命中次数——索引空/相似度不足/运行期降级均计（Phase5簇③ 5.6）").register(registry);
         this.cacheInvalidated = Counter.builder("rag.retrieval.cache.invalidated")
-            .description("语义缓存按文档失效删除条数——知识库变更事件驱动（簇③ 5.6）").register(registry);
+            .description("语义缓存按文档失效删除条数——知识库变更事件驱动（Phase5簇③ 5.6）").register(registry);
         this.graphRetrievalTotal = Counter.builder("rag.retrieval.graph.total")
-            .description("Graph 路检索执行次数——三路融合第三路（簇④ 5.2）").register(registry);
+            .description("Graph 路检索执行次数——三路融合第三路（Phase5簇④ 5.2）").register(registry);
         this.graphRetrievalHit = Counter.builder("rag.retrieval.graph.hit")
-            .description("Graph 路命中次数——实体匹配经 chunk 反查结果非空（簇④ 5.2）").register(registry);
+            .description("Graph 路命中次数——实体匹配经 chunk 反查结果非空（Phase5簇④ 5.2）").register(registry);
         this.graphRetrievalLatency = Timer.builder("rag.retrieval.graph.latency")
-            .description("Graph 路检索耗时——嵌入/向量索引/邻域展开/PG 反查全管线（簇④ 5.2）")
+            .description("Graph 路检索耗时——嵌入/向量索引/邻域展开/PG 反查全管线（Phase5簇④ 5.2）")
             .publishPercentiles(0.5, 0.95, 0.99)
             .register(registry);
         this.graphExtractionTotal = Counter.builder("rag.graph.extraction.total")
-            .description("图谱抽取执行次数——经 GraphExtractionListener SPI 委派（簇④ 5.1）").register(registry);
+            .description("图谱抽取执行次数——经 GraphExtractionListener SPI 委派（Phase5簇④ 5.1）").register(registry);
         this.graphExtractionSucceeded = Counter.builder("rag.graph.extraction.succeeded")
-            .description("图谱抽取成功次数——实体/关系写图完成（簇④ 5.1）").register(registry);
+            .description("图谱抽取成功次数——实体/关系写图完成（Phase5簇④ 5.1）").register(registry);
         this.graphExtractionFailed = Counter.builder("rag.graph.extraction.failed")
-            .description("图谱抽取失败次数——管道级故障，单 chunk 失败不计（簇④ 5.1）").register(registry);
+            .description("图谱抽取失败次数——管道级故障，单 chunk 失败不计（Phase5簇④ 5.1）").register(registry);
     }
 
-    /** Chunk 运维操作计数（Phase 4 簇③ 4.4：edit / soft_delete / restore） */
+    /** Chunk 运维操作计数（Phase4簇③ 4.4：edit / soft_delete / restore） */
     public void recordChunkOps(String operation) {
         switch (operation) {
             case "edit" -> chunkEdit.increment();
@@ -411,7 +411,7 @@ public class AiBusinessMetrics {
         }
     }
 
-    /** Bad Case 运营闭环计数（Phase 4 簇④ 4.7：annotate 根因标注 / reingest Golden 回灌） */
+    /** Bad Case 运营闭环计数（Phase4簇④ 4.7：annotate 根因标注 / reingest Golden 回灌） */
     public void recordBadCaseOps(String operation) {
         switch (operation) {
             case "annotate" -> badCaseAnnotate.increment();
@@ -420,7 +420,7 @@ public class AiBusinessMetrics {
         }
     }
 
-    /** MCP 三件套工具调用计数（Phase 4 簇⑤ 4.10：search / get_document / ask，调用审计的指标面） */
+    /** MCP 三件套工具调用计数（Phase4簇⑤ 4.10：search / get_document / ask，调用审计的指标面） */
     public void recordMcpToolCall(String operation) {
         switch (operation) {
             case Constants.McpTool.SEARCH -> mcpSearch.increment();
@@ -479,32 +479,32 @@ public class AiBusinessMetrics {
         ttft.record(elapsed);
     }
 
-    /** 熔断 OPEN 转入计数（簇⑥ 批4 SLA）：SmartRoutingChatModel 达阈首开/试探失败重开 */
+    /** 熔断 OPEN 转入计数（Phase4簇⑥ 批4 SLA）：SmartRoutingChatModel 达阈首开/试探失败重开 */
     public void recordCircuitOpened() {
         routingCircuitOpened.increment();
     }
 
-    /** HALF_OPEN 试探计数（簇⑥ 批4 SLA）：熔断窗口结束后首个请求试探主模型 */
+    /** HALF_OPEN 试探计数（Phase4簇⑥ 批4 SLA）：熔断窗口结束后首个请求试探主模型 */
     public void recordCircuitHalfOpened() {
         routingCircuitHalfOpened.increment();
     }
 
-    /** 备用模型接管计数（簇⑥ 批4 SLA）：OPEN 直发与失败即切双路径各计一次 */
+    /** 备用模型接管计数（Phase4簇⑥ 批4 SLA）：OPEN 直发与失败即切双路径各计一次 */
     public void recordFallbackInvoked() {
         routingFallbackInvoked.increment();
     }
 
-    /** 语义缓存查找计数（簇③ 5.6）：hit = KNN top-1 相似度达阈；命中率 = hit/(hit+miss) */
+    /** 语义缓存查找计数（Phase5簇③ 5.6）：hit = KNN top-1 相似度达阈；命中率 = hit/(hit+miss) */
     public void recordCacheLookup(boolean hit) {
         (hit ? cacheHit : cacheMiss).increment();
     }
 
-    /** 语义缓存按文档失效计数（簇③ 5.6）：一次事件删除的条目条数 */
+    /** 语义缓存按文档失效计数（Phase5簇③ 5.6）：一次事件删除的条目条数 */
     public void recordCacheInvalidated(int count) {
         cacheInvalidated.increment(count);
     }
 
-    /** Graph 路检索计数（簇④ 5.2）：hit = chunk 反查结果非空 */
+    /** Graph 路检索计数（Phase5簇④ 5.2）：hit = chunk 反查结果非空 */
     public void recordGraphRetrieval(boolean hit) {
         graphRetrievalTotal.increment();
         if (hit) {
@@ -512,12 +512,12 @@ public class AiBusinessMetrics {
         }
     }
 
-    /** Graph 路检索耗时（簇④ 5.2）：全管线真实耗时，Prometheus 侧出分位 */
+    /** Graph 路检索耗时（Phase5簇④ 5.2）：全管线真实耗时，Prometheus 侧出分位 */
     public void recordGraphRetrievalLatency(Duration elapsed) {
         graphRetrievalLatency.record(elapsed);
     }
 
-    /** 图谱抽取结果计数（簇④ 5.1）：total 每文档抽取各计一次，成败分桶 */
+    /** 图谱抽取结果计数（Phase5簇④ 5.1）：total 每文档抽取各计一次，成败分桶 */
     public void recordGraphExtraction(boolean succeeded) {
         graphExtractionTotal.increment();
         (succeeded ? graphExtractionSucceeded : graphExtractionFailed).increment();
@@ -552,7 +552,7 @@ public class AiBusinessMetrics {
     }
 
     /**
-     * 编排委派终态计数（簇⑤ 5.3）：TaskTool 委派 success/fail 分桶，tag=subagent
+     * 编排委派终态计数（Phase5簇⑤ 5.3）：TaskTool 委派 success/fail 分桶，tag=subagent
      * 有限枚举（注册表扩展随之增长，零租户标签纪律不变；委派记录另经
      * RetrievalContext.ToolCall 快照进审计行与 rag.tool.call.* 通道）
      */
@@ -564,7 +564,7 @@ public class AiBusinessMetrics {
             .register(meterRegistry).increment();
     }
 
-    /** 编排子代理单次委派执行耗时（簇⑤ 5.3，p50/p95/p99） */
+    /** 编排子代理单次委派执行耗时（Phase5簇⑤ 5.3，p50/p95/p99） */
     public void recordOrchestratorSubAgentDuration(String subAgentName, Duration elapsed) {
         Timer.builder("rag.orchestrator.subagent.duration")
             .description("编排子代理单次委派执行耗时")
@@ -594,13 +594,13 @@ public class AiBusinessMetrics {
         routingKnowledge.increment();
     }
 
-    /** 护栏命中计数（簇⑤ B2 S3）：Prompt 注入拦截（InputSanitizeAdvisor 抛 PROMPT_INJECTION 前） */
+    /** 护栏命中计数（冲刺簇⑤ B2 S3）：Prompt 注入拦截（InputSanitizeAdvisor 抛 PROMPT_INJECTION 前） */
     public void recordInjectionBlocked() {
         guardrailInjectionBlocked.increment();
     }
 
     /**
-     * 护栏命中计数（簇⑤ B2 S3 / 安全簇③ C1/C2）：PII 掩码触发
+     * 护栏命中计数（冲刺簇⑤ B2 S3 / 安全簇③ C1/C2）：PII 掩码触发
      * （InputSanitizeAdvisor，非拒绝型干预）——总项恒计（语义不变：一次掩码
      * 干预计一次），命中类型另计对应类型子项（零标签纪律，类型枚举 switch
      * 收口；NAME/ADDRESS 为 C3 登记项无识别器，不可达只计总项）。
@@ -622,7 +622,7 @@ public class AiBusinessMetrics {
     }
 
     /**
-     * 输出 PII 回显观察（安全簇③，簇① T5 钩子闭环）：回答中检出未掩码强形态
+     * 输出 PII 回显观察（安全簇③，安全簇① T5 钩子闭环）：回答中检出未掩码强形态
      * PII → FLAG 观察起步——只计数 + warn 日志（类型事实），不替换不阻断
      * （专项方案 §4.1 A3：验证误报后再定动作）。
      */
@@ -650,7 +650,7 @@ public class AiBusinessMetrics {
     }
 
     /**
-     * 护栏命中计数（簇⑤ B2 S3 / 安全簇① T5）：输出敏感词表整段替换
+     * 护栏命中计数（冲刺簇⑤ B2 S3 / 安全簇① T5）：输出敏感词表整段替换
      * （OutputGuardrailAdvisor，非拒绝型干预）——总项恒计，命中词项族系属
      * OutputFamily 三分类时另计对应分类子项（未知族系只计总项）。
      */
@@ -696,23 +696,23 @@ public class AiBusinessMetrics {
         return (family == null || family.isBlank()) ? FAMILY_UNCLASSIFIED : family.trim().toUpperCase();
     }
 
-    /** 护栏命中计数（簇⑤ B2 S3）：租户限流拒绝（RateLimitAdvisor 抛 RATE_LIMITED 前） */
+    /** 护栏命中计数（冲刺簇⑤ B2 S3）：租户限流拒绝（RateLimitAdvisor 抛 RATE_LIMITED 前） */
     public void recordRateLimited() {
         guardrailRateLimited.increment();
     }
 
-    /** 文档增量重入库计数（簇⑥ C1）：started 占用成功 / succeeded/failed 终态回调 */
+    /** 文档增量重入库计数（优化冲刺簇⑥ C1）：started 占用成功 / succeeded/failed 终态回调 */
     public void recordReindexStarted() {
         documentReindexStarted.increment();
     }
 
-    /** 文档增量重入库计数（簇⑥ C1） */
+    /** 文档增量重入库计数（优化冲刺簇⑥ C1） */
     public void recordReindexOutcome(boolean succeeded) {
         (succeeded ? documentReindexSucceeded : documentReindexFailed).increment();
     }
 
     /**
-     * 请求结果计数（Phase 4 簇①，告警分母）：与审计三态同语义——
+     * 请求结果计数（Phase4簇①，告警分母）：与审计三态同语义——
      * error=null 计 total；BusinessException（护栏/配额拒绝，审计 REJECTED）计 rejected；
      * 其他异常（供应商/系统，审计 ERROR）计 error。拒绝率/错误率 = 对应计数/total。
      */
@@ -725,7 +725,7 @@ public class AiBusinessMetrics {
         }
     }
 
-    /** rerank 执行/降级计数（Phase 4 簇①）：降级率 = fallback/total */
+    /** rerank 执行/降级计数（Phase4簇①）：降级率 = fallback/total */
     public void recordRerank(boolean fallback) {
         rerankTotal.increment();
         if (fallback) {

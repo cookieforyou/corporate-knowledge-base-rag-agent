@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# kb-api 镜像构建（Phase 4 簇⑥ 4.11，v2.55；2026-09-10 增 --no-mvn）
+# kb-api 镜像构建（Phase4簇⑥ 4.11，v2.55；2026-09-10 增 --no-mvn）
 #
 # 形态：宿主侧 mvn package（-DskipTests，测试归 CI/交付批）→
 # docker build。tag 缺省 = v{semver}-{git短哈希}（禁 latest 纪律）。

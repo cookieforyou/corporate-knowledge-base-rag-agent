@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-ai-agent</artifactId>
     <name>kb-ai-agent</name>
-    <description>AI Agent 事务模块：工具链 ChatClient、@Tool 工具层、HITL 审批、MCP 三件套工具（4.10，簇⑤）（3.19 双链路拆分自 kb-ai-core；未来真实 OA/ERP 工具客户端、Multi-Agent 5.3 落此）</description>
+    <description>AI Agent 事务模块：工具链 ChatClient、@Tool 工具层、HITL 审批、MCP 三件套工具（4.10，Phase4簇⑤）（3.19 双链路拆分自 kb-ai-core；未来真实 OA/ERP 工具客户端、Multi-Agent 5.3 落此）</description>
 
     <dependencies>
         <!-- 复用 kb-ai-core：护栏/配额/记忆 Advisor、RetrievalContext、smartRoutingChatModel -->

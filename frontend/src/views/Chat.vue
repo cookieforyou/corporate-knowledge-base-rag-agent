@@ -138,10 +138,10 @@
       <div v-if="streaming" class="msg assistant">
         <div class="msg-avatar assistant">知</div>
         <div class="msg-body">
-          <!-- 委派/审批卡片实时渲染（簇⑥ 批3：TOOL_CALL 帧流中多次推送增量更新） -->
+          <!-- 委派/审批卡片实时渲染（Phase5簇⑥ 批3：TOOL_CALL 帧流中多次推送增量更新） -->
           <ToolCallCard v-for="(tc, j) in streamToolCalls" :key="j" :call="tc"
             @confirmed="onApprovalConfirmed" />
-          <!-- 阶段/检索进度行（簇⑥ 批3：PROGRESS 帧；E2E 补强三——常驻至流结束，
+          <!-- 阶段/检索进度行（Phase5簇⑥ 批3：PROGRESS 帧；E2E 补强三——常驻至流结束，
                不因 token 让位：编排链 token 是散落过渡叙述（「我先委派…」数语），
                让位假设仅 rag 链成立，编排链 token 一吐进度即被吞没） -->
           <div v-if="progressText" class="progress-line">
@@ -167,7 +167,7 @@
           :disabled="streaming" @keydown.enter.exact="ask(input)" />
         <div class="composer-actions">
           <div class="composer-left">
-            <!-- 三链显式分流（11.5 双链路 + 簇⑤ 5.3）：rag 知识问答 / tool 企业事务 / agent 任务编排 -->
+            <!-- 三链显式分流（11.5 双链路 + Phase5簇⑤ 5.3）：rag 知识问答 / tool 企业事务 / agent 任务编排 -->
             <el-radio-group v-model="store.mode" size="small" :disabled="streaming" @change="onModeSwitch">
               <el-radio-button value="rag">知识问答</el-radio-button>
               <el-radio-button value="tool">企业工具</el-radio-button>
@@ -206,9 +206,9 @@ const store = useChatStore()
 const input = ref('')
 const streamText = ref('')
 const streaming = ref(false)
-/** 委派/审批卡片实时态（簇⑥ 批3：TOOL_CALL 帧流中推送，流末固化进消息） */
+/** 委派/审批卡片实时态（Phase5簇⑥ 批3：TOOL_CALL 帧流中推送，流末固化进消息） */
 const streamToolCalls = ref<ToolCallInfo[]>([])
-/** 阶段/检索进度行（簇⑥ 批3：PROGRESS 帧，token 到达后隐藏） */
+/** 阶段/检索进度行（Phase5簇⑥ 批3：PROGRESS 帧，token 到达后隐藏） */
 const progressText = ref('')
 const msgList = ref<HTMLElement>()
 const sourceTarget = ref<SourceTarget | null>(null)
@@ -257,7 +257,7 @@ function onModeSwitch() {
 
 /** 打开历史会话（3.15 补齐）：拉 PG 归档消息映射为 Message[]——sources 即 citations、
  *  messageId 即 kb_message.id（反馈链路复用）、feedback 回显；sessionId 续用即真续聊。
- *  链路 tab 恢复（簇⑥ E2E 补强四）：会话的 mode 归属（kb_session.mode，归档首轮写入）
+ *  链路 tab 恢复（Phase5簇⑥ E2E 补强四）：会话的 mode 归属（kb_session.mode，归档首轮写入）
  *  随选中上抛——切到对应链路后续聊走该链路；存量会话 mode 缺失保持当前不切 */
 async function openHistory(id: string, mode?: 'rag' | 'tool' | 'agent' | null) {
   if (streaming.value || id === store.sessionId) return
@@ -279,7 +279,7 @@ function toMessage(m: HistoryMessage): Message {
     content: m.content,
     sources: m.sources ?? undefined,
     traceOpen: !!m.sources?.length,   // 与实时轮行为一致：有溯源即展开面板
-    toolCalls: m.toolCalls?.length ? m.toolCalls : undefined,   // 簇⑥ 批2：委派/审批卡片回显
+    toolCalls: m.toolCalls?.length ? m.toolCalls : undefined,   // Phase5簇⑥ 批2：委派/审批卡片回显
     messageId: m.id,
     traceId: m.traceId ?? undefined,
     feedback: m.feedback ?? undefined
@@ -442,10 +442,10 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
             // 输出护栏替换追回（v2.109）：已渲染回答整段替换为安全话术
             streamText.value = json.answer ?? ''
           } else if (currentEvent === 'TOOL_CALL') {
-            // 簇⑥ 批3：流中实时快照（RUNNING→终态增量更新）+ 流末兜底投影同分支
+            // Phase5簇⑥ 批3：流中实时快照（RUNNING→终态增量更新）+ 流末兜底投影同分支
             streamToolCalls.value = json.toolCalls || []
           } else if (currentEvent === 'PROGRESS') {
-            // 簇⑥ 批3：阶段/检索进度行（token 到达后模板自动隐藏）
+            // Phase5簇⑥ 批3：阶段/检索进度行（token 到达后模板自动隐藏）
             progressText.value = json.text || ''
           } else if (json.messageId != null) {
             // DONE 帧（3.17）：{messageId, traceId} 反馈定位句柄
@@ -509,7 +509,7 @@ function finalCount(msg: Message) {
 <style scoped>
 .chat-shell { display: flex; height: 100%; }
 
-/* ── 进度行（簇⑥ 批3：PROGRESS 帧阶段/检索进度）── */
+/* ── 进度行（Phase5簇⑥ 批3：PROGRESS 帧阶段/检索进度）── */
 .progress-line {
   display: flex; align-items: center; gap: 6px;
   margin: 2px 0 8px; padding: 0 2px;

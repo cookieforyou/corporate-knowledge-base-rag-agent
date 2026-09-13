@@ -1,7 +1,7 @@
 package com.enterprise.kb.etl.pipeline.graph;
 
 /**
- * 图谱抽取观测 SPI（簇④，评审修正 R1 依赖倒置）。
+ * 图谱抽取观测 SPI（Phase5簇④，评审修正 R1 依赖倒置）。
  *
  * <p>抽取计数指标族（{@code rag.graph.extraction.*}）归属 {@code AiBusinessMetrics}
  * （kb-ai-core），而抽取服务在 kb-etl——模块不可见，故本接口定义在 kb-etl，

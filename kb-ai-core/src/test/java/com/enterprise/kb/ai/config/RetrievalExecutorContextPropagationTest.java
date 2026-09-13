@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 检索执行器上下文传递契约测试（Phase 4 簇②，簇① trace 碎片化留档修复的防回归钉）：
+ * 检索执行器上下文传递契约测试（Phase4簇②，Phase4簇① trace 碎片化留档修复的防回归钉）：
  * 提交线程的当前观测必须经虚拟线程边界传递至任务线程——否则检索任务内
- * embedding/rerank 观测寻父落空成独立 trace 根（簇① 留档缺陷形态）。
+ * embedding/rerank 观测寻父落空成独立 trace 根（Phase4簇① 留档缺陷形态）。
  */
 class RetrievalExecutorContextPropagationTest {
 

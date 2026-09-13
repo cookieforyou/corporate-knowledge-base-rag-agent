@@ -17,7 +17,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * 集成测试容器基类（簇⑥ D3）——三容器共享单例，整个 IT 套件只启动一次：
+ * 集成测试容器基类（冲刺簇⑥ D3）——三容器共享单例，整个 IT 套件只启动一次：
  *
  * <ul>
  *   <li><b>PG</b>：pgvector/pgvector:pg17，init script 直接复用 kb-domain 的

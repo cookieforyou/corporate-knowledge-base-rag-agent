@@ -16,7 +16,7 @@ import static io.gatling.javaapi.core.CoreDsl.jmesPath;
 import static io.gatling.javaapi.http.HttpDsl.sse;
 
 /**
- * 对话 SSE 协议常量与 Gatling 公共组件（簇⑥ 批5，v2.59）
+ * 对话 SSE 协议常量与 Gatling 公共组件（Phase4簇⑥ 批5，v2.59）
  *
  * <p><b>帧形态</b>（AgentController + AgentStreamEvent，11.3/3.17）：TOKEN/ERROR/DONE
  * 无名事件、TRACE 命名事件；DONE 帧 3.17 起 JSON 载荷 {messageId, traceId}，错误路径不发 DONE。

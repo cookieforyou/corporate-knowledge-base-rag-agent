@@ -1,7 +1,7 @@
 {
   "uid": "kb-rag-business",
   "title": "KB-RAG 业务大盘",
-  "description": "Phase 4 簇②（4.3）：反馈 / 工具调用 / 护栏命中 / 重入库。Bad Case 分布走簇④ 审计 API（无标签指标不设）。",
+  "description": "Phase4簇②（4.3）：反馈 / 工具调用 / 护栏命中 / 重入库。Bad Case 分布走Phase4簇④ 审计 API（无标签指标不设）。",
   "tags": [
     "kb-rag"
   ],
@@ -446,7 +446,7 @@
           "sort": "desc"
         }
       },
-      "title": "文档重入库（簇⑥ C1）",
+      "title": "文档重入库（优化冲刺簇⑥ C1）",
       "type": "timeseries",
       "targets": [
         {
@@ -488,7 +488,7 @@
       "id": 6,
       "options": {
         "mode": "markdown",
-        "content": "**面板口径（簇② 定案）**\n\n- Bad Case 分布不设指标面板（零标签纪律）——走簇④ Bad Case 闭环：审计 API 查询 + 根因标注\n- 好评比 <70% / 配额命中率 >3% 告警见 alert-rules-kb-rag.yml\n- 知识库入库量（文档/chunk 趋势）走统计 API `GET /api/v1/stats/overview`（4.6，前端仪表盘簇④ 消费），非 Prometheus 指标"
+        "content": "**面板口径（Phase4簇② 定案）**\n\n- Bad Case 分布不设指标面板（零标签纪律）——走Phase4簇④ Bad Case 闭环：审计 API 查询 + 根因标注\n- 好评比 <70% / 配额命中率 >3% 告警见 alert-rules-kb-rag.yml\n- 知识库入库量（文档/chunk 趋势）走统计 API `GET /api/v1/stats/overview`（4.6，前端仪表盘Phase4簇④ 消费），非 Prometheus 指标"
       },
       "title": "口径说明",
       "type": "text"

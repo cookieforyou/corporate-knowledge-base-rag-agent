@@ -1,7 +1,7 @@
 package com.enterprise.kb.domain.enums;
 
 /**
- * 文档图谱构建状态（Phase 5 簇④ GraphRAG，V2 迁移）。
+ * 文档图谱构建状态（Phase5簇④ GraphRAG，V2 迁移）。
  *
  * <p>知识图谱抽取是 ETL 成功后的异步旁路管道——抽取成败不影响文档入库主状态
  * （{@link DocumentStatus}），独立状态机追踪每文档的图覆盖形态，供回填任务

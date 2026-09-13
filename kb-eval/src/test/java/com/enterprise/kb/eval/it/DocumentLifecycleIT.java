@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 文档生命周期集成（簇⑥ D3 × C1 回归保险）：真实 PG + pgvector + MinIO 上跑
+ * 文档生命周期集成（冲刺簇⑥ D3 × C1 回归保险）：真实 PG + pgvector + MinIO 上跑
  * {@link DocumentEtlService} 全管线（NATIVE Tika 解析、桩向量化、ES 降级）——
  *
  * <ul>

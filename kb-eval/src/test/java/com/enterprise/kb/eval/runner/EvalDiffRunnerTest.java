@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * A/B 差异报表生成器单测（簇② 5.9 批3）——输入解析 / 锚点与配置核验 /
+ * A/B 差异报表生成器单测（Phase5簇② 5.9 批3）——输入解析 / 锚点与配置核验 /
  * 聚合判定 / 逐例翻转与异动 / 用例集差异 / JSON 端到端
  */
 class EvalDiffRunnerTest {

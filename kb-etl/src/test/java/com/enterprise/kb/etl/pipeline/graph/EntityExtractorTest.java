@@ -16,7 +16,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * EntityExtractor 单测（簇④）：结构化输出解析 + 失败隔离语义。
+ * EntityExtractor 单测（Phase5簇④）：结构化输出解析 + 失败隔离语义。
  */
 class EntityExtractorTest {
 

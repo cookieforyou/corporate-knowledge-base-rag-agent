@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 流式 trace 合树桥接测试（Phase 4 簇① 碎片化修复）——钉死请求线程当前观测经
+ * 流式 trace 合树桥接测试（Phase4簇① 碎片化修复）——钉死请求线程当前观测经
  * {@code micrometer.observation} 键写入 Reactor Context。该键是 Spring AI 2.0 流式链
  * 读取父观测的显式契约（DefaultChatClient#doGetObservableFluxChatResponse 经
  * deferContextual 读 ContextView，不走 ThreadLocal 自动恢复）。

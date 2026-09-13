@@ -17,7 +17,7 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
- * 集成测试专属启动类（簇⑥ D3）——与生产 {@link EvalApplication} 同包扫描范围，
+ * 集成测试专属启动类（冲刺簇⑥ D3）——与生产 {@link EvalApplication} 同包扫描范围，
  * 但排除以下组件：
  *
  * <ul>
@@ -35,7 +35,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  *
  * <p>模型自动装配经属性门让位：{@code spring.ai.model.chat=none}（生产既有）+
  * {@code spring.ai.model.embedding=none}（IT 注入），OpenAI embedding starter
- * 类级 @ConditionalOnProperty 门控让位（簇③ 实证机制）。
+ * 类级 @ConditionalOnProperty 门控让位（冲刺簇③ 实证机制）。
  */
 @SpringBootConfiguration
 @EnableAutoConfiguration

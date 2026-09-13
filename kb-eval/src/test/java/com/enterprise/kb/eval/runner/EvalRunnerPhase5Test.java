@@ -17,7 +17,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Phase 5 扩展指标单测（簇② 5.8）——噪声抽样映射 / 编号化混排 / 聚合与报告渲染
+ * Phase 5 扩展指标单测（Phase5簇② 5.8）——噪声抽样映射 / 编号化混排 / 聚合与报告渲染
  */
 class EvalRunnerPhase5Test {
 
@@ -237,7 +237,7 @@ class EvalRunnerPhase5Test {
             .doesNotThrowAnyException();
     }
 
-    // ── 人类校准表（簇② 批2）：CSV 打分表 + MD 材料 ──
+    // ── 人类校准表（Phase5簇② 批2）：CSV 打分表 + MD 材料 ──
 
     /** 全维度结果：F=4、AC=5、CA=SUPPORTED、HR=0.25、NR=CONSISTENT（带答案 B） */
     private static EvalResult fullResult(String id) {
@@ -442,7 +442,7 @@ class EvalRunnerPhase5Test {
         assertThat(EvalRunner.verificationView(null, 16000).includedChunks()).isZero();
     }
 
-    // ── 运行锚点头（簇② 5.9 批3） ──
+    // ── 运行锚点头（Phase5簇② 5.9 批3） ──
 
     @Test
     void anchorHeaderCarriesGitFormAndDirtyMarker() {

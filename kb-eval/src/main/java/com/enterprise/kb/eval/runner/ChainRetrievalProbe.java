@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 全链路探针（簇① A1，2026-08-11）——度量真实 advisor 链的检索产出
+ * 全链路探针（冲刺簇① A1，2026-08-11）——度量真实 advisor 链的检索产出
  *
  * <p>与 {@link HybridRetrievalProbe} 的分工：hybrid 探针直调检索器本体，度量
  * 「检索本征质量」（无改写、无扩展、无重排）；本探针走 eval {@code chatClient}

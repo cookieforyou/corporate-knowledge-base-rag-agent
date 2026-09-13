@@ -71,7 +71,7 @@ public class ToolAgentChatClientConfig {
                                           EnterpriseMockWriteTools enterpriseMockWriteTools,
                                           PromptCanary promptCanary) {
         // 同 ragAgentChatClient：单参 builder 默认 NOOP registry，chat_client/Advisor
-        // 观测静默缺失——显式传入应用 ObservationRegistry（簇① 碎片化定案）
+        // 观测静默缺失——显式传入应用 ObservationRegistry（Phase4簇① 碎片化定案）
         // 系统提示金丝雀（安全簇① T5）：与 rag 链同一 PromptCanary Bean，
         // 输出回显由共享 OutputGuardrailAdvisor 聚合后验拦截
         return ChatClient.builder(chatModel, observationRegistry, null, null)
@@ -85,7 +85,7 @@ public class ToolAgentChatClientConfig {
                 semanticInjectionAdvisor,
                 MessageChatMemoryAdvisor.builder(agentChatMemory).order(Constants.ChainOrder.MEMORY).build(),
                 agentToolCallingAdvisor)
-            // 簇⑤ 5.3 Mock 拆类后双挂（读+写）——工具集与拆分前等价（三 @Tool 全在）
+            // Phase5簇⑤ 5.3 Mock 拆类后双挂（读+写）——工具集与拆分前等价（三 @Tool 全在）
             .defaultTools(enterpriseMockReadTools, enterpriseMockWriteTools)
             .build();
     }

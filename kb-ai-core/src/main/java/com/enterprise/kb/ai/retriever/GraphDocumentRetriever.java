@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Graph 路检索器（簇④ 5.2，三路融合第三路）。
+ * Graph 路检索器（Phase5簇④ 5.2，三路融合第三路）。
  *
  * <p>管线（<b>检索期零 LLM 调用</b>，延迟预算 ~100ms）：
  * 查询嵌入（主检索链路同源 EmbeddingModel）→ Neo4j 向量索引实体匹配

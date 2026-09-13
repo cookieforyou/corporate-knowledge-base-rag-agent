@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 流式 TTFT 计量测试（Phase 4 簇② 4.3）：首 Token 记且仅记一次；空流不记
+ * 流式 TTFT 计量测试（Phase4簇② 4.3）：首 Token 记且仅记一次；空流不记
  */
 class AgentControllerTtftTest {
 

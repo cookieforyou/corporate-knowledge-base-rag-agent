@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@code rag.guardrail.pii.{type}.enabled}）——每类型独立开关，误报治理的
  * 运维绕开面（某类型误报即关该类型，不牵动其余识别器）。
  *
- * <p>七类确定性识别器默认全开（行为 = 簇②前既有三类掩码 + C1 新增四类）；
+ * <p>七类确定性识别器默认全开（行为 = 安全簇②前既有三类掩码 + C1 新增四类）；
  * {@code name}/{@code address} 为 C3 登记项（NER 依赖、误报管理成本高）默认关，
  * 开关键预留但识别器未实现——置 true 仅启动 warn 提示无效（装配校验见
  * {@code PiiConfiguration}），待干净集误报度量后再评估实现。

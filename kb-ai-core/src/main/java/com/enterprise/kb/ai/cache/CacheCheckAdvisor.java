@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 语义缓存检查 Advisor（Phase 5 簇③ 5.6 批2）—— Order 460：命中短路重放 / 未命中流末写入
+ * 语义缓存检查 Advisor（Phase5簇③ 5.6 批2）—— Order 460：命中短路重放 / 未命中流末写入
  *
  * <p><b>槽位语义（11.2 链序表）</b>：QueryRouting(440)/RetrievalTrace(450) 之后、
  * RetrievalGate(500) 之前——
@@ -69,7 +69,7 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "rag.cache", name = "enabled", havingValue = "true")
 public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
 
-    /** 观测 span 名（簇①观测地基族；对齐 {@code kb.rerank} 命名） */
+    /** 观测 span 名（Phase4簇①观测地基族；对齐 {@code kb.rerank} 命名） */
     static final String OBSERVATION_NAME = "kb.cache.semantic";
 
     /** 重排后最终序列 trace 源标识（与检索/重排链路写入侧同值） */

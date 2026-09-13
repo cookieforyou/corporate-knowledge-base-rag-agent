@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Chunk 三库级联清理组件（簇⑥ C1）—— PG kb_chunk / 向量库 / ES 的统一清理原语。
+ * Chunk 三库级联清理组件（优化冲刺簇⑥ C1）—— PG kb_chunk / 向量库 / ES 的统一清理原语。
  *
  * <p><b>共享基座</b>：文档删除级联（DocumentService.delete）、蓝绿重入库 diff 清理
  * （DocumentEtlService）与未来 Phase 4.5 物理删除级联 / 4.6 索引重建复用同一组件，
@@ -61,7 +61,7 @@ public class ChunkCleanupService {
     }
 
     /**
-     * Chunk 软删除管道（簇⑥ C1「只通管道不建门面」，REST 门面归 Phase 4.4 Chunk 运维 API）：
+     * Chunk 软删除管道（优化冲刺簇⑥ C1「只通管道不建门面」，REST 门面归 Phase 4.4 Chunk 运维 API）：
      * PG is_deleted=true + ES is_deleted=true（markDeleted）+ 向量库物理删除。
      *
      * <p><b>向量库无软删形态</b>：检索双路均过滤 is_deleted（ES term filter +

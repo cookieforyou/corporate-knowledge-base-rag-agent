@@ -33,8 +33,8 @@ public class GlobalExceptionHandler {
     private static final Set<String> QUOTA_ERROR_CODES = Set.of(Constants.ErrorCodes.RATE_LIMITED, Constants.ErrorCodes.TOKEN_BUDGET_EXCEEDED);
 
     /**
-     * 资源状态冲突类错误码 — 目标资源当前状态不允许该操作（簇⑥ C1：文档处于
-     * 处理中仍发起重入库 / 处理期发起删除；簇③ 4.4：对未软删 chunk 发起恢复），
+     * 资源状态冲突类错误码 — 目标资源当前状态不允许该操作（优化冲刺簇⑥ C1：文档处于
+     * 处理中仍发起重入库 / 处理期发起删除；Phase4簇③ 4.4：对未软删 chunk 发起恢复），
      * 语义为「与现状冲突」，映射 HTTP 409（可重试语义）。
      */
     private static final Set<String> CONFLICT_ERROR_CODES = Set.of(Constants.ErrorCodes.DOC_NOT_READY, Constants.ErrorCodes.CHUNK_NOT_DELETED);

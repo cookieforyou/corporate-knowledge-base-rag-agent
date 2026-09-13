@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 编排链对话服务（簇⑤ 5.3，设计文档 §11.5.5）——与 ToolChatService 契约同构
+ * 编排链对话服务（Phase5簇⑤ 5.3，设计文档 §11.5.5）——与 ToolChatService 契约同构
  *
  * <p>第三链 mode=agent：orchestratorChatClient 的 defaultTools 仅
  * {@link TaskTool} 一个委派工具（主 Agent 上下文零叶子工具 schema），
@@ -23,7 +23,7 @@ import java.util.Map;
  *
  * <p>非 @Service 注解：经 OrchestratorChatClientConfig 条件装配
  * （{@code rag.orchestrator.enabled=true}），关闭态 Bean 缺位——
- * AgentController 以 ObjectProvider 容忍并显式 400（簇③ 先例）。
+ * AgentController 以 ObjectProvider 容忍并显式 400（Phase5簇③ 先例）。
  */
 public class AgentOrchestratorService {
 

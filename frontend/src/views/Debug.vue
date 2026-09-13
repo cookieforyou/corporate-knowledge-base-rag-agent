@@ -152,7 +152,7 @@ const maxes = computed(() => {
 
 function scoreDims(c: RetrievalCandidate) {
   const m = maxes.value
-  // 图路维度（簇④）：仅该候选命中图路时呈现（关闭态/未命中自然缺位，零空行）
+  // 图路维度（Phase5簇④）：仅该候选命中图路时呈现（关闭态/未命中自然缺位，零空行）
   type Dim = { key: string; label: string; value: number | undefined | null; rank: number | null | undefined; max: number; color: string }
   const dims: Dim[] = [
     { key: 'vector', label: '向量相似度', value: c.vectorScore, rank: c.vectorRank, max: m.vector, color: 'var(--c-vector)' },
@@ -168,7 +168,7 @@ function scoreDims(c: RetrievalCandidate) {
   return dims
 }
 
-/** 降级芯片路由标签：键映射与 Chat 溯源同族（簇④ 三路扩展，未知键原样回显） */
+/** 降级芯片路由标签：键映射与 Chat 溯源同族（Phase5簇④ 三路扩展，未知键原样回显） */
 const routeLabel = (k: string) =>
   ({ vector: '向量路', bm25: 'BM25 路', graph: '图谱路' } as Record<string, string>)[k] || k
 

@@ -26,9 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * Bad Case 运营闭环 API（Phase 4 簇④ 4.7）——审计日志查询 + 根因标注 + Golden 回灌 + 处理态。
+ * Bad Case 运营闭环 API（Phase4簇④ 4.7）——审计日志查询 + 根因标注 + Golden 回灌 + 处理态。
  *
- * <p><b>租户守卫</b>：与簇③ 同款——{@code @AuthenticationPrincipal Jwt} 直消费
+ * <p><b>租户守卫</b>：与Phase4簇③ 同款——{@code @AuthenticationPrincipal Jwt} 直消费
  * （kb-admin 不依赖 kb-api，不复用 JwtUtils），owner claim → tenantId，缺失
  * fail-closed IDENTITY_INCOMPLETE。
  *

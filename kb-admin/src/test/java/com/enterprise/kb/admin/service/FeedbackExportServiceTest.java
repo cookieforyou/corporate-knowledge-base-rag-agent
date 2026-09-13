@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 反馈微调数据导出单测（簇② 5.10 批4）——派生规则 / 质量过滤 /
+ * 反馈微调数据导出单测（Phase5簇② 5.10 批4）——派生规则 / 质量过滤 /
  * JSONL 形态 / 门槛对照 / PII 消毒 / 确定性顺序
  */
 class FeedbackExportServiceTest {

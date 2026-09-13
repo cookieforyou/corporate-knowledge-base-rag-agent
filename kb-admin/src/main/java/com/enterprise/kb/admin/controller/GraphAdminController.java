@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 图谱运维 API（簇④ 5.1 批3）：存量语料图专项回填。
+ * 图谱运维 API（Phase5簇④ 5.1 批3）：存量语料图专项回填。
  *
  * <p>与图谱域全族同条件装配——{@code rag.graph.enabled=false} 时整个控制器
  * 缺位（端点 404），关闭态零形态变化；租户守卫同 {@code RebuildController}

@@ -1,17 +1,17 @@
-# Phase 5 簇④ GraphRAG 详细实施方案（批次推进版）
+# Phase5簇④ GraphRAG 详细实施方案（批次推进版）
 
 > **版本**：v1.1 · **日期**：2026-08-26 · **工时**：10d · **模块跨度**：kb-infrastructure / kb-etl / kb-ai-core / kb-admin / kb-eval / kb-domain / frontend / kb-loadtest / docs
-> **性质**：簇④落码执行基线（开工勘察三路结论 + 架构设计 + 用户四项定案 + 评审修正）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §五；批次进展回填 07 卷簇④段。
-> **分支纪律**：全部提交落 `phase5-cluster4-graphrag`（2026-08-26 已建）；main 冻结至簇② 批5 用户侧回传（纪律延续簇③先例）。
+> **性质**：Phase5簇④落码执行基线（开工勘察三路结论 + 架构设计 + 用户四项定案 + 评审修正）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §五；批次进展回填 07 卷Phase5簇④段。
+> **分支纪律**：全部提交落 `phase5-cluster4-graphrag`（2026-08-26 已建）；main 冻结至Phase5簇② 批5 用户侧回传（纪律延续Phase5簇③先例）。
 
 ## 定案记录（2026-08-26，用户拍板四项）
 
 1. **Neo4j 客户端形态** = 原生驱动 + 自建 `GraphGateway`（手工装配 `Driver` Bean，不引 Spring Data Neo4j 全套）；
 2. **Graph 路检索形态** = 实体向量匹配（抽取时实体描述嵌入存 Neo4j 向量索引；检索期查询嵌入 → 实体匹配 → 邻域展开 → chunk 反查，**检索期零 LLM 调用**，满足三路融合 P95 <600ms）；
-3. **多跳测试集产出** = 机器侧草稿工具（`--eval.draft-multihop`，基于图实体链 + PG 真值起草）+ 用户审定，沿用簇② AC「机器侧草稿 + 人工审定」先例；
+3. **多跳测试集产出** = 机器侧草稿工具（`--eval.draft-multihop`，基于图实体链 + PG 真值起草）+ 用户审定，沿用Phase5簇② AC「机器侧草稿 + 人工审定」先例；
 4. **存量建图** = kb-admin 图专项回填任务（直读 PG 存量 chunk，跳过解析/嵌入只走抽取→写图；复用重建滑动窗口 + Redis 任务表模式）。
 
-**开工事实**：用户已在第二台 ECS 安装 Neo4j 社区最新版（簇④开工决策点解除）；版本 / bolt 地址 / 凭据经用户侧清单收集（§12.1）。
+**开工事实**：用户已在第二台 ECS 安装 Neo4j 社区最新版（Phase5簇④开工决策点解除）；版本 / bolt 地址 / 凭据经用户侧清单收集（§12.1）。
 
 ## 评审修正（2026-08-26，落码前审查）
 
@@ -24,7 +24,7 @@
 
 ## 0. 总览与纪律
 
-### 0.1 簇④边界
+### 0.1 Phase5簇④边界
 
 | 子项 | 交付物 | 落模块 |
 |------|--------|--------|
@@ -600,7 +600,7 @@ spring:
 ### 7.3 `NEO4J_*` env 键（infra/.env.example）
 
 ```bash
-# ── Neo4j（第二台 ECS，簇④ GraphRAG）────────────
+# ── Neo4j（第二台 ECS，Phase5簇④ GraphRAG）────────────
 NEO4J_URI=bolt://NEO4J_HOST:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=CHANGE_ME
@@ -617,7 +617,7 @@ BACKUP_NEO4J_PORT=7687
 ### 8.1 迁移脚本 `V2__graph_status.sql`
 
 ```sql
--- V2: 图抽取状态追踪（Phase 5 簇④ GraphRAG）
+-- V2: 图抽取状态追踪（Phase5簇④ GraphRAG）
 ALTER TABLE kb_document ADD COLUMN IF NOT EXISTS graph_status VARCHAR(20) NOT NULL DEFAULT 'PENDING';
 ALTER TABLE kb_document ADD COLUMN IF NOT EXISTS graph_updated_at TIMESTAMP;
 

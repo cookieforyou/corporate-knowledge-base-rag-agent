@@ -13,7 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 意图路由 L1/L2（簇⑥ D3，5.4 收窄版）：L1 正则闲聊零 LLM 短路 + L2 桩分类
+ * 意图路由 L1/L2（冲刺簇⑥ D3，5.4 收窄版）：L1 正则闲聊零 LLM 短路 + L2 桩分类
  * CHITCHAT 短路 + KNOWLEDGE 全管线。skipRetrieval 经 RetrievalContext 参数链回传。
  */
 class IntentRoutingIT extends AbstractAdvisorChainIT {

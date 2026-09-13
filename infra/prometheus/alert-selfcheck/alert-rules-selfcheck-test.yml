@@ -1,5 +1,5 @@
 # ============================================================
-# 告警规则 promtool 合成单测（Phase 4 簇⑥ 批2，v2.56）
+# 告警规则 promtool 合成单测（Phase4簇⑥ 批2，v2.56）
 #
 # 覆盖口径（告警全集 14 条 = 真触发 6 + 合成单测 8，自检矩阵见
 # 用户侧待执行项清单.md M1）：
@@ -7,7 +7,7 @@
 #   序列验证「表达式可 FIRING + 标签/注解模板展开正确」：
 #     KbJvmHeapNearFull / KbJvmGcPressureHigh / KbThreadsDeadlocked /
 #     KbFeedbackLikeRatioLow / KbTokenSpike / HostDiskNearFull /
-#     HostMemoryNearFull / KbPrimaryModelDegraded（簇⑥ 批4 新增）
+#     HostMemoryNearFull / KbPrimaryModelDegraded（Phase4簇⑥ 批4 新增）
 #   其余 6 条（KbProcessRecentlyRestarted / KbEmptyRetrievalRateHigh /
 #   KbRejectionRateHigh / KbRequestErrorRateHigh / KbRerankFallbackRateHigh /
 #   KbQuotaHitRateHigh）走 M1 真触发演练，不在本文件。
@@ -104,7 +104,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: "用户反馈好评比 <70%（近 1 小时）"
-              description: "好评比=0；走簇④ Bad Case 闭环：查 kb_audit_log 点踩样本 → 根因标注 → Golden 回灌。"
+              description: "好评比=0；走Phase4簇④ Bad Case 闭环：查 kb_audit_log 点踩样本 → 根因标注 → Golden 回灌。"
 
   # ── 5. KbTokenSpike：1000 token/min 匀速 → [1h]=60000 ≫ 3×([24h]/24)=11500 ──
   # eval 91m（奇数）：[1h] 窗口 (31m,91m] 边界落 2m 采样点之间，
@@ -165,7 +165,7 @@ tests:
               summary: "宿主可用内存 <10% 持续 10 分钟"
               description: "内存占用率=0.95（2 核 ECS 上 PG 原生 + 存量容器 + 应用共挤）；核查各 compose 限额生效情况（docker stats），必要时下调 KB_API_MEM_LIMIT。"
 
-  # ── 8. KbPrimaryModelDegraded：熔断 OPEN counter 8m→10m 跳变 0→1（簇⑥ 批4） ──
+  # ── 8. KbPrimaryModelDegraded：熔断 OPEN counter 8m→10m 跳变 0→1（Phase4簇⑥ 批4） ──
   # eval 11m（奇数）：[5m] 窗口 (6m,11m] 内样本 8m(0)/10m(1)，
   # 2.55.1 实测修订（2026-09-12，坑位㊽）：promtool 序列语法 xN 为「首点+重复 N 次」
   # （0x4 = 5 点 ts 0-8m；2x10 = 11 点 ts 10-30m）——旧构造 0x5 1x10 在 2.55 下跳变

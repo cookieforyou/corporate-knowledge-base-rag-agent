@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  * <p>L1 形态（12.2.1）：黑名单规则链。幻觉拦截（引用忠实性）归评估体系
  * （16.2 Citation Attribution），不在本 Advisor 做脆弱文本后处理。
  *
- * <p><b>v2.24 修正（簇⑤ B2，S3 护栏可观测）</b>：替换事件接
+ * <p><b>v2.24 修正（冲刺簇⑤ B2，S3 护栏可观测）</b>：替换事件接
  * {@code rag.guardrail.output.replaced} 计数（同步 after() 与流式聚合后验两路径）。
  * 替换属非拒绝型干预（不抛异常），审计行仍落 SUCCESS + 安全话术 final_answer
  * （不加 error_code 标记，维持「SUCCESS→null」不变量）——观测走指标 + 话术取证。
@@ -74,7 +74,7 @@ import java.util.stream.Collectors;
  *   <li><b>系统提示金丝雀</b>（OWASP LLM01 / Rebuff 同款）：校验先于词表判定——
  *       输出回显 {@link PromptCanary} 运行时随机 token 即确证提示泄露，整段替换
  *       + 独立指标 {@code rag.guardrail.output.canary}；</li>
- *   <li><b>PII 回显探测</b>（簇③ C2 接入闭环）：{@link #piiEchoHit} 经
+ *   <li><b>PII 回显探测</b>（安全簇③ C2 接入闭环）：{@link #piiEchoHit} 经
  *       {@link PiiRecognizerRegistry} 检测视图探测回答中未掩码强形态 PII——
  *       FLAG 观察起步（计数 {@code rag.guardrail.output.pii.echo} + warn 类型事实，
  *       不替换不阻断），验证误报后再定动作（专项方案 §4.1 A3）。</li>
@@ -87,7 +87,7 @@ import java.util.stream.Collectors;
  * {@code Map.copyOf(request.context())} 将 advisor 参数（含本实例）写入响应 context；
  * 流式 adviseStream 直接持有 request。BLOCK 替换路径不计 FLAG（内容未放行）。
  *
- * <p><b>v2.45 修正（安全簇③ C1/C2，PII 识别器注册表）</b>：簇① T5 预留的
+ * <p><b>v2.45 修正（安全簇③ C1/C2，PII 识别器注册表）</b>：安全簇① T5 预留的
  * {@link #piiEchoHit} 钩子接入 {@link PiiRecognizerRegistry} 检测视图——金丝雀校验
  * 之后、词表判定之前观察（金丝雀替换后的安全话术无观察价值）；观察语义只计数
  * 不替换，与 BLOCK 替换控制流正交。
@@ -118,7 +118,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
     /** 流式形态快照：window = 最长拦截模式长度 - 1（经典流式子串匹配保留窗，下界 1） */
     private record StreamingGuard(int window) {}
 
-    /** 护栏命中计数（簇⑤ B2 S3）——替换/金丝雀事件入 Prometheus */
+    /** 护栏命中计数（冲刺簇⑤ B2 S3）——替换/金丝雀事件入 Prometheus */
     private final AiBusinessMetrics metrics;
 
     /** 系统提示金丝雀（T5）：回显校验先于词表判定 */
@@ -218,7 +218,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
             }
             return replaceResponse(response, SAFE_RESPONSE_COMPLIANCE);
         }
-        // PII 回显观察（簇③ C2）：只计数不替换，与词表判定控制流正交
+        // PII 回显观察（安全簇③ C2）：只计数不替换，与词表判定控制流正交
         piiEchoHit(output);
         Optional<GuardrailRule> hit = blockHit(output, ctx);
         if (hit.isEmpty()) {
@@ -282,7 +282,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
                     }
                     return Flux.just(replaceResponse(last, SAFE_RESPONSE_COMPLIANCE));
                 }
-                // PII 回显观察（簇③ C2）：聚合后验只计数不替换
+                // PII 回显观察（安全簇③ C2）：聚合后验只计数不替换
                 piiEchoHit(fullText);
                 Optional<GuardrailRule> hit = blockHit(fullText, ctx);
                 if (hit.isPresent()) {
@@ -442,7 +442,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
             ? rc : null;
     }
 
-    /** PII 回显探测（簇① T5 钩子，安全簇③ C2 接入）：识别器注册表检测视图探测
+    /** PII 回显探测（安全簇① T5 钩子，安全簇③ C2 接入）：识别器注册表检测视图探测
      * 回答中未掩码强形态 PII → FLAG 观察起步——计数 + warn 类型事实，不替换不阻断 */
     private boolean piiEchoHit(String text) {
         List<PiiHit> hits = piiRegistry.detect(text);

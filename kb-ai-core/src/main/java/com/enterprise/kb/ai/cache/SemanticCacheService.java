@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 语义缓存核心服务（Phase 5 簇③ 5.6）：查询级语义缓存的存取与失效。
+ * 语义缓存核心服务（Phase5簇③ 5.6）：查询级语义缓存的存取与失效。
  *
  * <p><b>载体</b>：Redis 8 内建查询引擎（FT.* VECTOR，Redis 8 GA 起合入开源核心）
  * 经项目既有 Redisson 客户端 {@code RSearch} 类型化 API 消费，零新增依赖

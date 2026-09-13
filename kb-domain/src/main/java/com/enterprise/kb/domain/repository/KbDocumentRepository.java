@@ -17,7 +17,7 @@ public interface KbDocumentRepository extends JpaRepository<KbDocument, String> 
 
     List<KbDocument> findByTenantIdOrderByCreatedAtDesc(String tenantId);
 
-    // ── 统计聚合（Phase 4 簇② 任务 4.6：运维仪表盘数据接口）──
+    // ── 统计聚合（Phase4簇② 任务 4.6：运维仪表盘数据接口）──
 
     long countByTenantId(String tenantId);
 
@@ -32,7 +32,7 @@ public interface KbDocumentRepository extends JpaRepository<KbDocument, String> 
     /**
      * 入库趋势（按创建日聚合）：返回 [LocalDate, 文档数, chunk 数] 行集。
      * chunk 数取 kb_document.chunk_count 求和（重入库成功后回写，口径 = 存活文档切片规模；
-     * 软删 chunk 的精确口径属簇③ 运维域，仪表盘取文档侧近似即可）。
+     * 软删 chunk 的精确口径属Phase4簇③ 运维域，仪表盘取文档侧近似即可）。
      */
     @Query("SELECT CAST(d.createdAt AS LocalDate), COUNT(d), SUM(COALESCE(d.chunkCount, 0)) "
         + "FROM KbDocument d WHERE d.tenantId = :tenantId AND d.createdAt >= :since "
@@ -48,7 +48,7 @@ public interface KbDocumentRepository extends JpaRepository<KbDocument, String> 
     List<KbDocument> findByTenantIdAndStatusInOrderByUpdatedAtDesc(String tenantId, List<DocumentStatus> statuses);
 
     /**
-     * 增量重入库原子占用（簇⑥ C1）：仅 SUCCESS/FAILED 态可被占用为 REINDEXING，
+     * 增量重入库原子占用（优化冲刺簇⑥ C1）：仅 SUCCESS/FAILED 态可被占用为 REINDEXING，
      * 返回影响行数——0 = 状态已被并发占用或不可重入库（调用方据此返回 DOC_NOT_READY）。
      *
      * <p>DB 级 check-then-act 原子化：单条 UPDATE ... WHERE status IN (...) 消除

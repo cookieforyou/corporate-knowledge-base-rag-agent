@@ -35,7 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * IndexRebuildService 单测（Phase 4 簇③ 4.5）——重建编排：全量/目标模式、
+ * IndexRebuildService 单测（Phase4簇③ 4.5）——重建编排：全量/目标模式、
  * 终态汇聚计数、ES 孤儿清扫 diff、同步快速失败 skipped 语义。
  * 执行器注入 Runnable::run 直跑形态，start() 同步完成任务便于断言。
  * 任务表经内存 fake（{@link InMemoryTaskStore}）隔离，Redis 形态回归见

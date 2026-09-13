@@ -21,11 +21,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 知识库统计服务（Phase 4 簇② 任务 4.6：运维仪表盘数据接口）
+ * 知识库统计服务（Phase4簇② 任务 4.6：运维仪表盘数据接口）
  *
  * <p>只读聚合，全部按租户隔离。聚合源以 kb_document 单表为主；chunk 总量
- * （chunkTotal）自簇③ 4.4 软删门面生效起切换为 kb_chunk 精确口径——JOIN
- * 文档租户维度排除软删 chunk（簇② 4.6 曾取文档侧 chunk_count 近似）。
+ * （chunkTotal）自Phase4簇③ 4.4 软删门面生效起切换为 kb_chunk 精确口径——JOIN
+ * 文档租户维度排除软删 chunk（Phase4簇② 4.6 曾取文档侧 chunk_count 近似）。
  * 入库趋势的 chunk 曲线仍取文档侧口径（按日聚合不直查 kb_chunk 大表）。
  */
 @Service

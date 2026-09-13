@@ -25,7 +25,7 @@ import java.util.List;
  * GoldenDatasetLoader 扫 golden/*.json 按 GoldenQAPair 解析，毒化语料的
  * question 是正常触发问句，混入会污染 Golden 主数据集（结构性隔离）。
  *
- * <p>编码引用形态沿 injection-qa.json 纪律（簇① T2）：document 字段 Base64
+ * <p>编码引用形态沿 injection-qa.json 纪律（安全簇① T2）：document 字段 Base64
  * 编码态 + SHA-256 指纹锚点，本加载器统一解码为运行时明文（解码产物不携带
  * 编码字段），指纹校验腐化即 fail-fast；解码错误消息只含用例 id（§7 纪律：
  * 内容不外显）。文件缺失/空数组合法（语料经带外通道注入前的缺省形态）。

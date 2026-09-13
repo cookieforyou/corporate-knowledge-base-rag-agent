@@ -19,7 +19,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 跨租户泄露集成（簇⑥ D3，3.10 安全收敛回归保险）：同题双租户各自只见本方数据 +
+ * 跨租户泄露集成（冲刺簇⑥ D3，3.10 安全收敛回归保险）：同题双租户各自只见本方数据 +
  * 审计租户归属正确 + 向量库 FilterExpression 直测。
  */
 class CrossTenantLeakIT extends AbstractAdvisorChainIT {

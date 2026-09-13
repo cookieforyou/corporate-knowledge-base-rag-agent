@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * expectedAnswer 机器侧草稿生成器（簇② 批2，用户定案「机器侧草稿 + 人工审定」）
+ * expectedAnswer 机器侧草稿生成器（Phase5簇② 批2，用户定案「机器侧草稿 + 人工审定」）
  *
  * <p>用法：{@code mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.draft-answers}
  *
@@ -169,7 +169,7 @@ public class AnswerDraftRunner implements ApplicationRunner {
 
     private String renderReviewSheet(List<DraftEntry> entries) {
         StringBuilder sb = new StringBuilder();
-        sb.append("# expectedAnswer 草稿审定表（簇② 批2）").append(System.lineSeparator());
+        sb.append("# expectedAnswer 草稿审定表（Phase5簇② 批2）").append(System.lineSeparator());
         sb.append(System.lineSeparator());
         sb.append("审定工作流：逐条核对草稿与知识库事实——").append(System.lineSeparator());
         sb.append("1. 草稿正确 → 原文采纳；有误/不全 → 直接修订；无可取处 → 重写")

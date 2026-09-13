@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 /**
- * Cohen's κ 单测（簇② 批2 人类校准通道）
+ * Cohen's κ 单测（Phase5簇② 批2 人类校准通道）
  */
 class CohensKappaTest {
 

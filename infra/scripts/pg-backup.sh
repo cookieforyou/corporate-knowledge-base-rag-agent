@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# PG 定期备份（Phase 4 簇⑥ 批3，v2.57）
+# PG 定期备份（Phase4簇⑥ 批3，v2.57）
 #
 # 形态：ECS 宿主侧执行（PG 原生安装）——
 #   pg_dump -Fc → 本地 BACKUP_LOCAL_DIR → mc 上传 MinIO kb-backups
@@ -9,7 +9,7 @@
 # 本地为热缓存（恢复演练缺省消费本地最新 .dump）。
 #
 # 灾备最小集边界：PG 为唯一事实源（Chunk/审计/会话全量），
-# ES/Milvus 可经重建通道再生（簇③ ReindexGateway），
+# ES/Milvus 可经重建通道再生（Phase4簇③ ReindexGateway），
 # MinIO 原件另议 OSS 冷备（可选项，未排期）——故 PG 备份即最小充分集。
 #
 # 用法：

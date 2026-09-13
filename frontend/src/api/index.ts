@@ -40,7 +40,7 @@ export const chatStreamUrl = () => `${api.defaults.baseURL}/chat/stream`
 export interface SessionSummary {
   id: string
   title: string
-  /** 会话链路归属（簇⑥ E2E 补强四，归档首轮写入）：打开会话恢复对应链路 tab；存量为 null */
+  /** 会话链路归属（Phase5簇⑥ E2E 补强四，归档首轮写入）：打开会话恢复对应链路 tab；存量为 null */
   mode?: 'rag' | 'tool' | 'agent' | null
   messageCount: number
   updatedAt: string
@@ -56,7 +56,7 @@ export interface HistoryMessage {
   traceId?: string | null
   /** 当前用户既有反馈评价（upsert 语义至多一条），无则 null */
   feedback?: 'POSITIVE' | 'NEGATIVE' | null
-  /** 工具调用记录（簇⑥ 体验批2，metadata 下沉），与 SSE TOOL_CALL 同形；rag 轮/存量为 null */
+  /** 工具调用记录（Phase5簇⑥ 体验批2，metadata 下沉），与 SSE TOOL_CALL 同形；rag 轮/存量为 null */
   toolCalls?: ToolCallInfo[] | null
 }
 
@@ -119,7 +119,7 @@ export interface KbDoc {
   errorMessage?: string
   createdBy?: string
   createdAt: string
-  /** 版本号（簇⑥ C1）：首次入库 1，每次重入库成功 +1 */
+  /** 版本号（优化冲刺簇⑥ C1）：首次入库 1，每次重入库成功 +1 */
   version?: number
 }
 
@@ -132,7 +132,7 @@ export interface KbChunk {
   pageNum?: number
   content: string
   createdAt: string
-  /** 软删标记（簇③ 4.4 运维面：列表含软删行，恢复操作可见性前提） */
+  /** 软删标记（Phase4簇③ 4.4 运维面：列表含软删行，恢复操作可见性前提） */
   isDeleted?: boolean
   updatedAt?: string
   headingPath?: string
@@ -154,13 +154,13 @@ export const getChunks = (docId: string) =>
 export const deleteDocument = (docId: string) =>
   api.delete(`/documents/${docId}`).then(r => r.data.data)
 
-/** 增量重入库——重解析：以 MinIO 原件重走 ETL（簇⑥ C1） */
+/** 增量重入库——重解析：以 MinIO 原件重走 ETL（优化冲刺簇⑥ C1） */
 export const reparseDocument = (docId: string, parseRoute?: string) => {
   const params = parseRoute ? `?parseRoute=${parseRoute}` : ''
   return api.post(`/documents/${docId}/reparse${params}`).then(r => r.data.data)
 }
 
-/** 增量重入库——替换：新文件覆盖原件后重走 ETL（簇⑥ C1） */
+/** 增量重入库——替换：新文件覆盖原件后重走 ETL（优化冲刺簇⑥ C1） */
 export const replaceDocument = (docId: string, file: File, parseRoute?: string) => {
   const form = new FormData()
   form.append('file', file)
@@ -200,7 +200,7 @@ export interface RetrievalDebugResult {
 export const retrievalSearch = (query: string) =>
   api.post('/retrieval/search', { query }).then(r => r.data.data as RetrievalDebugResult)
 
-// ── 运维中心（Phase 4 簇②④：统计仪表盘 + 审计日志 + Bad Case 闭环）──
+// ── 运维中心（Phase4簇②④：统计仪表盘 + 审计日志 + Bad Case 闭环）──
 
 export interface StatsOverview {
   documentTotal: number
@@ -231,7 +231,7 @@ export const getStatsOverview = () =>
 export const getProcessingStats = () =>
   api.get('/stats/documents/processing').then(r => r.data.data as ProcessingView)
 
-/** 审计日志条目（簇④ 4.7）；JSON 快照列为原始字符串，前端按需解析 */
+/** 审计日志条目（Phase4簇④ 4.7）；JSON 快照列为原始字符串，前端按需解析 */
 export interface AuditLogItem {
   id: number
   traceId?: string
@@ -282,7 +282,7 @@ export const searchAuditLogs = (params: AuditQuery) =>
 
 export type RootCause = 'RETRIEVAL_MISS' | 'REWRITE_DRIFT' | 'HALLUCINATION' | 'PARSING_GAP'
 
-/** Bad Case 根因标注（簇④ 4.7 四分类） */
+/** Bad Case 根因标注（Phase4簇④ 4.7 四分类） */
 export const annotateRootCause = (auditLogId: number, rootCause: RootCause) =>
   api.put(`/admin/audit-logs/${auditLogId}/root-cause`, { rootCause })
     .then(r => r.data.data as { auditLogId: number; rootCause: string })
@@ -296,14 +296,14 @@ export interface ReingestPayload {
   expectedKeywords?: string
 }
 
-/** Golden Set 回灌（簇④ 4.7）：写入 badcase-qa.json，id=bc-{auditLogId} upsert */
+/** Golden Set 回灌（Phase4簇④ 4.7）：写入 badcase-qa.json，id=bc-{auditLogId} upsert */
 export const reingestGolden = (payload: ReingestPayload) =>
   api.post('/admin/badcase/reingest', payload).then(r => r.data.data as {
     goldenId: string; file: string; question: string; category: string
     resolvedFeedbackId: string | null
   })
 
-// ── Chunk 运维与索引重建（Phase 4 簇③ 4.4/4.5，运维中心前端面）──
+// ── Chunk 运维与索引重建（Phase4簇③ 4.4/4.5，运维中心前端面）──
 
 /** Chunk 运维视图（ChunkView 投影同形） */
 export interface ChunkOpsView {

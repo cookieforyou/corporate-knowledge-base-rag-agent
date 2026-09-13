@@ -104,7 +104,7 @@ public class RetrievalDebugController {
                         builder(merged, doc).fillVector(doc, rank);
                     }
                 }
-                case Constants.Retrieval.ROUTE_GRAPH -> {   // 簇④：图路仅在场时入视图（关闭态零形态变化）
+                case Constants.Retrieval.ROUTE_GRAPH -> {   // Phase5簇④：图路仅在场时入视图（关闭态零形态变化）
                     graphPresent = true;
                     graphHasHits = !entry.documents().isEmpty();
                     for (Document doc : entry.documents()) {
@@ -196,7 +196,7 @@ public class RetrievalDebugController {
             fillCommon(doc);
         }
 
-        /** 图路得分/排名/命中实体（簇④）：元数据键族同双路契约 */
+        /** 图路得分/排名/命中实体（Phase5簇④）：元数据键族同双路契约 */
         void fillGraph(Document doc) {
             Map<String, Object> meta = doc.getMetadata();
             if (meta.get(Constants.Retrieval.META_GRAPH_SCORE) instanceof Number n) this.graphScore = n.doubleValue();

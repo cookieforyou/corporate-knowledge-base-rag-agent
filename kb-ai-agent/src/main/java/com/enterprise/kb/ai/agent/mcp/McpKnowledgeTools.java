@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * MCP 知识库三件套工具（Phase 4 簇⑤ 4.10）——企业知识底座对外 MCP 暴露面。
+ * MCP 知识库三件套工具（Phase4簇⑤ 4.10）——企业知识底座对外 MCP 暴露面。
  *
  * <p><b>注册形态</b>：{@code @McpTool} 方法经 server starter 注解扫描器
  * （McpServerAnnotationScannerAutoConfiguration，默认开）自动收编为 MCP 工具，

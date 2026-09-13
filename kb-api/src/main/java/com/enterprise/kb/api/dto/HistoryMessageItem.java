@@ -14,7 +14,7 @@ import java.util.List;
  * 存量消息/工具轮/闲聊轮无溯源时为 null。{@code id} 即反馈定位键
  * （assistant 消息归档复用 SSE DONE 帧 messageId，kb_feedback 外键可解析）。
  *
- * <p>{@code toolCalls}（簇⑥ 体验批2）为归档时写入 metadata 的工具调用记录
+ * <p>{@code toolCalls}（Phase5簇⑥ 体验批2）为归档时写入 metadata 的工具调用记录
  * （tool/agent 链委派与 HITL 状态，与 SSE TOOL_CALL 帧同形）——历史会话恢复
  * 时复用实时轮的委派/审批卡片渲染链路；rag 链与存量消息为 null。
  */

@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 知识检索子代理工具（簇⑤ 5.3 批2）——检索管线同构 McpKnowledgeTools（改写 →
+ * 知识检索子代理工具（Phase5簇⑤ 5.3 批2）——检索管线同构 McpKnowledgeTools（改写 →
  * 双路[+Graph]召回 → RRF → 重排，不经主答 LLM），差异仅在身份面：
  * MCP 版经 McpIdentityGuard 捕获请求线程 JWT，本类经 ToolContext 下传的
  * RetrievalContext（TaskTool 身份链）——复用 McpKnowledgeTools 实例不可行，
@@ -99,7 +99,7 @@ public class KnowledgeSearchTools {
             return new SearchOutcome(List.of(), "检索次数已达上限（" + maxSearches
                 + " 次/请求）。不要再调用检索工具，立即基于已获得的检索结果归纳回答。");
         }
-        // 检索进度推送（簇⑥ 体验批3，PROGRESS 帧）：开始即推——单次检索路径
+        // 检索进度推送（Phase5簇⑥ 体验批3，PROGRESS 帧）：开始即推——单次检索路径
         // （改写+双路召回+重排）数秒静默期前端可感知；监听器缺席 no-op
         ctx.emitProgress("retrieval",
             "知识检索 " + (executed + 1) + "/" + maxSearches + " 次：" + abbreviate(query));

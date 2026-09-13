@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 语义缓存检查 Advisor 测试（Phase 5 簇③ 5.6 批2）——资格判定五闸 / 命中重放
+ * 语义缓存检查 Advisor 测试（Phase5簇③ 5.6 批2）——资格判定五闸 / 命中重放
  * （回答 + 溯源回填 + 上下文透传）/ 未命中写入门槛（证据非空 + 流完成）/
  * fail-open 直通 / trace 载荷写入-重放往返保真。
  */

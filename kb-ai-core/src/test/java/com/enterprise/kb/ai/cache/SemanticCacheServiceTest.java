@@ -34,7 +34,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 语义缓存核心服务测试（Phase 5 簇③ 5.6 批1）——KNN 命中判定（余弦距离 → 相似度
+ * 语义缓存核心服务测试（Phase5簇③ 5.6 批1）——KNN 命中判定（余弦距离 → 相似度
  * 阈值）/ 确定性键与幂等写入 / 按文档失效 / fail-open 容错纪律 / FLOAT32 小端契约。
  */
 class SemanticCacheServiceTest {

@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 审计日志查询服务（Phase 4 簇④ 4.7）——Bad Case 运营闭环的查询入口。
+ * 审计日志查询服务（Phase4簇④ 4.7）——Bad Case 运营闭环的查询入口。
  *
  * <p>租户过滤恒在（Spec 层 tenantId 必传，fail-closed 纪律）；过滤项传 null 不生效。
  * 查询经 {@link AuditLogSpecs} 动态谓词执行（v2.35：原 @Query 可选参数形态触发 PG

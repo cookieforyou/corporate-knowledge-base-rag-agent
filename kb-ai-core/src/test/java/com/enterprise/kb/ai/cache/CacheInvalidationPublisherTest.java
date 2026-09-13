@@ -17,7 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 缓存失效事件发布器测试（簇③ 5.6 批2）：频道/载荷契约 + 参数守卫 + fail-open。
+ * 缓存失效事件发布器测试（Phase5簇③ 5.6 批2）：频道/载荷契约 + 参数守卫 + fail-open。
  */
 class CacheInvalidationPublisherTest {
 

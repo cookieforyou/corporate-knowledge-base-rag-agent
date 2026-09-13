@@ -122,7 +122,7 @@ public class FeedbackService {
 
     /**
      * Bad Case 查询（验收 #13）：租户可见域内反馈列表（rating/resolved 可选过滤），
-     * 附带原始问答文本。resolved 标记更新归簇④（PUT /api/v1/admin/feedback/{id}/resolved）。
+     * 附带原始问答文本。resolved 标记更新归Phase4簇④（PUT /api/v1/admin/feedback/{id}/resolved）。
      *
      * <p>v2.35：查询经 {@link FeedbackSpecs} 动态谓词执行（原 @Query 可选参数
      * PG 预编译类型推断缺陷修正）。

@@ -43,7 +43,7 @@
             <artifactId>minio</artifactId>
             <version>8.6.0</version>
             <exclusions>
-                <!-- B5 治理（Phase 5 簇①）：kotlin-stdlib-common 2.0 起并入 kotlin-stdlib
+                <!-- B5 治理（Phase5簇①）：kotlin-stdlib-common 2.0 起并入 kotlin-stdlib
                      且 2.x 无 jar，声明点排除；类由 kotlin-stdlib 2.4.10 承载 -->
                 <exclusion>
                     <groupId>org.jetbrains.kotlin</groupId>
@@ -56,7 +56,7 @@
             <artifactId>okhttp</artifactId>
             <version>4.12.0</version>
             <exclusions>
-                <!-- B5 治理（Phase 5 簇①）：同上——okio 3.6.0 传递链 -->
+                <!-- B5 治理（Phase5簇①）：同上——okio 3.6.0 传递链 -->
                 <exclusion>
                     <groupId>org.jetbrains.kotlin</groupId>
                     <artifactId>kotlin-stdlib-common</artifactId>
@@ -87,7 +87,7 @@
             <artifactId>spring-web</artifactId>
         </dependency>
 
-        <!-- Neo4j 官方 Java 驱动（簇④ GraphRAG）：原生 Bolt 直连，自建 GraphGateway，
+        <!-- Neo4j 官方 Java 驱动（Phase5簇④ GraphRAG）：原生 Bolt 直连，自建 GraphGateway，
              不引 Spring Data Neo4j（定案：图查询全走显式 Cypher，ORM 层无收益）。
              版本由 Boot BOM 托管（4.1.0 = 6.1.0，落码核验在案）。
              条件装配：rag.graph.enabled=false 时无 Driver Bean、无连接尝试（关闭态零变化）。 -->

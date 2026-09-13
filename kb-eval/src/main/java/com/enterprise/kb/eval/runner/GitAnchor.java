@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 运行锚点（簇② 5.9 批3，16 章 §16.5）：git 提交哈希 + 提交时间 + 工作区脏标记 + 运行时刻。
+ * 运行锚点（Phase5簇② 5.9 批3，16 章 §16.5）：git 提交哈希 + 提交时间 + 工作区脏标记 + 运行时刻。
  *
  * <p>A/B 双跑差异报表的可比性前提——报告读数必须能回溯到产出它的代码形态：
  * Prompt Git Ops（4.8）下 prompt 版本即 git 版本，锚点是两跑之间「单变量」

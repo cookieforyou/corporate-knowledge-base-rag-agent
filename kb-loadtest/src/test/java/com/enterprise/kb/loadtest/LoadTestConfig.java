@@ -5,7 +5,7 @@ import io.gatling.javaapi.http.HttpProtocolBuilder;
 import static io.gatling.javaapi.http.HttpDsl.http;
 
 /**
- * 压测运行参数解析（簇⑥ 批5，v2.59）
+ * 压测运行参数解析（Phase4簇⑥ 批5，v2.59）
  *
  * <p>取值优先级：JVM 系统属性（{@code -Dloadtest.*}）> 环境变量（{@code LOADTEST_*}）> 缺省值。
  * 所有注入规模/阈值均可经此调节，ECS 2 核单机基线下建议按缺省起步，依报告逐步加压。
@@ -68,7 +68,7 @@ public final class LoadTestConfig {
 
     /**
      * 4.12 验收线：检索链路 P95（含改写 LLM + 多路召回 + rerank 外部调用）。
-     * 簇④ 前双路基线 500；三路融合（向量+BM25+Graph）抬升至 600——图路预算
+     * Phase5簇④ 前双路基线 500；三路融合（向量+BM25+Graph）抬升至 600——图路预算
      * ~100ms 与双路并行（取 max 非求和），+100ms 余量覆盖图路抖动；18 §18.4 同步。
      */
     public static int aP95ThresholdMs() {

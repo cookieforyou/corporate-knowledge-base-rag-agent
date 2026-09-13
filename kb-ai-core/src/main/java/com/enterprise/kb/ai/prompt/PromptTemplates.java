@@ -1,7 +1,7 @@
 package com.enterprise.kb.ai.prompt;
 
 /**
- * 对话链 Prompt 单一事实源（4.8 Git Ops 外部化，簇⑦ 批2，2026-08-22）。
+ * 对话链 Prompt 单一事实源（4.8 Git Ops 外部化，Phase4簇⑦ 批2，2026-08-22）。
  *
  * <p><b>Git Ops 纪律</b>：本类是对话链全部 Prompt 模板的唯一收编处——
  * 新增/修改/删除模板一律在本类操作，消费方经 {@code PromptTemplates.XXX}
@@ -72,7 +72,7 @@ public final class PromptTemplates {
     /**
      * 间接注入逐条警示注记（安全簇④ D1，§12.8）：命中注入词表检测视图的证据
      * 在 [ref-N] 行后追加本行——S2 统一声明（规则 6）之上的逐条定位强化。
-     * 文案为中性结构句式（敏感词交付纪律簇④条 7：无载荷字面）。
+     * 文案为中性结构句式（敏感词交付纪律安全簇④条 7：无载荷字面）。
      * 渲染消费点见 {@code RetrievalConfig.formatNumberedContext}。
      */
     public static final String INDIRECT_WARNING_NOTE =
@@ -91,7 +91,7 @@ public final class PromptTemplates {
         """;
 
     /**
-     * 多轮指代消解模板（簇④ A5）：中文形态 + 显式「自含查询原样返回」纪律。
+     * 多轮指代消解模板（冲刺簇④ A5）：中文形态 + 显式「自含查询原样返回」纪律。
      * 占位符 {history}/{query} 为 CompressionQueryTransformer 硬契约
      *（PromptAssert.templateHasRequiredPlaceholders 构造期校验，缺一启动失败）。
      */
@@ -139,7 +139,7 @@ public final class PromptTemplates {
      *（敏感词交付纪律第七节条 1：零字面载荷）。判定纪律双保险：正常业务问涉及
      * 安全话题属知识问答（PASS）；BLOCK 必须明确攻击意图。
      *
-     * <p><b>v2 判据校准</b>（簇② 批5 路径 b，2026-08-28）：批5 对照实验定谳
+     * <p><b>v2 判据校准</b>（Phase5簇② 批5 路径 b，2026-08-28）：批5 对照实验定谳
      * 根因 = 越狱族样本×保守判据结构错位（flash/plus 双判官对同一 17 例漏判
      * 逐位相同——非能力问题）——虚构情境包裹被「拿不准倾向 PASS」纪律吸收为
      * 歧义。校准新增【剥壳判据】：包裹手段不改变裁决，剥壳后意图为准；保守
@@ -198,7 +198,7 @@ public final class PromptTemplates {
             + "写操作须经用户审批确认后才会真正执行。";
 
     /**
-     * 编排链系统提示（orchestratorChatClient，簇⑤ 5.3）：主 Agent 仅持 task 委派
+     * 编排链系统提示（orchestratorChatClient，Phase5簇⑤ 5.3）：主 Agent 仅持 task 委派
      * 工具——子代理清单经 %s 注入（SubAgentRegistry.renderRoster() 渲染，
      * OrchestratorChatClientConfig String.format 装配）。提示词内不得出现
      * 其他字面 % 字符（format 占位冲突）。

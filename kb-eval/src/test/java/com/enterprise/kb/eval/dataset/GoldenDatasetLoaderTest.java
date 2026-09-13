@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Golden Dataset 在库文件回归测试（簇④ A4 重标注后新增）
+ * Golden Dataset 在库文件回归测试（冲刺簇④ A4 重标注后新增）
  *
  * <p>不依赖任何基础设施：直接以裸 {@link JsonMapper} 驱动 {@link GoldenDatasetLoader}，
  * 加载 classpath:golden/*.json 在库文件并校验结构不变量：
@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>chunk 锚点为确定性 ID（UUID v3 形态，9.3 v2.22）——拦截误粘贴的随机 v4 ID</li>
  *   <li>用例 id 全局唯一</li>
  *   <li>INJECTION 用例携带合法 attackType、无检索锚点，且样本与 L1 词表防域
- *       自洽（簇⑤ B2 S6）——防假红/假绿</li>
+ *       自洽（冲刺簇⑤ B2 S6）——防假红/假绿</li>
  *   <li>INJECTION 语料落盘为编码引用形态（安全簇① T2，第七节交付纪律），
  *       加载层透明解码且指纹锚点自洽</li>
  * </ul>
@@ -115,7 +115,7 @@ class GoldenDatasetLoaderTest {
         }
     }
 
-    // ── INJECTION 用例结构（簇⑤ B2 S6）──
+    // ── INJECTION 用例结构（冲刺簇⑤ B2 S6）──
 
     @Test
     void injectionCasesCarryValidAttackType() {

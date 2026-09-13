@@ -20,10 +20,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 反馈微调数据导出 API（簇② 5.10 批4）——kb_feedback + trace 关联的
+ * 反馈微调数据导出 API（Phase5簇② 5.10 批4）——kb_feedback + trace 关联的
  * JSONL 双格式导出（SFT 单轮 / DPO 偏好对），只导出不绑定平台。
  *
- * <p><b>租户守卫</b>：与簇③/④ 同款——{@code @AuthenticationPrincipal Jwt}
+ * <p><b>租户守卫</b>：与Phase4簇③/④ 同款——{@code @AuthenticationPrincipal Jwt}
  * 直消费，owner claim → tenantId，缺失 fail-closed IDENTITY_INCOMPLETE。
  *
  * <p><b>端点清单</b>：

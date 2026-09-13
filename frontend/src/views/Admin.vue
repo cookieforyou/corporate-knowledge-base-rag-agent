@@ -74,7 +74,7 @@
         </div>
       </el-tab-pane>
 
-      <!-- ════ Chunk 运维（簇③ 4.4/4.5 前端面；仅超管） ════ -->
+      <!-- ════ Chunk 运维（Phase4簇③ 4.4/4.5 前端面；仅超管） ════ -->
       <el-tab-pane v-if="auth.isAdmin" label="Chunk 运维" name="chunks">
         <div class="filter-bar panel">
           <el-select v-model="chunkDocId" placeholder="选择文档" filterable style="width: 320px"
@@ -654,7 +654,7 @@ async function loadDashboard() {
   }
 }
 
-// ── Chunk 运维（簇③ 4.4/4.5 前端面）──
+// ── Chunk 运维（Phase4簇③ 4.4/4.5 前端面）──
 
 const docs = ref<KbDoc[]>([])
 const chunkDocId = ref('')
@@ -1309,7 +1309,7 @@ onUnmounted(() => {
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .cand-chip { cursor: pointer; }
 
-/* ── 护栏词表（簇⑥ F2 + v2.53 CRUD）── */
+/* ── 护栏词表（安全簇⑥ F2 + v2.53 CRUD）── */
 .gr-table :deep(tr) { cursor: default; }
 .gr-form { margin-top: 4px; }
 .gr-form-row { display: flex; gap: 18px; flex-wrap: wrap; }

@@ -31,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * kb-admin Controller 租户守卫测试（Phase 4 簇③）——@AuthenticationPrincipal Jwt
+ * kb-admin Controller 租户守卫测试（Phase4簇③）——@AuthenticationPrincipal Jwt
  * 直消费形态的 fail-closed 语义：JWT 缺失 / owner claim 空白 → IDENTITY_INCOMPLETE；
  * 合法 owner 透传服务层。
  */
@@ -184,7 +184,7 @@ class AdminControllerTenantGuardTest {
         verify(indexRebuildService).detail("t-1", "task-1");
     }
 
-    // ── BadCaseAdminController（簇④）──
+    // ── BadCaseAdminController（Phase4簇④）──
 
     @Test
     void badCaseEndpointsRejectMissingTenant() {
@@ -319,7 +319,7 @@ class AdminControllerTenantGuardTest {
         verify(guardrailAdminService).drill("演练文本");
     }
 
-    // ── FeedbackExportAdminController（簇② 5.10 批4）──
+    // ── FeedbackExportAdminController（Phase5簇② 5.10 批4）──
 
     @Test
     void exportEndpointsRejectMissingOrBlankTenant() {

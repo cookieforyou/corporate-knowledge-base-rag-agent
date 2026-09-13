@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 入库安全消毒转换器（簇② B1；设计文档 12.4 S4 + PII 入库消毒，12.4.2 三道纵深第一道）
+ * 入库安全消毒转换器（冲刺簇② B1；设计文档 12.4 S4 + PII 入库消毒，12.4.2 三道纵深第一道）
  *
  * <p>位置：{@link HtmlProtectingSplitter} 之后、落库之前——kb_chunk / 向量库 / ES
  * 三处存储面消费的都是本转换器的产出：

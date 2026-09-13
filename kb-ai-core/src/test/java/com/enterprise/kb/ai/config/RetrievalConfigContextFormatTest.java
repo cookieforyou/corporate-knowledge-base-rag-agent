@@ -65,7 +65,7 @@ class RetrievalConfigContextFormatTest {
     }
 
     /**
-     * 空证据拒答模板无参渲染防御（v2.19 簇③ D2）：ContextualQueryAugmenter 以
+     * 空证据拒答模板无参渲染防御（v2.19 冲刺簇③ D2）：ContextualQueryAugmenter 以
      * 无参 render() 渲染本模板——模板若混入 {变量} 占位符，渲染即抛异常击穿拒答路径。
      * 本用例钉死「模板零占位符」约束，后人改动一旦引入占位符立即红灯。
      */
@@ -79,7 +79,7 @@ class RetrievalConfigContextFormatTest {
     }
 
     /**
-     * 簇④ A5：历史感知改写 Prompt 渲染回归 + CompressionQueryTransformer 占位符契约。
+     * 冲刺簇④ A5：历史感知改写 Prompt 渲染回归 + CompressionQueryTransformer 占位符契约。
      * 构造器 PromptAssert 硬校验 {history}/{query} 双占位符——缺一启动失败，
      * 本用例把该契约钉死在单测层（装配变更无需真实启动即可发现）。
      */

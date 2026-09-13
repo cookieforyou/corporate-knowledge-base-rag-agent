@@ -1,4 +1,4 @@
-# Grafana 面板 provisioning（Phase 4 簇② 任务 4.3）
+# Grafana 面板 provisioning（Phase4簇② 任务 4.3）
 # 面板 JSON 源：infra/grafana/dashboards/（compose 挂载至 /var/lib/grafana/dashboards）
 apiVersion: 1
 

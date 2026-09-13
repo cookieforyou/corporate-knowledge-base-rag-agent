@@ -10,10 +10,10 @@ import java.util.List;
  * <p>字段可选性与指标联动：
  * <ul>
  *   <li>{@code expectedChunkIds} 为空 → 该条跳过 Top-K Recall / MRR / Context Precision（仅评生成侧）</li>
- *   <li>{@code expectedDocs} 为空 → 该条跳过文档级兜底检索指标（簇④ A4 修复，16 章 v2.21）</li>
+ *   <li>{@code expectedDocs} 为空 → 该条跳过文档级兜底检索指标（冲刺簇④ A4 修复，16 章 v2.21）</li>
  *   <li>{@code expectedAnswer} 为空 → 跳过 Answer Correctness（Phase 5 指标）</li>
  *   <li>{@code category = NEGATIVE} → 走 Negative Rejection 判定，不评 Faithfulness</li>
- *   <li>{@code category = INJECTION} → 走护栏拦截判定（簇⑤ B2 S6），不评检索/生成，
+ *   <li>{@code category = INJECTION} → 走护栏拦截判定（冲刺簇⑤ B2 S6），不评检索/生成，
  *       {@code attackType} 必填且为门禁子集/观察集划分依据</li>
  * </ul>
  *
@@ -27,7 +27,7 @@ import java.util.List;
  * @param expectedDocs     期望命中的文件名列表（文档级兜底检索指标用，可空）——
  *                         匹配键为检索命中元数据 file_name；跨重入库/解析漂移/
  *                         contextual 增强恒稳定，是 chunk 级失配时的度量兜底
- * @param attackType       注入攻击类型（仅 INJECTION 用例，簇⑤ B2 S6；其余分类为 null）
+ * @param attackType       注入攻击类型（仅 INJECTION 用例，冲刺簇⑤ B2 S6；其余分类为 null）
  * @param questionEncoding question 编码形态（{@code base64}；null 为明文——过渡期双形态兼容，
  *                         安全簇① T2 敏感样本引用形态；解码由 {@link GoldenDatasetLoader} 承担）
  * @param questionSha256   question 原文 SHA-256 指纹锚点（解码层完整性校验，腐化 fail-fast）
@@ -59,7 +59,7 @@ public record GoldenQAPair(
     }
 
     /**
-     * L1 门禁防域子集（簇⑤ B2 S6 定案，v2.43/T6 五类演进）：DIRECT + ENCODING_BYPASS
+     * L1 门禁防域子集（冲刺簇⑤ B2 S6 定案，v2.43/T6 五类演进）：DIRECT + ENCODING_BYPASS
      * 属 L1（词表 + S1 归一化视图）机制防域，拦截率 ≥95% 门禁；JAILBREAK /
      * MULTILINGUAL / ENCODING_OPAQUE 不属 L1 防域（观察集或 L2 防域，见
      * {@link #isInjectionL2GateSubset()}）。

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 知识库统计 Controller（Phase 4 簇② 任务 4.6：运维仪表盘数据接口）
+ * 知识库统计 Controller（Phase4簇② 任务 4.6：运维仪表盘数据接口）
  *
  * <p>认证经 SecurityConfig /api/** JWT 统一拦截；身份守卫与 FeedbackController
  * 同款（tenantId 缺失拒绝，fail-closed，3.9 纪律）。统计全部按租户隔离。

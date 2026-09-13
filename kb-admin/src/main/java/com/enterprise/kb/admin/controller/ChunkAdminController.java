@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Chunk 运维 API（Phase 4 簇③ 4.4）——编辑（异步重嵌入）/ 软删 / 恢复。
+ * Chunk 运维 API（Phase4簇③ 4.4）——编辑（异步重嵌入）/ 软删 / 恢复。
  *
  * <p><b>租户守卫</b>：经 {@code @AuthenticationPrincipal Jwt} 直接消费 OAuth2
  * Resource Server 解析结果（kb-admin 不依赖 kb-api，不复用其 JwtUtils），

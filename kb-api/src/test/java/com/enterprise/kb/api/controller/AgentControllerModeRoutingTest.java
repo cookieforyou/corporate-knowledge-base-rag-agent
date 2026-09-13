@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 三链路 mode 路由测试（3.19 双链路 + 簇⑤ 5.3 第三链）——缺省兼容 /
+ * 三链路 mode 路由测试（3.19 双链路 + Phase5簇⑤ 5.3 第三链）——缺省兼容 /
  * 显式分流（rag|tool|agent）/ 非法值拒绝 / rag 模式杂散 HITL 凭证忽略 /
  * 编排链开关守卫（enabled=false 显式 400 不静默回落）
  */

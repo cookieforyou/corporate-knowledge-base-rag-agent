@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * 编排链装配契约测试（簇⑤ E2E 热修一）——坑位㊺：容器内 ExecutorService Bean
+ * 编排链装配契约测试（安全簇⑤ E2E 热修一）——坑位㊺：容器内 ExecutorService Bean
  * 不唯一（另有 kb-ai-core 的 hybridRetrievalExecutor），按类型注入消费点必须
  * 显式 @Qualifier 限定，否则开关开启态启动歧义失败（IDEA 编译无 -parameters
  * 时按名消歧亦失效——2026-09-05 用户侧首次开启开关 IDEA 启动实证）。

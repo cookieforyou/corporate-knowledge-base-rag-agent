@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 知识图谱读写网关（Phase 5 簇④ GraphRAG）。
+ * 知识图谱读写网关（Phase5簇④ GraphRAG）。
  *
  * <p>Neo4j 的唯一访问面：抽取写入（kb-etl）、图路检索（kb-ai-core）、生命周期清理
  * （kb-api 删除 / kb-admin 运维）均经本接口，Cypher 细节封闭在实现内。
@@ -72,7 +72,7 @@ public interface GraphGateway {
     GraphCounts countByTenant(String tenantId);
 
     /**
-     * 二跳实体链采样（簇④ 批4，多跳测试集草稿工具专用）：
+     * 二跳实体链采样（Phase5簇④ 批4，多跳测试集草稿工具专用）：
      * a→b→c 关系链 + 链首/链尾实体关联的存活 chunk ID——多跳题即
      * 「经 b 桥接 a 与 c」的跨片段推理，本方法产出出题真值材料。
      * 空租户返回空列表（读路径守卫同形）。

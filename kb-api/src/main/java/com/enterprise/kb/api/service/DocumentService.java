@@ -36,7 +36,7 @@ import java.util.function.Consumer;
 
 /**
  * 文档管理服务 — MinIO 上传 + PG 元数据落库 + 生命周期管理（2.15）
- * + 增量重入库 reparse/replace（簇⑥ C1）
+ * + 增量重入库 reparse/replace（优化冲刺簇⑥ C1）
  */
 @Slf4j
 @Service
@@ -49,13 +49,13 @@ public class DocumentService {
     private final EtlProgressRedisWriter progressWriter;
     private final ChunkCleanupService chunkCleanupService;
     private final AiBusinessMetrics metrics;
-    /** 语义缓存失效发布器（簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
+    /** 语义缓存失效发布器（Phase5簇③ 5.6 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<CacheInvalidationPublisher> cacheInvalidationPublisher;
-    /** 图谱抽取派发器（簇④ 5.1 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
+    /** 图谱抽取派发器（Phase5簇④ 5.1 批2）：缺省关时 Bean 缺位，ObjectProvider 容忍 */
     private final ObjectProvider<GraphExtractionPublisher> graphExtractionPublisher;
-    /** 图谱网关（簇④ 批3）：文档删除时尽力清理图引用；缺省关时 Bean 缺位 */
+    /** 图谱网关（Phase5簇④ 批3）：文档删除时尽力清理图引用；缺省关时 Bean 缺位 */
     private final ObjectProvider<GraphGateway> graphGateway;
-    /** 图清理异步执行器（簇④ 批3 生命周期补强）：removeDocument 含孤儿清扫可达数十秒，异步旁路不占删除响应 */
+    /** 图清理异步执行器（Phase5簇④ 批3 生命周期补强）：removeDocument 含孤儿清扫可达数十秒，异步旁路不占删除响应 */
     private final TaskExecutor graphCleanupExecutor;
 
     /** 手写构造器（@RequiredArgsConstructor 退役）：graphCleanupExecutor 须 @Qualifier 显式定夺
@@ -147,7 +147,7 @@ public class DocumentService {
         etlService.process(docId, progressWriter.andThen(p -> {
                 log.debug("ETL 进度: docId={}, stage={}, pct={}", p.getDocId(), p.getStage(), p.getPercentage());
                 if (p.getStage() == EtlStage.COMPLETED) {
-                    // 首次入库终态帧旁路派发（簇④ 5.1 热修）：与重入库回调同语义同覆盖面——
+                    // 首次入库终态帧旁路派发（Phase5簇④ 5.1 热修）：与重入库回调同语义同覆盖面——
                     // 缓存失效（新文档无存量缓存，空转无害）+ 图谱抽取异步派发；
                     // 首次入库不计 reindex 指标、无终态 future 汇聚（与重入库回调的差异面）
                     cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
@@ -188,7 +188,7 @@ public class DocumentService {
      * （重复点击/双 Tab/列表刷新前再删）会产生第二次 DELETE，此前抛 DOC_NOT_FOUND
      * 业务异常——对删除语义而言「目标已不存在」即「已删除」，不应报错。
      *
-     * <p><b>处理期守卫</b>（2026-08-13，簇⑥ C1 收尾）：UPLOADING/PARSING/REINDEXING
+     * <p><b>处理期守卫</b>（2026-08-13，优化冲刺簇⑥ C1 收尾）：UPLOADING/PARSING/REINDEXING
      * 期间禁止删除 → DOC_NOT_READY(409)。级联清理与在途 ETL 竞态会产生孤儿写回，
      * 重入库窗口内误删更会摧毁正在重入库的文档；SUCCESS/FAILED 放行（FAILED 删除
      * 是正当清理路径）。前端删除按钮同状态集 disable（Documents.vue）。
@@ -207,7 +207,7 @@ public class DocumentService {
                 "文档处理中，禁止删除（当前 " + status + "）: " + docId);
         }
 
-        // 三库级联委派共享组件（簇⑥ C1）：PG chunk + 向量库 + ES deleteByQuery(doc_id)
+        // 三库级联委派共享组件（优化冲刺簇⑥ C1）：PG chunk + 向量库 + ES deleteByQuery(doc_id)
         // 文档级扫尾形态——含 PG 外的 ES 孤儿一并清理
         List<String> chunkIds = chunkRepository.findByDocIdOrderByChunkIndex(docId)
             .stream().map(KbChunk::getId).toList();
@@ -220,7 +220,7 @@ public class DocumentService {
             log.warn("MinIO 对象清理失败（不阻断删除）: docId={}, {}", docId, e.getMessage());
         }
 
-        // 图谱引用清理（簇④ 批3）：Chunk 锚点删除 + 实体/关系引用摘除 + 孤儿清扫。
+        // 图谱引用清理（Phase5簇④ 批3）：Chunk 锚点删除 + 实体/关系引用摘除 + 孤儿清扫。
         // 异步旁路（生命周期补强，2026-09-04）：removeDocument 含全图孤儿扫描，经 bolt+s
         // 多事务往返可达数十秒（E2E 实测 ~20s）——同步等待致前端删除盲等，改经
         // graphCleanupExecutor 虚拟线程执行，删除即刻返回。语义不变，仍尽力而为：
@@ -242,7 +242,7 @@ public class DocumentService {
     }
 
     /**
-     * 增量重入库 — 重解析（簇⑥ C1）：以 MinIO 现有原件重走 ETL 管线
+     * 增量重入库 — 重解析（优化冲刺簇⑥ C1）：以 MinIO 现有原件重走 ETL 管线
      * （解析管线升级 / 单文档修复场景，无需新文件）。
      *
      * <p><b>状态守卫</b>：仅 SUCCESS/FAILED 可重入库，经 DB 级原子占用
@@ -251,7 +251,7 @@ public class DocumentService {
      * 首次入库管线形态（parse_route 记录的是实际使用路由）。
      * <p>蓝绿清理与版本号由 ETL 管线统一承接（DocumentEtlService，先写后删 diff）。
      *
-     * @return 重入库终态 future（簇③ 4.5 重建编排消费）：true = COMPLETED，
+     * @return 重入库终态 future（Phase4簇③ 4.5 重建编排消费）：true = COMPLETED，
      *         false = FAILED；同步快速失败（占用/所有权）仍直接抛 BusinessException
      */
     public CompletableFuture<Boolean> reparse(String docId, String tenantId, String parseRoute) {
@@ -266,7 +266,7 @@ public class DocumentService {
     }
 
     /**
-     * 增量重入库 — 替换（簇⑥ C1）：新文件覆盖 MinIO 原件后重走 ETL（文档更新场景）。
+     * 增量重入库 — 替换（优化冲刺簇⑥ C1）：新文件覆盖 MinIO 原件后重走 ETL（文档更新场景）。
      *
      * <p><b>顺序</b>：先原子占用（快速失败，避免无谓 MinIO 写入）→ 覆盖原件
      * （新文件名不同则新路径写入 + 尽力删旧对象）→ 元数据更新 → 触发 ETL。
@@ -338,14 +338,14 @@ public class DocumentService {
     }
 
     /**
-     * 重入库进度回调：Redis 双通道 + 终态指标计数 + 终态 future 汇聚（簇③ 4.5）
-     * + 语义缓存按文档失效广播（簇③ 5.6 批2）。
+     * 重入库进度回调：Redis 双通道 + 终态指标计数 + 终态 future 汇聚（Phase4簇③ 4.5）
+     * + 语义缓存按文档失效广播（Phase5簇③ 5.6 批2）。
      * 异步 ETL 管线的成败观测点在进度回调层（COMPLETED/FAILED 终态帧）。
      *
      * <p><b>失效覆盖面</b>：COMPLETED 终态帧是内容变更提交点——reparse / replace /
      * 索引重建（经 ReindexGateway 委派 {@link #reparse} 同路径）全覆盖，
      * 故重建侧不再单独接线（避免双发）；首次入库在 {@link #upload} 侧独立接线同语义旁路
-     * （簇④ 5.1 热修：首接误以为首入亦经本回调，实为独立回调漏接——实证回写）。
+     * （Phase5簇④ 5.1 热修：首接误以为首入亦经本回调，实为独立回调漏接——实证回写）。
      */
     private Consumer<EtlProgress> reindexProgressCallback(
             String docName, String tenantId, CompletableFuture<Boolean> outcome) {
@@ -354,7 +354,7 @@ public class DocumentService {
                 metrics.recordReindexOutcome(true);
                 outcome.complete(true);
                 cacheInvalidationPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));
-                // 图谱抽取旁路派发（簇④ 5.1）：与缓存失效同位独立并行——抽取耗时长，
+                // 图谱抽取旁路派发（Phase5簇④ 5.1）：与缓存失效同位独立并行——抽取耗时长，
                 // 不串行等待；覆盖面同缓存失效（reparse/replace/重建/首次入库），
                 // 重建侧不重复接线（委派 reparse 同路径）
                 graphExtractionPublisher.ifAvailable(publisher -> publisher.publish(tenantId, p.getDocId()));

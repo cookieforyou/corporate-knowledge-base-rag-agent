@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 不经 kb-eval TestEvalApplication 组件扫描（避免运维 Bean ReindexGateway
  * 实现缺位击穿共享 IT 上下文）。Redis 容器形态与 kb-eval AbstractAdvisorChainIT
  * 同源（redis-stack-server + REDIS_ARGS entrypoint 注密码 + 非空密码纪律，
- * 簇⑥ D3 实证坑）。
+ * 冲刺簇⑥ D3 实证坑）。
  */
 class RedisRebuildTaskStoreIT {
 

@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Bad Case 运营服务（Phase 4 簇④ 4.7）——根因标注 / Golden Set 回灌 / 处理态闭环。
+ * Bad Case 运营服务（Phase4簇④ 4.7）——根因标注 / Golden Set 回灌 / 处理态闭环。
  *
  * <p><b>根因标注</b>：四分类（{@link RootCause}）落 kb_audit_log.root_cause——
  * 检索未命中 / 改写漂移 / 生成幻觉 / 解析不足，为回灌与链路改进提供方向。

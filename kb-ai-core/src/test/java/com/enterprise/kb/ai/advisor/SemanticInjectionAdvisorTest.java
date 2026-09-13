@@ -211,7 +211,7 @@ class SemanticInjectionAdvisorTest {
 
     @Test
     void suspectVerdictWithNonEnumFamilyFallsBackToUnclassified() {
-        // 簇⑤ E2E 实证：模型可能返回中文族名而非枚举名 → 归一 UNCLASSIFIED 兜底
+        // 安全簇⑤ E2E 实证：模型可能返回中文族名而非枚举名 → 归一 UNCLASSIFIED 兜底
         // （与 AiBusinessMetrics 预注册标签域对齐，观察族系不漂移；指标侧无基数风险）
         stubVerdict(new L2Verdict("SUSPECT", "越狱引导族"));
         RetrievalContext ctx = new RetrievalContext();
@@ -316,7 +316,7 @@ class SemanticInjectionAdvisorTest {
         verifyNoInteractions(chatClient);
     }
 
-    // ── 原始判定回传（簇② 批5 路径 a：VERDICT_SINK_KEY 度量盲区清偿面）──
+    // ── 原始判定回传（Phase5簇② 批5 路径 a：VERDICT_SINK_KEY 度量盲区清偿面）──
 
     /** 力判 + sink 请求（eval 联合链形态：FORCE_JUDGE_KEY 与 VERDICT_SINK_KEY 同批携带） */
     private ChatClientRequest forcedRequestWithSink(String userText, AtomicReference<String> sink) {

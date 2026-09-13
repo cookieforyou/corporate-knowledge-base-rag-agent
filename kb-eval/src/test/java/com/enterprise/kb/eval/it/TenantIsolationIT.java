@@ -14,7 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 双租户隔离（簇⑥ D3，呼应 3.9/3.10 安全收敛）：FilterExpression 租户过滤真实生效 +
+ * 双租户隔离（冲刺簇⑥ D3，呼应 3.9/3.10 安全收敛）：FilterExpression 租户过滤真实生效 +
  * 无租户 fail-closed 空检索。
  */
 class TenantIsolationIT extends AbstractAdvisorChainIT {

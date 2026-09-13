@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Cohen's κ 评分者间一致性（簇② 5.8 批2 人类校准通道，16 章 §16.2）
+ * Cohen's κ 评分者间一致性（Phase5簇② 5.8 批2 人类校准通道，16 章 §16.2）
  *
  * <p>κ = (po − pe) / (1 − pe)：po 实际一致率，pe 随机期望一致率（边际分布乘积）。
  * κ ≥ 0.80 为原校准目标；κ 悖论治理裁决（16 章 v2.80）后降为观察报告不阻断，
@@ -112,7 +112,7 @@ public final class CohensKappa {
     }
 
     /**
-     * E1 口径一致率（簇④ 延续）：|a−b| ≤ 1 记一致。与 κ 并行报告——
+     * E1 口径一致率（冲刺簇④ 延续）：|a−b| ≤ 1 记一致。与 κ 并行报告——
      * κ 治随机一致校正后的真实一致性，本口径保留历史对照（目标 ≥85%）。
      */
     public static double withinOneAgreement(List<Integer> a, List<Integer> b) {

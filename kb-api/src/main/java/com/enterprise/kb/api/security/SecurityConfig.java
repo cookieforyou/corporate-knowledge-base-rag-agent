@@ -85,7 +85,7 @@ public class SecurityConfig {
                 // fail-closed 基线不动（owner 单租户锚点，无跨租户视图）
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/**").authenticated()
-                // MCP Server 端点（簇⑤ 4.10，Streamable HTTP）：JWT bearer 鉴权同 /api/**；
+                // MCP Server 端点（Phase4簇⑤ 4.10，Streamable HTTP）：JWT bearer 鉴权同 /api/**；
                 // 租户/scope 治理在工具调用层经 McpIdentityGuard fail-closed 二次收敛
                 .requestMatchers("/mcp").authenticated()
                 .anyRequest().denyAll()

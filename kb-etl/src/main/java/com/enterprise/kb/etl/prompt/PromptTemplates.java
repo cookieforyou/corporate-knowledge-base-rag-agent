@@ -1,7 +1,7 @@
 package com.enterprise.kb.etl.prompt;
 
 /**
- * 解析链（ETL）Prompt 单一事实源（4.8 Git Ops 外部化，簇⑦ 批2，2026-08-22）。
+ * 解析链（ETL）Prompt 单一事实源（4.8 Git Ops 外部化，Phase4簇⑦ 批2，2026-08-22）。
  *
  * <p><b>Git Ops 纪律</b>：本类是解析链（kb-etl）全部 Prompt 模板的唯一收编处——
  * 新增/修改/删除模板一律在本类操作，消费方经 {@code PromptTemplates.XXX}
@@ -35,7 +35,7 @@ public final class PromptTemplates {
         """;
 
     /**
-     * 知识图谱实体关系抽取模板（簇④ GraphRAG，5.1）：目标片段 + 前后相邻片段
+     * 知识图谱实体关系抽取模板（Phase5簇④ GraphRAG，5.1）：目标片段 + 前后相邻片段
      * 三槽经 String.formatted 填充（%s 三槽，顺序 = 相邻上文, 目标片段, 相邻下文；
      * 窗口语境缓解切分边界切断实体陈述）。产出经 ChatClient {@code .entity()}
      * 映射为结构化抽取结果——模板本体只描述抽取语义，输出格式指令由

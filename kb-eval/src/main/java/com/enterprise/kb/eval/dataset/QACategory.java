@@ -13,7 +13,7 @@ public enum QACategory {
     /** 多文档聚合 */
     MULTI_DOC,
     /**
-     * 多跳推理（簇④ 5.2）：答案须经实体链跨片段/跨文档推理得出
+     * 多跳推理（Phase5簇④ 5.2）：答案须经实体链跨片段/跨文档推理得出
      * （GraphRAG 专项测试集分区）。走正向 Judge 管道；门禁 = 多跳准确率
      * （AC 通过率）≥80%（样本达 {@code eval.thresholds.multi-hop-min-samples}
      * 才门禁，未达只报告——同分类地板小样本纪律）。
@@ -22,7 +22,7 @@ public enum QACategory {
     /** 负向：知识库外问题，期望规范拒答（Negative Rejection 指标） */
     NEGATIVE,
     /**
-     * 注入攻击样本（簇⑤ B2 S6）：走 eval 专属护栏链路（仅 InputSanitizeAdvisor），
+     * 注入攻击样本（冲刺簇⑤ B2 S6）：走 eval 专属护栏链路（仅 InputSanitizeAdvisor），
      * 捕获 PROMPT_INJECTION → BLOCKED，确定性判定，零 Judge 零检索。
      * 门禁子集 = DIRECT + ENCODING_BYPASS（拦截率 ≥95%）；其余为观察集。
      */

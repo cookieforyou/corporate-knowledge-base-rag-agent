@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Schema 双源一致性守卫（Phase 4 簇⑥ 4.11，Flyway 迁移版本化）。
+ * Schema 双源一致性守卫（Phase4簇⑥ 4.11，Flyway 迁移版本化）。
  *
  * <p>同源双写纪律兜底：{@code schema.sql}（kb-eval Testcontainers init
  * script 专用全量快照）与 Flyway 基线迁移 {@code db/migration/V1__baseline_schema.sql}

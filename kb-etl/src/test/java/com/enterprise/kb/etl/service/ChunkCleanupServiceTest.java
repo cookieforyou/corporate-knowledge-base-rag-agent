@@ -16,7 +16,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 /**
- * ChunkCleanupService 单测（簇⑥ C1）：三库级联共享组件——
+ * ChunkCleanupService 单测（优化冲刺簇⑥ C1）：三库级联共享组件——
  * PG 事实源必须项 + 向量/ES 尽力而为；软删管道三存储面联动。
  */
 class ChunkCleanupServiceTest {

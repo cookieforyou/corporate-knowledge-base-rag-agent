@@ -6,7 +6,7 @@ package com.enterprise.kb.eval.metric;
  * <p>评分纪律（16.3）：先推理后打分（CoT 缓解长度偏差）；Judge 与被测模型跨厂商隔离；
  * 结构化输出经 ChatClient .entity() 映射为 {@link JudgeScore}。
  *
- * <p>κ 调优轮（2026-08-28，簇② 批5 κ 定档 FAIL 后，维持 flash 基线）：低 κ 四维
+ * <p>κ 调优轮（2026-08-28，Phase5簇② 批5 κ 定档 FAIL 后，维持 flash 基线）：低 κ 四维
  * 判据校准——F/HR 补证据形态识别与穷尽核查（治对长表格/HTML 素材的系统性偏严），
  * CA 主判改内容支撑（编号偏差不单独判负），NRob 漂移限定证据基结论（单侧编造
  * 非噪声来源不计漂移）。校准表人审口径同步（{@code EvalRunner} 打分材料头部）。
@@ -115,7 +115,7 @@ public final class JudgePrompts {
         """;
 
     /**
-     * Answer Correctness（簇② 5.8，16 章 §16.2）：回答与理想回答的事实一致性，1-5 分。
+     * Answer Correctness（Phase5簇② 5.8，16 章 §16.2）：回答与理想回答的事实一致性，1-5 分。
      * 仅对 {@code expectedAnswer} 非空的用例评估（2026-08-27 批5 审定回写后 80 正向例已标注，
      * 加载器字段联动见 GoldenQAPair javadoc）。
      */
@@ -143,7 +143,7 @@ public final class JudgePrompts {
         """;
 
     /**
-     * Citation Attribution 第三步（簇② 5.8，16 章 §16.2）：引用来源支撑判定。
+     * Citation Attribution 第三步（Phase5簇② 5.8，16 章 §16.2）：引用来源支撑判定。
      * 前两步（引用发出 / 编号可解析）由 {@code CitationMetrics} 确定性完成，
      * 仅前两步通过的用例进入本 Judge 判定（省 Judge 调用）。
      */
@@ -175,7 +175,7 @@ public final class JudgePrompts {
         """;
 
     /**
-     * Hallucination Rate（簇② 5.8，16 章 §16.2）：无依据声明占比（声明级核查）。
+     * Hallucination Rate（Phase5簇② 5.8，16 章 §16.2）：无依据声明占比（声明级核查）。
      * score 口径为 0-100 整数百分比（无依据声明数 / 声明总数 ×100），与 1-5 分制
      * 指标区分——聚合层换算为 0-1 比率，目标 <5%（校准后门禁，见 16 章 §16.4）。
      */
@@ -205,7 +205,7 @@ public final class JudgePrompts {
         """;
 
     /**
-     * Noise Robustness（簇② 5.8，16 章 §16.2）：噪声混入前后回答一致性判定。
+     * Noise Robustness（Phase5簇② 5.8，16 章 §16.2）：噪声混入前后回答一致性判定。
      * 答案 A = 被测链路正常生成；答案 B = 混入无关证据后的评估侧生成
      * （同一基座模型 + 同一 grounding 模板，仅上下文不同）。
      */
@@ -237,7 +237,7 @@ public final class JudgePrompts {
         """;
 
     /**
-     * expectedAnswer 机器侧草稿（簇② 批2，用户定案「机器侧草稿 + 人工审定」）：
+     * expectedAnswer 机器侧草稿（Phase5簇② 批2，用户定案「机器侧草稿 + 人工审定」）：
      * 依据真值材料起草理想回答，供人工审定后回写 golden/*.json 的 expectedAnswer
      * 字段（AC 指标前置标注）。真值材料 = 用例 expectedChunkIds 对应 PG chunk 原文
      * （零循环：不依赖检索质量）；缺失时回落探针候选并在审定表显式标记。

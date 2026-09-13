@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  *
  * <p>v2.10 扩展（3.12）：mode（双链路问答模式）/ status（SUCCESS/REJECTED/ERROR）/
  * error_code（拒绝错误码）/ tool_calls（工具调用记录 JSON）。
- * <p>v2.34 扩展（簇④ 4.7）：root_cause（Bad Case 根因四分类人工标注）。
+ * <p>v2.34 扩展（Phase4簇④ 4.7）：root_cause（Bad Case 根因四分类人工标注）。
  * <p>v2.43 扩展（安全簇① T7）：guardrail_flags（FLAG 观察标记，side:FAMILY 分号拼接）。
  * <b>注意</b>：ddl-auto=validate，存量库须先执行 schema.sql 注释中的 ALTER 语句。
  */
@@ -87,7 +87,7 @@ public class KbAuditLog {
     @Column(name = "feedback", length = 10)
     private String feedback;
 
-    /** Bad Case 根因标注（簇④ 4.7）：RootCause 四分类之一，未标注为 null */
+    /** Bad Case 根因标注（Phase4簇④ 4.7）：RootCause 四分类之一，未标注为 null */
     @Column(name = "root_cause", length = 20)
     private String rootCause;
 

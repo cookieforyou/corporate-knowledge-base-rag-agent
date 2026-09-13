@@ -9,7 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 图谱抽取异步派发器（簇④ 5.1）：知识库内容提交点调用，虚拟线程异步执行
+ * 图谱抽取异步派发器（Phase5簇④ 5.1）：知识库内容提交点调用，虚拟线程异步执行
  * {@link GraphExtractionService}——<b>抽取是旁路管道，不阻塞调用方主流程</b>
  * （ETL 终态帧 / 回填任务经本入口统一派发）。
  *

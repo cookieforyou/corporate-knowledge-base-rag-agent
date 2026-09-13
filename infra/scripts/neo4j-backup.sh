@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# Neo4j 图数据定期备份（Phase 5 簇④ 批3）——灾备面扩图（17 章 §17.5）
+# Neo4j 图数据定期备份（Phase5簇④ 批3）——灾备面扩图（17 章 §17.5）
 #
 # 形态：ECS 宿主侧执行（第二台 ECS 自托管 Community 实例）——
 #   停服务 → neo4j-admin database dump → 本地 BACKUP_LOCAL_DIR

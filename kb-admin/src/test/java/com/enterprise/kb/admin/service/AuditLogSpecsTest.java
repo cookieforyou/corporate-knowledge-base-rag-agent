@@ -84,7 +84,7 @@ class AuditLogSpecsTest {
         verify(cb, never()).isNull(any());
     }
 
-    /** 簇⑤ E2E 审计核对项：链路过滤谓词（mode 位独立在场/缺位） */
+    /** 安全簇⑤ E2E 审计核对项：链路过滤谓词（mode 位独立在场/缺位） */
     @Test
     void modeFilterProducesPredicateOnlyWhenPresent() {
         apply(AuditLogSpecs.search("t-1", null, null, null, null, Constants.ChatMode.MODE_AGENT, null, null, null, null));

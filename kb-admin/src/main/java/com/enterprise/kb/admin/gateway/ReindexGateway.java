@@ -3,7 +3,7 @@ package com.enterprise.kb.admin.gateway;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * 文档重入库网关（Phase 4 簇③ 4.5）——kb-admin 对重入库能力的依赖倒置抽象。
+ * 文档重入库网关（Phase4簇③ 4.5）——kb-admin 对重入库能力的依赖倒置抽象。
  *
  * <p>kb-admin 不可依赖 kb-api（kb-api 聚合 kb-admin，反向依赖成环），而重入库
  * 编排（原子占用 + 进度回调 + 指标终态计数）位于 kb-api 的 DocumentService。

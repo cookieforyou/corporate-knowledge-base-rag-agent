@@ -35,7 +35,7 @@ import java.time.LocalDate;
  * <p><b>容错策略</b>：Redis 故障 before 降级放行 / after 降级丢弃计数——成本追踪
  * 短时失准可接受，击穿问答不可接受（与 FaultTolerantChatMemory / rerank 降级同策）。
  *
- * <p><b>流式计账（v2.19 簇③ D1 修复）</b>：BaseAdvisor 默认 adviseStream 仅对末块
+ * <p><b>流式计账（v2.19 冲刺簇③ D1 修复）</b>：BaseAdvisor 默认 adviseStream 仅对末块
  * 执行 after()；主/备模型均已开 {@code stream_options.include_usage}（主模型
  * 装配形态因此由 deepseek starter 切换为 OpenAI 兼容手工装配，见 SmartRoutingConfig），
  * 末块携带 usage → after() 回写账本，流式与同步计量对齐。末块 usage 缺失的

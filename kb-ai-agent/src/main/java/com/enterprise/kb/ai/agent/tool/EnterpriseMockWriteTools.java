@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * 企业 Mock 写工具（簇⑤ 5.3 自 EnterpriseMockTools 拆分——读/写半区隔离）
+ * 企业 Mock 写工具（Phase5簇⑤ 5.3 自 EnterpriseMockTools 拆分——读/写半区隔离）
  *
  * <p>HITL 三段式（11.2.1 任务 3.4 定稿，机制层不依赖 Mock 数据）：
  * <ol>

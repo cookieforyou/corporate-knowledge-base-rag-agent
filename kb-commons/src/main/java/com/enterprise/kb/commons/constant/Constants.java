@@ -23,7 +23,7 @@ public final class Constants {
     /** 摘要算法名（词表指纹 / 语义缓存键 / Golden 数据集与快照锚定共享） */
     public static final String DIGEST_SHA_256 = "SHA-256";
 
-    // 注：检索调优参数（topK / RRF_K / 召回倍数 / 相似度阈值 / 单路超时）已于簇① A3
+    // 注：检索调优参数（topK / RRF_K / 召回倍数 / 相似度阈值 / 单路超时）已于冲刺簇① A3
     // 收编为 rag.retrieval.* 配置组（kb-ai-core RetrievalProperties），不再以常量硬编码。
 
     /**
@@ -71,7 +71,7 @@ public final class Constants {
         public static final String FILE_EMPTY = "FILE_EMPTY";
         public static final String UPLOAD_FAILED = "UPLOAD_FAILED";
 
-        // ── 编排（簇⑤）与 MCP ──
+        // ── 编排（Phase5簇⑤）与 MCP ──
         public static final String ORCHESTRATOR_DISABLED = "ORCHESTRATOR_DISABLED";
         public static final String INVALID_MODE = "INVALID_MODE";
         public static final String MCP_QUERY_EMPTY = "MCP_QUERY_EMPTY";

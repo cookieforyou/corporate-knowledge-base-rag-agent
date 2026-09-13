@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 护栏词表运维 API（安全簇⑥ F2，专项方案 §4.6）——词表列表查询 + 命中演练。
  *
- * <p><b>租户守卫</b>：与簇③/④ 同款——{@code @AuthenticationPrincipal Jwt} 直消费
+ * <p><b>租户守卫</b>：与Phase4簇③/④ 同款——{@code @AuthenticationPrincipal Jwt} 直消费
  * （kb-admin 不依赖 kb-api，不复用 JwtUtils），owner claim → tenantId，缺失
  * fail-closed IDENTITY_INCOMPLETE。鉴权经 SecurityConfig {@code /api/**}
  * authenticated 既有规则覆盖，无额外暴露面。

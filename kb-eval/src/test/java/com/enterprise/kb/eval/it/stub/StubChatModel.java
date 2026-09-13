@@ -15,7 +15,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 /**
- * 可编程 ChatModel 桩（簇⑥ D3）——替代真实 DeepSeek/备用模型，与生产链路
+ * 可编程 ChatModel 桩（冲刺簇⑥ D3）——替代真实 DeepSeek/备用模型，与生产链路
  * 字节码路径一致（SmartRoutingChatModel 包装、全 Advisor 链穿越不变）。
  *
  * <p>能力：

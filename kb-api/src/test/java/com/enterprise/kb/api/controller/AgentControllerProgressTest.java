@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * SSE 进度旁路合流测试（簇⑥ 体验批3）：ctx 参数链 listener → Sinks → merge——
+ * SSE 进度旁路合流测试（Phase5簇⑥ 体验批3）：ctx 参数链 listener → Sinks → merge——
  * PROGRESS 阶段帧与 TOOL_CALL 实时快照帧在 token 流期间下发（先于 TRACE/DONE）；
  * 流末 TOOL_CALL 投影保留兜底。
  */

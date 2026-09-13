@@ -19,7 +19,7 @@ import static io.gatling.javaapi.core.CoreDsl.scenario;
 import static io.gatling.javaapi.http.HttpDsl.sse;
 
 /**
- * 场景 D：20 并发 SSE 长会话稳定性（簇⑥ 4.12：零中断 + 全 DONE 帧）
+ * 场景 D：20 并发 SSE 长会话稳定性（Phase4簇⑥ 4.12：零中断 + 全 DONE 帧）
  *
  * <p>closed 注入模型维持 20 并发虚拟用户，持续窗口内每轮 = 一次完整 SSE 对话；
  * 每用户首轮生成 sessionId 后**全程复用**——多轮记忆链（Redis ChatMemory +

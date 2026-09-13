@@ -11,7 +11,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 文本安全消毒组件测试（簇② B1）——归一化防绕过（S1）+ 词表匹配
+ * 文本安全消毒组件测试（冲刺簇② B1）——归一化防绕过（S1）+ 词表匹配
  *
  * <p>PII 掩码测试随安全簇③ C2 迁至 {@code pii.PiiRecognizerRegistryTest}
  * （能力迁识别器注册表，本类不再持有 PII 正则）。

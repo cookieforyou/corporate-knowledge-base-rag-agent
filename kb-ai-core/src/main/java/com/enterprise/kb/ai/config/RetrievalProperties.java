@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 检索链路调优参数（前缀 rag.retrieval）—— 簇① A3 配置化（复盘报告第五章 A3）
+ * 检索链路调优参数（前缀 rag.retrieval）—— 冲刺簇① A3 配置化（复盘报告第五章 A3）
  *
  * <p>此前 topK/RRF_K/召回倍数/相似度阈值/单路超时散落于 {@code Constants} 与各组件
  * 私有常量，调参须改源码重发版，且 kb-eval 的 {@code eval.top-k} 与链路 topK 为两套
@@ -63,7 +63,7 @@ public class RetrievalProperties {
      * 入库打标 injection_hit 消费（安全簇④ D2，缺口 E3 打标消费面）。
      *
      * <p>S4 ETL 入库扫描对命中注入词表的 chunk 打标（kb_chunk.metadata JSONB），
-     * 经 vectorMetadata / EsChunkDoc 契约携带至检索侧（簇④ D2 补齐）。降权
+     * 经 vectorMetadata / EsChunkDoc 契约携带至检索侧（安全簇④ D2 补齐）。降权
      * **默认关闭**（§9 定案④）：先经 kb-eval 检索门禁（Recall/MRR）开关双跑
      * 度量影响，再定开关口径——本配置只落机制，不改变默认生产行为。
      */

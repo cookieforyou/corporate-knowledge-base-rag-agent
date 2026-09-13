@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * PromptTemplates 专类契约测试（4.8 Git Ops 外部化，簇⑦ 批2）——钉死
+ * PromptTemplates 专类契约测试（4.8 Git Ops 外部化，Phase4簇⑦ 批2）——钉死
  * 「对话链全部 Prompt 收编于本专类」的单一事实源形态：
  * 关键占位符契约 + 分类器裁决枚举面 + 系统提示词非空。
  *
@@ -76,7 +76,7 @@ class PromptTemplatesTest {
     }
 
     /**
-     * 簇② 批5 路径 b 判据校准契约钉死：【剥壳判据】在场（包裹手段不改变裁决）
+     * Phase5簇② 批5 路径 b 判据校准契约钉死：【剥壳判据】在场（包裹手段不改变裁决）
      * ∧ 保守纪律保留（拿不准倾向 PASS）——两翼缺一即校准回退或过度收紧。
      */
     @Test

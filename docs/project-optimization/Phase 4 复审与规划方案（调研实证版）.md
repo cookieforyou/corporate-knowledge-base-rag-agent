@@ -28,7 +28,7 @@
 | 4.3 | Grafana 4 个 Dashboard | **保留** | 13.4 四面板设计与业界共识基本吻合，微调：LLM 面板补 TTFT 分位/路由决策/护栏命中（`rag.guardrail.*` 已注册，数据源现成）；业务面板补 Bad Case 队列与标注分布 |
 | 4.4 | Chunk CRUD 运维 API | **保留** | 对标结论：**chunk 级查看与编辑是全平台标配**（Dify/RAGFlow/FastGPT/MaxKB 均支持）；项目 C1 已通软删管道（只欠 REST 门面），编辑→异步重嵌入、删除、恢复三动作落 `ChunkAdminController`（14.1 草图为实现锚点，API 形态需源码级核验后落地） |
 | 4.5 | 文档级物理删除 + 级联 | **降级为验证项** | C1 已将 DocumentService.delete 级联委派 ChunkCleanupService（三库级联含 ES 孤儿扫尾）——本体已完成，本期只补运维视角 E2E 验证与 admin 门面整合，不单独立项 |
-| 4.6 | 索引全量/增量重建 API | **保留** | 三库漂移唯一修复兜底（ES 写入本就「失败不阻断」）；附带价值：**ES 动态 mapping 对齐窗口**（heading_path 字段完全对齐随重建执行，簇④ A4 遗留）。复用 C1 蓝绿管线与 ChunkCleanupService |
+| 4.6 | 索引全量/增量重建 API | **保留** | 三库漂移唯一修复兜底（ES 写入本就「失败不阻断」）；附带价值：**ES 动态 mapping 对齐窗口**（heading_path 字段完全对齐随重建执行，冲刺簇④ A4 遗留）。复用 C1 蓝绿管线与 ChunkCleanupService |
 | 4.7 | PromptTemplateManager 自建 | **否决自建，改 Git Ops** | 调研结论明确：模板 <20 个 + 单开发者，自建 DB+Redis+版本管理是过度设计。业界三流派（专业平台/Git Ops/轻量自建）中本项目取 **Git Ops**：Prompt 抽为外部化配置（yml/常量类收编，git log = 版本历史）；未来如需热更/A/B 再挂 Langfuse Prompt Management。**注意**：第 18 章验收「Prompt 外部化配置率 100%」仍成立，Git Ops 形态满足 |
 | 4.8 | 问答日志查询 + Bad Case 面板 | **保留 + 升级** | 审计落库与 Bad Case GET 端点 3.17 已有；本期升级为**完整闭环工作流**——查询过滤（时间/用户/会话/反馈）→ 根因标注（检索未命中/改写漂移/生成幻觉/解析不足）→ 一键回灌 Golden Set → CI 重跑。调研证实 **bad case 标注工作流是全部开源平台的空白区**，项目反馈底座齐备，这是差异化机会点 |
 | 4.9 | 解析状态 + 知识库统计 API | **保留** | 轻量；对标显示各平台统计深度普遍有限，项目可做到文档/chunk/版本/解析路由分布的细粒度统计 |
@@ -116,16 +116,16 @@
 | ⑥ | 生产加固与压测 | Compose 生产化 + Flyway + 备份灾备 + AppCDS + Gatling 压测（新指标口径）+ 双供应商 SLA 监控 | 部署/灾备/压测同属生产化域 | 4-6d | 压测报告（新口径）+ 备份恢复演练 + 99.5% 兜底自检 |
 | ⑦ | 文档与格式收尾 | 4.14 文档三件套 + N4 PPT/Excel 白名单 | 收尾小件批 | 3-4d | 文档评审 + 新格式 E2E |
 
-**合计约 26-35 人日（≈5-7 周）**——较原路线图 4 周略扩，主因 MCP 提前（+1 周）与 bad case 闭环升级；否决 K8s/Milvus 两项（-5d）部分对冲。若需压缩：簇⑤可移后段或裁剪 `ask` 工具、簇⑦可拆散伴生。
+**合计约 26-35 人日（≈5-7 周）**——较原路线图 4 周略扩，主因 MCP 提前（+1 周）与 bad case 闭环升级；否决 K8s/Milvus 两项（-5d）部分对冲。若需压缩：Phase4簇⑤可移后段或裁剪 `ask` 工具、Phase4簇⑦可拆散伴生。
 
-> **簇① 实现提示（调研登记）**：① OTel Spring Boot Starter 是 Spring Boot 4 官方路径（零代码 Java Agent 亦可，但其 Micrometer Bridge 默认关、强开有重复导出风险，本项目既有 Micrometer 指标故走 Starter）；② **Arconia**（Thomas Vitale，Spring AI 核心贡献者）提供单配置属性切换五种 GenAI 语义约定 schema（OTel GenAI/OpenLIT/LangSmith/OpenInference/Micrometer 默认），可作 `gen_ai.*` experimental 键名风险的应对工具；③ 告警阈值参考值调研已在档（拒答率 >15% / 反馈好评比 <70% / 空检索率 >10% / Token 突增 >2σ / LLM 错误率 >5% / rerank 降级率 >10% / 配额命中率 >3%），落地时按项目实际基线校准。
+> **Phase4簇① 实现提示（调研登记）**：① OTel Spring Boot Starter 是 Spring Boot 4 官方路径（零代码 Java Agent 亦可，但其 Micrometer Bridge 默认关、强开有重复导出风险，本项目既有 Micrometer 指标故走 Starter）；② **Arconia**（Thomas Vitale，Spring AI 核心贡献者）提供单配置属性切换五种 GenAI 语义约定 schema（OTel GenAI/OpenLIT/LangSmith/OpenInference/Micrometer 默认），可作 `gen_ai.*` experimental 键名风险的应对工具；③ 告警阈值参考值调研已在档（拒答率 >15% / 反馈好评比 <70% / 空检索率 >10% / Token 突增 >2σ / LLM 错误率 >5% / rerank 降级率 >10% / 配额命中率 >3%），落地时按项目实际基线校准。
 
 ### 5.2 顺序理由
 
-- **①② 先行**：观测是「运营闭环」的眼睛，且簇①的 trace 平台同时服务后续所有簇的调试（MCP 调用链、重建任务链路都可观测）；
+- **①② 先行**：观测是「运营闭环」的眼睛，且Phase4簇①的 trace 平台同时服务后续所有簇的调试（MCP 调用链、重建任务链路都可观测）；
 - **③ 承接优化冲刺**：C1/D3 铺好的基座趁热消费，kb-admin 模块首建；
 - **④ 在①后**：Bad Case 面板需要观测数据（拒答率/空检索率）作为标注入口线索；
-- **⑤ 居中偏后**：依赖簇①的观测能力验证 MCP 调用链，且安全治理要求护栏/审计全就绪（已就绪）；
+- **⑤ 居中偏后**：依赖Phase4簇①的观测能力验证 MCP 调用链，且安全治理要求护栏/审计全就绪（已就绪）；
 - **⑥ 压轴**：压测需要全功能就绪才有意义；Flyway/备份在任何进一步 schema 变更前落地更稳；
 - **⑦ 收尾**：文档覆盖全部新端点。
 
@@ -152,12 +152,12 @@
 
 ## 七、定案记录（2026-08-13 用户拍板）
 
-1. **MCP Server 提前至 Phase 4**：✅ 采纳，完整形态（簇⑤：三件套 + Casdoor JWT 鉴权 + scope 治理 + 审计复用）
+1. **MCP Server 提前至 Phase 4**：✅ 采纳，完整形态（Phase4簇⑤：三件套 + Casdoor JWT 鉴权 + scope 治理 + 审计复用）
 2. **LLM 观测平台**：✅ **Langfuse Cloud 免费档**（50k observations/月、2 用户、30 天保留；trace 数据出境的 SaaS 合规风险用户已知悉接受；重估触发：合规要求变化或流量超免费档 → Phoenix 自托管备选已在档）
 3. **三项复审裁决**：✅ 全部确认——K8s/Milvus 否决（Compose 生产加固 + Flyway + 灾备最小集替代）、压测新口径（检索 P95 <500ms / TTFT P95 <2s / 20 并发会话）、可用性 99.5%
 4. **周期口径**：✅ 完整版 5-7 周，七簇推进
 
-**定案后动作**：第八章 Phase 4 任务清单已按本提案重写（v2.29），进度文档任务表同步；簇①（观测地基）为开工首项。
+**定案后动作**：第八章 Phase 4 任务清单已按本提案重写（v2.29），进度文档任务表同步；Phase4簇①（观测地基）为开工首项。
 
 ---
 

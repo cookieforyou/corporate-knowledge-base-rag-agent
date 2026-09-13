@@ -31,14 +31,14 @@ public record EvalReport(
     double avgRecall,
     double avgMrr,
     double avgContextPrecision,
-    int docRetrievalEvaluated,       // 文档级兜底（簇④ A4 修复，16 章 v2.21）
+    int docRetrievalEvaluated,       // 文档级兜底（冲刺簇④ A4 修复，16 章 v2.21）
     double avgDocRecall,
     double avgDocMrr,
     double avgDocContextPrecision,
     double avgFaithfulness,
     double avgResponseRelevancy,
     double negativeRejectionRate,
-    int injectionEvaluated,            // 注入拦截（簇⑤ B2 S6，12.4.3 S6）
+    int injectionEvaluated,            // 注入拦截（冲刺簇⑤ B2 S6，12.4.3 S6）
     double injectionBlockRate,         // 总体拦截率
     int injectionGateEvaluated,        // 门禁子集（DIRECT + ENCODING_BYPASS）样本数
     double injectionGateBlockRate,     // 门禁子集拦截率（≥ injectionBlockRate 阈值）
@@ -50,7 +50,7 @@ public record EvalReport(
     private static final Logger log = LoggerFactory.getLogger(EvalReport.class);
 
     /**
-     * Phase 5 扩展指标聚合（簇② 5.8，16 章 §16.2）——四新指标读数。
+     * Phase 5 扩展指标聚合（Phase5簇② 5.8，16 章 §16.2）——四新指标读数。
      * 均值类无样本为 NaN；比率类无样本为 NaN（报告渲染「无样本，跳过」）。
      * **门禁纪律**（接线落地，16 章 v2.82）：一致率主判「连续 2 轮」达成（κ 复校-④，
      * 16 章 v2.81）后 AC/CA/HR 三维经 assertThresholds 门禁（阈值见
@@ -79,7 +79,7 @@ public record EvalReport(
     /**
      * 门禁判定：仅对「有样本且低于阈值」的指标报错；无样本指标跳过（建基线期策略）。
      *
-     * <p>Faithfulness 容忍策略（簇④ E1，16.4 v2.20）：
+     * <p>Faithfulness 容忍策略（冲刺簇④ E1，16.4 v2.20）：
      * <ol>
      *   <li>**噪声带**：均值 ∈ [阈值−tolerance, 阈值) → WARN 不 FAIL（Judge 分数噪声，
      *       单次抖动不杀门禁）；低于 阈值−tolerance 才判真实击穿；</li>
@@ -131,7 +131,7 @@ public record EvalReport(
                 "Negative Rejection %.2f < 阈值 %.2f（样本 %d）%n",
                 negativeRejectionRate, t.getNegativeRejection(), negativeEvaluated));
         }
-        // 多跳准确率门禁（簇④ 5.2）：MULTI_HOP 分类 AC 通过率 ≥80%；
+        // 多跳准确率门禁（Phase5簇④ 5.2）：MULTI_HOP 分类 AC 通过率 ≥80%；
         // 样本不足最小样本数只报告不门禁（测试集建设初期保护，同分类地板纪律）
         List<EvalResult> multiHop = results.stream()
             .filter(r -> r.pair().category() == QACategory.MULTI_HOP).toList();
@@ -173,7 +173,7 @@ public record EvalReport(
             log.warn("MULTI_DOC 文档级样本 {} < 最小样本 {}——docRecall 只报告不门禁",
                 multiDocDocGate.size(), t.getMultiDocMinSamples());
         }
-        // 注入拦截门禁（簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
+        // 注入拦截门禁（冲刺簇⑤ B2 S6）：仅对 L1 机制防域子集（DIRECT + ENCODING_BYPASS）门禁；
         // JAILBREAK / MULTILINGUAL 属 L2 防域（安全簇⑤ E2 升格，见下条）、
         // ENCODING_OPAQUE 为观察集——L1 不拦截属设计行为，只报告不门禁
         if (injectionGateEvaluated > 0 && injectionGateBlockRate < t.getInjectionBlockRate()) {
@@ -194,7 +194,7 @@ public record EvalReport(
             }
         }
 
-        // Phase 5 扩展指标门禁（簇② 5.8 接线落地，16 章 v2.82）：一致率主判「连续 2 轮」
+        // Phase 5 扩展指标门禁（Phase5簇② 5.8 接线落地，16 章 v2.82）：一致率主判「连续 2 轮」
         // 达成（κ 复校-④，16 章 v2.81）后三维接线——AC/CA/HR 有样本即判定（NaN 跳过
         // 纪律承继）；Noise Robustness 承 M3 裁决（16 章 v2.79）观察不门禁，阈值键保留
         // 不消费（Judge 单方向误报面治理后再议）
@@ -275,7 +275,7 @@ public record EvalReport(
             fmt(avgFaithfulness), fmt(avgResponseRelevancy),
             negativeEvaluated > 0 ? String.format("%.2f", negativeRejectionRate) : "无样本，跳过"));
 
-        // 生成侧扩展（簇② 5.8，16 章 §16.2）：四新指标读数——接线落地（16 章 v2.82）
+        // 生成侧扩展（Phase5簇② 5.8，16 章 §16.2）：四新指标读数——接线落地（16 章 v2.82）
         // 后 AC/CA/HR 三维门禁、NRob 承 M3 观察；小节整体仅在有任一读数时渲染
         if (phase5 != null && !phase5.isEmpty()) {
             sb.append(System.lineSeparator()).append("── 生成侧扩展（Phase 5）──");
@@ -311,7 +311,7 @@ public record EvalReport(
             }
         }
 
-        // 安全性（簇⑤ B2 S6 / 安全簇⑤ E2）：注入拦截率——总体 + L1 门禁子集
+        // 安全性（冲刺簇⑤ B2 S6 / 安全簇⑤ E2）：注入拦截率——总体 + L1 门禁子集
         // （DIRECT+ENCODING_BYPASS）+ 按攻击类型分解；l2-enabled 时扩「L1+L2 门禁
         // 子集」（JAILBREAK+MULTILINGUAL 联合链判别率，门禁治 L2 判别力）与逐类型
         // 联合列；ENCODING_OPAQUE 恒为观察集（L1 机制盲区）
@@ -343,7 +343,7 @@ public record EvalReport(
                 }
             }
             if (hasL2) {
-                // L2 原始裁决分布（簇② 批5 路径 a）：门禁读数只有 BLOCKED/NOT_BLOCKED
+                // L2 原始裁决分布（Phase5簇② 批5 路径 a）：门禁读数只有 BLOCKED/NOT_BLOCKED
                 // 二元，判据校准需显式裁决分布定位——BLOCK/SUSPECT/PASS = 显式判定，
                 // FAIL_OPEN = 二判故障回落，NOT_JUDGED = 判定器缺席（结构性恒 pass）
                 Map<String, Long> rawDist = results.stream()
@@ -360,10 +360,10 @@ public record EvalReport(
             }
         }
 
-        // 文档级兜底（簇④ A4 修复）：chunk ID 失配（重入库换代/解析漂移）时
+        // 文档级兜底（冲刺簇④ A4 修复）：chunk ID 失配（重入库换代/解析漂移）时
         // chunk 级归零，此层以 file_name 匹配给出方向性读数；无门禁仅观测。
         // 前置换行显式补：文本块无前导换行，直接 append 会与上一小节末行粘连
-        // （簇④ A4 遗留缺陷，簇⑤ E2E 发现并修复，防回归见 EvalReportThresholdTest）
+        // （冲刺簇④ A4 遗留缺陷，安全簇⑤ E2E 发现并修复，防回归见 EvalReportThresholdTest）
         if (docRetrievalEvaluated > 0) {
             sb.append(System.lineSeparator()).append(String.format("""
                 ── 检索侧（文档级兜底，n=%d）──
@@ -395,7 +395,7 @@ public record EvalReport(
                 docMissed.isEmpty() ? "无" : docMissed));
         }
 
-        // 生成侧分类分解（簇④ E1）：Judge 校准漂移与 A/B 对比的维度定位依据——
+        // 生成侧分类分解（冲刺簇④ E1）：Judge 校准漂移与 A/B 对比的维度定位依据——
         // 整体均值可能掩盖单一分类的涨跌，逐分类列出样本数与 Faithfulness/Relevancy 均值
         Map<QACategory, DoubleSummaryStatistics> byCat = faithfulnessByCategory();
         if (!byCat.isEmpty()) {

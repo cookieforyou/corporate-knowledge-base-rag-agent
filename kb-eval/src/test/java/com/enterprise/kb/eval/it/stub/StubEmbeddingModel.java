@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 确定性 EmbeddingModel 桩（簇⑥ D3）——hashing trick 词袋向量（1024 维，L2 归一化）。
+ * 确定性 EmbeddingModel 桩（冲刺簇⑥ D3）——hashing trick 词袋向量（1024 维，L2 归一化）。
  *
  * <p><b>语义近似性</b>（区别于纯哈希桩）：向量由 token 分桶累加而成——共享 token
  * 的文本余弦相似度 &gt; 0，检索阈值过滤、TopK 排序、租户 FilterExpression 组合

@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * 图谱抽取观测 SPI 实现（簇④，评审修正 R1 依赖倒置）：
+ * 图谱抽取观测 SPI 实现（Phase5簇④，评审修正 R1 依赖倒置）：
  * kb-etl 定义 {@link GraphExtractionListener}，kb-api 实现并委派
  * {@link AiBusinessMetrics}（{@code rag.graph.extraction.*} 指标族）——
  * 对齐 {@code ReindexGateway}「下游定义接口 / kb-api 实现」先例。

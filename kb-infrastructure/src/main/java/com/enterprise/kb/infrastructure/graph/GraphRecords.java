@@ -3,7 +3,7 @@ package com.enterprise.kb.infrastructure.graph;
 import java.util.List;
 
 /**
- * 图谱网关数据契约（Phase 5 簇④）。
+ * 图谱网关数据契约（Phase5簇④）。
  *
  * <p>全部为纯数据 record，不含 Neo4j 类型——上层（kb-etl 抽取 / kb-ai-core 检索）
  * 只消费这些契约，Cypher 细节封闭在 {@link Neo4jGraphGateway} 内。

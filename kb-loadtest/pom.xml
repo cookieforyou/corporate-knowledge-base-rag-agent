@@ -12,7 +12,7 @@
 
     <artifactId>kb-loadtest</artifactId>
     <name>kb-loadtest（Gatling 压测）</name>
-    <description>簇⑥ 4.12 Gatling 压测：四场景（检索真压/生成桩压/真实 LLM 小样本/SSE 稳定）
+    <description>Phase4簇⑥ 4.12 Gatling 压测：四场景（检索真压/生成桩压/真实 LLM 小样本/SSE 稳定）
         + OpenAI 兼容生成桩；gatling:test 显式触发，不在默认 mvn test 路径执行场景</description>
 
     <dependencies>

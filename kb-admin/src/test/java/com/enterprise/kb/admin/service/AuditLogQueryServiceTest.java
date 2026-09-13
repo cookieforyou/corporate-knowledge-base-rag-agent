@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * AuditLogQueryService 单测（Phase 4 簇④ 4.7）——分页口径、期望回答联查、
+ * AuditLogQueryService 单测（Phase4簇④ 4.7）——分页口径、期望回答联查、
  * 非法过滤值守卫与查询委派。谓词拼接本身归 {@link AuditLogSpecsTest}。
  */
 class AuditLogQueryServiceTest {
@@ -120,7 +120,7 @@ class AuditLogQueryServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(Constants.ErrorCodes.INVALID_FILTER);
     }
-    /** 簇⑤ E2E 审计核对项：mode 小写存储形态归一（大写入参 → 小写谓词值，不误入 normalizeEnum 大写轨道） */
+    /** 安全簇⑤ E2E 审计核对项：mode 小写存储形态归一（大写入参 → 小写谓词值，不误入 normalizeEnum 大写轨道） */
     @Test
     void searchNormalizesModeToStorageForm() {
         stubSearch(List.of(), 0, PageRequest.of(0, 20));

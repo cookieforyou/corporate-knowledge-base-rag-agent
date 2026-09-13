@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 实体关系抽取器（簇④ 5.1）：单 chunk（窗口语境）→ 结构化实体/关系。
+ * 实体关系抽取器（Phase5簇④ 5.1）：单 chunk（窗口语境）→ 结构化实体/关系。
  *
  * <p>模型手工装配（同 {@code ContextualEnrichmentTransformer#buildContextModel} 先例，
  * kb-etl 不依赖 kb-ai-core）——百炼 qwen3.8-flash 低价档结构化调用，

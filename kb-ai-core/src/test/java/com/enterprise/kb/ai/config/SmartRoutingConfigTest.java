@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 模型装配回归（v2.19 簇③ D1 / v2.77 模型层批B）：主模型双形态（GLM 缺省 /
+ * 模型装配回归（v2.19 冲刺簇③ D1 / v2.77 模型层批B）：主模型双形态（GLM 缺省 /
  * DeepSeek 回落）与备用模型均为手工装配的 OpenAI 兼容形态，且都开启
  * stream_options.include_usage——流式 token 计账（TokenBudgetAdvisor/审计末块
  * 回写）的装配前提，防止后续改动静默回退致配额再次漏算。
@@ -70,7 +70,7 @@ class SmartRoutingConfigTest {
         };
     }
 
-    /** OpenAiChatModel 无 convention getter，反射读私有字段钉接线（簇① 回归锚点） */
+    /** OpenAiChatModel 无 convention getter，反射读私有字段钉接线（Phase4簇① 回归锚点） */
     private static Object conventionOf(ChatModel model) throws Exception {
         Field field = OpenAiChatModel.class.getDeclaredField("observationConvention");
         field.setAccessible(true);
@@ -186,7 +186,7 @@ class SmartRoutingConfigTest {
             .hasMessageContaining("DASHSCOPE_API_KEY");
     }
 
-    /** 簇① 回归：convention 在场时接线至手工模型（缺省态不设置——上方用例已过） */
+    /** Phase4簇① 回归：convention 在场时接线至手工模型（缺省态不设置——上方用例已过） */
     @Test
     void contentConventionWiredWhenPresent() throws Exception {
         ChatModel glm = config.glmChatModel(registryProvider(), conventionProvider(),

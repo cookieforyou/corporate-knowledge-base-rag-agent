@@ -38,11 +38,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 编排链装配（簇⑤ 5.3，设计文档 §11.5.5）——Orchestrator-Workers 收窄骨架
+ * 编排链装配（Phase5簇⑤ 5.3，设计文档 §11.5.5）——Orchestrator-Workers 收窄骨架
  *
  * <p><b>开关纪律（D3 定案）</b>：{@code rag.orchestrator.enabled} 缺省 false——
  * 关闭态本配置类整体缺位（编排族 Bean 全缺），rag/tool 两链逐字节零变化
- * （簇③④ 条件装配同款）；mode=agent 由 AgentController 显式 400
+ * （Phase5簇③④ 条件装配同款）；mode=agent 由 AgentController 显式 400
  * ORCHESTRATOR_DISABLED，不静默回落。
  *
  * <p><b>链序</b>：与 tool 链同构（Audit(10) → TokenBudget(30) → RateLimit(100) →
@@ -172,12 +172,12 @@ public class OrchestratorChatClientConfig {
                                              TaskTool taskTool,
                                              SubAgentRegistry subAgentRegistry,
                                              PromptCanary promptCanary,
-                                             // 逃生舱（簇⑤ 收官注记① 三轮，11 章 v2.108）：
+                                             // 逃生舱（Phase5簇⑤ 收官注记① 三轮，11 章 v2.108）：
                                              // false = 编排链摘除记忆（每轮独立上下文），
                                              // 跨任务历史污染物理消除——多轮指代延续失效
                                              @Value("${rag.orchestrator.memory-enabled:true}")
                                              boolean memoryEnabled) {
-        // 同 tool 链：显式传 ObservationRegistry（簇① 单参 builder NOOP registry 坑）+
+        // 同 tool 链：显式传 ObservationRegistry（Phase4簇① 单参 builder NOOP registry 坑）+
         // 金丝雀嵌入（安全簇① T5，输出回显经共享 OutputGuardrailAdvisor 后验拦截）
         List<Advisor> advisors = new ArrayList<>(List.of(
             auditTraceAdvisor,

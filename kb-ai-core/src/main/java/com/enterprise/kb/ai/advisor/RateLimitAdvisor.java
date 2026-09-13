@@ -48,7 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * GlobalExceptionHandler 映射 HTTP 429；流式路径由 AgentController
  * onErrorResume 承接为 SSE ERROR 事件（与 PROMPT_INJECTION 同形态）。
  *
- * <p><b>v2.24 修正（簇⑤ B2，S3 护栏可观测）</b>：限流拒绝接
+ * <p><b>v2.24 修正（冲刺簇⑤ B2，S3 护栏可观测）</b>：限流拒绝接
  * {@code rag.guardrail.rate.limited} 计数（抛异常前），与 TokenBudgetAdvisor 的
  * {@code rag.token.budget.rejected} 对称；审计行经 AuditTraceAdvisor REJECTED
  * 三态既有通道落库。
@@ -64,7 +64,7 @@ public class RateLimitAdvisor implements BaseAdvisor {
     private final long rate;
     private final long intervalSeconds;
 
-    /** 护栏命中计数（簇⑤ B2 S3）——限流拒绝事件入 Prometheus */
+    /** 护栏命中计数（冲刺簇⑤ B2 S3）——限流拒绝事件入 Prometheus */
     private final AiBusinessMetrics metrics;
 
     /** 本进程已完成配置写入的租户——避免每请求重复 setRate */

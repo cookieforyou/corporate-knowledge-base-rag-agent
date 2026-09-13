@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * INJECTION 用例判定分支单测（簇⑤ B2 S6）
+ * INJECTION 用例判定分支单测（冲刺簇⑤ B2 S6）
  *
  * <p>走 eval 专属护栏链（仅 InputSanitizeAdvisor）：捕获 PROMPT_INJECTION → BLOCKED；
  * 正常返回 → NOT_BLOCKED；其他异常按用例失败跳过（不入拦截率分母）。
@@ -203,7 +203,7 @@ class EvalRunnerInjectionTest {
     }
 
     /**
-     * 联合链手工 fluent 桩（簇② 批5 路径 a）：advisors 消费器就地执行，
+     * 联合链手工 fluent 桩（Phase5簇② 批5 路径 a）：advisors 消费器就地执行，
      * 断言力判键 + 原始裁决回传键双参落位，并模拟 advisor 回写 sink——
      * 验证 EvalRunner 从 sink 读取原始裁决并落 EvalResult#l2RawVerdict。
      */

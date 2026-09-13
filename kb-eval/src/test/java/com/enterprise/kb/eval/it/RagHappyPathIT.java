@@ -13,7 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 知识问答接地 Happy Path（簇⑥ D3）：证据注入 [ref-N] 锚定 + 溯源帧 + 空证据拒答。
+ * 知识问答接地 Happy Path（冲刺簇⑥ D3）：证据注入 [ref-N] 锚定 + 溯源帧 + 空证据拒答。
  */
 class RagHappyPathIT extends AbstractAdvisorChainIT {
 

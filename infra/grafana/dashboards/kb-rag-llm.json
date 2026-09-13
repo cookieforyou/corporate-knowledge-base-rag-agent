@@ -1,7 +1,7 @@
 {
   "uid": "kb-rag-llm",
   "title": "KB-RAG LLM 大盘",
-  "description": "Phase 4 簇②（4.3）：TTFT 分位 / Token 速率 / 请求错误率。模型调用明细走 Langfuse（13.5 双层分工）。",
+  "description": "Phase4簇②（4.3）：TTFT 分位 / Token 速率 / 请求错误率。模型调用明细走 Langfuse（13.5 双层分工）。",
   "tags": [
     "kb-rag"
   ],

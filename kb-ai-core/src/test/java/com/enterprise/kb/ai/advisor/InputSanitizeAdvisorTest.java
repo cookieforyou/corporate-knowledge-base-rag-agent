@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * 输入安全护栏测试（3.5）—— PII 脱敏 + 注入拦截 + 上下文保持 + 护栏命中计数（簇⑤ B2 S3）
+ * 输入安全护栏测试（3.5）—— PII 脱敏 + 注入拦截 + 上下文保持 + 护栏命中计数（冲刺簇⑤ B2 S3）
  *
  * <p>注入侧断言全部程序化构造：攻击形态（大小写/全角/零宽变体）由 bundled 基线词表的
  * 词项值在运行时变换生成，测试源码不落字面载荷（第七节敏感词交付纪律）；
@@ -279,7 +279,7 @@ class InputSanitizeAdvisorTest {
         assertThat(ctx.getGuardrailFlags()).isEmpty();
     }
 
-    // ── 护栏命中计数（簇⑤ B2 S3）──
+    // ── 护栏命中计数（冲刺簇⑤ B2 S3）──
 
     @Test
     void injectionBlockedIncrementsGuardrailCounter() {

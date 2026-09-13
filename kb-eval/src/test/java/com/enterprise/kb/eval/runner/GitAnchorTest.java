@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 运行锚点解析单测（簇② 5.9 批3）——git 工作区解析 + 非 git 降级
+ * 运行锚点解析单测（Phase5簇② 5.9 批3）——git 工作区解析 + 非 git 降级
  */
 class GitAnchorTest {
 

@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 /**
- * 混合检索器容错降级单测（mock 双路 + 真实 RrfFusion；簇④ 扩三路形态）
+ * 混合检索器容错降级单测（mock 双路 + 真实 RrfFusion；Phase5簇④ 扩三路形态）
  */
 class HybridDocumentRetrieverTest {
 
@@ -65,8 +65,8 @@ class HybridDocumentRetrieverTest {
         esRetriever = mock(ElasticsearchDocumentRetriever.class);
         properties = new RetrievalProperties();
         metrics = new AiBusinessMetrics(new SimpleMeterRegistry());
-        // 簇③ D2：执行器收编为构造注入（生产为共享 Bean hybridRetrievalExecutor）；
-        // 簇④：Graph 路缺省缺位（关闭态双路形态逐字节不变）
+        // 冲刺簇③ D2：执行器收编为构造注入（生产为共享 Bean hybridRetrievalExecutor）；
+        // Phase5簇④：Graph 路缺省缺位（关闭态双路形态逐字节不变）
         buildHybrid(null);
     }
 
@@ -159,7 +159,7 @@ class HybridDocumentRetrieverTest {
         verifyNoInteractions(esRetriever);
     }
 
-    /** 簇④ 三路形态：Graph 路在场时并入融合，命中携 graph_rank 元数据 + trace "graph" 条目 */
+    /** Phase5簇④ 三路形态：Graph 路在场时并入融合，命中携 graph_rank 元数据 + trace "graph" 条目 */
     @Test
     void retrieve_threeWayFusion_graphHitsMergedWithRankMetadata() {
         GraphDocumentRetriever graphRetriever = mock(GraphDocumentRetriever.class);
@@ -186,7 +186,7 @@ class HybridDocumentRetrieverTest {
         assertEquals(List.of(Constants.Retrieval.ROUTE_VECTOR, Constants.Retrieval.ROUTE_GRAPH), sources);
     }
 
-    /** 簇④ 三路容错：Graph 路失败降级为空路，双路结果不受影响（降级矩阵三路扩展） */
+    /** Phase5簇④ 三路容错：Graph 路失败降级为空路，双路结果不受影响（降级矩阵三路扩展） */
     @Test
     void retrieve_graphPathFails_degradesToTwoWay() {
         GraphDocumentRetriever graphRetriever = mock(GraphDocumentRetriever.class);
@@ -202,7 +202,7 @@ class HybridDocumentRetrieverTest {
         assertTrue(result.stream().noneMatch(d -> d.getMetadata().containsKey(Constants.Retrieval.ROUTE_GRAPH + Constants.Retrieval.RANK_KEY_SUFFIX)));
     }
 
-    /** 簇④ 关闭态零回归：Graph 路缺位时融合面仅双路，无 graph_rank、无 graph trace */
+    /** Phase5簇④ 关闭态零回归：Graph 路缺位时融合面仅双路，无 graph_rank、无 graph trace */
     @Test
     void retrieve_graphAbsent_twoWayFormUnchanged() {
         RetrievalContext ctx = new RetrievalContext();

@@ -13,10 +13,10 @@ import org.springframework.context.annotation.Configuration;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Neo4j 驱动条件装配（Phase 5 簇④ GraphRAG）。
+ * Neo4j 驱动条件装配（Phase5簇④ GraphRAG）。
  *
  * <p>{@code rag.graph.enabled=true} 时才创建 {@link Driver} Bean（destroyMethod=close）——
- * 关闭态整个图谱域 Bean 缺位，消费侧经 {@code ObjectProvider} 容忍（同语义缓存簇③先例）。
+ * 关闭态整个图谱域 Bean 缺位，消费侧经 {@code ObjectProvider} 容忍（同语义缓存Phase5簇③先例）。
  *
  * <p>手工装配而非 {@code spring-boot-starter-neo4j} 自动配置：避免关闭态残留
  * Driver/Health 副作用，连接参数完全由 {@link Neo4jProperties} 钉死。

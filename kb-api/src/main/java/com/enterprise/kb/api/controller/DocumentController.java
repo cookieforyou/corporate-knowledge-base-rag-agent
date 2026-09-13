@@ -67,7 +67,7 @@ public class DocumentController {
     }
 
     /**
-     * 增量重入库 — 重解析（簇⑥ C1）：以 MinIO 现有原件重走 ETL；
+     * 增量重入库 — 重解析（优化冲刺簇⑥ C1）：以 MinIO 现有原件重走 ETL；
      * 蓝绿语义（先写后删 diff），成功后 version+1。仅 SUCCESS/FAILED 态可发起。
      */
     @PreAuthorize("hasRole('ADMIN')")
@@ -80,7 +80,7 @@ public class DocumentController {
     }
 
     /**
-     * 增量重入库 — 替换（簇⑥ C1）：新文件覆盖原件后重走 ETL（文档更新场景）；
+     * 增量重入库 — 替换（优化冲刺簇⑥ C1）：新文件覆盖原件后重走 ETL（文档更新场景）；
      * 路由缺省自动决策（新文件不复用旧版本路由）。仅 SUCCESS/FAILED 态可发起。
      */
     @PreAuthorize("hasRole('ADMIN')")

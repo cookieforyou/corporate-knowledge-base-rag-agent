@@ -18,7 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 缓存失效事件订阅器测试（簇③ 5.6 批2）：生命周期挂/退订 + 消息 → 按文档失效
+ * 缓存失效事件订阅器测试（Phase5簇③ 5.6 批2）：生命周期挂/退订 + 消息 → 按文档失效
  * 委派 + 畸形消息/失效故障不击穿订阅线程。
  */
 class CacheInvalidationListenerTest {

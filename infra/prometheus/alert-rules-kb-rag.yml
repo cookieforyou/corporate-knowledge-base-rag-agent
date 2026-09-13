@@ -1,4 +1,4 @@
-# kb-rag-agent Prometheus 告警规则（Phase 4 簇① 任务 4.2）
+# kb-rag-agent Prometheus 告警规则（Phase4簇① 任务 4.2）
 #
 # 命名口径（2026-08-13 actuator/prometheus 端点实证）：点转下划线；counter 追加 _total 后缀，
 # 但原名已以 total 结尾的不重复追加——rag.request.total → rag_request_total（单 total），
@@ -79,7 +79,7 @@ groups:
           summary: "检测到 JVM 死锁线程"
           description: "死锁线程数={{ $value }}；立即 jstack 取证。注：该 gauge 仅在死锁数 >0 时由 Micrometer 条件注册——序列缺席即无死锁，规则静默为正确态。"
 
-  # ── LLM 特有层：映射 AiBusinessMetrics 既有指标（13.3 + 簇①新增）──
+  # ── LLM 特有层：映射 AiBusinessMetrics 既有指标（13.3 + Phase4簇①新增）──
   - name: kb-rag-llm
     rules:
       - alert: KbFeedbackLikeRatioLow
@@ -93,7 +93,7 @@ groups:
           severity: warning
         annotations:
           summary: "用户反馈好评比 <70%（近 1 小时）"
-          description: "好评比={{ $value }}；走簇④ Bad Case 闭环：查 kb_audit_log 点踩样本 → 根因标注 → Golden 回灌。"
+          description: "好评比={{ $value }}；走Phase4簇④ Bad Case 闭环：查 kb_audit_log 点踩样本 → 根因标注 → Golden 回灌。"
 
       - alert: KbEmptyRetrievalRateHigh
         expr: |
@@ -104,7 +104,7 @@ groups:
           severity: warning
         annotations:
           summary: "空检索率 >10%（近 1 小时）"
-          description: "空检索率={{ $value }}；空证据直接触发拒答模板，优先核查语料覆盖与切分质量（簇③ 入口线索）。"
+          description: "空检索率={{ $value }}；空证据直接触发拒答模板，优先核查语料覆盖与切分质量（Phase4簇③ 入口线索）。"
 
       - alert: KbRejectionRateHigh
         expr: |

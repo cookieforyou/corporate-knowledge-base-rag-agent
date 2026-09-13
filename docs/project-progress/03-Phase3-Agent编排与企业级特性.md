@@ -58,12 +58,12 @@
 
 | # | 任务 | 落点 | 估算 | 建议排期 | 完成情况 |
 |---|------|------|------|---------|---------|
-| S1 | 输入归一化前置（NFKC + 零宽剥离 + 空白折叠，堵编码绕过） | InputSanitizeAdvisor | 0.5d | Phase 3 空档，可随 3.7/3.8 顺做 | ✅ 2026-08-11 簇② B1（归一化检测视图不回写，见优化冲刺节） |
-| S2 | Grounding 模板不可信标记（间接注入软防线） | RetrievalConfig 模板 | 0.5d | Phase 3 空档 | ✅ 2026-08-11 簇② B1（`<untrusted_context>` 包裹 + 规则 6） |
-| S3 | 护栏命中审计 + 指标（结构化记录 + Micrometer，迁 kb_audit_log） | 护栏 Advisor | 1d | 3.12/3.13 之后承接 | ✅ 2026-08-13 簇⑤ B2（5 项 rag.guardrail.* 计数 + 审计 REJECTED 既有通道复用，12.6） |
-| S4 | ETL 入库扫描（chunk 注入/PII 打标，与 S2 成对） | kb-etl | 1.5d | Phase 3 空档，建议随 S2 | ✅ 2026-08-11 簇② B1（SanitizingTransformer，含 PII 入库消毒增强） |
+| S1 | 输入归一化前置（NFKC + 零宽剥离 + 空白折叠，堵编码绕过） | InputSanitizeAdvisor | 0.5d | Phase 3 空档，可随 3.7/3.8 顺做 | ✅ 2026-08-11 冲刺簇② B1（归一化检测视图不回写，见优化冲刺节） |
+| S2 | Grounding 模板不可信标记（间接注入软防线） | RetrievalConfig 模板 | 0.5d | Phase 3 空档 | ✅ 2026-08-11 冲刺簇② B1（`<untrusted_context>` 包裹 + 规则 6） |
+| S3 | 护栏命中审计 + 指标（结构化记录 + Micrometer，迁 kb_audit_log） | 护栏 Advisor | 1d | 3.12/3.13 之后承接 | ✅ 2026-08-13 冲刺簇⑤ B2（5 项 rag.guardrail.* 计数 + 审计 REJECTED 既有通道复用，12.6） |
+| S4 | ETL 入库扫描（chunk 注入/PII 打标，与 S2 成对） | kb-etl | 1.5d | Phase 3 空档，建议随 S2 | ✅ 2026-08-11 冲刺簇② B1（SanitizingTransformer，含 PII 入库消毒增强） |
 | S5 | LLM 辅助注入判定（L2，可疑特征触发非全量） | 新 Advisor/扩展 | 3d | 视攻击面暴露情况 | |
-| S6 | 注入攻击 Golden Set + 拦截率 CI 门禁（度量先行，先于 S5） | kb-eval | 2d | 随 kb-eval 演进 | ✅ 2026-08-13 簇⑤ B2（injection-qa.json 44 条 + INJECTION 门禁 ≥95% 限 L1 防域子集，12.6/16 章 v2.24） |
+| S6 | 注入攻击 Golden Set + 拦截率 CI 门禁（度量先行，先于 S5） | kb-eval | 2d | 随 kb-eval 演进 | ✅ 2026-08-13 冲刺簇⑤ B2（injection-qa.json 44 条 + INJECTION 门禁 ≥95% 限 L1 防域子集，12.6/16 章 v2.24） |
 | S7 | PII 扩容 + Presidio 化（银行卡/地址先行，姓名 NER 谨慎） | InputSanitizeAdvisor + ETL | 3d | 视合规要求 | |
-| S8 | 词表动态运营（Redis 热更新 + DB 持久化，搭载 4.7 模式） | kb-ai-core + kb-admin | 2d | 4.7 之后搭载 | ✅ 2026-08-19 簇⑥ F1/F2（Git Ops 形态热重载 + 运营端点，12 章 v2.49）+ v2.53 DB 单轨 CRUD（Plan C 修订形态，12 章 v2.53） |
+| S8 | 词表动态运营（Redis 热更新 + DB 持久化，搭载 4.7 模式） | kb-ai-core + kb-admin | 2d | 4.7 之后搭载 | ✅ 2026-08-19 安全簇⑥ F1/F2（Git Ops 形态热重载 + 运营端点，12 章 v2.49）+ v2.53 DB 单轨 CRUD（Plan C 修订形态，12 章 v2.53） |
 | S9 | L3 专用分类器（Prompt Guard/Llama Guard + NeMo Guardrails） | 独立服务 + Advisor | 待估 | 视 GPU 资源/Phase 4 扩容 | |

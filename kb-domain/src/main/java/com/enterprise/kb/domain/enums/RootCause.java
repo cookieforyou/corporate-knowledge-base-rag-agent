@@ -1,7 +1,7 @@
 package com.enterprise.kb.domain.enums;
 
 /**
- * Bad Case 根因四分类（Phase 4 簇④ 4.7）——人工标注于 kb_audit_log.root_cause，
+ * Bad Case 根因四分类（Phase4簇④ 4.7）——人工标注于 kb_audit_log.root_cause，
  * 作为 Golden Set 回灌与检索/生成侧改进的方向性依据。
  */
 public enum RootCause {

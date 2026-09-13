@@ -14,7 +14,7 @@ import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 
 /**
- * A/B 双跑差异报表生成器（簇② 5.9 批3，16 章 §16.5）
+ * A/B 双跑差异报表生成器（Phase5簇② 5.9 批3，16 章 §16.5）
  *
  * <p>用法（Prompt Git Ops 4.8 形态——prompt 版本即 git 版本，不新建抽象层）：
  * <ol>
@@ -160,7 +160,7 @@ public class EvalDiffRunner implements ApplicationRunner {
     static String buildReport(EvalSnapshot a, EvalSnapshot b, String labelA, String labelB, double tolerance) {
         String ls = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
-        sb.append("═══ Eval A/B 差异报表（簇② 5.9 批3） ═══").append(ls);
+        sb.append("═══ Eval A/B 差异报表（Phase5簇② 5.9 批3） ═══").append(ls);
         sb.append(String.format(Locale.ROOT,
             "对比容忍带：±%.3f（eval.thresholds.regression；超带判 IMPROVED/REGRESSED，带内判 STABLE）%n",
             tolerance));

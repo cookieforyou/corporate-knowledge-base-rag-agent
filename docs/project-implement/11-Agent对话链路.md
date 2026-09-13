@@ -2,19 +2,19 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-08 · v2.115（簇⑥ 体验补强四：kb_session.mode 会话链路归属——历史会话恢复对应链路 tab，§11.7）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-08 · v2.115（Phase5簇⑥ 体验补强四：kb_session.mode 会话链路归属——历史会话恢复对应链路 tab，§11.7）
 >
-> **v2.108（2026-09-07，簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
+> **v2.108（2026-09-07，Phase5簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
-> **v2.107（2026-09-06，簇⑤ 收官注记① 二轮：任务边界纪律升程序式两分支 + 末尾重申）**：v2.106 复验实证否定式禁令被无视——同会话连发两任务（例6→例7 形态），第二问仍全套重做旧任务（旧任务检索+委派+report-writer，审计 id=460 五连委派实证），最终答案开篇「我将分别委派两个知识检索任务」= 模型心智是「会话=任务清单累积」（新消息为第二项任务追加），不认为自己在「参照历史」——「不参照/不重复」类否定式禁令无从生效（v2.105「prompt 纪律是概率性约束」在多轮历史场景复现）。修复 = 程序式两分支（先判断当前消息是否明确引用历史产物→引用则在历史基础上继续 / 未引用即独立新任务只处理当前消息，历史已交付产物不重新检索/委派/呈现——剥壳判据同款「先判断→按分支行动」形态）+ 委派纪律第 7 条末尾重申（system prompt 结尾注意力位：「此前轮次的任务均已交付完毕，与新一轮无关」）。契约锚点同步换钉。详 §11.5.5 补注。
+> **v2.107（2026-09-06，Phase5簇⑤ 收官注记① 二轮：任务边界纪律升程序式两分支 + 末尾重申）**：v2.106 复验实证否定式禁令被无视——同会话连发两任务（例6→例7 形态），第二问仍全套重做旧任务（旧任务检索+委派+report-writer，审计 id=460 五连委派实证），最终答案开篇「我将分别委派两个知识检索任务」= 模型心智是「会话=任务清单累积」（新消息为第二项任务追加），不认为自己在「参照历史」——「不参照/不重复」类否定式禁令无从生效（v2.105「prompt 纪律是概率性约束」在多轮历史场景复现）。修复 = 程序式两分支（先判断当前消息是否明确引用历史产物→引用则在历史基础上继续 / 未引用即独立新任务只处理当前消息，历史已交付产物不重新检索/委派/呈现——剥壳判据同款「先判断→按分支行动」形态）+ 委派纪律第 7 条末尾重申（system prompt 结尾注意力位：「此前轮次的任务均已交付完毕，与新一轮无关」）。契约锚点同步换钉。详 §11.5.5 补注。
 >
-> **v2.106（2026-09-06，簇⑤ 收官注记① 改进落地：主 Agent 任务边界纪律）**：E2E 收官读数中例6/7、例8/9 同会话连发两任务，主 Agent 被 Memory(400) 注入的历史委派过程带偏——对独立新任务仍把上一任务纳入委派计划（重做旧任务 + 多余 report-writer，核心答案虽正确但委派冗余、耗时翻倍）。修复 = 主 Agent system prompt 委派纪律前置「任务边界」段：每轮以当前用户消息为唯一任务来源，历史轮次仅用于理解指代与延续（「对刚才的报告再补充一节」类多轮价值保留），已完成任务不重复执行/委派，独立新任务不参照历史委派过程与结论——与热修四同款纯 prompt 文本面 + 契约测试钉锚点（PromptTemplatesTest +1）。多轮互通设计特性（跨 mode 同 sessionId 历史共享）不变。详 §11.5.5 补注。
+> **v2.106（2026-09-06，Phase5簇⑤ 收官注记① 改进落地：主 Agent 任务边界纪律）**：E2E 收官读数中例6/7、例8/9 同会话连发两任务，主 Agent 被 Memory(400) 注入的历史委派过程带偏——对独立新任务仍把上一任务纳入委派计划（重做旧任务 + 多余 report-writer，核心答案虽正确但委派冗余、耗时翻倍）。修复 = 主 Agent system prompt 委派纪律前置「任务边界」段：每轮以当前用户消息为唯一任务来源，历史轮次仅用于理解指代与延续（「对刚才的报告再补充一节」类多轮价值保留），已完成任务不重复执行/委派，独立新任务不参照历史委派过程与结论——与热修四同款纯 prompt 文本面 + 契约测试钉锚点（PromptTemplatesTest +1）。多轮互通设计特性（跨 mode 同 sessionId 历史共享）不变。详 §11.5.5 补注。
 >
-> **v2.105（2026-09-06，簇⑤ E2E 热修五：载荷滚胀型不收敛 + 审计快照膨胀 + 输出护栏误伤三联治理）**：热修四收敛纪律生效一半（主 Agent 超时后确已「缩小范围重述」再委派，委派②③④⑤全 EXECUTED），但 knowledge-searcher 单委派仍检索失控（40+ 次/2 分钟），且暴露三新事实：① **prompt 纪律对膨胀上下文无效**——每次检索返回 5 条全文命中（数百-2000 字/条），40 轮滚胀至数十万 token 后指令被淹没，flash 不读 system prompt 只顾继续调工具，委派①撞 60s 超时（非打断式弃任务仍在后台继续检索直至自灭）；② **审计快照结构性膨胀**——子代理检索直写主请求 RetrievalContext trace，审计行 retrieved_chunks 累积 883 条（唯一 chunk 仅 43，重复率 95%）；③ **输出护栏误伤**——主 Agent 综合的好答案被输出侧词表 import-out-09（BUSINESS_CONFIDENTIAL, BLOCK）整段替换为 22 字拒答（知识面即保密制度文档，输出天然高密度敏感词面；词表运营项非代码缺陷，用户侧第五 Tab 处置）。修复 = searchKnowledge **载荷截断**（每条正文 `max-chars` 缺省 400，高频检索 = 摘要级载荷，全文经 getDocument 深读）+ **检索预算闸**（`max-searches` 缺省 6 次/请求，跨委派与超时弃任务同计数——弃任务检索时预算尽即收到停止提示自然了断；返回 SearchOutcome{hits, note}，note 始终携带剩余次数、预算尽时携带停止指令）+ **trace 隔离**（检索管线喂仅拷贝租户身份的隔离 ctx，主请求 trace/rewritten_query 零污染；溯源改经 `search:knowledge` ToolCall 快照承载，query 摘要入审计 tool_calls——agent 链检索溯源语义反而增强）；getDocument 同步记 `get:document` 审计条目。详 §11.5.5 补注。
+> **v2.105（2026-09-06，安全簇⑤ E2E 热修五：载荷滚胀型不收敛 + 审计快照膨胀 + 输出护栏误伤三联治理）**：热修四收敛纪律生效一半（主 Agent 超时后确已「缩小范围重述」再委派，委派②③④⑤全 EXECUTED），但 knowledge-searcher 单委派仍检索失控（40+ 次/2 分钟），且暴露三新事实：① **prompt 纪律对膨胀上下文无效**——每次检索返回 5 条全文命中（数百-2000 字/条），40 轮滚胀至数十万 token 后指令被淹没，flash 不读 system prompt 只顾继续调工具，委派①撞 60s 超时（非打断式弃任务仍在后台继续检索直至自灭）；② **审计快照结构性膨胀**——子代理检索直写主请求 RetrievalContext trace，审计行 retrieved_chunks 累积 883 条（唯一 chunk 仅 43，重复率 95%）；③ **输出护栏误伤**——主 Agent 综合的好答案被输出侧词表 import-out-09（BUSINESS_CONFIDENTIAL, BLOCK）整段替换为 22 字拒答（知识面即保密制度文档，输出天然高密度敏感词面；词表运营项非代码缺陷，用户侧第五 Tab 处置）。修复 = searchKnowledge **载荷截断**（每条正文 `max-chars` 缺省 400，高频检索 = 摘要级载荷，全文经 getDocument 深读）+ **检索预算闸**（`max-searches` 缺省 6 次/请求，跨委派与超时弃任务同计数——弃任务检索时预算尽即收到停止提示自然了断；返回 SearchOutcome{hits, note}，note 始终携带剩余次数、预算尽时携带停止指令）+ **trace 隔离**（检索管线喂仅拷贝租户身份的隔离 ctx，主请求 trace/rewritten_query 零污染；溯源改经 `search:knowledge` ToolCall 快照承载，query 摘要入审计 tool_calls——agent 链检索溯源语义反而增强）；getDocument 同步记 `get:document` 审计条目。详 §11.5.5 补注。
 >
-> **v2.104（2026-09-05，簇⑤ E2E 热修四：编排链演示首跑挂死治敛）**：mode=agent 首条演示任务 3.5 分钟无回答且检索日志持续输出。根因三层——① 子代理工具循环无收敛纪律：knowledge-searcher（qwen3.8-flash）单次委派内对同一要点反复换词调 searchKnowledge 达 15 次（每次 2.5-4s = flash 决策 + 改写 LLM + 检索 ~0.7s + 重排），全文命中 ×5 条/次滚胀上下文加剧不收敛，最终撞 60s 委派超时；② 主 Agent 委派纪律第 4 条「可重试一次」被字面执行——超时后原样重发同一委派必然再超时，循环无出口；③ 无委派总预算硬闸。修复三层 = knowledge-searcher system prompt 补检索收敛纪律（1-3 次即归纳、禁同义反复检索）+ 主 Agent 纪律第 4 条改「不得原样重发、须大幅缩小范围」并新增第 5 条总次数预算 + TaskTool 委派预算硬闸（`rag.orchestrator.max-delegations` 缺省 6，按快照 `task:*` 记录计数，超限文本拒绝并要求立即综合作答，拒绝事件入快照可审计）。详 §11.5.5 补注。
+> **v2.104（2026-09-05，安全簇⑤ E2E 热修四：编排链演示首跑挂死治敛）**：mode=agent 首条演示任务 3.5 分钟无回答且检索日志持续输出。根因三层——① 子代理工具循环无收敛纪律：knowledge-searcher（qwen3.8-flash）单次委派内对同一要点反复换词调 searchKnowledge 达 15 次（每次 2.5-4s = flash 决策 + 改写 LLM + 检索 ~0.7s + 重排），全文命中 ×5 条/次滚胀上下文加剧不收敛，最终撞 60s 委派超时；② 主 Agent 委派纪律第 4 条「可重试一次」被字面执行——超时后原样重发同一委派必然再超时，循环无出口；③ 无委派总预算硬闸。修复三层 = knowledge-searcher system prompt 补检索收敛纪律（1-3 次即归纳、禁同义反复检索）+ 主 Agent 纪律第 4 条改「不得原样重发、须大幅缩小范围」并新增第 5 条总次数预算 + TaskTool 委派预算硬闸（`rag.orchestrator.max-delegations` 缺省 6，按快照 `task:*` 记录计数，超限文本拒绝并要求立即综合作答，拒绝事件入快照可审计）。详 §11.5.5 补注。
 >
-> **v2.103（2026-09-05，簇⑤ E2E 热修一：坑位㊺）**：`RAG_ORCHESTRATOR_ENABLED=true` 首次完整启动暴露容器内 `ExecutorService` Bean 歧义——`orchestratorSubAgentExecutor`（条件装配）入场后该类型 Bean 不再唯一，`HybridDocumentRetriever` 构造注入与 `taskTool` 装配参数按类型解析即 `found 2` 启动失败（IDEA 编译无 `-parameters` 时按名消歧亦失效；Maven 产物带参数名故单测/构建不炸——掩盖不豁免）。修复 = 两消费点显式 `@Qualifier` + 反射契约测试防回退（「多 ChatClient Bean 注入点显式 @Qualifier」纪律的 ExecutorService 族延伸）；详 19 章附录 E ㊺。
+> **v2.103（2026-09-05，安全簇⑤ E2E 热修一：坑位㊺）**：`RAG_ORCHESTRATOR_ENABLED=true` 首次完整启动暴露容器内 `ExecutorService` Bean 歧义——`orchestratorSubAgentExecutor`（条件装配）入场后该类型 Bean 不再唯一，`HybridDocumentRetriever` 构造注入与 `taskTool` 装配参数按类型解析即 `found 2` 启动失败（IDEA 编译无 `-parameters` 时按名消歧亦失效；Maven 产物带参数名故单测/构建不炸——掩盖不豁免）。修复 = 两消费点显式 `@Qualifier` + 反射契约测试防回退（「多 ChatClient Bean 注入点显式 @Qualifier」纪律的 ExecutorService 族延伸）；详 19 章附录 E ㊺。
 >
 > **v2.98（2026-09-03，依赖升级批三段：坑位㊹ 纠偏——记忆配置段误挂从未生效）**：用户审阅 yml 目击发现——会话记忆配置段（application-ai.yml）自 **3.1 落地起误挂 `spring.ai.tools:` 节点下**（实际路径 `spring.ai.tools.memory.*`，正确为 `spring.ai.chat.memory.*`；`chat:` 与 `tools:` 平级、当年插段锚错父节点），Binder 从未命中且无任何报错；运行实态一直是框架缺省值（索引 `chat-memory-idx` / 键前缀 `chat-memory:` / **无 TTL**——`time-to-live: 24h` 意图从未生效），`initialize-schema` 缺省 true 恰与配置意图一致故长期未暴露。kb-eval 侧独立成段挂载正确（其 `initialize-schema: false` 一直生效，kb-eval 零 Redis 依赖不受影响）。v2.96 前缀迁移时只沿错误位置插 `repository` 层未纠挂载点。**纠偏**：移段至 `chat:` 节点下。**配置首次生效的行为变化**：① 首建新索引 `kb-chat-memory-idx` + 新键前缀 `kb:chat-memory:`——历史热记忆留在旧索引不迁移（多轮上下文经 PG 归档 + 续聊回填机制自然接住，影响≈0；热记忆本为 TTL 易失语义）；② TTL 24h 首次生效（旧键永不过期）；③ 旧索引 `chat-memory-idx` 与无 TTL 旧键成孤儿（建议 `FT.DROPINDEX` + 键清理，运维可选）。教训入坑位㊹：多节点平级的 yml 插段必须核父级链缩进，「配置写了」≠「配置生效」。kb-ai-core 310 测试绿。
 >
@@ -26,13 +26,13 @@
 >
 > **v2.76（2026-09-01，辅助模型换代）**：备用模型 qwen3.7-plus → qwen3.8-flash（§11.2.2）——百炼 OpenAI 兼容端点 / DASHSCOPE_API_KEY / enable_thinking=false 机制不变，仅模型名切换；`rag.routing.fallback.model` 缺省与 L2 二判载体（§12.11）、Judge 基座（16 章 v2.90）同批换代。接管质量从 plus 档降为 flash 档属成本/质量取舍（故障接管瞬态场景可接受）；门禁基线 md1-final-2 的 L2 力判即经 qwen3.8-flash 备用链（快照实证），读数连续。
 >
-> **v2.75（2026-08-26，Phase 5 簇③ 5.6 E2E 热修二）**：用户侧失效演练实证暴露
+> **v2.75（2026-08-26，Phase5簇③ 5.6 E2E 热修二）**：用户侧失效演练实证暴露
 > **坑位㉟**——`invalidateByDocument` 的 TAG 反查 `@docIds:{…}` 直接嵌入原始值，
 > RediSearch TAG 表达式内 `-` 具否定符语法含义，文档引用为 UUID 形态（含连字符）
 > 即「Syntax error at offset N near …」，按文档失效失败回落（TTL 兜底仍生效）→
 > 查询侧 `escapeTagValue` 逐字符反斜杠转义（存储侧原值不动，§11.9 热修二段）。
 >
-> **v2.74（2026-08-25，Phase 5 簇③ 5.6 E2E 热修）**：用户侧簇③-E2E 首跑实证暴露
+> **v2.74（2026-08-25，Phase5簇③ 5.6 E2E 热修）**：用户侧Phase5簇③-E2E 首跑	实证暴露
 > 批1 两处缺口并修复（§11.9 末「E2E 热修」段）：① **坑位㉝**——Redisson 4.6.1
 > `hasIndex` 经 Lua 包裹 `FT.INFO` 判存在，仅错误文案匹配 "not found"/"no such
 > index" 判不存在；Redis Stack / RediSearch 对不存在索引返回 "Unknown index
@@ -41,7 +41,7 @@
 > 缺 Bean 注册致启用态启动失败（**坑位㉞**）→ 补 `@Component`（同
 > `ParsingProperties` 先例）。
 >
-> **v2.73（2026-08-25，Phase 5 簇③ 5.6 批3：N1 定案收口）**：新增 §11.10——供应商侧
+> **v2.73（2026-08-25，Phase5簇③ 5.6 批3：N1 定案收口）**：新增 §11.10——供应商侧
 > Context Cache（N1，复审定案纳入项）按 2026-08-24 用户裁决**收窄为 DeepSeek 侧**：
 > 官方契约核验（磁盘级前缀缓存默认开启零代码、命中 ≈10% 计费、官方最小前缀 64
 > tokens、V4-Flash 社区实测 256 门槛待官方确认）+ 主链固定前缀体量实测（单轮 =
@@ -50,9 +50,9 @@
 > Usage 映射不携带 `prompt_cache_hit_tokens`——应用层不新增映射耦合，观测面 =
 > E2E 直调对照 + DeepSeek 控制台账单）+ 前缀稳定性纪律（Prompt Git Ops 天然契合；
 > canary 每进程随机 → 重启重建一次缓存）；百炼侧留口（支持清单不含 qwen3 系列，
-> 备用/评估链无缓存，触发条件登记）。簇③（5.6 + N1）机器侧闭环，用户侧 E2E 待回传。
+> 备用/评估链无缓存，触发条件登记）。Phase5簇③（5.6 + N1）机器侧闭环，用户侧 E2E 待回传。
 >
-> **v2.72（2026-08-25，Phase 5 簇③ 5.6 批2：链序接线与事件失效）**：§11.9 扩充批2
+> **v2.72（2026-08-25，Phase5簇③ 5.6 批2：链序接线与事件失效）**：§11.9 扩充批2
 > 落地 + §11.5.1 链序表 460 插入——`CacheCheckAdvisor`（kb-ai-core/cache，直实现
 > CallAdvisor+StreamAdvisor，同 RetrievalGateAdvisor 门控形态）挂 rag 链
 > 路由(440)/溯源(450)之后、门控(500)之前：命中短路重放（缓存回答单帧下发 + 溯源载荷
@@ -64,7 +64,7 @@
 > ReindexGateway 委派 reparse 同路径，不重复接线）；`@ConditionalOnProperty` 条件
 > 装配 + 消费方 `ObjectProvider` 容忍（关闭态链形态零变化）；全反应器 817 单测绿（+25）。
 >
-> **v2.71（2026-08-24，Phase 5 簇③ 5.6 批1：语义缓存核心）**：新增 §11.9——
+> **v2.71（2026-08-24，Phase5簇③ 5.6 批1：语义缓存核心）**：新增 §11.9——
 > 查询级语义缓存 `SemanticCacheService`（kb-ai-core/cache）：Redis 8 内建查询引擎
 > （FT.* VECTOR HNSW/COSINE，GA 起合入开源核心）经项目既有 Redisson `RSearch`
 > 类型化 API 消费（复审定案否决 Spring AI redis 向量存储模块——底层 Jedis 与
@@ -93,9 +93,9 @@
 > **v2.17 历史会话列表与恢复（2026-08-09，3.15 清单缺口补齐）**：新增 §11.7——归档时写 kb_message.citations（预留列启用，SSE TRACE 同形载荷，[ref-N] 对齐契约天然保持）；会话三端点（列表/消息/删除，tenant+user 双过滤 fail-closed，附录 C `/api/v1/agent/*` 锚点落地为扁平路径）；过期会话续聊记忆回填（chat 入口前置，PG 重建窗口 + SETNX 单发守卫 + fail-open）；前端对话页内可收起会话栏，历史消息复用现有渲染/溯源/反馈链路。
 > **v2.17.1（2026-08-09，E2E 修复）**：删除带反馈会话外键违例——kb_feedback.message_id 无级联，删除会话须同事务先清反馈（§11.7.2 DELETE 行）。
 >
-> **v2.61（2026-08-22，Phase 4 簇⑦ 批2——4.8 Prompt Git Ops 专类收编）**：对话链全部 Prompt 模板收编至单一事实源 `com.enterprise.kb.ai.prompt.PromptTemplates`（kb-ai-core，9 条：GROUNDING_PROMPT / INDIRECT_WARNING_NOTE / EMPTY_CONTEXT_PROMPT / HISTORY_REWRITE_PROMPT / INTENT_CLASSIFIER_PROMPT / INJECTION_JUDGE_PROMPT / RAG_SYSTEM_PROMPT / EVAL_SYSTEM_PROMPT / TOOL_SYSTEM_PROMPT）——原散落 6 处常量（RetrievalConfig ×3 + QueryRoutingAdvisor + SemanticInjectionAdvisor 分类器 + ChatConfig/Rag/Tool 三处 defaultSystem）全部改引用；解析链语境增强模板收编于 `com.enterprise.kb.etl.prompt.PromptTemplates`（kb-etl 不依赖 kb-ai-core 的架构约束，用户定案每模块一专类）；kb-eval Judge Prompt 既有 `JudgePrompts` 专类形态零改动。**Git Ops 纪律**：模板增删改一律经专类，`git log` 即版本史，消费方禁内联（PromptTemplatesTest / RetrievalConfigContextFormatTest 契约钉死）。外部化配置率 100% 达成（第 18 章验收，18.2 注记同步）。
+> **v2.61（2026-08-22，Phase4簇⑦ 批2——4.8 Prompt Git Ops 专类收编）**：对话链全部 Prompt 模板收编至单一事实源 `com.enterprise.kb.ai.prompt.PromptTemplates`（kb-ai-core，9 条：GROUNDING_PROMPT / INDIRECT_WARNING_NOTE / EMPTY_CONTEXT_PROMPT / HISTORY_REWRITE_PROMPT / INTENT_CLASSIFIER_PROMPT / INJECTION_JUDGE_PROMPT / RAG_SYSTEM_PROMPT / EVAL_SYSTEM_PROMPT / TOOL_SYSTEM_PROMPT）——原散落 6 处常量（RetrievalConfig ×3 + QueryRoutingAdvisor + SemanticInjectionAdvisor 分类器 + ChatConfig/Rag/Tool 三处 defaultSystem）全部改引用；解析链语境增强模板收编于 `com.enterprise.kb.etl.prompt.PromptTemplates`（kb-etl 不依赖 kb-ai-core 的架构约束，用户定案每模块一专类）；kb-eval Judge Prompt 既有 `JudgePrompts` 专类形态零改动。**Git Ops 纪律**：模板增删改一律经专类，`git log` 即版本史，消费方禁内联（PromptTemplatesTest / RetrievalConfigContextFormatTest 契约钉死）。外部化配置率 100% 达成（第 18 章验收，18.2 注记同步）。
 >
-> **v2.111（2026-09-07，簇⑥ E2E 体验批3：三链路进度推送）**：编排链长任务
+> **v2.111（2026-09-07，Phase5簇⑥ E2E 体验批3：三链路进度推送）**：编排链长任务
 > （1-2 分钟）工具循环内零 token 输出、TOOL_CALL 帧流末投影——前端全程只有闪动
 > 光标；rag 链检索前置期（路由/改写/检索/重排，数秒-十余秒）同样静默。落地
 > **ctx 参数链进度通道**（「请求状态传递只用参数链」纪律延伸）：RetrievalContext
@@ -117,7 +117,7 @@
 > 唯一订阅（冷流重复订阅 = 二次 LLM 调用）。前端：流中卡片实时渲染
 > （`streamToolCalls`）+ 进度行（PROGRESS，token 到达后让位正文）。
 
-> **v2.115（2026-09-08，簇⑥ 体验补强四：会话链路归属——历史会话恢复对应链路 tab）**：
+> **v2.115（2026-09-08，Phase5簇⑥ 体验补强四：会话链路归属——历史会话恢复对应链路 tab）**：
 > 用户反馈：三链路会话回显恒显第一个 tab（rag）——会话的链路归属只落
 > kb_audit_log.mode（审计视角表，§11.7.1 已定谳不当产品读取事实源），
 > kb_session 无此列，前端 `openHistory` 无从得知会话属哪条链路。修复 =
@@ -133,7 +133,7 @@
 > 会话级非消息级；会话列表无法展示）。ddl-auto=validate：V3 迁移 + schema.sql
 > 双源同步，用户侧重启即 Flyway 自动执行。§11.7.1 补注。
 
-> **v2.114（2026-09-07，簇⑥ 体验批3 补强三：进度行常驻至流结束）**：
+> **v2.114（2026-09-07，Phase5簇⑥ 体验批3 补强三：进度行常驻至流结束）**：
 > 补强二复验通过（检索/读档卡片逐次出现）后用户再反馈：编排链**进度行被
 > 吞没**——批3 前端让位条件 `v-if="progressText && !streamText"` 假设
 > 「token 到达 = 正文开始 = 进度让位」，该假设仅在 rag 链成立；编排链主
@@ -147,7 +147,7 @@
 > （progressText 恒空）零影响。统一行为无 mode 特判。纯前端一行改动
 > （vue-tsc 零错）。
 
-> **v2.113（2026-09-07，簇⑥ 体验批3 补强二：检索/读档卡片逐次实时推送）**：
+> **v2.113（2026-09-07，Phase5簇⑥ 体验批3 补强二：检索/读档卡片逐次实时推送）**：
 > v2.112 复验通过（进度行随委派轮转生效）后用户再反馈：委派内多次
 > `search:knowledge` 的**卡片**不是随各自检索完成逐次出现，而是在「知识检索
 > x/6」最后一次结束后**一齐涌出**——根因：批3 的 TOOL_CALL 快照推送只挂在
@@ -161,7 +161,7 @@
 > 每次检索 +1 快照帧（全量快照幂等，前端整替逻辑零改动）。
 > KnowledgeSearchToolsTest +2（检索逐次推送/读档推送）。
 
-> **v2.112（2026-09-07，簇⑥ 体验批3 补强：委派阶段进度事件）**：三批 E2E
+> **v2.112（2026-09-07，Phase5簇⑥ 体验批3 补强：委派阶段进度事件）**：三批 E2E
 > 统一验证通过后用户反馈显示歧义——编排链进度行「知识检索 x/6 次：…」的
 > **进行时文案**在后续委派（如 task:report-writer）执行期间停留显示至流末
 > （该子代理无检索事件，进度行无新事件覆盖），用户看似「仍在检索」。
@@ -173,7 +173,7 @@
 > 预算拒绝分支不补（文本拒绝后主 Agent 立即综合作答）。TaskToolTest
 > 快照双推用例改按事件 kind 维度过滤断言（+2 阶段事件）。
 
-> **v2.110（2026-09-07，簇⑥ E2E 体验批2：toolCalls 归档回显）**：rag 链溯源经
+> **v2.110（2026-09-07，Phase5簇⑥ E2E 体验批2：toolCalls 归档回显）**：rag 链溯源经
 > kb_message.citations 历史回显，而 tool/agent 链的委派/审批卡片（toolCalls）从未
 > 落库——离开会话重进即丢失。修复：**零 DDL**——`archiveTurn` 增 toolCalls 参数
 > （与 SSE TOOL_CALL 帧/同步响应 toolCalls **三消费面同形投影** `toToolCallInfos`），
@@ -184,7 +184,7 @@
 > （task:* 记录）与 tool 链 HITL 挂起态（PENDING_APPROVAL + approvalId）均回显；
 > rag 链恒空、存量消息 null。§11.7.1 补段。
 >
-> **v2.109（2026-09-07，簇⑥ E2E 体验批1：SSE REPLACE 追回事件）**：输出护栏
+> **v2.109（2026-09-07，Phase5簇⑥ E2E 体验批1：SSE REPLACE 追回事件）**：输出护栏
 > `OutputGuardrailAdvisor` 流式改增量放行（12 章 v2.102：逐块判定 + 尾部保留窗 +
 > 命中吞块截断）后，命中点前的**合规前缀已流至前端**——本批补追回协议：Controller
 > 流末检查 `RetrievalContext.outputReplaced` 标记，在 TOOL_CALL/TRACE 之前下发
@@ -558,7 +558,7 @@ ToolCallingAdvisor.builder()
 > `OpenAiChatModel.builder()` 不继承——builder 显式
 > `.observationRegistry(...)`（ObjectProvider + NOOP 兜底）后恢复。
 
-> **v2.19 修正（2026-08-11，簇③ D1 主模型装配切换 + 流式计账）**：
+> **v2.19 修正（2026-08-11，冲刺簇③ D1 主模型装配切换 + 流式计账）**：
 > ① **缘由**——deepseek starter 的 `DeepSeekApi.ChatCompletionRequest` record
 > 无 `stream_options` 字段、`DeepSeekChatOptions` 无 streamUsage（2.0.0 jar
 > 字节码核验），无法开启 include_usage，流式消耗系统性漏算（配额账本 + 审计
@@ -821,11 +821,11 @@ kb-eval 只依赖 kb-ai-core 不受影响。
 |---|---|---|---|---|
 | `ragAgentChatClient` | kb-ai-core | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→**QueryRouting(440)**→Trace(450)→**CacheCheck(460，条件挂载)**→**RetrievalGate(500，内包 RetrievalAugmentationAdvisor)** | 无 | 知识问基于参考资料回答 / 寒暄元问题自然直答（v2.13 双形态） |
 | `toolAgentChatClient` | kb-ai-agent | Audit(10)→TokenBudget(30)→RateLimit(100)→OutputGuardrail(110)→InputSanitize(300)→**SemanticInjection(320)**→Memory(400)→ToolCallingAdvisor(1000) | `enterpriseMockTools` | 调用企业内部工具完成事务 |
-| `orchestratorChatClient`（簇⑤ 5.3，v2.102） | kb-ai-agent | 与 tool 链同构（复用 `agentToolCallingAdvisor`(1000) Bean），条件装配 `rag.orchestrator.enabled=true`；**TaskBoundary(420，v2.108 消息层任务边界注记，随 `memory-enabled` 在场)** | `taskTool`（唯一，§11.5.5） | 任务编排：分析分解 → task 委派子代理 → 综合作答 |
+| `orchestratorChatClient`（Phase5簇⑤ 5.3，v2.102） | kb-ai-agent | 与 tool 链同构（复用 `agentToolCallingAdvisor`(1000) Bean），条件装配 `rag.orchestrator.enabled=true`；**TaskBoundary(420，v2.108 消息层任务边界注记，随 `memory-enabled` 在场)** | `taskTool`（唯一，§11.5.5） | 任务编排：分析分解 → task 委派子代理 → 综合作答 |
 
 > v2.13 链序变更：440 插入 QueryRoutingAdvisor（意图分类），500 位由 RetrievalGateAdvisor 承接（组合式包裹原 RetrievalAugmentationAdvisor，skipRetrieval 时旁路整套 RAG 管线，见 §11.4 v2.13 注）。
 > v2.47 链序变更（安全簇⑤）：320 插入 SemanticInjectionAdvisor（L2 语义判定，12 章 §12.11）——L1 词表快筛之后、记忆之前，REGEX 可疑且干词未命中请求经备用模型二判，拒绝内容不入多轮记忆仓储。
-> v2.72 链序变更（簇③ 批2）：460 插入 CacheCheckAdvisor（语义缓存，§11.9）——路由后门控前：闲聊先分流免误命中、记忆已并便单轮判定，命中旁路 Gate(500)/改写/双路检索/RRF/重排/生成全套重放缓存回答与溯源；`rag.cache.enabled=false`（缺省）时 Bean 缺位经 ObjectProvider 容忍，链形态与变更前完全一致。
+> v2.72 链序变更（Phase5簇③ 批2）：460 插入 CacheCheckAdvisor（语义缓存，§11.9）——路由后门控前：闲聊先分流免误命中、记忆已并便单轮判定，命中旁路 Gate(500)/改写/双路检索/RRF/重排/生成全套重放缓存回答与溯源；`rag.cache.enabled=false`（缺省）时 Bean 缺位经 ObjectProvider 容忍，链形态与变更前完全一致。
 
 **共享基座（均留 kb-ai-core）**：smartRoutingChatModel（主备容灾两链同享）、
 agentChatMemory（同 sessionId 跨链历史互通——历史进 prompt 不进检索 query）、
@@ -869,7 +869,7 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 | RagChatService（chatRag/chatStreamRag） | kb-ai-core（原 ChatService） |
 | AgentController（mode 解析分发） | kb-api |
 
-### 11.5.5 Multi-Agent 编排链（簇⑤ 5.3 收窄版，v2.102）
+### 11.5.5 Multi-Agent 编排链（Phase5簇⑤ 5.3 收窄版，v2.102）
 
 > **定案（2026-09-05 用户拍板 D1-D6）**：Orchestrator-Workers 骨架以 **mode=agent
 > 第三链**形态落地——主 Agent 仅持 task 委派工具，子代理经 `SubAgentRegistry`
@@ -974,7 +974,7 @@ ToolChatService 组装——RagChatService 签名无 approvedToolCallId，不可
 **三 Mock 子代理（D2 定案差异化模型）**：knowledge-searcher / data-query 挂
 `fallbackChatModel`（qwen3.8-flash，轻任务挂备先例 v2.83），report-writer 挂
 `smartRoutingChatModel`（主答质量）；data-query 工具 = `EnterpriseMockReadTools`
-（簇⑤ 自 EnterpriseMockTools 拆类——2.0 defaultTools 为对象级全量挂载无方法级
+（Phase5簇⑤ 自 EnterpriseMockTools 拆类——2.0 defaultTools 为对象级全量挂载无方法级
 过滤，拆类是子代理仅挂读工具的物理隔离路径；tool 链 defaultTools 双挂读写，
 行为与拆分前等价）。
 
@@ -1076,14 +1076,14 @@ kb-eval 评估链不挂本 Advisor（评估流量不污染审计）。`rag.audit
 模糊匹配；audit chunks 形态 ≠ TRACE 三路形态，final 序列重建与 `[ref-N]` 对齐有风险；
 审计表有脱敏/降级缺口且是运维视角表，不当产品读取事实源。
 
-> **v2.110 补注（簇⑥ 体验批2）**：toolCalls（tool 链 HITL / agent 链编排委派记录）
+> **v2.110 补注（Phase5簇⑥ 体验批2）**：toolCalls（tool 链 HITL / agent 链编排委派记录）
 > 同轮归档——`archiveTurn` 第 9 参（SSE TOOL_CALL 帧/同步响应/归档**三消费面同形
 > 投影**）写入 metadata JSON `toolCalls` 键（citations 列保持纯溯源语义，**零 DDL**）；
 > `loadMessages` 经 readTree 取键反解 `HistoryMessageItem.toolCalls` 回传，前端
 > `toMessage` 映射复用 ToolCallCard 渲染链路。无键/解析失败降级 null（存量消息
 > 形态），rag 链恒空。
 >
-> **v2.115 补注（簇⑥ 体验补强四）**：会话链路归属 mode 随归档落 kb_session.mode
+> **v2.115 补注（Phase5簇⑥ 体验补强四）**：会话链路归属 mode 随归档落 kb_session.mode
 > （V3 列，`ensureSession` 首建写入不覆写）——列表 `SessionItem` 回传、前端打开
 > 会话恢复对应链路 tab（续聊即走该链路）、列表条目链路徽标；存量会话 NULL 降级
 > 不切。链路逐轮事实源仍是 kb_audit_log.mode（本列为会话归属快照，两表语义不同）。
@@ -1130,7 +1130,7 @@ kb_message.id、traceId/feedback 回显）经 `openSession` 整替 store，sessi
 历史消息与实时轮同一渲染链路——markdown 占位管线（v2.16）、溯源面板、原文对话框、
 反馈按钮全部复用；存量消息 citations=null → 无溯源面板（降级预期）。
 
-## 11.8 MCP Server 产品化（v2.37 新增，Phase 4 簇⑤ 4.10）
+## 11.8 MCP Server 产品化（v2.37 新增，Phase4簇⑤ 4.10）
 
 **定位**：企业知识底座对外 MCP 暴露面——Claude/Cursor/内部 Agent 多入口共享
 同一知识库（v2.29 复审最大变量 N1：MCP 为 2026 Agent 互操作事实标准 +
@@ -1209,7 +1209,7 @@ public class McpKnowledgeTools {
 }
 ```
 
-## 11.9 语义缓存（v2.71 新增，Phase 5 簇③ 5.6）
+## 11.9 语义缓存（v2.71 新增，Phase5簇③ 5.6）
 
 > **落地范围**：批1（2026-08-24）核心存取与失效（`SemanticCacheService`）+ 指标 +
 > 配置族；批2（2026-08-25）`CacheCheckAdvisor` 链序接线、写入侧质量守卫、事件驱动
@@ -1248,7 +1248,7 @@ warn；运行期任意异常 → fail-open 直通计 miss——缓存是优化�
 启用收真实流量——同 eval L2 / 间接注入缺省关族纪律；kb-eval 零影响。
 
 **指标（13.3 预留位启用）**：`rag.retrieval.cache.hit / miss / invalidated` 三计数
-（零标签纪律延续），命中率 = hit/(hit+miss)，对照 08 章簇③验收（>30% 真实流量
+（零标签纪律延续），命中率 = hit/(hit+miss)，对照 08 章Phase5簇③验收（>30% 真实流量
 + 命中延迟 P95 降 >40%，基线见 18 §18.4）。
 
 **批1 质量**：全反应器 795 单测绿（+18：命中判定/边界/确定性键/失效/探测降级/
@@ -1298,7 +1298,7 @@ reparse/replace/索引重建/**首次入库**（重建经 `ReindexGateway` 委�
 **批2 质量**：全反应器 817 单测绿（+25：资格五闸/命中重放/溯源往返保真/写入门槛/
 流完成与错误分支/失效频道发布订阅生命周期 + 写路径接线断言）。
 
-**E2E 热修（v2.74，2026-08-25）**——用户侧簇③-E2E 首跑暴露并修复批1 两处缺口：
+**E2E 热修（v2.74，2026-08-25）**——用户侧Phase5簇③-E2E 首跑	暴露并修复批1 两处缺口：
 ① **租户索引永不创建（坑位㉝）**——项目钉的 Redisson 4.6.1 `hasIndex` 经 Lua
 包裹 `FT.INFO` 判存在，仅当错误文案匹配 "not found"/"no such index" 返回不存在，
 否则原样上抛（源码级核验 `RedissonSearch#hasIndexAsync`）；而 ECS Redis Stack
@@ -1326,7 +1326,7 @@ v2.74）沉淀：RediSearch 查询面仅参数化查询（KNN `$BLOB` 经 PARAMS
 安全，手写 TAG/TEXT 查询串一律经转义函数。质量：全反应器单测绿（+2：UUID
 转义行为 / 转义函数契约）。
 
-## 11.10 供应商侧 Context Cache（v2.73 新增，Phase 5 簇③ 5.6 批3 / N1）
+## 11.10 供应商侧 Context Cache（v2.73 新增，Phase5簇③ 5.6 批3 / N1）
 
 > **范围裁决（2026-08-24 用户拍板）**：复审定案 N1 原含「DeepSeek 主链 + 百炼
 > 备用/评估链」双侧；实证百炼 Context Cache 支持清单**不含 qwen3 系列**（备用

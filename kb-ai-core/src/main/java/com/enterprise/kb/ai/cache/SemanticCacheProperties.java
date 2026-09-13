@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * 语义缓存配置族（前缀 rag.cache，Phase 5 簇③ 5.6）。
+ * 语义缓存配置族（前缀 rag.cache，Phase5簇③ 5.6）。
  *
  * <p>查询级语义缓存：相似问句命中后短路「检索 + 重排 + 生成」全链，直接重放缓存
  * 回答与溯源。载体 = Redis 8 内建查询引擎（FT.* VECTOR HNSW/COSINE，Redis 8 GA
@@ -18,7 +18,7 @@ import java.time.Duration;
  *
  * <p><b>缺省关纪律</b>：与 eval L2 / 间接注入评估同族——新能力默认关，用户侧
  * E2E 验证后按环境启用收真实流量（验收线：命中率 >30% + 命中延迟 P95 降 >40%，
- * 对照 18 §18.4 LT1 基线，08 章簇③验收）。
+ * 对照 18 §18.4 LT1 基线，08 章Phase5簇③验收）。
  *
  * <p><b>误命中风险控制（调研实证基线）</b>：企业问答场景生产阈值甜点区间
  * 余弦 0.90-0.95——缺省 0.95 保守起步，命中率不足时经配置下调观察，不做

@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Task 委派工具（簇⑤ 5.3，Spring AI Agentic Patterns Part 4 形态）——编排链唯一工具
+ * Task 委派工具（Phase5簇⑤ 5.3，Spring AI Agentic Patterns Part 4 形态）——编排链唯一工具
  *
  * <p>主 Agent 经本工具将子任务委派给专职子代理：子代理在隔离上下文执行
  * （独立 system prompt / 工具集 / 模型，不挂主会话记忆），结果以文本回流
@@ -80,7 +80,7 @@ public class TaskTool {
                 + "请立即基于已获得的子代理结果综合作答，缺失部分如实说明。";
         }
 
-        // 委派发起即推送 RUNNING 快照（簇⑥ 体验批3，TOOL_CALL 帧实时化）：
+        // 委派发起即推送 RUNNING 快照（Phase5簇⑥ 体验批3，TOOL_CALL 帧实时化）：
         // 预算闸计数含 RUNNING（「已发起」语义）；终态原地回写，流末恒全终态
         recordToolCall(retrievalContext, spec.name(), RetrievalContext.ToolCall.STATUS_RUNNING, description);
         if (retrievalContext != null) {
@@ -135,7 +135,7 @@ public class TaskTool {
             .count();
     }
 
-    /** 委派终态指标（rag.orchestrator.delegation / subagent.duration，簇⑤ 批2） */
+    /** 委派终态指标（rag.orchestrator.delegation / subagent.duration，Phase5簇⑤ 批2） */
     private void recordOutcome(String subAgentName, boolean success, long startNanos) {
         metrics.recordOrchestratorDelegation(subAgentName, success);
         metrics.recordOrchestratorSubAgentDuration(subAgentName,
@@ -171,7 +171,7 @@ public class TaskTool {
         }
     }
 
-    /** 委派终态（簇⑥ 体验批3）：RUNNING 原地回写终态 + 快照实时推送 + 阶段进度（完成态陈述，无进行时歧义） */
+    /** 委派终态（Phase5簇⑥ 体验批3）：RUNNING 原地回写终态 + 快照实时推送 + 阶段进度（完成态陈述，无进行时歧义） */
     private static void completeToolCall(RetrievalContext ctx, String subAgentName,
                                          String status, String summary) {
         if (ctx != null) {

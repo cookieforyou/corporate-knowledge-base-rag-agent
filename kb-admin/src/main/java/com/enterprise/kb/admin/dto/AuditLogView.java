@@ -5,7 +5,7 @@ import com.enterprise.kb.domain.model.KbAuditLog;
 import java.time.LocalDateTime;
 
 /**
- * 审计日志视图（Phase 4 簇④ 4.7）——运维查询端点载荷。
+ * 审计日志视图（Phase4簇④ 4.7）——运维查询端点载荷。
  *
  * <p>JSON 快照列（retrievedChunks/rerankedChunks/toolCalls/tokenUsage）原样透传
  * JSON 字符串，前端按需解析渲染（chunk_id/file_name/page_num/score 投影形态

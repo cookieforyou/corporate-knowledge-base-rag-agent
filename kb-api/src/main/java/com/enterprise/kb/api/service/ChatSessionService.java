@@ -96,12 +96,12 @@ public class ChatSessionService {
      * ID 保证 kb_feedback.message_id 外键可解析；缺省回落自生成（兼容既有调用形态）。
      *
      * <p><b>溯源载荷（v2.17）</b>：traceEvent 非空时序列化为 citations JSON
-     * （与 SSE TRACE 帧同形）。**工具调用记录（簇⑥ 体验批2）**：toolCalls 非空时
+     * （与 SSE TRACE 帧同形）。**工具调用记录（Phase5簇⑥ 体验批2）**：toolCalls 非空时
      * 经 metadata JSON 下沉（`{"traceId":…, "toolCalls":[…]}`，与 SSE TOOL_CALL 帧
      * 同形）——历史会话恢复时 tool/agent 链委派卡片可回显。序列化失败降级
      * null（溯源/委派是旁路增值数据，不击穿归档）。
      *
-     * <p><b>会话链路归属（簇⑥ E2E 补强四）</b>：mode 会话首建时写入 kb_session.mode
+     * <p><b>会话链路归属（Phase5簇⑥ E2E 补强四）</b>：mode 会话首建时写入 kb_session.mode
      * （首轮归属，已存在不覆写），会话列表回传供前端恢复对应链路 tab。
      */
     @Async(Constants.BeanNames.SESSION_ARCHIVE_EXECUTOR)
@@ -323,7 +323,7 @@ public class ChatSessionService {
             assistant ? toolCallsOf(m.getMetadata()) : null);
     }
 
-    /** metadata JSON → 工具调用记录（簇⑥ 体验批2）；null/无键/解析失败 → null（降级同存量数据形态） */
+    /** metadata JSON → 工具调用记录（Phase5簇⑥ 体验批2）；null/无键/解析失败 → null（降级同存量数据形态） */
     private List<AgentStreamEvent.ToolCallInfo> toolCallsOf(String metadata) {
         if (metadata == null || metadata.isBlank() || !metadata.contains("toolCalls")) {
             return null;

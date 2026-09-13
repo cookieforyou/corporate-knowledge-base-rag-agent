@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 图谱抽取配置族（簇④ 5.1，{@code rag.graph.extraction.*}，缺省值 = 保守形态）。
+ * 图谱抽取配置族（Phase5簇④ 5.1，{@code rag.graph.extraction.*}，缺省值 = 保守形态）。
  *
  * <p>与图谱域全族同条件装配（{@code rag.graph.enabled=true}）——关闭态 Bean 缺位，
  * 链形态零变化。缺省经 YAML 占位消费 {@code DASHSCOPE_API_KEY}（备用/评估链同源密钥，

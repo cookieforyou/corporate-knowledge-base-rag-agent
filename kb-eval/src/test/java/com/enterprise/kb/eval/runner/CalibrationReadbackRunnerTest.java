@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 校准打分表解析与 κ 报告单测（簇② 批2）——不启动 Spring 上下文，
+ * 校准打分表解析与 κ 报告单测（Phase5簇② 批2）——不启动 Spring 上下文，
  * 直接验证静态解析/统计层（回读器本体仅文件 IO 与落盘）
  */
 class CalibrationReadbackRunnerTest {

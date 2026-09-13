@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 多跳候选题草稿工具单测（簇④ 批4）——前置守卫 + 摘录装配 + 审定表渲染。
+ * 多跳候选题草稿工具单测（Phase5簇④ 批4）——前置守卫 + 摘录装配 + 审定表渲染。
  */
 class MultiHopDraftRunnerTest {
 

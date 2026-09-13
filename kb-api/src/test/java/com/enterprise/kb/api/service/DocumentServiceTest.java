@@ -51,7 +51,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * DocumentService 单测（簇⑥ C1 补零测盲区）：
+ * DocumentService 单测（优化冲刺簇⑥ C1 补零测盲区）：
  * 删除级联委派共享组件 + 重入库双端点（reparse/replace）状态守卫/租户守卫/失败语义。
  */
 class DocumentServiceTest {
@@ -82,7 +82,7 @@ class DocumentServiceTest {
         cacheInvalidationPublisher = publisherProvider(null);
         service = new DocumentService(minioClient, documentRepository, chunkRepository,
             etlService, progressWriter, chunkCleanupService, metrics, cacheInvalidationPublisher,
-            graphPublisherProvider(null), emptyGraphGatewayProvider(),   // 图谱抽取派发器缺省缺位（簇④，关闭态零变化）
+            graphPublisherProvider(null), emptyGraphGatewayProvider(),   // 图谱抽取派发器缺省缺位（Phase5簇④，关闭态零变化）
             new SyncTaskExecutor());   // 图清理异步旁路：单测同步直跑（verify 即时生效）
         // @Value 字段测试注入：MinIO args builder 在 build 时即校验 bucket 非空
         ReflectionTestUtils.setField(service, "bucket", "test-bucket");
@@ -108,7 +108,7 @@ class DocumentServiceTest {
         return c;
     }
 
-    // ── 删除级联（委派共享组件，簇⑥ C1）──
+    // ── 删除级联（委派共享组件，优化冲刺簇⑥ C1）──
 
     @Test
     void deleteDelegatesCascadeToSharedCleanupComponent() {
@@ -124,7 +124,7 @@ class DocumentServiceTest {
         verify(documentRepository).delete(document);
     }
 
-    /** 簇④ 批3：文档删除尽力清理图引用（网关故障不阻断删除主流程） */
+    /** Phase5簇④ 批3：文档删除尽力清理图引用（网关故障不阻断删除主流程） */
     @Test
     void deleteCleansGraphReferencesBestEffort() {
         GraphGateway gateway = mock(GraphGateway.class);
@@ -141,7 +141,7 @@ class DocumentServiceTest {
         verify(documentRepository).delete(document);
     }
 
-    /** 簇④ 批3：图清理故障不击穿删除（尽力而为语义） */
+    /** Phase5簇④ 批3：图清理故障不击穿删除（尽力而为语义） */
     @Test
     void deleteSucceedsEvenWhenGraphCleanupFails() {
         GraphGateway gateway = mock(GraphGateway.class);
@@ -209,7 +209,7 @@ class DocumentServiceTest {
     }
 
     /**
-     * 处理期（UPLOADING/PARSING/REINDEXING）禁删（簇⑥ C1 收尾）——防级联清理与
+     * 处理期（UPLOADING/PARSING/REINDEXING）禁删（优化冲刺簇⑥ C1 收尾）——防级联清理与
      * 在途 ETL 竞态、防重入库窗口误删；守卫在租户校验之后（不跨租户泄露状态）。
      */
     @ParameterizedTest
@@ -291,7 +291,7 @@ class DocumentServiceTest {
     }
 
     /**
-     * 终态 future 汇聚（簇③ 4.5 重建编排消费点）：ETL 进度回调 COMPLETED/FAILED
+     * 终态 future 汇聚（Phase4簇③ 4.5 重建编排消费点）：ETL 进度回调 COMPLETED/FAILED
      * 终态帧分别完成 future true/false——进度回调透传形态下捕获回调直接驱动。
      */
     @Test
@@ -313,7 +313,7 @@ class DocumentServiceTest {
     }
 
     /**
-     * 语义缓存失效接线（簇③ 5.6 批2）：重入库 ETL COMPLETED 终态帧发布按文档失效事件
+     * 语义缓存失效接线（Phase5簇③ 5.6 批2）：重入库 ETL COMPLETED 终态帧发布按文档失效事件
      * （覆盖 reparse/replace/重建；首次入库经 upload 侧独立接线，见下方回归守卫）；
      * FAILED 帧不发布。
      */
@@ -339,7 +339,7 @@ class DocumentServiceTest {
     }
 
     /**
-     * 首次入库终态帧旁路派发接线（簇④ 5.1 热修回归守卫）：upload COMPLETED 帧
+     * 首次入库终态帧旁路派发接线（Phase5簇④ 5.1 热修回归守卫）：upload COMPLETED 帧
      * 发布缓存失效 + 图谱抽取派发（与重入库回调同语义——批2 首接漏接此处，
      * 误以为首次入库亦经 reindexProgressCallback，实证 E2E 暴露）；
      * FAILED 帧不发布。
@@ -368,13 +368,13 @@ class DocumentServiceTest {
         verifyNoMoreInteractions(cachePublisher, graphPublisher);   // FAILED 帧零发布
     }
 
-    /** 图谱网关 provider 桩（簇④）：缺省缺位形态（关闭态零变化） */
+    /** 图谱网关 provider 桩（Phase5簇④）：缺省缺位形态（关闭态零变化） */
     @SuppressWarnings("unchecked")
     private static ObjectProvider<GraphGateway> emptyGraphGatewayProvider() {
         return mock(ObjectProvider.class);
     }
 
-    /** 图谱抽取派发器 provider 桩（簇④）：缺省缺位 = null 直传（关闭态零变化） */
+    /** 图谱抽取派发器 provider 桩（Phase5簇④）：缺省缺位 = null 直传（关闭态零变化） */
     @SuppressWarnings("unchecked")
     private static ObjectProvider<GraphExtractionPublisher> graphPublisherProvider(GraphExtractionPublisher publisher) {
         ObjectProvider<GraphExtractionPublisher> provider = mock(ObjectProvider.class);
@@ -533,7 +533,7 @@ class DocumentServiceTest {
         };
     }
 
-    // ── 上传格式白名单与类型映射（簇⑦ 4.14：PPTX/XLSX 扩容）──
+    // ── 上传格式白名单与类型映射（Phase4簇⑦ 4.14：PPTX/XLSX 扩容）──
 
     /** 白名单内类型放行（含 4.14 新增 PPTX/XLSX），类型映射落库正确 */
     @ParameterizedTest

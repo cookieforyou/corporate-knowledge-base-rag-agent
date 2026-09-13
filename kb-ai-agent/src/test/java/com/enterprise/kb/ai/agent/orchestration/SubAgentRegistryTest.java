@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 子代理注册表测试（簇⑤ 5.3）——注册/查找/清单渲染 + Spec 构造校验
+ * 子代理注册表测试（Phase5簇⑤ 5.3）——注册/查找/清单渲染 + Spec 构造校验
  */
 class SubAgentRegistryTest {
 

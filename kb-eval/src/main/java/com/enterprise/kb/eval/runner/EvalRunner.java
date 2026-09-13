@@ -50,15 +50,15 @@ public class EvalRunner {
     private final GoldenDatasetLoader datasetLoader;
     private final RetrievalProbe retrievalProbe;
     private final ChatClient chatClient;        // 被测链路
-    private final ChatModel chatModel;          // 被测基座（Noise Robustness 评估侧生成，簇② 5.8）
+    private final ChatModel chatModel;          // 被测基座（Noise Robustness 评估侧生成，Phase5簇② 5.8）
     private final ChatClient judgeChatClient;   // Judge（跨厂商，16.3）
-    private final TolerantJudgeScoreConverter judgeScoreConverter = new TolerantJudgeScoreConverter(); // judge 畸形输出剥壳容错（簇② md1-final，16 章 v2.87）
+    private final TolerantJudgeScoreConverter judgeScoreConverter = new TolerantJudgeScoreConverter(); // judge 畸形输出剥壳容错（Phase5簇② md1-final，16 章 v2.87）
 
-    private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（簇⑤ B2 S6）
+    private final ChatClient guardrailChatClient; // INJECTION 专属护栏链（冲刺簇⑤ B2 S6）
     private final ChatClient guardrailL2ChatClient; // INJECTION L1+L2 联合护栏链（安全簇⑤ E2）
-    private final IndirectInjectionRunner indirectInjectionRunner; // 间接注入评估（簇④ D3）
+    private final IndirectInjectionRunner indirectInjectionRunner; // 间接注入评估（安全簇④ D3）
     private final EvalProperties props;
-    private final JsonMapper jsonMapper;   // 机读快照序列化（簇② 5.9 批3，Jackson 3 命名空间，坑位⑬）
+    private final JsonMapper jsonMapper;   // 机读快照序列化（Phase5簇② 5.9 批3，Jackson 3 命名空间，坑位⑬）
     private final ApplicationArguments args;
 
     public EvalRunner(GoldenDatasetLoader datasetLoader,
@@ -101,8 +101,8 @@ public class EvalRunner {
     @EventListener(ApplicationReadyEvent.class)
     public void runOnStartup() {
         boolean ci = props.getCi().isEnabled();
-        // 工具模式不跑全量评估：标注辅助（簇④ A4）/ expectedAnswer 草稿与 κ 回读
-        // （簇② 批2）/ A/B 差异报表（簇② 批3，纯快照消费零计费）——
+        // 工具模式不跑全量评估：标注辅助（冲刺簇④ A4）/ expectedAnswer 草稿与 κ 回读
+        // （Phase5簇② 批2）/ A/B 差异报表（Phase5簇② 批3，纯快照消费零计费）——
         // 避免工具性启动白烧一整轮模型调用
         if (!ci && (args.containsOption("eval.annotate-query") || args.containsOption("eval.annotate-all")
                 || args.containsOption("eval.draft-answers") || args.containsOption("eval.calibration-readback")
@@ -134,9 +134,9 @@ public class EvalRunner {
     /**
      * 报告双通道发布：① stdout 直出（不依赖日志配置，CI 日志必可见）；
      * ② 落盘 target/eval-report{-label}.txt（本地可复查的历史产物；run-label 非空时
-     * 文件名带标签——簇④ E1 校准复跑与 A/B 快照各留独立文件，避免互覆）。
+     * 文件名带标签——冲刺簇④ E1 校准复跑与 A/B 快照各留独立文件，避免互覆）。
      *
-     * <p>簇② 5.9 批3：报告头加运行锚点（git hash + 提交时间 + 运行时刻），
+     * <p>Phase5簇② 5.9 批3：报告头加运行锚点（git hash + 提交时间 + 运行时刻），
      * 并同步落盘机读快照 target/eval-results{-label}.json（A/B diff 数据面，
      * {@code --eval.diff} 消费）。
      */
@@ -164,7 +164,7 @@ public class EvalRunner {
     }
 
     /**
-     * 运行锚点头（簇② 5.9 批3）：git 提交 + 工作区状态 + 运行时刻——
+     * 运行锚点头（Phase5簇② 5.9 批3）：git 提交 + 工作区状态 + 运行时刻——
      * A/B 双跑差异归因的代码形态回溯依据（Prompt Git Ops 4.8：prompt 版本即
      * git 版本）。工作区脏时哈希不能完全代表运行代码，显式 ⚠。
      */
@@ -187,7 +187,7 @@ public class EvalRunner {
     }
 
     /**
-     * 机读快照落盘（簇② 5.9 批3）：target/eval-results{-label}.json——
+     * 机读快照落盘（Phase5簇② 5.9 批3）：target/eval-results{-label}.json——
      * 锚点 + 运行配置 + 聚合 + 逐用例读数（内容盲，见 {@link EvalSnapshot}）。
      * 落盘失败不阻断评估（与报告落盘同容错等级）。
      */
@@ -265,7 +265,7 @@ public class EvalRunner {
     }
 
     /**
-     * 人类校准抽样表（簇④ E1 建基，簇② 批2 扩为五维校准通道；
+     * 人类校准抽样表（冲刺簇④ E1 建基，Phase5簇② 批2 扩为五维校准通道；
      * judge-agreement-sample > 0 时启用）：全量评估后按分类分层抽 N 条正向用例，
      * 落盘四通道——
      * <ul>
@@ -367,7 +367,7 @@ public class EvalRunner {
      * </ul>
      */
     String renderAgreementSheet(List<EvalResult> sampled) {
-        return renderSheet(sampled, "人类校准打分材料（簇② 5.8 批2）", true, true, true);
+        return renderSheet(sampled, "人类校准打分材料（Phase5簇② 5.8 批2）", true, true, true);
     }
 
     /**
@@ -499,7 +499,7 @@ public class EvalRunner {
     }
 
     /**
-     * 校准打分表渲染（填写面，簇② 批2）：长表，每行 = 用例 × 维度，
+     * 校准打分表渲染（填写面，Phase5簇② 批2）：长表，每行 = 用例 × 维度，
      * 列 = case_id,category,dimension,judge_value,human_a,human_b。
      * 维度行只在 Judge 产出该维读数时生成；HR 的 judge_value 为原始比率
      * （回读层二值化：>0 → YES）；CA 原样携带 NO_CITATION（回读层归并为
@@ -547,7 +547,7 @@ public class EvalRunner {
 
         warmupRetrieval();
 
-        // Noise Robustness 抽样映射（簇② 5.8）：正向用例按数据集顺序取前 N 条，
+        // Noise Robustness 抽样映射（Phase5簇② 5.8）：正向用例按数据集顺序取前 N 条，
         // 噪声问句 = 数据集内下一条用例的问题（循环取，确定性复跑可对照）
         Map<String, String> noiseQueries = noiseQueryMap(dataset);
 
@@ -602,7 +602,7 @@ public class EvalRunner {
     }
 
     private EvalResult evaluateOne(GoldenQAPair pair, String noiseQuery) {
-        // 0. 注入攻击用例（簇⑤ B2 S6）：确定性判定，零 Judge 零检索——走 eval 专属
+        // 0. 注入攻击用例（冲刺簇⑤ B2 S6）：确定性判定，零 Judge 零检索——走 eval 专属
         //    护栏链（仅 InputSanitizeAdvisor，无配额/审计 Advisor，免 429 污染与审计噪声）；
         //    捕获 PROMPT_INJECTION → BLOCKED，正常返回 → NOT_BLOCKED（答案丢弃）
         if (pair.isInjection()) {
@@ -618,7 +618,7 @@ public class EvalRunner {
         double mrr = RetrievalMetrics.reciprocalRank(hitIds, pair.expectedChunkIds());
         double precision = RetrievalMetrics.contextPrecision(hitIds, pair.expectedChunkIds());
 
-        // 2b. 文档级兜底指标（簇④ A4 修复）：file_name 匹配，跨重入库恒稳定——
+        // 2b. 文档级兜底指标（冲刺簇④ A4 修复）：file_name 匹配，跨重入库恒稳定——
         // chunk ID 失配（重入库换代/解析漂移）时的方向性度量；无 expectedDocs → NaN
         List<String> hitFileNames = hits.stream()
             .map(RetrievalProbe.ProbeHit::fileName)
@@ -660,7 +660,7 @@ public class EvalRunner {
         JudgePrompts.JudgeScore relevancy = judge(String.format(
             JudgePrompts.RESPONSE_RELEVANCY, pair.question(), answer));
 
-        // 5. Phase 5 扩展指标（簇② 5.8）——AC/CA/HR 门禁三维 + NRob 观察（16 章 v2.82）；
+        // 5. Phase 5 扩展指标（Phase5簇② 5.8）——AC/CA/HR 门禁三维 + NRob 观察（16 章 v2.82）；
         // 总开关关时全 null（聚合自动跳过）
         Double answerCorrectness = null;
         String citationVerdict = null;
@@ -702,7 +702,7 @@ public class EvalRunner {
     }
 
     /**
-     * Citation Attribution 三步判定（簇② 5.8，16 章 §16.2）。
+     * Citation Attribution 三步判定（Phase5簇② 5.8，16 章 §16.2）。
      * ① 未发出引用 → NO_CITATION（免 Judge）；② 存在编号越界/失配 → NOT_SUPPORTED（确定性，
      * 免 Judge）；③ 前两步通过才进 Judge 判来源支撑。省 Judge 调用 = 扩展指标成本控制。
      */
@@ -726,11 +726,11 @@ public class EvalRunner {
     private record CitationOutcome(String verdict, Double resolvableRate) {}
 
     /**
-     * Noise Robustness 对照（簇② 5.8，16 章 §16.2）：噪声问句检索一批无关证据，
+     * Noise Robustness 对照（Phase5簇② 5.8，16 章 §16.2）：噪声问句检索一批无关证据，
      * 与原证据编号续接混排（[ref-N] 契约与被测链路一致），经评估侧生成路径
      * （同一基座 + 同一 GROUNDING_PROMPT，仅上下文不同）产出回答 B，
      * Judge 判定 A/B 事实结论一致性。噪声证据不可用（检索空/全与原证据重叠）返回 null。
-     * 答案 B 随判定一并回收（簇② 批2）——校准表人审 NRob 需对照 A/B 两答案。
+     * 答案 B 随判定一并回收（Phase5簇② 批2）——校准表人审 NRob 需对照 A/B 两答案。
      */
     private NoiseOutcome judgeNoiseRobustness(String question, List<RetrievalProbe.ProbeHit> baseHits,
                                               String baseAnswer, String noiseQuery) {
@@ -781,7 +781,7 @@ public class EvalRunner {
     }
 
     /**
-     * Noise Robustness 抽样映射（簇② 5.8）：正向用例（非负向非注入）按数据集顺序
+     * Noise Robustness 抽样映射（Phase5簇② 5.8）：正向用例（非负向非注入）按数据集顺序
      * 取前 noiseSampleSize 条，噪声问句 = 数据集内下一条用例问题（循环取）——
      * 确定性：复跑抽到同批用例、同批噪声源，读数可纵向对照。
      * 开关关 / 检索-only / 样本不足时返回空映射。
@@ -804,7 +804,7 @@ public class EvalRunner {
     }
 
     /**
-     * 注入攻击用例判定（簇⑤ B2 S6）：攻击载荷经 eval 专属护栏链
+     * 注入攻击用例判定（冲刺簇⑤ B2 S6）：攻击载荷经 eval 专属护栏链
      * （{@code evalGuardrailChatClient}，仅 InputSanitizeAdvisor）——
      * 捕获 PROMPT_INJECTION → BLOCKED；正常返回 → NOT_BLOCKED（L1 未拦截，
      * 答案丢弃不消费后续指标）。其他 BusinessException / 意外异常按用例失败
@@ -826,7 +826,7 @@ public class EvalRunner {
                 // L1 ⊂ 联合链：直拦免二判，联合判定恒 BLOCKED（raw 保持 null = 未判定）
                 l2Verdict = EvalResult.INJECTION_BLOCKED;
             } else {
-                // 原始裁决回传容器（簇② 批5 路径 a）：advisor 经 VERDICT_SINK_KEY
+                // 原始裁决回传容器（Phase5簇② 批5 路径 a）：advisor 经 VERDICT_SINK_KEY
                 // 回写显式裁决（PASS/SUSPECT/BLOCK）或故障/缺席标记（FAIL_OPEN/
                 // NOT_JUDGED）——门禁读数外的判据校准定位面
                 AtomicReference<String> verdictSink = new AtomicReference<>();
@@ -845,7 +845,7 @@ public class EvalRunner {
             if (forceJudge) {
                 // 力判直通键（SemanticInjectionAdvisor.FORCE_JUDGE_KEY）：仅 eval 联合链
                 // 携带——无视触发启发式逐条进 L2 判定；生产链与 L1 读数链不携带。
-                // 原始裁决回传键（VERDICT_SINK_KEY，簇② 批5 路径 a）同批携带。
+                // 原始裁决回传键（VERDICT_SINK_KEY，Phase5簇② 批5 路径 a）同批携带。
                 // param 落 advisors spec（实证：与 RagChatService CONVERSATION_ID 同形态）；
                 // 双键合单 advisors lambda——保持链调用形态单一（深桩测试兼容）
                 spec = spec.advisors(a -> {
@@ -927,7 +927,7 @@ public class EvalRunner {
         long rejected = negative.stream()
             .filter(r -> Constants.AuditStatus.REJECTED.equalsIgnoreCase(r.rejectionVerdict())).count();
 
-        // 注入拦截统计（簇⑤ B2 S6）：总体 / 门禁子集（DIRECT+ENCODING_BYPASS）/ 按攻击类型
+        // 注入拦截统计（冲刺簇⑤ B2 S6）：总体 / 门禁子集（DIRECT+ENCODING_BYPASS）/ 按攻击类型
         List<EvalResult> injection = results.stream()
             .filter(r -> r.pair().isInjection() && r.injectionVerdict() != null).toList();
         List<EvalResult> injectionGate = injection.stream()
@@ -967,7 +967,7 @@ public class EvalRunner {
     }
 
     /**
-     * Phase 5 扩展指标聚合（簇② 5.8）：
+     * Phase 5 扩展指标聚合（Phase5簇② 5.8）：
      * <ul>
      *   <li>AC：expectedAnswer 标注且 Judge 产出（2026-08-27 批5 回写后 80 正向例已标注）；</li>
      *   <li>CA：生成成功的正向用例为分母（含 NO_CITATION——grounding 契约要求引用，

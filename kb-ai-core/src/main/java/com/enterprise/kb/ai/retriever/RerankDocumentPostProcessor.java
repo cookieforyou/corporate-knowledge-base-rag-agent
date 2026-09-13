@@ -35,14 +35,14 @@ import java.util.Map;
  * <p>降级策略（不阻塞主链路）：endpoint 未配置或调用失败（含超时）→
  * 按 fusion_score 截断至 topK（退化为纯 RRF 排序）。
  *
- * <p><b>超时（v2.19 簇③ D2）</b>：RestClient 装配 connect/read 超时
+ * <p><b>超时（v2.19 冲刺簇③ D2）</b>：RestClient 装配 connect/read 超时
  * （{@code rag.rerank.timeout-seconds}，默认 5s 与单路检索超时对齐）——
  * 此前无超时配置，rerank 端点长尾不可控、拖垮整链 TTFT；超时异常走既有
  * catch 降级路径。
  *
  * <p>可插拔：未来切换私有部署 / Jina v3 等只需替换本实现 + 配置。
  *
- * <p><b>观测（Phase 5 簇①）</b>：rerank HTTP 调用经 {@link Observation} 包裹
+ * <p><b>观测（Phase5簇①）</b>：rerank HTTP 调用经 {@link Observation} 包裹
  * （{@code kb.rerank}），寻父 = 当前线程观测——RAA 双执行器已两级传播包裹
  * （13 章 v2.32 ④），正常态挂载于检索链观测树之下；寻父落空（如 kb-eval
  * NOOP registry）降级为独立 span 或无观测，不阻断主链。此前裸 RestClient
@@ -60,9 +60,9 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     private final String apiKey;
     /** 检索调优参数：topK 决定 rerank top_n 与截断条数（rag.retrieval.top-k） */
     private final RetrievalProperties properties;
-    /** 业务指标（Phase 4 簇①）：rerank 执行/降级计数，供 4.2 降级率告警 */
+    /** 业务指标（Phase4簇①）：rerank 执行/降级计数，供 4.2 降级率告警 */
     private final AiBusinessMetrics metrics;
-    /** 观测注册表（Phase 5 簇①）：缺省回落 NOOP（kb-eval 等无观测装配的上下文零影响） */
+    /** 观测注册表（Phase5簇①）：缺省回落 NOOP（kb-eval 等无观测装配的上下文零影响） */
     private final ObservationRegistry observationRegistry;
 
     public RerankDocumentPostProcessor(
@@ -105,7 +105,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
     @Override
     public @NonNull List<Document> process(@NonNull Query query, @NonNull List<Document> documents) {
         long start = System.currentTimeMillis();
-        // rag 链阶段进度（簇⑥ 体验批3，PROGRESS 帧）：重排 API 1-3s 静默期可感知；
+        // rag 链阶段进度（Phase5簇⑥ 体验批3，PROGRESS 帧）：重排 API 1-3s 静默期可感知；
         // 无 ctx 入口（调试台/评估）from 返回 null 即跳过
         RetrievalContext progressCtx = RetrievalContext.from(query);
         if (progressCtx != null) {
@@ -143,7 +143,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
                 "parameters", Map.of(
                     "top_n", Math.min(properties.getTopK(), documents.size())));
 
-            // kb.rerank 观测包裹（Phase 5 簇①）：observeChecked 自动 start/openScope/
+            // kb.rerank 观测包裹（Phase5簇①）：observeChecked 自动 start/openScope/
             // error/stop——调用异常记录后经既有 catch 走降级，不改变容错语义。
             // 寻父 = registry 当前观测（RAA 执行器传播包裹在场时挂检索链树之下）。
             String raw = Observation.createNotStarted("kb.rerank", observationRegistry)

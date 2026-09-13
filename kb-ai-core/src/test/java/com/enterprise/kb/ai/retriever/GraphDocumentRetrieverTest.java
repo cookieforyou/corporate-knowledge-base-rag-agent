@@ -35,7 +35,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Graph 路检索器单测（簇④ 5.2）：管线映射 + 租户 fail-closed +
+ * Graph 路检索器单测（Phase5簇④ 5.2）：管线映射 + 租户 fail-closed +
  * PG 纵深校验（越租户/软删丢弃）+ 指标计数。
  */
 class GraphDocumentRetrieverTest {

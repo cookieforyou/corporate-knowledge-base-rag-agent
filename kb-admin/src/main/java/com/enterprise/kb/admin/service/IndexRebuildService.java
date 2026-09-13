@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * 索引重建服务（Phase 4 簇③ 4.5）——全量/目标文档重建编排，复用 C1 蓝绿管线。
+ * 索引重建服务（Phase4簇③ 4.5）——全量/目标文档重建编排，复用 C1 蓝绿管线。
  *
  * <p><b>重建语义</b>：逐文档经 {@link ReindexGateway} 委派 kb-api
  * DocumentService.reparse（原子占用 + 蓝绿「全量写入 → diff 清理」+ 版本号递增）——

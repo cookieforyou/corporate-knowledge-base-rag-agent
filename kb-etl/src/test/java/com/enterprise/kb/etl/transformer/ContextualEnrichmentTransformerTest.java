@@ -25,7 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * ContextualEnrichmentTransformer 单测（簇④ A4，设计 9.5）
+ * ContextualEnrichmentTransformer 单测（冲刺簇④ A4，设计 9.5）
  */
 class ContextualEnrichmentTransformerTest {
 

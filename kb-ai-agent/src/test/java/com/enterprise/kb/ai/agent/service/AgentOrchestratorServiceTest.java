@@ -20,7 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 编排链服务测试（簇⑤ 5.3）——对齐 ToolChatServiceTest 断言面：
+ * 编排链服务测试（Phase5簇⑤ 5.3）——对齐 ToolChatServiceTest 断言面：
  * toolContext 身份组装（无 HITL 凭证键语义）+ 确认指令恒不注入（编排链无审批）
  */
 class AgentOrchestratorServiceTest {

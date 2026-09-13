@@ -5,7 +5,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import java.util.List;
 
 /**
- * 子代理静态描述子（簇⑤ 5.3，设计文档 §11.5.5）
+ * 子代理静态描述子（Phase5簇⑤ 5.3，设计文档 §11.5.5）
  *
  * <p>Orchestrator-Workers 收窄骨架：主 Agent 仅持 {@link TaskTool} 委派工具，
  * 每个子代理由本描述子定义——独立 system prompt / 工具集 / 模型 / 超时，

@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * McpIdentityGuard 单测（簇⑤ 4.10）——JWT 捕获 fail-closed 三层 + scope 治理双形态。
+ * McpIdentityGuard 单测（Phase4簇⑤ 4.10）——JWT 捕获 fail-closed 三层 + scope 治理双形态。
  */
 class McpIdentityGuardTest {
 

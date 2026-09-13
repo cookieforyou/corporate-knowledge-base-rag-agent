@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 子代理注册表（簇⑤ 5.3）——Orchestrator-Workers 的 Workers 面
+ * 子代理注册表（Phase5簇⑤ 5.3）——Orchestrator-Workers 的 Workers 面
  *
  * <p>静态注册（装配期定死，运行期不可变）：{@code rag.orchestrator.enabled=true}
  * 时由 OrchestratorChatClientConfig 装配初始集；主 Agent 系统提示的子代理清单

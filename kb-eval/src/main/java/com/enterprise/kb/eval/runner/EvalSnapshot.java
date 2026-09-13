@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 评估机读快照（簇② 5.9 批3，16 章 §16.5）——A/B 双跑差异报表的数据面。
+ * 评估机读快照（Phase5簇② 5.9 批3，16 章 §16.5）——A/B 双跑差异报表的数据面。
  *
  * <p>每次全量评估后随报告落盘 {@code target/eval-results{-label}.json}：
  * 运行锚点（git 形态）+ 运行配置（可比性核验面）+ 聚合指标 + 逐用例读数。

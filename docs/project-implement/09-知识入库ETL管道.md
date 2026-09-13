@@ -267,7 +267,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
 > **切分策略演进注记**：固定 Token 切分在 2026 年已是基线水平。语义切分（SemanticChunker，基于 embedding 相似度的语义断句）是 Phase 5+ 的演进方向，本阶段以「结构感知保护 + 可选 Contextual Retrieval（9.5）」为边界；本切分器的结构保护能力与后续语义切分不冲突，是其载体。
 
-> **v2.21 修正（2026-08-12，簇④ A4 heading 路径元数据）**：切分时维护六级标题栈——Markdown `#{1,6} ` 行与 HTML `<h1>..<h6>` 双形态识别，每个 chunk 注入 `heading_path` 元数据（「L1 > L2 > …」）。三条实现纪律：
+> **v2.21 修正（2026-08-12，冲刺簇④ A4 heading 路径元数据）**：切分时维护六级标题栈——Markdown `#{1,6} ` 行与 HTML `<h1>..<h6>` 双形态识别，每个 chunk 注入 `heading_path` 元数据（「L1 > L2 > …」）。三条实现纪律：
 > 1. **标题变更即冲刷缓冲**：chunk 边界与章节边界对齐（topic-aligned），标题文字保留在新 chunk 正文首部（BM25/向量化可检索）；
 > 2. **三路分发**：无保护标签且无标题 → 原快速路径零变化；仅标题无保护标签 → 纯行扫描（**不经 JSoup**——代码片段尖括号 `List<String>` 会被 JSoup 解析为未知标签丢文本）；有保护标签 → JSoup AST 路径（尖括号风险为 v2 既有边界，不扩大）；
 > 3. **三存储面落地**：`kb_chunk.metadata` JSONB 的 heading_path 键 + 向量库元数据（缺省不写键，元数据禁 null）+ ES `heading_path` 字段（新建索引走 mapping ik 分词，存量索引 dynamic mapping 自动映射，完全对齐随 Phase 4.6 索引重建窗口）。载体经 `KbChunk.headingPath` @Transient 字段流转（免 ECS ALTER）。展示与检索两用；BM25 查询侧消费（multi_match 纳入 heading_path）待 contextual A/B 决策后评估，避免双重变量污染基线。
@@ -305,7 +305,7 @@ COMPLETED      kb_document 状态回写（chunk_count / table_count / parse_rout
 2. 向量元数据必含 `chunk_id / doc_id / tenant_id / chunk_type / page_num`（pgvector 的 metadata JSONB、Milvus 的标量字段同源）；
 3. 任一路写入失败不回滚其他路，但 `kb_document.status = FAILED` + `error_message` 记录失败阶段，支持按文档重试（幂等：重试前按 doc_id 清理旧 chunk/向量/ES 文档）。
 
-> **v2.22 修正（2026-08-12，簇④ A4 检索锚点修复）——chunk ID 确定性化**：
+> **v2.22 修正（2026-08-12，冲刺簇④ A4 检索锚点修复）——chunk ID 确定性化**：
 > 不变量 1 的 `chunkId` 取值由**随机 UUID 改为确定性 nameUUID**：
 > `chunkId = UUID.nameUUIDFromBytes((文档名 + "#" + 序号 + "#" + 增强前原文).getBytes(UTF-8))`。
 >
@@ -330,7 +330,7 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 
 `EtlStage` 枚举扩充：`READING, TRANSFORMING, PERSISTING, EMBEDDING, INDEXING, CLEANUP, COMPLETED, FAILED`。
 
-> **v2.25 修正（2026-08-13，簇⑥ C1 增量重入库）——蓝绿管线与增量 API**：
+> **v2.25 修正（2026-08-13，优化冲刺簇⑥ C1 增量重入库）——蓝绿管线与增量 API**：
 > ① **管线统一为「全量写入 → diff 清理」**：确定性 chunk ID（v2.22）令不变 chunk
 > 三库同 ID 幂等覆写（PG merge / 向量 upsert / ES 同 `_id` 覆盖），故写入前捕获
 > 旧 chunkId 快照，INDEXING 后计算 diff = 旧有新无 → 经 `ChunkCleanupService.physicalDelete`
@@ -346,7 +346,7 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 > ④ **kb_document.version 列**（07 章同步）：首次入库 1、每次重入库成功 +1——
 > [ref-N] 引用经 docId 定位文档不因重入库碎裂，版本号为运维审计追溯维度。
 
-> **v2.26 修正（2026-08-13，簇⑥ C1 E2E 缺陷修复）——占用态回写与 created_at 覆写**：
+> **v2.26 修正（2026-08-13，优化冲刺簇⑥ C1 E2E 缺陷修复）——占用态回写与 created_at 覆写**：
 > E2E 实测发现两缺陷（reparse 正常 version+1；replace version 不递增、两文档全部
 > chunk created_at 刷新为入库时刻）：
 > ① **replace 占用态回写**：`acquireForReindex` 的 @Modifying 查询只更新 DB
@@ -365,7 +365,7 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 > **复验通过（2026-08-13 同日）**：replace version 递增 + 处理期「重入库中」展示、
 > reparse 未变 chunk created_at 保留原值、处理中再发重入库 409、reindex 指标计数正确。
 
-> **v2.27 修正（2026-08-13，簇⑥ C1 收尾）——删除处理期守卫**：
+> **v2.27 修正（2026-08-13，优化冲刺簇⑥ C1 收尾）——删除处理期守卫**：
 > 重入库窗口令「处理期删除」成为现实误操作面——级联清理与在途 ETL 竞态（孤儿写回：
 > ETL 后续 persistChunks/状态回写作用于已删文档），误删正重入库的文档更直接损失可用性。
 > ① **后端守卫**：`DocumentService.delete` 租户校验后加状态守卫——处理期三态
@@ -384,7 +384,7 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 
 v1 设计了 ES 检索却缺失写入环节——本章补齐。`EsIndexWriter` 将 Chunk 同步写入 `kb_chunks` 索引（mapping 见第十章 10.3）。
 
-> **v2.19 修正（2026-08-11，簇③ D2）**：批量写入刷新策略 `refresh(true)` → `Refresh.WaitFor`——语义仍为「返回即可检索」（请求挂起至下一次刷新周期完成），但避免大文档 ETL 尾部每批强制全索引刷新的长尾延迟。下方草图 `refresh(true)` 为 v2 原形态记录；级联删除（deleteByDocId）维持 `refresh(true)` 不变（运维路径，删除即时可见性优先）。
+> **v2.19 修正（2026-08-11，冲刺簇③ D2）**：批量写入刷新策略 `refresh(true)` → `Refresh.WaitFor`——语义仍为「返回即可检索」（请求挂起至下一次刷新周期完成），但避免大文档 ETL 尾部每批强制全索引刷新的长尾延迟。下方草图 `refresh(true)` 为 v2 原形态记录；级联删除（deleteByDocId）维持 `refresh(true)` 不变（运维路径，删除即时可见性优先）。
 
 ```java
 package com.enterprise.kb.etl.writer;
@@ -441,13 +441,13 @@ public class EsIndexWriter {
             .query(q -> q.term(t -> t.field("doc_id").value(docId))));
     }
 
-    /** 按 chunkId 批量物理删除（v2.25 簇⑥ C1，蓝绿 diff 清理专用，bulk + refresh(true)；
+    /** 按 chunkId 批量物理删除（v2.25 优化冲刺簇⑥ C1，蓝绿 diff 清理专用，bulk + refresh(true)；
      *  not_found 视为幂等成功——目标本就不在 ES） */
     public void deleteByChunkIds(List<String> chunkIds) { /* bulk delete ops */ }
 }
 ```
 
-> **v2.25 修正（2026-08-13，簇⑥ C1）**：`markDeleted` 软删写侧接线（此前零调用方）——
+> **v2.25 修正（2026-08-13，优化冲刺簇⑥ C1）**：`markDeleted` 软删写侧接线（此前零调用方）——
 > 读侧管道早已就位（ES 检索 term filter `is_deleted=false` + 向量路 RetrievalContext
 > FilterExpression 双路过滤），C1 经 `ChunkCleanupService.softDelete` 补齐写侧
 > （PG is_deleted=true + ES markDeleted + 向量库物理删——向量库无软删形态，
@@ -499,21 +499,21 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 
 **与数据模型的契合**：`kb_chunk.original_content` 字段（schema 已预留）存原文，`content` 存增强后文本——前端 Chunk 观测台展示原文，检索走增强文本，两者天然分离。
 
-> **v2.21 落地（2026-08-12，簇④ A4，任务 2.4 复活）**：`ContextualEnrichmentTransformer` 按本节设计落地（`kb.etl.contextual.enabled` 默认关），实现要点：
-> 1. **管道位置**：切分 → **入库消毒之后**、落库之前——LLM 只见脱敏态文本，原文 PII 不出库（与簇② B1 纵深一致）；
+> **v2.21 落地（2026-08-12，冲刺簇④ A4，任务 2.4 复活）**：`ContextualEnrichmentTransformer` 按本节设计落地（`kb.etl.contextual.enabled` 默认关），实现要点：
+> 1. **管道位置**：切分 → **入库消毒之后**、落库之前——LLM 只见脱敏态文本，原文 PII 不出库（与冲刺簇② B1 纵深一致）；
 > 2. **装配形态**：kb-etl 不依赖 kb-ai-core（避免拖入对话链路 Advisor 栈），引 `spring-ai-openai` 实现模块（非 starter，免自动装配面——坑位⑲教训），经济模型 deepseek-v4-flash 手工装配 OpenAI 兼容形态（消费 `spring.ai.deepseek.*` @Value，temperature 0 / maxTokens 300 封顶成本），同 SmartRoutingConfig 形态；
 > 3. **文档概要流转**：ETL 侧取首段非空解析文本前 N 字符（`kb.etl.contextual.excerpt-chars` 默认 2000，含文档标题行）写入 chunk 元数据 `doc_excerpt`，同一文档全部 chunk 共享（Prompt Caching 摊薄的形态基础），增强完成后移除该键不落任何存储面；原文经 `original_text` 元数据键流转落 `original_content`；
 > 4. **跳过与容错**：IMAGE chunk（正文为 img 标签无语义）与 <20 字符短 chunk 跳过；单 chunk 生成失败 WARN 原样放行（质量项不阻断入库）；
 > 5. **A/B 决策未定**：启用与否须经 kb-eval 双探针快照对比（全量重入库窗口：off 基线 vs on 对比，靶点 dm-13 纯表格 chunk），数据说话后定默认值并回写本节与 10 章检索形态。
 
-> **v2.22 补充（2026-08-12，簇④ A4 并发优化）**：语境增强由**串行改有界并发**——
+> **v2.22 补充（2026-08-12，冲刺簇④ A4 并发优化）**：语境增强由**串行改有界并发**——
 > 每 chunk 一次 LLM 调用，串行形态下大文档 ETL 时长 = chunk 数 × 单调用时长
 > （实测数十 chunk 即分钟级阻塞上传响应）。实现：虚拟线程执行器（单例 Bean 持有，
-> 非每请求 new——簇③ D2 执行器纪律同构）+ `Semaphore` 闸门（`kb.etl.contextual.concurrency`
+> 非每请求 new——冲刺簇③ D2 执行器纪律同构）+ `Semaphore` 闸门（`kb.etl.contextual.concurrency`
 > 默认 8，防供应商 429），槽位按输入下标写入保序返回，单 chunk 失败隔离语义不变。
 > 并发实证/上限纪律/混合批次保序共 3 例单测钉死（ContextualEnrichmentTransformerTest）。
 
-> **v2.23 A/B 定案：默认开启（2026-08-12，簇④ A4 收官）**：全量重入库 ×2 双臂
+> **v2.23 A/B 定案：默认开启（2026-08-12，冲刺簇④ A4 收官）**：全量重入库 ×2 双臂
 > 对比（新 Golden 102 条 chain 探针，确定性 ID 跨臂逐位复现，语料 6 文档 168 chunk
 > 两臂完全同构——CSV 全量比对核验）：
 >

@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p><b>触发条件</b>（归一化检测视图词表匹配，毫秒级）：
  * <ul>
  *   <li>任一 REGEX 结构模式词项命中 ∧ 无任何 KEYWORD 干词命中——REGEX 轨
- *       （簇① A2 动词×宾语组合句式）是结构可疑信号，干词未命中留给 L2 语义裁决；
+ *       （冲刺簇① A2 动词×宾语组合句式）是结构可疑信号，干词未命中留给 L2 语义裁决；
  *       FLAG 干词命中视为 L1 已观察，不重复触发</li>
  *   <li>跨轮扩展信号（多阶段注入简单规则，专项方案 §4.5 E1 末段）：当前消息
  *       未触发时，近 N 条记忆拼接视图跑 REGEX 轨命中即触发——单轮无害、跨轮
@@ -86,7 +86,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     public static final String FORCE_JUDGE_KEY = "kb.l2_force_judge";
 
     /**
-     * 原始判定回传键（簇② 批5 路径 a，kb-eval 联合读数链专用）：context 携带
+     * 原始判定回传键（Phase5簇② 批5 路径 a，kb-eval 联合读数链专用）：context 携带
      * {@link AtomicReference}&lt;String&gt; 时，advisor 将本次判定的规范裁决值回写其中——
      * PASS/SUSPECT/BLOCK（显式判定）、{@link #RAW_FAIL_OPEN}（二判故障回落）、
      * {@link #RAW_NOT_JUDGED}（判定器缺席）。度量盲区清偿面：门禁读数只记
@@ -106,11 +106,11 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     private static final int HISTORY_MESSAGE_MAX_CHARS = 300;
 
     /*
-     * 判定 Prompt 收编于 PromptTemplates#INJECTION_JUDGE_PROMPT（4.8 Git Ops 外部化，簇⑦ 批2）。
+     * 判定 Prompt 收编于 PromptTemplates#INJECTION_JUDGE_PROMPT（4.8 Git Ops 外部化，Phase4簇⑦ 批2）。
      * 族系判据全部以结构描述表达（第七节纪律条 1：零字面载荷）。判定纪律双保险：
      * 正常业务问涉及安全话题属知识问答（PASS）；BLOCK 必须明确攻击意图，拿不准
      * SUSPECT/PASS 分流（误拒成本 > 漏放成本，漏放仍有 S2 grounding 不可信标记与模型层兜底）。
-     * 簇② 批5 路径 b（2026-08-28）判据校准：新增【剥壳判据】——虚构情境/假设前提/
+     * Phase5簇② 批5 路径 b（2026-08-28）判据校准：新增【剥壳判据】——虚构情境/假设前提/
      * 分步引导等包裹手段不改变裁决，剥壳后意图为准；「拿不准」收窄于真业务歧义。
      */
 
@@ -193,7 +193,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         if (!enabled || chatClient == null) {
             // 判定器缺席（停用/备用模型未装配）：结构性恒 pass——sink 记 NOT_JUDGED，
-            // 使度量面可区分「显式放行」与「无人判定」（簇② 批5 路径 a）
+            // 使度量面可区分「显式放行」与「无人判定」（Phase5簇② 批5 路径 a）
             writeVerdictSink(request, RAW_NOT_JUDGED);
             return request;
         }
@@ -337,7 +337,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
     }
 
     /**
-     * 原始判定回写（簇② 批5 路径 a）：context 携带 {@link #VERDICT_SINK_KEY}
+     * 原始判定回写（Phase5簇② 批5 路径 a）：context 携带 {@link #VERDICT_SINK_KEY}
      * （{@link AtomicReference}&lt;String&gt;）时写入本次规范裁决值——仅
      * kb-eval 联合读数链携带（与 {@link #FORCE_JUDGE_KEY} 同族纪律），生产链
      * 零触达；只写裁决枚举不写内容（第七节敏感词交付纪律）。
@@ -352,7 +352,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
 
     /**
      * 族系归一（FlagMark 同款语义）：仅认 {@link GuardrailFamily} 枚举名（大小写
-     * 容错）；未知/空白——含模型返回中文族名形态（簇⑤ E2E 实证）——一律
+     * 容错）；未知/空白——含模型返回中文族名形态（安全簇⑤ E2E 实证）——一律
      * UNCLASSIFIED 兜底，与 AiBusinessMetrics 预注册标签域对齐不漂移。
      */
     private static String canonicalFamily(String family) {

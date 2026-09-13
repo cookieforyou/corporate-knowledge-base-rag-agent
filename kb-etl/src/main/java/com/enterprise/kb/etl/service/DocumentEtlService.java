@@ -36,11 +36,11 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
- * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3，簇④ A4 起含 heading 路径）
- * → 安全消毒（簇② B1）→ 语境增强（簇④ A4）→ PG 落库 → 向量化 → ES 双写
- * → 蓝绿 diff 清理（簇⑥ C1）
+ * 文档 ETL 服务 — 智能路由解析（2.1）→ 保护式切分（2.3，冲刺簇④ A4 起含 heading 路径）
+ * → 安全消毒（冲刺簇② B1）→ 语境增强（冲刺簇④ A4）→ PG 落库 → 向量化 → ES 双写
+ * → 蓝绿 diff 清理（优化冲刺簇⑥ C1）
  *
- * <p><b>蓝绿重入库语义（簇⑥ C1）</b>：确定性 chunk ID（9.3 v2.22）令不变 chunk
+ * <p><b>蓝绿重入库语义（优化冲刺簇⑥ C1）</b>：确定性 chunk ID（9.3 v2.22）令不变 chunk
  * 三库同 ID 幂等覆写，故管线统一为「全量写入 → diff 清理」——尾段物理删除
  * 「旧有新无」chunk。首次入库旧集为空即空操作，两路径归一无分叉。
  * 失败语义：新数据未全量写入前旧数据大体保留，重试幂等收敛。
@@ -87,7 +87,7 @@ public class DocumentEtlService {
         KbDocument doc = documentRepository.findById(docId)
             .orElseThrow(() -> new BusinessException(Constants.ErrorCodes.DOC_NOT_FOUND, "文档不存在: " + docId));
 
-        // 簇⑥ C1：REINDEXING 由 reparse/replace 原子占用（KbDocumentRepository.acquireForReindex），
+        // 优化冲刺簇⑥ C1：REINDEXING 由 reparse/replace 原子占用（KbDocumentRepository.acquireForReindex），
         // 处理期间保持该状态与前端「重入库中」展示；首次入库走 PARSING
         boolean isReindex = doc.getStatus() == DocumentStatus.REINDEXING;
 
@@ -118,11 +118,11 @@ public class DocumentEtlService {
             List<Document> chunks = protectingSplitter.apply(rawDocs);
             log.info("文档切分完成: docId={}, chunks={}", docId, chunks.size());
 
-            // Stage 2.5: 安全消毒（簇② B1，12.4.2 第一道纵深）：PII 掩码 + 注入打标，
+            // Stage 2.5: 安全消毒（冲刺簇② B1，12.4.2 第一道纵深）：PII 掩码 + 注入打标，
             // 落库面向量库/ES 均为脱敏态；命中标记经元数据流入 kb_chunk.metadata
             chunks = sanitizingTransformer.apply(chunks);
 
-            // Stage 2.6: 语境增强（簇④ A4，9.5，默认关）：文档级语境前缀，content 存
+            // Stage 2.6: 语境增强（冲刺簇④ A4，9.5，默认关）：文档级语境前缀，content 存
             // 增强文本 / original_content 存原文。位于消毒之后——LLM 只见脱敏态文本；
             // 单 chunk 生成失败原样放行不阻断（质量项非必需项）
             ContextualEnrichmentTransformer enrichment = contextualEnrichmentProvider.getIfAvailable();
@@ -144,7 +144,7 @@ public class DocumentEtlService {
             progressCallback.accept(new EtlProgress(docId, EtlStage.INDEXING));
             esIndexWriter.indexChunks(doc, entities);
 
-            // Stage 6（簇⑥ C1）: 蓝绿 diff 清理——新数据已全量写入，此时物理删除
+            // Stage 6（优化冲刺簇⑥ C1）: 蓝绿 diff 清理——新数据已全量写入，此时物理删除
             // 「旧有新无」chunk（同 ID 覆写者不在 diff 内）。首次入库旧集为空即空操作；
             // 清理失败上抛 → FAILED 态，重试幂等收敛（ES 按 ID 精确删，不误伤存活 chunk）
             progressCallback.accept(new EtlProgress(docId, EtlStage.CLEANUP));
@@ -155,7 +155,7 @@ public class DocumentEtlService {
                 chunkCleanupService.physicalDelete(docId, staleIds, false);
             }
 
-            // 更新文档状态；重入库成功版本号 +1（簇⑥ C1）
+            // 更新文档状态；重入库成功版本号 +1（优化冲刺簇⑥ C1）
             doc.setStatus(DocumentStatus.SUCCESS);
             doc.setChunkCount(chunks.size());
             doc.setErrorMessage(null);
@@ -182,7 +182,7 @@ public class DocumentEtlService {
     }
 
     /**
-     * 蓝绿 diff（簇⑥ C1）：旧集中不属于新集的 chunkId——即被新版本合并/删除、
+     * 蓝绿 diff（优化冲刺簇⑥ C1）：旧集中不属于新集的 chunkId——即被新版本合并/删除、
      * 需物理清理的残留。保序输出便于日志定位。
      */
     static List<String> staleChunkIds(List<String> oldIds, List<String> newIds) {
@@ -205,7 +205,7 @@ public class DocumentEtlService {
         return parsingRouter.read(bos.toByteArray(), doc.getName(), forcedRoute);
     }
 
-    /** 语境增强的文档概要取前字符数（kb.etl.contextual.excerpt-chars，簇④ A4） */
+    /** 语境增强的文档概要取前字符数（kb.etl.contextual.excerpt-chars，冲刺簇④ A4） */
     @Value("${kb.etl.contextual.excerpt-chars:2000}")
     private int contextualExcerptChars;
 
@@ -255,7 +255,7 @@ public class DocumentEtlService {
         for (int i = 0; i < chunks.size(); i++) {
             Document chunk = chunks.get(i);
             KbChunk entity = new KbChunk();
-            // 确定性 chunk ID（簇④ A4 修复，9.3 v2.22）：重入库不换 ID，
+            // 确定性 chunk ID（冲刺簇④ A4 修复，9.3 v2.22）：重入库不换 ID，
             // Golden expectedChunkIds 跨重入库/contextual A/B 两臂可比
             Object originalText = chunk.getMetadata().get(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
             String baseText = originalText instanceof String ot && !ot.isBlank() ? ot : chunk.getText();
@@ -273,12 +273,12 @@ public class DocumentEtlService {
             if (originalHtml != null) {
                 entity.setOriginalContent(originalHtml.toString());
             }
-            // heading 路径（簇④ A4）：载体字段供向量化/ES 消费，持久化入 metadata JSONB
+            // heading 路径（冲刺簇④ A4）：载体字段供向量化/ES 消费，持久化入 metadata JSONB
             Object headingPath = chunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY);
             if (headingPath instanceof String hp && !hp.isBlank()) {
                 entity.setHeadingPath(hp);
             }
-            // 语境增强原文（簇④ A4）：content 已是增强文本，原文落 original_content
+            // 语境增强原文（冲刺簇④ A4）：content 已是增强文本，原文落 original_content
             // （TABLE/IMAGE 的 original_content 已被 original_html 占用，不覆盖；
             //  originalText 已于循环首部读取用于确定性 ID，此处复用）
             if (entity.getOriginalContent() == null && originalText instanceof String ot && !ot.isBlank()) {
@@ -290,7 +290,7 @@ public class DocumentEtlService {
             else if (page != null) {
                 try { entity.setPageNum(Integer.valueOf(page.toString())); } catch (Exception ignored) {}
             }
-            // metadata JSONB：注入命中标记（簇② B1 S4）+ heading 路径（簇④ A4）
+            // metadata JSONB：注入命中标记（冲刺簇② B1 S4）+ heading 路径（冲刺簇④ A4）
             Map<String, Object> metaJson = new LinkedHashMap<>();
             if (Boolean.TRUE.equals(chunk.getMetadata().get(SanitizingTransformer.INJECTION_HIT_KEY))) {
                 metaJson.put(SanitizingTransformer.INJECTION_HIT_KEY, true);
@@ -312,7 +312,7 @@ public class DocumentEtlService {
     }
 
     /**
-     * 单批 embedding 条数上限（kb.etl.embed-batch-size，默认 10；簇① A3 配置化）。
+     * 单批 embedding 条数上限（kb.etl.embed-batch-size，默认 10；冲刺簇① A3 配置化）。
      *
      * <p><b>2026-08-03 E2E 缺陷</b>：DashScope embedding API（qwen3.7-text-embedding）
      * 单次请求硬限制 ≤20 条输入（超出 400 InvalidParameter）。VectorStore 内部的
@@ -343,7 +343,7 @@ public class DocumentEtlService {
     }
 
     /**
-     * 向量库文档元数据契约（单一来源）——ETL 入库与簇③ Chunk 运维重嵌入共用，
+     * 向量库文档元数据契约（单一来源）——ETL 入库与Phase4簇③ Chunk 运维重嵌入共用，
      * 防契约散点漂移：检索侧 FilterExpression（tenant_id/is_deleted）与调试台/
      * 溯源展示（file_name/page_num/heading_path）均消费这些键。
      *
@@ -359,7 +359,7 @@ public class DocumentEtlService {
         meta.put(Constants.Retrieval.META_FILE_NAME, doc.getName() != null ? doc.getName() : "unknown");
         meta.put(Constants.Retrieval.META_PAGE_NUM, chunk.getPageNum() != null ? chunk.getPageNum() : 0);
         meta.put(Constants.Retrieval.META_IS_DELETED, Objects.requireNonNullElse(chunk.getIsDeleted(), false));
-        // heading 路径（簇④ A4）：调试台/溯源展示与后续检索消费；缺省不写键
+        // heading 路径（冲刺簇④ A4）：调试台/溯源展示与后续检索消费；缺省不写键
         if (chunk.getHeadingPath() != null) {
             meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, chunk.getHeadingPath());
         }
@@ -394,7 +394,7 @@ public class DocumentEtlService {
     }
 
     /**
-     * 确定性 chunk ID（簇④ A4 修复，9.3 v2.22）——nameUUID v3 over（文档名 + 序号 + 增强前原文）。
+     * 确定性 chunk ID（冲刺簇④ A4 修复，9.3 v2.22）——nameUUID v3 over（文档名 + 序号 + 增强前原文）。
      *
      * <p>动机：随机 UUID 方案下全量重入库（删后重传）令所有 chunk 换新 ID，
      * Golden Dataset {@code expectedChunkIds} 整体失配——2026-08-12 a4-heading-only

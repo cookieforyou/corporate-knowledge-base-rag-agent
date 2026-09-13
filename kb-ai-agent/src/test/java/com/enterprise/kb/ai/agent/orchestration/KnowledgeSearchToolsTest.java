@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 知识检索子代理工具测试（簇⑤ 批2）——身份 fail-closed（TaskTool 下传链）/
+ * 知识检索子代理工具测试（Phase5簇⑤ 批2）——身份 fail-closed（TaskTool 下传链）/
  * 检索管线透传与投影 / 跨租户隐藏 / 软删过滤与上限截断
  */
 class KnowledgeSearchToolsTest {

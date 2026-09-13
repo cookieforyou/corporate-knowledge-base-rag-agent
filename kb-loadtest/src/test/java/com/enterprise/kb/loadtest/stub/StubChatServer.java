@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * OpenAI 兼容 SSE 生成桩（簇⑥ 批5 v2.59，场景 B / D-桩形态）
+ * OpenAI 兼容 SSE 生成桩（Phase4簇⑥ 批5 v2.59，场景 B / D-桩形态）
  *
  * <p><b>职责</b>：压测期替代主模型端点（kb-api {@code DEEPSEEK_BASE_URL} 指向本服务），
  * 对应用层并发模型（虚拟线程 / SSE 转发 / 护栏 Advisor 链 / Redis 配额 / 双路检索）施加

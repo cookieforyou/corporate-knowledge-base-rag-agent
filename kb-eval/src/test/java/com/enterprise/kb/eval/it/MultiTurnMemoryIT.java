@@ -14,7 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 多轮记忆（簇⑥ D3）：RedisChatMemoryRepository 真读写——轮间历史注入 +
+ * 多轮记忆（冲刺簇⑥ D3）：RedisChatMemoryRepository 真读写——轮间历史注入 +
  * 会话隔离 + 窗口内消息数。
  */
 class MultiTurnMemoryIT extends AbstractAdvisorChainIT {

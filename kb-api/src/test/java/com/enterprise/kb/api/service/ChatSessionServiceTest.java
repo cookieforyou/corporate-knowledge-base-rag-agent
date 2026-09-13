@@ -121,7 +121,7 @@ class ChatSessionServiceTest {
         verify(messageRepository, Mockito.times(2)).save(any(KbMessage.class));
     }
 
-    /** 簇⑥ E2E 补强四：链路归属随首建写入（agent 链会话）；已存在不覆写由
+    /** Phase5簇⑥ E2E 补强四：链路归属随首建写入（agent 链会话）；已存在不覆写由
      *  existingSessionNotRecreated 的 never().save() 天然保证（短路即无写路径） */
     @Test
     void agentModePinnedOnSessionCreation() {
@@ -372,7 +372,7 @@ class ChatSessionServiceTest {
         assertThat(assistantItem.feedback()).isEqualTo("POSITIVE");
     }
 
-    // ── 工具调用归档回显（簇⑥ 体验批2）──
+    // ── 工具调用归档回显（Phase5簇⑥ 体验批2）──
 
     @Test
     void toolCallsArchivedIntoMetadataAlongsideTraceId() {

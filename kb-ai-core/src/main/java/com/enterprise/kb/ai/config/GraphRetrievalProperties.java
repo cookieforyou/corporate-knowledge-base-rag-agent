@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Graph 路检索调优参数（簇④ 5.2，{@code rag.graph.retrieval.*}）。
+ * Graph 路检索调优参数（Phase5簇④ 5.2，{@code rag.graph.retrieval.*}）。
  *
  * <p>缺省值 = 保守形态（与双路基线共存不扰动）：种子实体 5 个 + 相似度阈值 0.7
  * + 1 跳邻域展开。检索期零 LLM 调用——全管线延迟预算 ~100ms 量级（10.8 扩表）。

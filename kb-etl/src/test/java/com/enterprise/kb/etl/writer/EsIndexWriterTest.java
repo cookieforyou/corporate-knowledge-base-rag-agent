@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * EsIndexWriter 单测（簇⑥ C1 补零测盲区）：
+ * EsIndexWriter 单测（优化冲刺簇⑥ C1 补零测盲区）：
  * 从属副本语义——双写/删除失败只告警不阻断；bulk not_found 视为幂等成功。
  */
 class EsIndexWriterTest {
@@ -118,7 +118,7 @@ class EsIndexWriterTest {
             .doesNotThrowAnyException();
     }
 
-    // ── 簇③ 4.5：重建 ES 孤儿清扫的 doc_id 查询 ──
+    // ── Phase4簇③ 4.5：重建 ES 孤儿清扫的 doc_id 查询 ──
 
     @SuppressWarnings("unchecked")
     @Test

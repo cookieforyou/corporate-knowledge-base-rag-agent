@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 确定性 chunk ID 回归（簇④ A4 修复，9.3 v2.22）
+ * 确定性 chunk ID 回归（冲刺簇④ A4 修复，9.3 v2.22）
  *
  * <p>动机：随机 UUID 方案下全量重入库令所有 chunk 换新 ID，Golden
  * expectedChunkIds 整体失配——2026-08-12 a4-heading-only 复跑检索三指标全 0.000。

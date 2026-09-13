@@ -15,7 +15,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 入库安全消毒转换器测试（簇② B1）：PII 掩码 + 注入打标（不阻断）+ 开关语义
+ * 入库安全消毒转换器测试（冲刺簇② B1）：PII 掩码 + 注入打标（不阻断）+ 开关语义
  *
  * <p>注入侧断言全部程序化构造：载荷形态由 bundled 基线词表的词项值在运行时
  * 变换生成，测试源码不落字面载荷（第七节敏感词交付纪律）。

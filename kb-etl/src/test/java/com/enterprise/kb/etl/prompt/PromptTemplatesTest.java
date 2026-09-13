@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * PromptTemplates（解析链）契约测试（4.8 Git Ops 外部化，簇⑦ 批2）：
+ * PromptTemplates（解析链）契约测试（4.8 Git Ops 外部化，Phase4簇⑦ 批2）：
  * 语境增强模板 %s 双槽（概要, 片段）契约钉死 + 渲染产物形态。
  */
 class PromptTemplatesTest {

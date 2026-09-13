@@ -13,13 +13,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * RRF (Reciprocal Rank Fusion) 融合器（设计文档 10.4；簇④ N 路泛化）
+ * RRF (Reciprocal Rank Fusion) 融合器（设计文档 10.4；Phase5簇④ N 路泛化）
  *
  * <p>公式：RRF_score(d) = Σ 1 / (K + rank_i(d))，K 经 {@link RetrievalProperties#getRrfK()}
  * 注入（rag.retrieval.rrf-k，标准常数默认 60）。只消费排名不消费原始分数，
  * 天然免疫向量相似度 / BM25 分数 / 图谱贡献分的尺度差异。
  *
- * <p><b>N 路泛化（簇④ 5.2）</b>：主签名 {@link #fuse(Map, int)} 以「路标识 → 该路
+ * <p><b>N 路泛化（Phase5簇④ 5.2）</b>：主签名 {@link #fuse(Map, int)} 以「路标识 → 该路
  * 有序命中」为入参，路数与路名开放（vector / bm25 / graph / …），排名元数据
  * 按 {@code {路名}_rank} 键写出；旧双路签名 {@link #fuse(List, List, int)} 委派
  * 兼容（调用方零改动语义不变——双路序与键名逐位一致）。融合常数、降权语义、
@@ -51,7 +51,7 @@ public class RrfFusion {
     }
 
     /**
-     * N 路融合（簇④ 泛化主签名）。
+     * N 路融合（Phase5簇④ 泛化主签名）。
      *
      * @param routeHits 路标识 → 该路命中列表（各路按自身分数降序，id = chunkId）；
      *                  建议 {@link LinkedHashMap} 保持路序稳定（仅影响元数据序，不影响融合分）
@@ -96,7 +96,7 @@ public class RrfFusion {
     }
 
     /**
-     * 双路兼容签名（簇④ 前既有调用方形态）：委派 N 路，语义逐位一致。
+     * 双路兼容签名（Phase5簇④ 前既有调用方形态）：委派 N 路，语义逐位一致。
      *
      * @param vectorHits 向量路命中（按相似度降序，id = chunkId）
      * @param bm25Hits   BM25 路命中（按 BM25 分降序，id = chunkId）

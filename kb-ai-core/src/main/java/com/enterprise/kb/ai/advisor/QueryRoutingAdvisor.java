@@ -57,7 +57,7 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
     /** 历史消息单条截断长度：分类只需语义轮廓，防长回答撑爆分类 prompt */
     private static final int HISTORY_MESSAGE_MAX_CHARS = 300;
 
-    // 意图分类器模板收编于 PromptTemplates#INTENT_CLASSIFIER_PROMPT（4.8 Git Ops 外部化，簇⑦ 批2）
+    // 意图分类器模板收编于 PromptTemplates#INTENT_CLASSIFIER_PROMPT（4.8 Git Ops 外部化，Phase4簇⑦ 批2）
 
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
@@ -112,7 +112,7 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
                     ? result.rewrittenQuery().trim()
                     : trimmed);
             metrics.recordRoutingKnowledge();
-            // rag 链阶段进度（簇⑥ 体验批3，PROGRESS 帧）：路由+改写完成，进入检索
+            // rag 链阶段进度（Phase5簇⑥ 体验批3，PROGRESS 帧）：路由+改写完成，进入检索
             ctx.emitProgress(Constants.SseEvent.PROGRESS_TYPE_STAGE, "意图识别与查询改写完成，检索知识库…");
         } catch (Exception e) {
             log.warn("意图分类失败，fail-open 回落完整检索链路", e);

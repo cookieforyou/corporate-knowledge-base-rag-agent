@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * InputSanitize(300)，落库前经同款 sanitize 规则脱敏（3.5 PII 不绕过审计落库，
  * 与 Controller 归档同策）；rewritten_query 经 RewriteCapturingQueryTransformer
  * 写回的 RetrievalContext 捕获；检索/重排 chunk 与工具调用记录来自
- * RetrievalContext（双路 trace + toolCalls）；usage 取响应 metadata（v2.19 簇③ D1
+ * RetrievalContext（双路 trace + toolCalls）；usage 取响应 metadata（v2.19 冲刺簇③ D1
  * 起主/备模型均开 include_usage，流式末块携带 usage；缺失时仍 null 降级）。
  *
  * <p><b>容错策略</b>：审计是旁路增值数据——构建/落库任何环节失败仅告警丢弃，
@@ -233,7 +233,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
      *   <li>检索命中率：rag 模式且产生过 trace 条目（到达过检索层）计 total，
      *       final 重排序列非空计 hit；内层护栏/限流提前拒绝未达检索，不计入分母</li>
      *   <li>工具调用：按 ToolCall.status 分桶（成功/挂起见 AiBusinessMetrics）</li>
-     *   <li>请求结果（Phase 4 簇①）：全量请求计 total，BusinessException 计 rejected、
+     *   <li>请求结果（Phase4簇①）：全量请求计 total，BusinessException 计 rejected、
      *       其他异常计 error——与落库三态同语义，为 4.2 告警提供拒绝率/错误率分母</li>
      * </ul>
      */

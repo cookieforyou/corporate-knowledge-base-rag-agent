@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Neo4j 连接配置（Phase 5 簇④ GraphRAG）。
+ * Neo4j 连接配置（Phase5簇④ GraphRAG）。
  *
  * <p>绑定 {@code spring.neo4j.*}（基建连接段落 application-infra.yml，与 PG/ES/Redis/MinIO
  * 同层）；环境变量覆盖 = {@code NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD}。

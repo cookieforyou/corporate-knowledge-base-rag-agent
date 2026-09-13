@@ -60,7 +60,7 @@ public class RetrievalConfig {
 
     /*
      * Grounding Prompt（设计文档 10.6 + 11.1.2）：模板文本收编于
-     * PromptTemplates#GROUNDING_PROMPT（4.8 Git Ops 外部化，簇⑦ 批2）。
+     * PromptTemplates#GROUNDING_PROMPT（4.8 Git Ops 外部化，Phase4簇⑦ 批2）。
      * 装配语义：{context} 经 {@link #formatNumberedContext} 编号化渲染，[ref-N] 顺序
      * = 重排后 Top-N 排名，与 SSE TRACE 溯源列表下标对齐（2.11/2.12）；
      * {@code <untrusted_context>} 不可信数据标记为 RAG 间接注入软防线（12.4.2 第二道纵深）。
@@ -98,7 +98,7 @@ public class RetrievalConfig {
 
     /*
      * 空证据拒绝模板（2.10 设计修正）：模板文本收编于
-     * PromptTemplates#EMPTY_CONTEXT_PROMPT（4.8 Git Ops 外部化，簇⑦ 批2）。
+     * PromptTemplates#EMPTY_CONTEXT_PROMPT（4.8 Git Ops 外部化，Phase4簇⑦ 批2）。
      * 装配语义：allowEmptyContext=false 时渲染该模板输出确定性拒绝——库外问题
      * 规范拒答（16.4 Negative Rejection ≥ 0.85）的关键机制。模板无占位符，
      * 经无参 render() 调用（RetrievalConfigContextFormatTest 回归钉死）。
@@ -110,7 +110,7 @@ public class RetrievalConfig {
      *
      * <p>多查询扩展默认关闭：检索与 embedding 调用放大 N 倍，对 TTFT（目标 < 1.5s）
      * 不友好；RRF 融合结构已为扩展留好 DocumentJoiner 接口，需要时开配置即可（10.6）。
-     * 簇① A1 A/B 实证（2026-08-11，kb-eval chain 探针）：开启净增益 MRR +0.025 /
+     * 冲刺簇① A1 A/B 实证（2026-08-11，kb-eval chain 探针）：开启净增益 MRR +0.025 /
      * Recall +0.006，不抵 TTFT 代价，维持默认关——决策全文见 RetrievalProperties.Expansion。
      *
      * <p>检索在 before() 内经 taskExecutor 并行执行（源码核验）；租户/溯源上下文
@@ -121,7 +121,7 @@ public class RetrievalConfig {
      * 查询改写器（多轮指代消解）——独立 Bean 以便检索调试台（2.14）复用，
      * 与主链路共享同一实例。
      *
-     * <p>簇④ A5：实现由 {@code RewriteQueryTransformer} 切换为
+     * <p>冲刺簇④ A5：实现由 {@code RewriteQueryTransformer} 切换为
      * {@link CompressionQueryTransformer}——前者默认模板**不消费对话历史**
      * （源码核验：transform 仅传 query/target 参数），指代消解隐式依赖
      * QueryRoutingAdvisor(440) 合并调用顺带完成，路由关闭/分类 fail-open 的
@@ -207,7 +207,7 @@ public class RetrievalConfig {
      * {@code @ConditionalOnMissingBean}，注册自定义 Builder Bean 会顶掉全局默认，
      * rag/tool 链全部断供（ChatClientAutoConfiguration 源码核验）。观测四参对齐：
      * registry + 双 convention（@Nullable——DefaultChatClientBuilder 源码核验容忍
-     * null），轻调用 span 保持入 Langfuse trace 树（簇① 合树形态不回退）。
+     * null），轻调用 span 保持入 Langfuse trace 树（Phase4簇① 合树形态不回退）。
      */
     private static ChatClient.Builder lightweightChatClientBuilder(
             ChatModel smartRoutingChatModel,
@@ -225,7 +225,7 @@ public class RetrievalConfig {
     /**
      * Advisor 内部并行执行器：虚拟线程（与 ETL/检索路径技术栈一致）。
      *
-     * <p><b>上下文传递包裹（Phase 4 簇②，簇① trace 碎片化留档修复）</b>：RAA 经本执行器
+     * <p><b>上下文传递包裹（Phase4簇②，Phase4簇① trace 碎片化留档修复）</b>：RAA 经本执行器
      * 提交检索任务，裸虚拟线程不继承请求线程的当前观测——rerank/embedding 观测寻父落空
      * 成独立 trace 根。经 {@link ContextPropagatingTaskDecorator} 包裹：提交线程捕获
      * 快照（含 {@code micrometer.observation}，坑位㉖ 静态自动注册的 accessor），
@@ -239,11 +239,11 @@ public class RetrievalConfig {
     }
 
     /**
-     * 混合检索双路并行执行器（v2.19 簇③ D2）：此前 HybridDocumentRetriever 每请求
+     * 混合检索双路并行执行器（v2.19 冲刺簇③ D2）：此前 HybridDocumentRetriever 每请求
      * {@code new} 虚拟线程 executor——收编为共享 Bean（与 etlExecutor 同形态），
      * 消除高频请求下的重复创建/关闭开销。
      *
-     * <p><b>上下文传递包裹（Phase 4 簇②）</b>：嵌套二级提交同样逃逸——向量路
+     * <p><b>上下文传递包裹（Phase4簇②）</b>：嵌套二级提交同样逃逸——向量路
      * embedding 观测发生在二级任务内。{@link ContextExecutorService#wrap} 对
      * submit/execute 全形态捕获-恢复，embedding 观测挂回检索任务上下文
      * （其上下文已由 retrievalExecutor 装饰器 restore，两级串联成链）。
@@ -254,7 +254,7 @@ public class RetrievalConfig {
     }
 
     /**
-     * Graph 路检索器（簇④ 5.2，三路融合第三路）——条件装配：
+     * Graph 路检索器（Phase5簇④ 5.2，三路融合第三路）——条件装配：
      * {@code rag.graph.enabled=true} 才在场，{@link HybridDocumentRetriever} 经
      * {@code ObjectProvider} 容忍缺位；关闭态双路链形态逐字节不变（同缓存族纪律）。
      */

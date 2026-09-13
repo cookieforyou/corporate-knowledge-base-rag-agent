@@ -37,7 +37,7 @@ public class ChatConfig {
     }
 
     /**
-     * INJECTION 用例专属护栏链（簇⑤ B2 S6）：仅挂 InputSanitizeAdvisor——
+     * INJECTION 用例专属护栏链（冲刺簇⑤ B2 S6）：仅挂 InputSanitizeAdvisor——
      * 注入拦截率度量只测 L1 输入护栏本身，不挂配额/限流/审计/输出护栏
      * （免 429 污染判定、免审计表注入样本噪声、免输出替换干扰）。
      * 被测模型复用 smartRoutingChatModel（与被测 chatClient 同源）。

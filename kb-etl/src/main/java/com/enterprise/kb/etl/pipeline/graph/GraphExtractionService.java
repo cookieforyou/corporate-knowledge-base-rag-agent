@@ -36,7 +36,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 图谱抽取编排（簇④ 5.1）：文档 → 逐 chunk 结构化抽取 → 实体嵌入 → 幂等写图
+ * 图谱抽取编排（Phase5簇④ 5.1）：文档 → 逐 chunk 结构化抽取 → 实体嵌入 → 幂等写图
  * → 状态回写。
  *
  * <p><b>定位</b>：ETL 成功后的异步旁路——抽取成败不影响文档入库主状态

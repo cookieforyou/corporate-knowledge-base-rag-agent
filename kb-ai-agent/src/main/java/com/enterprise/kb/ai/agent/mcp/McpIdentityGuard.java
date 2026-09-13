@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * MCP 调用身份守卫（Phase 4 簇⑤ 4.10）——请求线程 JWT 捕获 → RetrievalContext 参数链。
+ * MCP 调用身份守卫（Phase4簇⑤ 4.10）——请求线程 JWT 捕获 → RetrievalContext 参数链。
  *
  * <p><b>形态</b>：MCP Streamable HTTP 端点（/mcp）经 SecurityConfig authenticated
  * 拦截，OAuth2 Resource Server 解析 JWT 填充 SecurityContext；工具方法在请求线程

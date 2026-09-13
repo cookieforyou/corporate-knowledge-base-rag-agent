@@ -1,7 +1,7 @@
 {
   "uid": "kb-rag-supplier-sla",
   "title": "KB-RAG 双供应商 SLA 大盘",
-  "description": "Phase 4 簇⑥ 批4（v2.58）：主模型熔断/试探/备用接管事件流——主备切换时序与主模型可用率视角。指标族 rag.routing.circuit.* / rag.routing.fallback.invoked（AiBusinessMetrics，SmartRoutingChatModel 接线）。",
+  "description": "Phase4簇⑥ 批4（v2.58）：主模型熔断/试探/备用接管事件流——主备切换时序与主模型可用率视角。指标族 rag.routing.circuit.* / rag.routing.fallback.invoked（AiBusinessMetrics，SmartRoutingChatModel 接线）。",
   "tags": [
     "kb-rag"
   ],
@@ -274,7 +274,7 @@
       "id": 4,
       "options": {
         "mode": "markdown",
-        "content": "**双供应商 SLA 观测口径（簇⑥ 批4，v2.58）**\n\n- **三事件计数**（SmartRoutingChatModel 熔断态变更接线）：`rag.routing.circuit.opened`（OPEN 转入，含试探失败重开）/ `circuit.half-opened`（窗口结束后试探）/ `rag.routing.fallback.invoked`（备用接管，OPEN 直发 + 失败即切）\n- **熔断参数**：`rag.routing.circuit.failure-threshold`（缺省 5）/ `open-seconds`（缺省 30）；HALF_OPEN 试探成功即闭合清零\n- **告警**：KbPrimaryModelDegraded——OPEN 事件出现即告警（increase[5m]>0），窗口内备用服务，试探成功后自动恢复\n- **E2E 锚点**：断主模型凭据 → 连续失败 5 次内观察 OPEN 计数 + 接管速率抬升 + 告警 FIRING；恢复凭据 → 30s 窗口后 HALF_OPEN 试探回主\n- 模型调用明细（主/备 token、延迟）走 Langfuse trace 链（13.5 双层分工）"
+        "content": "**双供应商 SLA 观测口径（Phase4簇⑥ 批4，v2.58）**\n\n- **三事件计数**（SmartRoutingChatModel 熔断态变更接线）：`rag.routing.circuit.opened`（OPEN 转入，含试探失败重开）/ `circuit.half-opened`（窗口结束后试探）/ `rag.routing.fallback.invoked`（备用接管，OPEN 直发 + 失败即切）\n- **熔断参数**：`rag.routing.circuit.failure-threshold`（缺省 5）/ `open-seconds`（缺省 30）；HALF_OPEN 试探成功即闭合清零\n- **告警**：KbPrimaryModelDegraded——OPEN 事件出现即告警（increase[5m]>0），窗口内备用服务，试探成功后自动恢复\n- **E2E 锚点**：断主模型凭据 → 连续失败 5 次内观察 OPEN 计数 + 接管速率抬升 + 告警 FIRING；恢复凭据 → 30s 窗口后 HALF_OPEN 试探回主\n- 模型调用明细（主/备 token、延迟）走 Langfuse trace 链（13.5 双层分工）"
       },
       "title": "SLA 观测口径说明",
       "type": "text"

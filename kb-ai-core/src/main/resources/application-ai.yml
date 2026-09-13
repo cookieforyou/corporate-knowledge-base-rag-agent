@@ -7,7 +7,7 @@ spring:
       type: custom
 
     # ── Model Provider 选择 ──
-    # v2.19（簇③ D1）：chat 置 none——主模型改由 SmartRoutingConfig 手工装配为
+    # v2.19（冲刺簇③ D1）：chat 置 none——主模型改由 SmartRoutingConfig 手工装配为
     # OpenAI 兼容形态（开 stream_options.include_usage 修复流式配额漏算）。
     # v2.77（模型层批B）：deepseek starter 依赖已移除，本键不再有让位对象，
     # 保留为防御位——防未来误引 chat starter 自动装配与手工主模型冲突
@@ -23,10 +23,10 @@ spring:
         model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding}
 
     chat:
-      # 观测内容开关（Phase 4 簇①）：prompt/completion 全文附入 observation，经 OTel
+      # 观测内容开关（Phase4簇①）：prompt/completion 全文附入 observation，经 OTel
       # 桥接落 span attribute 导出 Langfuse。实证坑：本文件经 spring.config.import 导入、
       # 优先级高于 kb-api application.yml——内容开关唯一来源在此（application.yml 不重复定义）
-      # SaaS 出境合规风险已在簇①定案时知悉接受；关闭置 RAG_OBSERVABILITY_LOG_CONTENT=false
+      # SaaS 出境合规风险已在Phase4簇①定案时知悉接受；关闭置 RAG_OBSERVABILITY_LOG_CONTENT=false
       # 原配置：
       # chat.observations:
       #   log-prompt: false
@@ -81,7 +81,7 @@ rag:
   tool:
     approval:
       ttl-minutes: ${RAG_TOOL_APPROVAL_TTL_MINUTES:10}
-  # 多子代理编排（簇⑤ 5.3，设计文档 §11.5.5）——Orchestrator-Workers 收窄骨架：
+  # 多子代理编排（Phase5簇⑤ 5.3，设计文档 §11.5.5）——Orchestrator-Workers 收窄骨架：
   # mode=agent 第三链，主 Agent 仅持 task 委派工具。enabled 缺省关——关闭态编排族
   # Bean 整体缺位（rag/tool 两链逐字节零变化），mode=agent 显式 400
   # ORCHESTRATOR_DISABLED；真实工具立项后升级回原验收（>85% 任务完成率）
@@ -175,7 +175,7 @@ rag:
   token-budget:
     enabled: ${RAG_TOKEN_BUDGET_ENABLED:true}
     daily-limit: ${RAG_TOKEN_BUDGET_DAILY_LIMIT:1000000}
-  # MCP 治理（簇⑤ 4.10 基础键经 @Value 默认值收口；安全簇② B3 补配额与审计）
+  # MCP 治理（Phase4簇⑤ 4.10 基础键经 @Value 默认值收口；安全簇② B3 补配额与审计）
   mcp:
     # 只读工具（search/get_document）租户级限流——独立桶 rag:ratelimit:mcp:{tenant}
     # 与对话链桶分账；Redis 故障 fail-open（只读路径限流是可用性管控非安全边界）；
@@ -276,10 +276,10 @@ rag:
   retrieval:
     rewrite:
       enabled: ${RAG_REWRITE_ENABLED:true}      # 查询改写：多轮指代消解，默认开
-    expansion:                                  # 多查询扩展（簇① A1 A/B 决策：默认关）
+    expansion:                                  # 多查询扩展（冲刺簇① A1 A/B 决策：默认关）
       enabled: ${RAG_RETRIEVAL_EXPANSION_ENABLED:false}    # 增益 MRR +0.025 / Recall +0.006，不抵 TTFT 代价
       num-queries: ${RAG_RETRIEVAL_EXPANSION_NUM_QUERIES:3}  # 查询变体数（检索调用放大倍数）
-    # ── 调优参数（簇① A3 配置化，默认值 = Phase 2 基线形态，行为零变化）──
+    # ── 调优参数（冲刺簇① A3 配置化，默认值 = Phase 2 基线形态，行为零变化）──
     # 修改任一参数即改变检索形态，须复跑 kb-eval 基线对比后再定默认值
     top-k: ${RAG_RETRIEVAL_TOP_K:5}                              # 最终证据条数（rerank top_n / 截断）
     rrf-k: ${RAG_RETRIEVAL_RRF_K:60}                             # RRF 融合常数（标准值 60）
@@ -293,7 +293,7 @@ rag:
       demote:
         enabled: ${RAG_RETRIEVAL_INJECTION_HIT_DEMOTE_ENABLED:false}
         factor: ${RAG_RETRIEVAL_INJECTION_HIT_DEMOTE_FACTOR:0.5}
-  # ── GraphRAG（Phase 5 簇④）：实体关系图谱 + 三路融合（向量+BM25+Graph，RRF K=60 同口径）──
+  # ── GraphRAG（Phase5簇④）：实体关系图谱 + 三路融合（向量+BM25+Graph，RRF K=60 同口径）──
   # 缺省关：整个图谱域（Driver/网关/抽取/图路检索）条件装配缺位，链形态与双路逐字节一致。
   # 启用前置：用户侧 .env 填 NEO4J_URI/NEO4J_USERNAME/NEO4J_PASSWORD（第二台 ECS 自托管
   # Community 实例，连接段落 application-infra.yml spring.neo4j.*）+ 存量回填（admin 端点）。
@@ -322,7 +322,7 @@ rag:
       # 官方口径），0.7 ≈ 原始余弦 ≥ 0.4；调参须按此语义，勿当原始余弦解读（v2.80）
       entity-similarity-threshold: ${RAG_GRAPH_ENTITY_SIMILARITY_THRESHOLD:0.7}
       expand-neighbors: ${RAG_GRAPH_EXPAND_NEIGHBORS:true}               # 1 跳邻域展开（衰减 0.5）
-  # ── 语义缓存（Phase 5 簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
+  # ── 语义缓存（Phase5簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
   # 命中短路「检索+重排+生成」全链重放缓存回答与溯源；缺省关（用户侧 E2E 验证后启用，
   # 同 eval L2 / 间接注入缺省关族纪律）；验收线 = 命中率 >30% + 命中延迟 P95 降 >40%（对照 18 §18.4）
   cache:
@@ -336,4 +336,4 @@ rag:
     endpoint: ${RERANK_ENDPOINT:https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank}
     model: ${RERANK_MODEL:qwen3.7-text-rerank}
     api-key: ${DASHSCOPE_API_KEY:}
-    timeout-seconds: ${RERANK_TIMEOUT_SECONDS:5}   # connect/read 超时（簇③ D2），与单路检索超时对齐；超时走 fusion_score 截断降级
+    timeout-seconds: ${RERANK_TIMEOUT_SECONDS:5}   # connect/read 超时（冲刺簇③ D2），与单路检索超时对齐；超时走 fusion_score 截断降级

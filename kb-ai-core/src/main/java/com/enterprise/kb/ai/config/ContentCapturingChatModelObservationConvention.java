@@ -9,7 +9,7 @@ import org.springframework.ai.chat.observation.DefaultChatModelObservationConven
 import org.springframework.ai.chat.prompt.Prompt;
 
 /**
- * 内容捕获型 ChatModel ObservationConvention（Phase 4 簇①）
+ * 内容捕获型 ChatModel ObservationConvention（Phase4簇①）
  *
  * <p><b>背景（实证）</b>：Spring AI 2.0 GA 的 {@code spring.ai.chat.observations.log-prompt /
  * log-completion} 只把内容打到应用日志（纯日志 handler，TracingAware 包装仅补作用域），

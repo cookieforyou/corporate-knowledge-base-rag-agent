@@ -17,7 +17,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 内容捕获 convention 单测（簇①）——gen_ai.prompt/gen_ai.completion 高基数 KeyValue 契约
+ * 内容捕获 convention 单测（Phase4簇①）——gen_ai.prompt/gen_ai.completion 高基数 KeyValue 契约
  */
 class ContentCapturingChatModelObservationConventionTest {
 

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * 企业 Mock 读工具（簇⑤ 5.3 自 EnterpriseMockTools 拆分——读/写半区隔离）
+ * 企业 Mock 读工具（Phase5簇⑤ 5.3 自 EnterpriseMockTools 拆分——读/写半区隔离）
  *
  * <p>拆分动机：编排链数据查询子代理（SubAgentSpec data-query）仅挂读工具——
  * 2.0 GA 的 defaultTools 为对象级全量挂载（无方法级过滤），拆类是零核验成本的

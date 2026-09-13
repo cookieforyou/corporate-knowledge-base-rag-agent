@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Neo4j 图谱网关实现（Phase 5 簇④）。
+ * Neo4j 图谱网关实现（Phase5簇④）。
  *
  * <p>全部查询参数化（$参数绑定，无字符串拼接）；租户过滤强制在场——
  * 空租户写路径直接拒绝、读路径返回空（与检索侧两层 fail-closed 纪律同口径）。

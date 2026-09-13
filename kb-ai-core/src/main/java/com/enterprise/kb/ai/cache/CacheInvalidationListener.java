@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 缓存失效事件订阅器（Phase 5 簇③ 5.6 批2）：订阅
+ * 缓存失效事件订阅器（Phase5簇③ 5.6 批2）：订阅
  * {@link #INVALIDATION_CHANNEL} 频道，经 {@link SemanticCacheService#invalidateByDocument}
  * 反查删除引用变更文档的缓存条目。
  *

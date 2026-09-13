@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 输出安全护栏测试（3.6）—— 同步 after() 拦截 + 流式聚合后验 + 护栏命中计数（簇⑤ B2 S3）
+ * 输出安全护栏测试（3.6）—— 同步 after() 拦截 + 流式聚合后验 + 护栏命中计数（冲刺簇⑤ B2 S3）
  *
  * <p>v2.41/T2：词表切结构化加载（双源合并），测试词表经 CSV 兼容源注入占位词；
  * bundled 基线输出词表随 jar 发布并在构造时并入（不影响占位词断言语义）。
@@ -310,7 +310,7 @@ class OutputGuardrailAdvisorTest {
         assertThat(meterRegistry.counter("rag.guardrail.output.canary").count()).isZero();
     }
 
-    // ── 护栏命中计数（簇⑤ B2 S3）──
+    // ── 护栏命中计数（冲刺簇⑤ B2 S3）──
 
     @Test
     void syncReplacementIncrementsGuardrailCounter() {
@@ -338,7 +338,7 @@ class OutputGuardrailAdvisorTest {
         assertThat(meterRegistry.counter("rag.guardrail.output.pii.echo").count()).isZero();
     }
 
-    // ── PII 回显探测（安全簇③ C2，簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 ──
+    // ── PII 回显探测（安全簇③ C2，安全簇① T5 钩子闭环）：FLAG 观察起步只计数不替换 ──
 
     @Test
     void piiEchoInSyncOutputCountedButNotReplaced() {

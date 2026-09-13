@@ -39,7 +39,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
- * 蓝绿重入库管线单测（簇⑥ C1）：
+ * 蓝绿重入库管线单测（优化冲刺簇⑥ C1）：
  * 全量写入 → diff 清理（旧有新无）→ REINDEXING 入口版本号 +1；
  * 首次入库旧集为空零清理；失败态旧数据保留不触发清理。
  */

@@ -44,7 +44,7 @@ import org.springframework.context.annotation.Primary;
  * JudgeModelConfig 同款实证先例：baseUrl/apiKey 必须经 {@link OpenAiChatOptions}
  * 传入（异步 client 不继承预建同步 client 凭证，见 CLAUDE.md 坑位①）。
  *
- * <p><b>主模型手工装配缘由（v2.19，簇③ D1 流式 token 计账）</b>：deepseek starter
+ * <p><b>主模型手工装配缘由（v2.19，冲刺簇③ D1 流式 token 计账）</b>：deepseek starter
  * 的 {@code DeepSeekApi.ChatCompletionRequest} record 无 {@code stream_options} 字段、
  * {@code DeepSeekChatOptions} 无 streamUsage（2.0.0 源码核验）——无法开启
  * include_usage，流式消耗系统性漏算。改以 {@link OpenAiChatModel} 指向 OpenAI 兼容
@@ -187,7 +187,7 @@ public class SmartRoutingConfig {
 
     /**
      * 手工模型构建公共路径：显式挂 ObservationRegistry（坑位⑯——builder 单参形态
-     * 内部 NOOP，自动装配注入不继承）+ 内容捕获 convention 条件接线（簇①：
+     * 内部 NOOP，自动装配注入不继承）+ 内容捕获 convention 条件接线（Phase4簇①：
      * 仅开关开启时注册，经 ObjectProvider 条件消费）。
      */
     private ChatModel buildObservedModel(
@@ -246,7 +246,7 @@ public class SmartRoutingConfig {
     }
 
     /**
-     * 内容捕获 convention（Phase 4 簇①）——仅内容捕获开关开启时注册（与
+     * 内容捕获 convention（Phase4簇①）——仅内容捕获开关开启时注册（与
      * {@code spring.ai.chat.observations.log-prompt} 同源，同一 env 开关
      * RAG_OBSERVABILITY_LOG_CONTENT 驱动）。把 prompt/completion 作为高基数 KeyValue
      * 写入 ChatModel observation，经 tracing 桥落 span attribute（gen_ai.prompt/

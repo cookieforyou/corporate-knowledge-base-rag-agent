@@ -1,6 +1,6 @@
 # API 文档 · 企业知识库 RAG Agent 工作台
 
-> 版本：1.1（2026-08-22，随 Phase 4 簇⑦交付；契约逐字核对源码：kb-api / kb-admin / kb-ai-agent / kb-commons）
+> 版本：1.1（2026-08-22，随 Phase4簇⑦交付；契约逐字核对源码：kb-api / kb-admin / kb-ai-agent / kb-commons）
 > 基地址：`http://<host>:8090` · 配套：[运维手册](./运维手册.md) · [用户使用手册](./用户使用手册.md)
 
 ---

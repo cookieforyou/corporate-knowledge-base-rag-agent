@@ -10,7 +10,7 @@ import org.redisson.client.protocol.Encoder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 语义缓存文档编解码器（Phase 5 簇③ 5.6）。
+ * 语义缓存文档编解码器（Phase5簇③ 5.6）。
  *
  * <p>Redis 8 内建搜索引擎的 VECTOR 字段要求 HASH 字段为原始字节
  * （FLOAT32 小端序），而条目的问句/回答/溯源载荷为 UTF-8 文本——

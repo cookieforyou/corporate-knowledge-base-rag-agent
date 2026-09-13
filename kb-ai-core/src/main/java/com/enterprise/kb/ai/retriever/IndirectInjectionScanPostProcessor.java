@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * 间接注入扫描后处理器（安全簇④ D1，设计 §12.8；缺口 E3 闭环第一环）
  *
- * <p>证据注入 grounding 前对每个召回 chunk 跑注入词表检测视图（复用簇①词表工程
+ * <p>证据注入 grounding 前对每个召回 chunk 跑注入词表检测视图（复用安全簇①词表工程
  * 资产，{@link GuardrailRulesLoader} 同源装载，与 InputSanitizeAdvisor /
  * SanitizingTransformer 同词面不漂移）——S2 是 grounding 模板统一声明，本组件是
  * <b>逐条定位强化</b>：命中的证据在模板渲染时追加逐条警示注记
@@ -53,7 +53,7 @@ import java.util.Map;
  * side 枚举为 input/output 双侧语义，间接面以独立指标表达；审计行维持
  * SUCCESS→null 不变量（免 schema 变更）。
  *
- * <p>敏感词交付纪律（§7 / 簇④分解条 5-7）：warn 日志只记命中计数与文档 ID，
+ * <p>敏感词交付纪律（§7 / 安全簇④ 分解条 5-7）：warn 日志只记命中计数与文档 ID，
  * 不落正文；词表内容编码态存储加载层解码，本组件零字面词面。
  */
 @Slf4j

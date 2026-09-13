@@ -28,7 +28,7 @@
             <artifactId>openai-java-client-okhttp</artifactId>
             <version>4.41.0</version>
             <exclusions>
-                <!-- B5 治理（Phase 5 簇①）：kotlin-stdlib-common 2.0 起并入 kotlin-stdlib
+                <!-- B5 治理（Phase5簇①）：kotlin-stdlib-common 2.0 起并入 kotlin-stdlib
                      且 2.x 无 jar，声明点排除；类由 kotlin-stdlib 2.4.10 承载 -->
                 <exclusion>
                     <groupId>org.jetbrains.kotlin</groupId>
@@ -51,7 +51,7 @@
             <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- 簇④ 四轮热修补防：Neo4j 网关真跑 IT（Cypher 语法/语义仅真库可验，
+        <!-- Phase5簇④ 四轮热修补防：Neo4j 网关真跑 IT（Cypher 语法/语义仅真库可验，
              mock 单测盲视——列表推导式语序错实证）；镜像钉生产同版本 5.26.29 -->
         <dependency>
             <groupId>org.testcontainers</groupId>
@@ -63,7 +63,7 @@
             <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- 簇⑥ D3：文档生命周期 IT（reparse/replace 蓝绿/软删）直测 DocumentEtlService -->
+        <!-- 冲刺簇⑥ D3：文档生命周期 IT（reparse/replace 蓝绿/软删）直测 DocumentEtlService -->
         <dependency>
             <groupId>com.enterprise</groupId>
             <artifactId>kb-etl</artifactId>
@@ -77,7 +77,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            <!-- 簇⑥ D3 集成测试：*IT.java 经 failsafe 在 mvn verify 执行（Docker 必需，
+            <!-- 冲刺簇⑥ D3 集成测试：*IT.java 经 failsafe 在 mvn verify 执行（Docker 必需，
                  无 Docker 环境加 -DskipITs） -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

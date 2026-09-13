@@ -7,7 +7,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 图谱 Schema 启动初始化（Phase 5 簇④）。
+ * 图谱 Schema 启动初始化（Phase5簇④）。
  *
  * <p>{@code rag.graph.enabled=true} 时于 ApplicationReady 执行连通性校验 +
  * 幂等 DDL（约束/索引/向量索引）。<b>失败不阻断应用启动</b>（图谱是检索增强件

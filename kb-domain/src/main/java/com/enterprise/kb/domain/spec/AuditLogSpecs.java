@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 审计日志查询 Specification 工厂（Phase 4 簇④ 4.7 定稿，v2.35 形态修正）。
+ * 审计日志查询 Specification 工厂（Phase4簇④ 4.7 定稿，v2.35 形态修正）。
  *
  * <p><b>形态修正动因</b>：原 {@code @Query} 可选参数形态 {@code (:p IS NULL OR ...)}
  * 在 PostgreSQL 服务端预编译提升后报错——PgJDBC 对同一 SQL 文本前若干次执行走无名
@@ -35,7 +35,7 @@ public final class AuditLogSpecs {
      * @param to        created_at 闭区间上界，null 不限
      * @param userId    用户过滤，null 不限
      * @param sessionId 会话过滤，null 不限
-     * @param mode      链路过滤 rag/tool/agent（小写存储形态，簇⑤ E2E 审计核对项），null 不限
+     * @param mode      链路过滤 rag/tool/agent（小写存储形态，安全簇⑤ E2E 审计核对项），null 不限
      * @param feedback  POSITIVE/NEGATIVE，null 不限
      * @param status    SUCCESS/REJECTED/ERROR，null 不限
      * @param rootCause 已标注根因，null 不限

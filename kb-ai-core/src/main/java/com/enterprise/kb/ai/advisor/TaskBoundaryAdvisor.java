@@ -16,7 +16,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.Flux;
 
 /**
- * 任务边界 Advisor（簇⑤ 收官注记① 三轮，11 章 v2.108）—— Order 420，
+ * 任务边界 Advisor（Phase5簇⑤ 收官注记① 三轮，11 章 v2.108）—— Order 420，
  * Memory(400) 之后 ToolCallingAdvisor(1000) 之前，消息层结构分隔注记。
  *
  * <p><b>治理对象</b>：编排链多轮会话跨任务历史污染——同会话连发独立新任务时，

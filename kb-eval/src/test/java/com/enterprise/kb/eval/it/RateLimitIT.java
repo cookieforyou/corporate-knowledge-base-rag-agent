@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 租户限流 429（簇⑥ D3，CTX-QUOTA 上下文）：Redisson 令牌桶真实限流 +
+ * 租户限流 429（冲刺簇⑥ D3，CTX-QUOTA 上下文）：Redisson 令牌桶真实限流 +
  * 租户独立桶 + 被拒审计行。
  */
 @TestPropertySource(properties = {
