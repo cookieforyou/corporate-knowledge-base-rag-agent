@@ -1,6 +1,6 @@
 # Phase5簇⑥ 产品化收尾实施方案（批次推进版）
 
-> **版本**：v1.0（提案待拍板）· **日期**：2026-09-13 · **工时**：~4d（批1 1d + 批2 1.5d + 批3 1.5d）· **模块跨度**：kb-ai-agent（dingtalk/ a2a/ 新包）/ kb-api（A2A 端点 + SecurityConfig）/ kb-ai-core（指标）/ docs（delivery 五件 + 18 章 + 11 章）
+> **版本**：v1.1（D1-D4 拍板定案）· **日期**：2026-09-13 · **工时**：~4-5d（批1 1d + 批2 1.5-2.5d（D1-B 含 spike）+ 批3 1.5d）· **模块跨度**：kb-ai-agent（dingtalk/ a2a/ 新包）/ kb-api（A2A 端点 + SecurityConfig）/ kb-ai-core（指标）/ docs（delivery 五件 + 18 章 + 11 章）
 > **性质**：Phase5簇⑥ 落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.4/5.5/5.12 · §四 N3 · §三（全项目收口判据）· §五 簇⑥ 行；批次进展回填 07 卷 Phase5簇⑥ 段。
 > **既有推进**（07 卷已留痕）：E2E 体验批1-3（流式恢复 / toolCalls 归档回显 / 三链路进度推送）+ 热修一 + 补强一至四（含 kb_session.mode 列）已于 2026-09-07/08 全部收官——**本方案只覆盖剩余主体五件**：钉钉机器人（5.12）+ A2A（N3）+ 5.4/5.5 归档 + delivery 增量 + 全阶段验收复盘。
 > **官方路径核验（2026-09-13，网络调研）**：
@@ -43,7 +43,7 @@
 | **A（推荐）** | **18 章新增 §18.6「全阶段验收复盘矩阵」**：按 阶段（Phase 1-5 + 优化冲刺/安全专项）× 簇/专项 登记「验收判据 → 实测读数 → 结论 ✅/挂起登记」，读数从各进度卷汇总回填（LT1 压测/门禁退出码/多跳 AC/E2E 通过率等既有事实，不新跑）；文首版本史递增；`project-implement/README.md` 索引同步（顺手补齐已落后的 18 章 v2.65/v2.67 两个修订位登记） | 18 章 = 交付验收标准本体（勘察确认现有 §18.1-18.5 按维度组织、无按 Phase 复盘节，L82 后直入附录——§18.6 落点干净）；Phase 5 方案 §三 定案「全阶段验收标准复盘归档（18 章联动）」原文对应 |
 | B | 另立独立复盘总集文档（project-optimization 下新文档） | 与 18 章定位重叠、双源漂移；复盘类文档已有先例（Phase 1-3 复盘）但那是「优化规划」入口，验收复盘归验收章 |
 
-> **定案记录（用户拍板后回填此处）**：D1=_ · D2=_ · D3=_ · D4=_
+> **定案记录（2026-09-13 用户拍板）**：D1=**B（a2a-java SDK 桥接，spike 失败回落 A）** · D2=A（服务账号单租户） · D3=A（rag 固定 + 溯源附录） · D4=A（18 章新增 §18.6 矩阵）。
 
 ---
 
@@ -64,7 +64,7 @@
 3. **身份 fail-closed**：钉钉 tenant-id 缺失启动失败（D2-A）；A2A 走既有 JWT bearer（`/api/**` authenticated 通道或显式 matcher，`anyRequest().denyAll()` 兜底纪律不破）；Casdoor token 无标准 scope claim 现状下，A2A scope 治理同 MCP 形态（端点层 authenticated + 可选 `rag.a2a.scope.required` 二次收敛，默认空仅租户纪律）；
 4. **钉钉密钥走 env**：Client ID/Secret 经 `RAG_DINGTALK_CLIENT_ID/SECRET` 注入，yml 零字面；`infra/.env.example` Secrets 模板同步补行（不填真值）；
 5. **复用对话链语义不减配**：护栏（输入消毒/注入拦截/输出黑名单/配额限流）/审计/租户隔离/记忆对钉钉与 A2A 入口同样生效（复用即继承，不旁路）；
-6. **模块纪律**：服务域（DingTalkStreamClient/DingTalkChatService/A2aAgentService/守卫/审计/限流）落 kb-ai-agent 新包 `dingtalk/` `a2a/`（对齐 MCP 四件落位先例）；HTTP 端点（A2A Controller + Agent Card）落 kb-api；kb-api 聚合禁反向依赖不破；多 ChatClient Bean 注入显式 `@Qualifier`；Advisor 链序零改动；
+6. **模块纪律**：服务域（DingTalkStreamClient/DingTalkChatService/KbA2aAgentExecutor/守卫/审计/限流）落 kb-ai-agent 新包 `dingtalk/` `a2a/`（对齐 MCP 四件落位先例）；A2A 协议层（SDK 装配或自研 Controller）落 kb-api；kb-api 聚合禁反向依赖不破；多 ChatClient Bean 注入显式 `@Qualifier`；Advisor 链序零改动；
 7. **新增依赖两步走**：父 POM dependencyManagement 预埋（既有纪律）+ 单模块引入；批1 首步 `dependency:tree` 核验 dingtalk-stream-sdk-java 传递依赖（gson/okhttp 族）与 Boot 4.1 共存，冲突即 exclusions 处理并留档；
 8. **指标零租户标签 + 独立 Counter 范式**：`rag.dingtalk.*` / `rag.a2a.*` 照 `rag.mcp.*`（`AiBusinessMetrics` 模式：多态拆独立 Counter，经 record 收口方法，未知操作不计）；
 9. **簇 tag 规约**：本簇所有产出（代码注释/文档/提交信息）一律 `Phase5簇⑥` 前缀，禁裸「簇⑥」。
@@ -143,25 +143,34 @@
 - **超时**：chatRag 调用包一层超时保护（缺省 120s，`rag.dingtalk.chat-timeout-seconds`；超时回复超时话术不静默）；
 - **降级**：sessionWebhook 回复失败仅计数+warn（消息已处理，不可重放语义清楚）。
 
-### 4.2 A2A 最小形态（kb-ai-agent `a2a/` + kb-api 端点，批2，D1-A 形态）
+### 4.2 A2A 最小形态（D1-B：a2a-java SDK 桥接主形态 + 自研回落预案）
+
+**主形态（spike 通过后）**：`org.a2aproject.sdk:a2a-java-sdk-reference-jsonrpc` + 自建 `AgentExecutor` 实现——SDK 处理协议解析/路由/v1.0-v0.3 兼容层/Agent Card 发布，项目侧只做「执行 + 治理」：
 
 ```
-A2A Client ──GET /.well-known/agent-card.json──▶ AgentCardController（kb-api，静态 Card）
-         ──POST /a2a（JSON-RPC message/send v1.0 / tasks/send v0.3）──▶ A2aController（kb-api）
-                                          │ JWT bearer（authenticated matcher，/mcp 同款）
-                                          ▼
-                                     A2aAgentService（kb-ai-agent）
-                                       ├─ 身份：McpIdentityGuard 同构（owner→tenantId fail-closed）
-                                       ├─ 限流/审计/指标：rag:ratelimit:a2a:{tenant} / mode="a2a" / rag.a2a.*
-                                       ├─ 委派：chatRag 同步（CONVERSATION_ID = "a2a-{contextId}"）
-                                       └─ 应答组装：Task(state=completed) + Artifact(Part text=answer)
-                                          同步 JSON-RPC response（错误码：JSON-RPC 标准 + 协议错误对象）
+A2A Client ──SDK 传输端点（JSON-RPC；挂载形态以 spike 结论为准）──▶ a2a-java SDK 协议层
+                                                                    │ AgentExecutor.execute()
+                                                                    ▼
+                                              KbA2aAgentExecutor（kb-ai-agent，SDK 接口实现）
+                                                ├─ 身份：McpIdentityGuard 同构（JWT owner→tenantId fail-closed）
+                                                ├─ 限流/审计：rag:ratelimit:a2a:{tenant} / mode="a2a" 轻行
+                                                ├─ 委派：chatRag 同步（CONVERSATION_ID = "a2a-{contextId}"）
+                                                └─ 应答：Task(completed) + Artifact(text=answer) 交 SDK 组装
+                                                指标：rag.a2a.{request,rate-limited,error} + chat.duration
 ```
 
-- **Agent Card**（v1.0 spec 字段落码前源码级核验 a2a-protocol.org）：name/description/url(=部署端点)/version/capabilities(仅声明非流式)/defaultInputOutputModes(text)/skills(kb_qa 知识库问答)/securitySchemes(bearer)+security 引用；
-- **协议方法支持面**：`message/send`（v1.0）与 `tasks/send`（v0.3）双方法名等价处理（最小兼容）；`message/stream`、`tasks/get`、`tasks/cancel` 等返回 JSON-RPC method-not-found 标准错误（能力位未声明，合规拒答）；
-- **落码前核验清单（批2 首步）**：Agent Card v1.0 确切 schema 字段名、Task/Artifact/Part 结构、错误码形态——以 spec 与官方 client（a2a-python/a2a-js）源码为准，不凭记忆落码；
-- **升级路径登记**：迁 a2a-java SDK 时桥接点 = `A2aAgentService` 单类（Controller/Card 零改动）。
+- **AgentCard**：SDK 定义形态（Builder/Bean）声明 name/capabilities(仅同步)/skills(kb_qa)/securitySchemes(bearer)——确切字段名以 spike 所读 SDK 源码 + a2a-protocol.org v1.0 spec 为准，不凭记忆落码；
+- **能力位只声明同步**：streaming/pushNotification 不声明（最小形态纪律，SDK 多数能力闲置即闲置）；
+- **治理不外包**：身份/限流/审计/指标为项目侧治理层，全部落在 `KbA2aAgentExecutor` 前置（SDK 传输层的认证仍需经 SecurityConfig 或 SDK 传输自带 authn 钩子——spike 核验点③）；
+
+**spike 核验清单（批2 首步，0.5-1d，结论回写本节）**：
+1. **Boot 4.1 装配共存**：引依赖起最小上下文——SDK 无 Spring Boot starter（官方集成仅 Quarkus/Jakarta EE），需手工 @Bean 装配；核验与 Boot 4.1 自动配置无冲突；
+2. **Jackson 2/3 classpath 共存**：SDK 依赖 Jackson 2（fasterxml）与 Boot 4.1 Jackson 3（tools.jackson）双库共存；核验 SDK 不要求注入宿主 ObjectMapper、序列化行为自洽；
+3. **传输挂载形态**：`a2a-java-sdk-reference-jsonrpc` 的传输是内嵌 HTTP server（独立端口）还是可桥接 Servlet/Spring MVC——决定端点暴露路径（独立端口则 nginx/防火墙补放行登记，桥接则 SecurityConfig matcher 接管认证）与运维面（`/.well-known/agent-card.json` 发布路径核对）；
+4. **鉴权接线**：SDK 传输层是否支持从请求取 Authorization header（AgentExecutor 内 SecurityContext 可用性）——不可用则传输层前置自建 JWT filter 或回落预案；
+5. 任一项不过 → **回落预案即启用**（回落成本已隔离：治理层 KbA2aAgentExecutor 的身份/限流/审计/委派逻辑全量复用，仅协议层换自研 Controller）。
+
+**回落预案（D1-A 自研形态，spike 失败时启用）**：`GET /.well-known/agent-card.json`（静态 Card Controller）+ `POST /a2a`（自研 JSON-RPC：`message/send` v1.0 / `tasks/send` v0.3 双方法名同步应答；不支持方法返回 JSON-RPC method-not-found）+ SecurityConfig authenticated matcher（`/mcp` 同款先例）；Agent Card v1.0 确切 schema、Task/Artifact/Part 结构以 spec 与官方 client 源码为准。
 
 ### 4.3 指标族（kb-ai-core AiBusinessMetrics）
 
@@ -189,13 +198,13 @@ A2A Client ──GET /.well-known/agent-card.json──▶ AgentCardController�
 | 3 | `DingTalkStreamClient` + `DingTalkChatService` + `DingTalkReplyClient`（4.1 全链：身份/限流/chatRag/溯源附录/markdown 回复/审计/超时/异步提交） | 单测：监听器→服务编排（桩 ChatModel）/markdown 组装/溯源降级/超时话术/限流与审计旁路 |
 | 4 | 指标族 + 单测收口；07 卷批1 行 + 00 卷状态行回写；用户侧前置项登记（钉钉后台建应用三步：创建企业内部应用→添加机器人（Stream 模式）→群内启用；取 AppKey/Secret 配 env） | `mvn -q --no-transfer-progress test -pl kb-ai-agent -am` 绿 |
 
-### 批2：A2A 最小形态（1.5d，D1-A）
+### 批2：A2A 最小形态（1.5-2.5d，D1-B：spike 前置）
 
 | 步骤 | 内容 | 验收 |
 |---|---|---|
-| 1 | 协议核验：a2a-protocol.org v1.0 spec（Agent Card schema / Task/Artifact/Part / JSON-RPC 方法面）+ 官方 client 源码形态 | 核验结论回写本方案 §4.2 |
-| 2 | `A2aAgentService`（kb-ai-agent：身份守卫/限流/审计/chatRag 委派/应答组装） | 单测：身份 fail-closed / 应答组装 / 方法不支持错误 / 限流 |
-| 3 | `A2aController` + `AgentCardController`（kb-api）+ SecurityConfig matcher（authenticated）+ application-ai.yml `rag.a2a.*` | 关闭态端点缺位；单测含 JSON-RPC 解析与错误码 |
+| 1 | **spike（0.5-1d）**：引 `a2a-java-sdk-reference-jsonrpc` 起最小上下文，跑 §4.2 五项核验清单（Boot 4.1 共存/Jackson 双库/传输挂载/鉴权接线/spec 字段） | 结论回写本方案 §4.2 + spike 二分支定案（SDK 主形态 or 回落自研） |
+| 2 | 治理层 `KbA2aAgentExecutor`（kb-ai-agent：身份守卫 fail-closed/限流/审计/chatRag 委派/应答组装——两分支全量复用） | 单测：身份 fail-closed / 应答组装 / 限流旁路 |
+| 3 | 协议层装配（按 spike 分支）：SDK 装配（AgentCard Bean + Executor 注册 + 鉴权接线）**或**回落自研（`A2aController` + `AgentCardController` + SecurityConfig matcher）；application-ai.yml `rag.a2a.*` 条件装配 | 关闭态端点缺位；单测含协议解析与错误语义（自研分支）/ SDK 上下文装配断言（SDK 分支） |
 | 4 | 指标族；07 卷批2 行 + 00 卷回写；E2E 脚本（curl Agent Card + message/send + 官方 Python client 步骤）交付 | `mvn -q --no-transfer-progress test -pl kb-api,kb-ai-agent -am` 绿 |
 
 ### 批3：文档收口批（1.5d，纯文档零代码）
@@ -233,6 +242,8 @@ A2A Client ──GET /.well-known/agent-card.json──▶ AgentCardController�
 
 ### 6.3 批2 E2E：标准 A2A Client 调用
 
+> 端点路径以批2 spike 分支定案为准（SDK 传输层缺省发布路径 vs 回落自研 `/a2a` + `/.well-known/agent-card.json`）；下述步骤按协议语义写，路径代入即可。
+
 1. `curl -H "Authorization: Bearer <JWT>" https://<host>/.well-known/agent-card.json` → Card JSON（name/capabilities/skills/securitySchemes 完整）；
 2. `curl -X POST .../a2a`（JSON-RPC `message/send`，params.message.parts[0].text=知识库问题）→ 同步 response：result.task.state=completed + artifacts[0].parts[0].text 含答案；
 3. `tasks/send`（v0.3 方法名）同题 → 等价应答；
@@ -255,6 +266,6 @@ A2A Client ──GET /.well-known/agent-card.json──▶ AgentCardController�
 | R1 | dingtalk-stream-sdk-java 传递依赖（gson/okhttp）与 Boot 4.1 冲突 | 批1 步骤1 dependency:tree 核验；冲突 exclusions + 留档；极端不兼容则回落官方 raw WebSocket 协议自实现（Stream 协议公开）或 webhook 形态论证入档（5.12 原文预留） |
 | R2 | 钉钉 Stream 模式企业内部应用机器人权限面变更（平台侧 2026 演进） | 批1 落码前以官方文档当期形态为准（本方案核验 2026-09-13）；群自定义机器人 outgoing webhook 回落论证预留 |
 | R3 | 同步路径 citations 快照不可直读（D3 溯源降级） | 降级仅 [ref-N] 编号 + 登记读数；升级路径 = rag 链同步响应补 citations 字段（kb-api 小改，挂后续需求） |
-| R4 | A2A v1.0 spec 字段形态与记忆偏差 | 批2 步骤1 spec + 官方 client 源码核验前置，不凭记忆落码（项目落码约束既有纪律） |
+| R4 | A2A SDK spike 任一核验项不过（Boot 4.1 共存/Jackson 双库/传输挂载/鉴权接线） | D1-B 自带回落预案：治理层全量复用仅换协议层（§4.2 回落段），回落成本 <0.5d，工时预算已按 1.5-2.5d 弹性留位 |
 | R5 | 18.6 复盘矩阵读数汇总工作量大（六阶段全簇） | 读数均为进度卷既有事实，按卷索引行定位提取（00 卷状态行 + 各阶段完成记录），不新跑不重算 |
 | R6 | 钉钉 E2E 依赖用户侧后台操作（应用创建权限） | 前置三步在批1 交付时即列明；若用户侧暂无管理员权限，批1 机器侧完成 + E2E 挂用户侧窗口（不阻塞批2/3 推进） |
