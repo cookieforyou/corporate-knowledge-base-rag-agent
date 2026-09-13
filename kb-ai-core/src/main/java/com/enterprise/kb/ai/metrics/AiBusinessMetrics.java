@@ -466,6 +466,32 @@ public class AiBusinessMetrics {
             .register(meterRegistry).record(elapsed);
     }
 
+    // ── A2A 端点入口域计数族（Phase5簇⑥ 批2）：动态注册形态（dingtalk 族同构，
+    // 关闭态零 meter——请求不进服务域即不触达）；零标签纪律；三态计数 + 对话耗时 Timer ──
+
+    /** 收到 SendMessage 方法调用计数（版本/方法校验通过后） */
+    public void recordA2aRequest() {
+        counter("rag.a2a.request", "A2A 收到 SendMessage 请求次数").increment();
+    }
+
+    /** 限流拒绝计数（入口域独立桶超限） */
+    public void recordA2aRateLimited() {
+        counter("rag.a2a.ratelimited", "A2A 入口限流拒绝次数").increment();
+    }
+
+    /** 异常计数（对话链失败：注入拒绝/模型故障等） */
+    public void recordA2aError() {
+        counter("rag.a2a.error", "A2A 对话处理异常次数").increment();
+    }
+
+    /** 单次对话链耗时（含检索与生成全程，p50/p95/p99） */
+    public void recordA2aChatDuration(Duration elapsed) {
+        Timer.builder("rag.a2a.chat.duration")
+            .description("A2A 单次对话链耗时（chatRag 同步全程）")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(meterRegistry).record(elapsed);
+    }
+
     private Counter counter(String name, String description) {
         return Counter.builder(name).description(description).register(meterRegistry);
     }

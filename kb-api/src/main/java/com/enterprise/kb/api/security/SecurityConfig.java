@@ -88,6 +88,12 @@ public class SecurityConfig {
                 // MCP Server 端点（Phase4簇⑤ 4.10，Streamable HTTP）：JWT bearer 鉴权同 /api/**；
                 // 租户/scope 治理在工具调用层经 McpIdentityGuard fail-closed 二次收敛
                 .requestMatchers("/mcp").authenticated()
+                // A2A 协议端点（Phase5簇⑥ 批2，自研 JSON-RPC /a2a + Agent Card 发现）：
+                // JWT bearer 同 /mcp 先例——Card 含内网端点信息，单租户内部形态不公开发现
+                // （协议语义差异登记：v1.0 spec Card 为公开发现，标准 client 支持凭据发现后
+                // 带 token 拉取）；租户治理在服务层经 A2aIdentityGuard fail-closed 二次收敛；
+                // 关闭态 Controller 缺位（无 token 401 / 有 token 404，不暴露端点功能）
+                .requestMatchers("/a2a", "/.well-known/agent-card.json").authenticated()
                 .anyRequest().denyAll()
             )
             // B1：CORS 白名单——CorsFilter 经 security 集成位点装配，先于鉴权过滤器，

@@ -172,6 +172,29 @@ A2A Client ──SDK 传输端点（JSON-RPC；挂载形态以 spike 结论为�
 
 **回落预案（D1-A 自研形态，spike 失败时启用）**：`GET /.well-known/agent-card.json`（静态 Card Controller）+ `POST /a2a`（自研 JSON-RPC：`message/send` v1.0 / `tasks/send` v0.3 双方法名同步应答；不支持方法返回 JSON-RPC method-not-found）+ SecurityConfig authenticated matcher（`/mcp` 同款先例）；Agent Card v1.0 确切 schema、Task/Artifact/Part 结构以 spec 与官方 client 源码为准。
 
+### 4.2.1 spike 结论（2026-09-13 批2 首步执行，**判负回落 D1-A 自研**）
+
+> 证据链 = repo1.maven.org POM 依赖铁证 + SDK jar 反编译（javap）+ a2a-protocol.org v1.0 spec 全文核验。SDK 最新版 `1.3.2.Final`（2026-09-08 发布；search.maven.org solr 索引未收录该 group，repo1 目录直查可得）。
+
+| 核验项 | 结论 | 证据 |
+|---|---|---|
+| ① Boot 4.1 装配共存 | ❌ | README 推荐入口 `a2a-java-sdk-reference-jsonrpc` compile 传递链（经 reference-common）拖入 `io.quarkus:quarkus-vertx-http` + `io.quarkus:quarkus-arc`（CDI 容器，**非 optional**）+ `io.smallrye.reactive:mutiny-zero`；SDK 服务端 Executor 装配走 CDI（`jakarta.enterprise.cdi-api` compile 在场）——Spring 容器内无 CDI 运行时，装配路径断裂 |
+| ② Jackson 2/3 共存 | 不适用（改判） | SDK 全线 JSON 栈 = **gson + protobuf-java-util**（spec/jsonrpc-common/transport 三层 compile），无 Jackson 2——无共存冲突，但引 SDK = 引入第二 JSON 栈 |
+| ③ 传输挂载形态 | ❌ | 传输 = Quarkus Vert.x HTTP 内嵌（quarkus-vertx-http compile），无 servlet/Spring MVC 桥接面；官方 Server Integrations 仅 Quarkus 参考实现 + Jakarta EE 社区件（a2a-jakarta），无 Boot 集成 |
+| ④ 鉴权接线 | ❌ | quarkus-security（optional）生态内闭环；Spring Security resource server 无法接管 SDK 传输层；AgentExecutor 内取 Authorization 无文档化通道 |
+| ⑤ spec 字段 | ✅ | v1.0+v0.3 兼容模型全量核验（AgentCard 17 组件/Task/Artifact/Part/TaskState 9 态/Message/MessageSendParams/JSON-RPC wrappers）——回落分支的权威字段源 |
+
+**中间形态评估并否决**：`spec + jsonrpc-common` 两模块依赖面干净（slf4j+gson，零 Quarkus），理论可「SDK 数据模型 + 自研 Controller」——但 ① gson 引入破坏 Jackson 3 单栈纪律；② Part sealed 多态 v1.0 成员判别形态在 Jackson 下需 mixin 桥接（record 不可加注解）；③ 协议面小（单方法同步应答）自建 DTO 全可控。**定案：回落 D1-A 纯自研**，协议字段以官方 SDK record 组件名 + v1.0 spec 为权威源。
+
+**v1.0 spec 权威核验修正（方案原假设更正，2026-09-13）**：
+- 方法名 **PascalCase `SendMessage`**（§9.1 JSON-RPC 绑定对齐 gRPC 惯例）——方案原「message/send v1.0 / tasks/send v0.3 双方法名」基于 v0.3 时代认知，更正为 **v1.0 单版本**（`SendMessage`）+ A2A-Version header 严格校验（空值=0.3 语义 → -32009 VersionNotSupportedError，§3.6.2 MUST）；v0.3 client 完整兼容（响应形态整体差异：Part 带 kind 判别/枚举小写）登记挂起，触发 = 真实 v0.3 client 出现；
+- **Part v1.0 无 kind 判别字段**（附录 A.2.1 破坏性变更）：TextPart = `{"text":"..."}` 成员在场即判别；v0.3 是 `{"kind":"text","text":"..."}`；
+- 枚举值 ProtoJSON SCREAMING_SNAKE：`ROLE_USER` / `TASK_STATE_COMPLETED`（§5.5）；
+- AgentCard v1.0：`supportedInterfaces`（required，首条 preferred）`[{url, protocolBinding:"JSONRPC", protocolVersion:"1.0"}]`；`securitySchemes` **判别联合**形态 `{"bearer":{"httpAuthSecurityScheme":{"scheme":"Bearer","bearerFormat":"JWT"}}}`；`securityRequirements` `[{"schemes":{"bearer":{"list":[...]}}}]`（§8.5 样例）；
+- 响应包装：JSON-RPC `result` = SendMessageResponse oneOf `{"task":{...}}`（§9.4.1）；
+- TaskStatus.timestamp ISO 8601 UTC 毫秒（§5.6.1）；未知字段 SHOULD 忽略（§5.7，Boot Jackson 默认关闭 FAIL_ON_UNKNOWN_PROPERTIES 天然满足）；
+- 标准错误码 -32700/-32600/-32601/-32602/-32603 + A2A 专属 -32001..-32009（§9.5）。
+
 ### 4.3 指标族（kb-ai-core AiBusinessMetrics）
 
 - `rag.dingtalk.message`（收到 @ 消息）/ `rag.dingtalk.replied` / `rag.dingtalk.rate-limited` / `rag.dingtalk.error` + `rag.dingtalk.chat.duration`（Timer，p95/p99）；

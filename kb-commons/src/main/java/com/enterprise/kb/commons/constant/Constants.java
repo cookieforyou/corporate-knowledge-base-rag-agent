@@ -39,6 +39,7 @@ public final class Constants {
         // ── 身份与租户守卫 ──
         public static final String IDENTITY_INCOMPLETE = "IDENTITY_INCOMPLETE";
         public static final String MCP_SCOPE_DENIED = "MCP_SCOPE_DENIED";
+        public static final String A2A_SCOPE_DENIED = "A2A_SCOPE_DENIED";
 
         // ── 配额与限流 ──
         public static final String RATE_LIMITED = "RATE_LIMITED";

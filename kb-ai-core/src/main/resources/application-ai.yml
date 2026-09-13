@@ -209,6 +209,28 @@ rag:
       # 入口轻行（kb_audit_log mode=dingtalk）默认关——对话链审计行自然在场
       # （mode=rag），轻行只做入口域标记，先经结构化日志面观察（MCP B3 同款）
       enabled: ${RAG_DINGTALK_AUDIT_ENABLED:false}
+  # A2A 协议端点（Phase5簇⑥ 批2，N3 最小形态；spike 判负后 D1-A 自研协议层）——
+  # JSON-RPC 2.0 SendMessage 同步应答 + Agent Card 发现（v1.0）。
+  # 关闭态（缺省）协议 Controller 缺位（端点 404 语义自然缺位），全系统零变化；
+  # 开启态 card.url fail-closed 启动校验（v1.0 required 字段）。
+  # 鉴权 = JWT bearer（SecurityConfig authenticated matcher，/mcp 同款先例）；
+  # 租户/scope 治理在服务层经 A2aIdentityGuard fail-closed 二次收敛。
+  a2a:
+    enabled: ${RAG_A2A_ENABLED:false}
+    card:
+      name: ${RAG_A2A_CARD_NAME:Enterprise KB RAG Agent}
+      description: ${RAG_A2A_CARD_DESCRIPTION:企业知识库检索问答（混合检索 + 重排 + 带溯源回答）}
+      version: ${RAG_A2A_CARD_VERSION:1.0.0}
+      url: ${RAG_A2A_CARD_URL:}    # 服务外部可达地址（supportedInterfaces[0].url，开启态必配）
+    scope:
+      required: ${RAG_A2A_SCOPE_REQUIRED:}  # JWT scope 二次收敛（默认空 = 仅租户纪律）
+    ratelimit:
+      enabled: ${RAG_A2A_RATELIMIT_ENABLED:true}
+      rate: ${RAG_A2A_RATELIMIT_RATE:20}             # 机对机通道，MCP 只读通道同档起步
+      interval-seconds: ${RAG_A2A_RATELIMIT_INTERVAL_SECONDS:60}
+    audit:
+      # 入口轻行（kb_audit_log mode=a2a）默认关——同钉钉/MCP B3 形态
+      enabled: ${RAG_A2A_AUDIT_ENABLED:false}
   # 安全护栏（3.5/3.6，设计文档 12.1/12.2/12.7）—— 词表本体收编结构化文件
   # guardrail/injection-rules.yml / output-rules.yml（逐条 Base64 编码态，
   # 安全簇① T2 起字面词表退役；T3 增 REGEX 结构模式轨，词面经 T4 带外通道

@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段）**：基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash 收官（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）。**Phase5簇①-⑤ 全部收官**（收尾清零/评估进化/语义缓存/GraphRAG/Agent 编排）。**Phase5簇⑥ 产品化收尾推进中**：体验批与补强已收官；钉钉机器人批1 机器侧就绪（E2E 待用户侧）；余 A2A/归档/文档收口——基线 = sub-cluster-progress/Phase5簇⑥ 实施方案。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段）**：基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash 收官（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）。**Phase5簇①-⑤ 全部收官**（收尾清零/评估进化/语义缓存/GraphRAG/Agent 编排）。**Phase5簇⑥ 产品化收尾推进中**：体验批/补强收官；钉钉批1 收官；A2A 批2 机器侧就绪（E2E 待用户侧）；余归档/文档收口——基线 = sub-cluster-progress/Phase5簇⑥ 实施方案。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -25,7 +25,7 @@ kb-rag-agent/
 ├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
 ├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写
 ├── kb-ai-core/        # 纯 RAG（无工具链）：retriever/（双路+RRF+重排）、advisor/、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient
-├── kb-ai-agent/       # Agent 事务域：tool/（Mock 读/写拆类+HITL 账本）、config/（toolAgent+orchestrator 两 ChatClient）、orchestration/（Phase5簇⑤ 编排：TaskTool+SubAgentRegistry+KnowledgeSearchTools）、service/、mcp/（4.10 三件套+身份守卫）、dingtalk/（Phase5簇⑥ 5.12 群机器人 Stream 接入）
+├── kb-ai-agent/       # Agent 事务域：tool/（Mock 读/写拆类+HITL 账本）、config/（toolAgent+orchestrator 两 ChatClient）、orchestration/（Phase5簇⑤ 编排：TaskTool+SubAgentRegistry+KnowledgeSearchTools）、service/、mcp/（4.10 三件套+身份守卫）、dingtalk/（5.12 群机器人）、a2a/（批2 A2A 治理域）
 ├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
 ├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(267=干净110+注入127+多跳30) + CI 门禁
@@ -45,7 +45,7 @@ kb-rag-agent/
 
 **三链路架构**：`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索 + defaultTools）+ `orchestratorChatClient`（kb-ai-agent，**Phase5簇⑤ 编排链**，`rag.orchestrator.enabled` 缺省关）；请求体 `mode: rag|tool|agent` 显式分流（agent 关闭态 400 ORCHESTRATOR_DISABLED）；共享 smartRoutingChatModel / agentChatMemory / 护栏配额 Advisor / RetrievalContext；toolContext 仅 ToolChatService / AgentOrchestratorService 组装（物理消除 HITL 凭证泄露）；链序见 11.2/§11.5.5
 
-**Multi-Agent 编排（Phase5簇⑤ 收窄版）**：Orchestrator-Workers——主 Agent 仅持 `TaskTool` 委派工具（委派即工具调用：SSE TOOL_CALL/审计/rag.tool.call.* 协议零变更）；`orchestration/` = SubAgentSpec（工具集不含 task 防递归）/ SubAgentRegistry（静态注册 + roster 注入主 Agent prompt = 真实工具挂接点）/ TaskTool（身份三键下传、凭证不下传、失败文本化回流、非打断式超时、委派预算硬闸）/ KnowledgeSearchTools（检索同构 MCP 零 LLM，治理:收敛+截断+检索闸）/ TaskBoundaryAdvisor(420 边界注记)+memory-enabled 逃生舱；三子代理差异化模型；Mock 拆 Read/Write（保留至真实工具替换）；指标 `rag.orchestrator.*`；真实工具挂接契约六条 §11.5.5
+**Multi-Agent 编排（Phase5簇⑤ 收窄版）**：Orchestrator-Workers——主 Agent 仅持 `TaskTool` 委派工具（SSE TOOL_CALL/审计/rag.tool.call.* 零变更）；`orchestration/` = SubAgentSpec（工具集不含 task 防递归）/ SubAgentRegistry（静态注册 + roster 注入主 Agent prompt = 真实工具挂接点）/ TaskTool（身份三键下传、凭证不下传、失败文本化回流、非打断式超时、委派预算硬闸）/ KnowledgeSearchTools（检索同构 MCP 零 LLM，治理:收敛+截断+检索闸）/ TaskBoundaryAdvisor(420 边界注记)+memory-enabled 逃生舱；三子代理差异化模型；Mock 拆 Read/Write；指标 `rag.orchestrator.*`；真实工具挂接契约六条 §11.5.5
 
 **全链路审计**：`AuditTraceAdvisor`(order 10)挂双链，异步落 kb_audit_log（旁路容错）；三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏、改写经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
@@ -55,23 +55,24 @@ kb-rag-agent/
 
 **面板与统计（Phase4簇②）**：Grafana 五面板（含 supplier-sla）+ 监控 compose 生产形态 + 告警 14 条自检矩阵（真触发 + promtool 合成单测）；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）
 
-**语义缓存（Phase5簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索经 Redisson RSearch 零新增依赖（租户域隔离 + KNN 余弦 0.95 + docIds TAG 失效反查，失效频道接四处写路径）；指标 `rag.retrieval.cache.*`；§11.9/11.10
+**语义缓存（Phase5簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索经 Redisson RSearch 零新增依赖（租户隔离 + KNN 0.95 + docIds TAG 失效反查接四处写路径）；指标 `rag.retrieval.cache.*`；§11.9/11.10
 
 **GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态全族条件装配缺位，双路逐字节零变化）。图 = Neo4j Community（第二台 ECS 独占，原生驱动手工装配不引 SDN）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫）。图路检索**零 LLM**：查询嵌入→实体匹配→1 跳展开→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删除清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`；备份 `neo4j-backup.sh`；MULTI_HOP AC≥80%。§10.9/13.3/17.5-17.6/18.5
 
-**Chunk 运维与重建（Phase4簇③）**：kb-admin 首建（kb-api 聚合禁反向依赖；Jwt 直消费防成环）。Chunk CRUD：编辑 = 同源消毒→PG→异步重嵌入（**delete→add 两步**，Milvus 非 upsert）+ ES 覆写（Phase5簇④ 联动图重抽取/锚点翻转）；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
+**Chunk 运维与重建（Phase4簇③）**：kb-admin 首建（kb-api 聚合禁反向依赖；Jwt 直消费防成环）。Chunk CRUD：编辑 = 同源消毒→PG→异步重嵌入（**delete→add 两步**，Milvus 非 upsert）+ ES 覆写（联动图重抽取/锚点翻转）；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
 **Bad Case 运营闭环（Phase4簇④）**：kb-admin 四端点——审计多条件查询 / 根因四分类标注 / Golden 回灌 Git Ops（bc-{auditLogId} upsert 幂等）/ 反馈处理态；跨租户/不存在一律 AUDIT_LOG_NOT_FOUND。前端 /admin 五 Tab（Tab 懒加载，§12.12）
 
 **MCP Server（Phase4簇⑤ 4.10）**：starter-webmvc 落 kb-api（Streamable HTTP `/mcp` authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent（search/get_document 直调，ask 全链复用，`mcp-` 会话）；`McpIdentityGuard` 物化 RetrievalContext（IDENTITY_INCOMPLETE/MCP_SCOPE_DENIED）；容器无 ToolCallback Bean（HITL 不漏 MCP）；独立限流桶 fail-open + 轻量审计；§11.8
 
-**钉钉群机器人（Phase5簇⑥ 5.12）**：`rag.dingtalk.enabled` 缺省关（服务域恒装配零副作用 + Stream 客户端 SmartLifecycle 条件装配）；**WebSocket 出站长连接（无入站端点，SecurityConfig/安全组零改动）**；开启态三要素 fail-closed 启动校验（服务账号单租户绑定）；复用 `chatRag` 同步链（全护栏/审计零减配），回复 markdown 含 [ref-N] 溯源附录（final trace 与 formatter 编号对齐）；监听器须匿名类（lambda 泛型签名 SDK 拒绝，坑㊾）；会话域 `dingtalk-{conversationId}`；独立限流桶 + 轻审计 mode=dingtalk + 指标 `rag.dingtalk.*`；可放弃超时（非打断式）；SDK shaded jar 零传递暴露
+**钉钉群机器人（Phase5簇⑥ 5.12）**：`rag.dingtalk.enabled` 缺省关（服务域恒装配 + Stream 客户端 SmartLifecycle 条件装配）；**WebSocket 出站长连接（无入站端点，SecurityConfig/安全组零改动）**；开启态三要素 fail-closed（服务账号单租户）；复用 `chatRag` 同步链零减配，回复 markdown 含 [ref-N] 溯源附录（final trace 与 formatter 编号对齐）；监听器须匿名类（坑㊾）；会话域 `dingtalk-{conversationId}`；独立限流桶 + 轻审计 mode=dingtalk + 指标 `rag.dingtalk.*`；非打断式超时；SDK shaded jar 零传递
+**A2A 协议端点（Phase5簇⑥ 批2）**：`rag.a2a.enabled` 缺省关（Controller 条件装配 404 缺位）；a2a-java SDK Quarkus/CDI 绑定判负 → **自研协议层（零新增依赖）**：v1.0 JSON-RPC `SendMessage` 同步应答 + Agent Card 发现（`/.well-known/agent-card.json`）；JWT 认证（/mcp 同款 matcher）+ 身份守卫 fail-closed；复用 `chatRag`（会话域 `a2a-{contextId}`）；错误码 -32009/-32601/-32602/-32603；指标 `rag.a2a.*`
 
 **平台层加固（安全簇②）**：CORS 白名单（allowCredentials 显式 false）；上传 50/60MB + chat body 1MB 超限 413；CSP/frameOptions/HSTS 显式钉；actuator include 白名单钉死；dependency-check+CycloneDX（**NVD API key 强制**；B5 残留唯余 B5-4 kotlin 待上游 GA，milvus 服务端误判族级抑制）；台账 12 §12.9 / 17 §17.3
 
 **PII 识别器注册表（安全簇③）**：kb-commons `security/pii`——每类型独立识别器，七类（手机/身份证/邮箱/银行卡 Luhn/座机/车牌/IPv4）；**TextSanitizer.maskPii 退役**——单一实现源迁 Spring 单 Bean，对话链/ETL/审计/MCP/入口日志同实例；配置族 `rag.guardrail.pii.{type}.enabled` 缺省全开；NAME/ADDRESS 默认关；输出回显只计数不替换；kb-eval 干净集零命中门禁；§12.10
 
-**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链（skip 旁路携记忆直答，fail-open 回落）；可关；路由/改写经 RetrievalConfig 局部 Builder 挂 fallbackChatModel（防 TTFT 爆/模型切换漂移；不注册 Bean 防顶全局 Builder）
+**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链（skip 旁路携记忆直答，fail-open 回落）；可关；路由/改写模型经局部 Builder 挂 fallback（不注册 Bean 防顶全局）
 
 **工具链与 HITL（kb-ai-agent）**：`EnterpriseMockReadTools`/`EnterpriseMockWriteTools`（Phase5簇⑤ 拆类，契约对齐真实 OA/ERP）；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + tenant/user 绑定，故障 fail-closed；**ToolCallingAdvisor 自建 order 1000（tool/orchestrator 两链共享）**
 
@@ -84,11 +85,11 @@ kb-rag-agent/
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE JSON 载荷）+ 命名 TRACE（rag 链溯源 [ref-N]）/TOOL_CALL（tool/agent 委派，实时+流末兜底）/REPLACE（护栏追回）/PROGRESS（三链路进度+心跳）
 - 前端对话窗：sessionId 多轮 + rag/tool/agent 三模式切换 + TOOL_CALL 审批/委派卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达
-- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open；剥壳判据=包裹手段不改变裁决）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8
+- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open，剥壳判据）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8
 - **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1）**：双 volatile 快照原子替换 + pub/sub/mtime 双触发；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload）；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
-- 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（坑位⑦ 让位陷阱，显式装配**必须保留**）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain；Golden 267（干净 110 + 注入 127 + 多跳 30，MULTI_HOP 门禁 AC≥4.0 通过率 ≥80%）；门禁三分区契约（16 章）——L1 防域 ≥95% / L2 防域 ≥90%（力判联合链默认关）/ 观察集只报告；MULTI_DOC 地板覆写 3.0 + docRecall≥0.5 通过率 ≥0.80；judge 剥壳容错（畸形不静默给分）；干净集 BLOCK+FLAG 零命中门禁；间接注入评估默认关；Phase 5 四新指标已接线门禁：AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3/GLM 重锚，16 章）+ NRob 观察；A/B = 快照 + eval-diff 内容盲；导出 = JSONL SFT/DPO（kb-admin，审计过滤+PII 掩码）
+- 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（坑位⑦，显式装配必须保留）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；续聊回填；kb-eval 零 Redis 依赖
+- 评估（kb-eval）：探针 `eval.probe`=auto/vector/hybrid/chain；Golden 267（干净 110 + 注入 127 + 多跳 30，MULTI_HOP 门禁 AC≥4.0 通过率 ≥80%）；门禁三分区契约（16 章）——L1 防域 ≥95% / L2 防域 ≥90%（力判联合链默认关）/ 观察集只报告；MULTI_DOC 地板覆写 3.0 + docRecall≥0.5 通过率 ≥0.80；judge 剥壳容错（畸形不静默给分）；干净集 BLOCK+FLAG 零命中门禁；间接注入评估默认关；Phase 5 四新指标已接线门禁：AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3/GLM 重锚，16 章）+ NRob 观察；A/B = 快照 + eval-diff 内容盲；导出 JSONL SFT/DPO（kb-admin）
 
 **压测资产（kb-loadtest）**：Gatling Java DSL（gatling:test 显式触发）；四场景 = 检索真压 / 生成桩压（纯 JDK StubChatServer）/ 真实 LLM TTFT·TPOT（缺省关）/ SSE 多轮；语料 = Golden 干净集；§15.4/§18.4
 
@@ -109,7 +110,7 @@ kb-rag-agent/
 - 父 POM dependencyManagement 预埋后续依赖；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递 4.38.0 覆盖 → `.entity()` NoClassDefFoundError）
 - pgvector 需先以 superuser `CREATE EXTENSION IF NOT EXISTS vector;`
 - Milvus 原生混合检索否决（10 §10.0）；检索为 Spring AI 2.0 模块化 RAG
-- **实证坑**（全量台账 ①-㊽ 见 19 章附录 E）：② allowEmptyContext=true 即空证据自由作答，拒答需 false+模板；⑦ **自动配置让位**：用户 ChatMemory Bean 先注册即静默回退 InMemory，须显式装配；⑬ **Boot 4.1 迁 Jackson 3**：注入 tools.jackson JsonMapper；⑭ **跨厂商路由 Prompt 屏障**：转发异构备用前以备用自身 options 重建 Prompt；⑮ **qwen 商业版默认开思考**（20-60s/调用）须 enable_thinking=false；㉗ **流式 trace 双坑**：builder 单参 = NOOP registry 须显式传；adviseStream 切线程 ThreadLocal 不跨，父观测经 Reactor Context 键 + contextWrite 兜底；㉘ **spring-boot:run 静默跑兄弟模块旧 jar**——改动须先 install；㉙ **@Query 可选参数 `(:p IS NULL OR ...)` PG 预编译雷**——统一 Specification；㉚ **MCP Streamable 须显式钉 `protocol: STREAMABLE`**（缺省装 SSE）；㉛ **allowCredentials 缺省 null 非 false**；㉜ **dependency-check 13.x NVD key 强制**；㊱ **Bolt 禁经 nginx http 块反代**——须 `stream` 块 L4 TLS 终结；㊲ **多构造器类须显式 @Autowired 定夺**；㊳ **CompletableFuture 轮询超时误置中断标志 → 热自旋挤爆堆**（回填 OOM 根因）；㊴ **bolt+s 长闲置池化连接被中间层掐断**——首笔事务瞬抛 ServiceUnavailableException，治本 = `withConnectionLivenessCheckTimeout` 出借前探活；㊵ **Cypher 缺陷仅真库解析期可验**（推导式语序 / MATCH 属性访问两形态，mock 盲视）——治本 = 网关真跑 IT；㊶ **Neo4j 驱动不容线程中断**——检索路超时须非打断式 `cancel(false)`（防杀 bolt 连接）；㊸ **配置缺省双源**——@ConfigurationProperties 字段缺省被 application.yml 显式段遮蔽，改缺省须 Java + yml 两源同查（单测 new 直构不走绑定盲视）；㊹ **yml 插段误挂平级节点 Binder 静默不命中**——插段必核父级链缩进，「配置写了」≠「配置生效」；㊺ **容器内多同类型 Bean 按类型注入歧义**——条件装配新增 ExecutorService 族 Bean → 消费点 found 2 启动失败，治 = 显式 @Qualifier；开启态完整启动是独立验证面；另：Spring 7 MockHttpServletRequest.setContentLength 移除，用 setContent
+- **实证坑**（全量台账 ①-㊽ 见 19 章附录 E）：② allowEmptyContext=true 即空证据自由作答，拒答需 false+模板；⑦ **自动配置让位**：用户 ChatMemory Bean 先注册即静默回退 InMemory，须显式装配；⑬ **Boot 4.1 迁 Jackson 3**：注入 tools.jackson JsonMapper；⑭ **跨厂商路由 Prompt 屏障**：转发异构备用前以备用自身 options 重建 Prompt；⑮ **qwen 商业版默认开思考**（20-60s/调用）须 enable_thinking=false；㉗ **流式 trace 双坑**：builder 单参 = NOOP registry 须显式传；adviseStream 切线程 ThreadLocal 不跨，父观测经 Reactor Context 键 + contextWrite 兜底；㉘ **spring-boot:run 静默跑兄弟模块旧 jar**——改动须先 install；㉙ **@Query 可选参数 `(:p IS NULL OR ...)` PG 预编译雷**——统一 Specification；㉚ **MCP Streamable 须显式钉 `protocol: STREAMABLE`**（缺省装 SSE）；㉛ **allowCredentials 缺省 null 非 false**；㉜ **dependency-check 13.x NVD key 强制**；㊱ **Bolt 禁经 nginx http 块反代**——须 `stream` 块 L4 TLS 终结；㊲ **多构造器类须显式 @Autowired 定夺**；㊳ **CompletableFuture 轮询超时误置中断标志 → 热自旋挤爆堆**（回填 OOM 根因）；㊴ **bolt+s 长闲置池化连接被中间层掐断**——治本 = `withConnectionLivenessCheckTimeout` 出借前探活；㊵ **Cypher 缺陷仅真库解析期可验**（推导式语序 / MATCH 属性访问两形态，mock 盲视）——治本 = 网关真跑 IT；㊶ **Neo4j 驱动不容线程中断**——检索路超时须非打断式 `cancel(false)`（防杀 bolt 连接）；㊸ **配置缺省双源**——@ConfigurationProperties 字段缺省被 application.yml 显式段遮蔽，改缺省须 Java + yml 两源同查；㊹ **yml 插段误挂平级节点 Binder 静默不命中**——插段必核父级链缩进，「配置写了」≠「配置生效」；㊺ **容器内多同类型 Bean 按类型注入歧义**——条件装配新增 ExecutorService 族 Bean → 消费点 found 2 启动失败，治 = 显式 @Qualifier；开启态完整启动是独立验证面；另：Spring 7 MockHttpServletRequest.setContentLength 移除，用 setContent
 - **请求状态传递只用参数链**（RetrievalContext 模式），不用 @RequestScope/ThreadLocal（异步完结后作用域代理不可解析、Reactor 线程不继承）；CONVERSATION_ID 同理
 - **多 ChatClient Bean 纪律**：注入点显式 `@Qualifier`；新增 Advisor 核对 order 与 11.2 链序表一致
 - **常量收敛纪律**（边界八条见 6 章 §6.3）：Constants 只收**跨类/跨模块共享的协议性字面量**（错误码、检索路名与 metadata 键、对话协议值 mode/SSE 事件/审计三态、JWT claims、MCP 工具名、Bean 名等注册↔消费契约）；有枚举归属的值域以枚举为单一事实源不入 Constants；配置键归 @ConfigurationProperties；日志/描述/提示语与**单类内聚字面**不收敛——新增字面先判归属（跨类契约→Constants 对应分区 / 单类→类内 private static final）再落位
