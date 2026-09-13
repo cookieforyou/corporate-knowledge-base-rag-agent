@@ -119,6 +119,34 @@ class DingTalkChatServiceTest {
     }
 
     @Test
+    void zeroOrNullPageNumOmitted() {
+        // Markdown 语料 ETL 写 page_num=0 占位（无信息量）、部分 chunk 键缺失 null——
+        // 两种形态均省略页码段（对齐前端溯源面板 v-if 语义；E2E 热修二）
+        when(ragChatService.chatRag(anyString(), anyString(), any())).thenAnswer(inv -> {
+            RetrievalContext ctx = inv.getArgument(2);
+            Document zeroPage = Document.builder().text("a").metadata(Map.of(
+                Constants.Retrieval.META_FILE_NAME, "手册.md",
+                Constants.Retrieval.META_PAGE_NUM, 0,
+                Constants.Retrieval.META_CHUNK_ID, "chunk-zero")).build();
+            Document nullPage = Document.builder().text("b").metadata(Map.of(
+                Constants.Retrieval.META_FILE_NAME, "手册.md",
+                Constants.Retrieval.META_CHUNK_ID, "chunk-null")).build();
+            ctx.addTraceEntry(Constants.Retrieval.TRACE_SOURCE_FINAL, List.of(zeroPage, nullPage), 1L);
+            return "答案";
+        });
+
+        service.handle(message("问题", "cid-11"));
+
+        ArgumentCaptor<String> markdown = ArgumentCaptor.forClass(String.class);
+        verify(replyClient, timeout(3000)).replyMarkdown(eq(WEBHOOK), anyString(), markdown.capture());
+        assertThat(markdown.getValue())
+            .contains("[ref-1] 手册.md `chunk-ze`")
+            .contains("[ref-2] 手册.md `chunk-nu`")
+            .doesNotContain("p.0")
+            .doesNotContain("（p.");
+    }
+
+    @Test
     void noFinalTraceOmitsAppendix() {
         when(ragChatService.chatRag(anyString(), anyString(), any())).thenReturn("直答（空证据拒答路径）");
 

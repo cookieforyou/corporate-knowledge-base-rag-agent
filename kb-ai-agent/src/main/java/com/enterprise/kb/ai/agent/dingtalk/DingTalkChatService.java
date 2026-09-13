@@ -154,7 +154,9 @@ public class DingTalkChatService {
             Object pageNum = meta.get(Constants.Retrieval.META_PAGE_NUM);
             Object chunkId = meta.get(Constants.Retrieval.META_CHUNK_ID);
             sb.append("- [ref-").append(i + 1).append("] ").append(fileName);
-            if (pageNum instanceof Number n) {
+            // 页码 >0 才显示（E2E 实证：Markdown 语料 ETL 写 page_num=0 占位——无信息量；
+            // 同文档部分 chunk 键缺失为 null。对齐前端溯源面板 v-if 过滤语义：0/null 均省略）
+            if (pageNum instanceof Number n && n.intValue() > 0) {
                 sb.append("（p.").append(n.intValue()).append("）");
             }
             if (chunkId != null) {
