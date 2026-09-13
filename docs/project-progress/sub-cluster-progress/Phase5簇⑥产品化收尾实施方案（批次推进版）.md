@@ -1,7 +1,7 @@
 # Phase5簇⑥ 产品化收尾实施方案（批次推进版）
 
 > **版本**：v1.1（D1-D4 拍板定案）· **日期**：2026-09-13 · **工时**：~4-5d（批1 1d + 批2 1.5-2.5d（D1-B 含 spike）+ 批3 1.5d）· **模块跨度**：kb-ai-agent（dingtalk/ a2a/ 新包）/ kb-api（A2A 端点 + SecurityConfig）/ kb-ai-core（指标）/ docs（delivery 五件 + 18 章 + 11 章）
-> **性质**：Phase5簇⑥ 落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.4/5.5/5.12 · §四 N3 · §三（全项目收口判据）· §五 簇⑥ 行；批次进展回填 07 卷 Phase5簇⑥ 段。
+> **性质**：Phase5簇⑥ 落码执行基线（现状勘察 + 架构设计 + 待定案决策点）。复审定案出处：`docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md` §二 5.4/5.5/5.12 · §四 N3 · §三（全项目收口判据）· §五 第 ⑥ 行；批次进展回填 07 卷 Phase5簇⑥ 段。
 > **既有推进**（07 卷已留痕）：E2E 体验批1-3（流式恢复 / toolCalls 归档回显 / 三链路进度推送）+ 热修一 + 补强一至四（含 kb_session.mode 列）已于 2026-09-07/08 全部收官——**本方案只覆盖剩余主体五件**：钉钉机器人（5.12）+ A2A（N3）+ 5.4/5.5 归档 + delivery 增量 + 全阶段验收复盘。
 > **官方路径核验（2026-09-13，网络调研）**：
 > ① 钉钉 Stream SDK = 官方 [open-dingtalk/dingtalk-stream-sdk-java](https://github.com/open-dingtalk/dingtalk-stream-sdk-java)（Maven `com.dingtalk.open:dingtalk-stream-sdk-java`，[Maven Central 最新版 2025-10-22](https://mvnrepository.com/artifact/com.dingtalk.open)，多模块聚合，独立 SDK 无 Spring 依赖）；接入形态 = `OpenDingTalkStreamClientBuilder`（Client ID/Secret）→ WebSocket **出站长连接**（[无需公网回调](https://open.dingtalk.com/document/resourcedownload/introduction-to-stream-mode)）→ `registerCallbackListener` 注册 `ChatbotListener` 收 @ 消息（`ChatbotMessage`）→ 经 `sessionWebhook` 直接 POST markdown 回复（[机器人接收消息](https://open.dingtalk.com/document/dingstart/robot-receive-message)；[quick-start 示例](https://github.com/open-dingtalk/dingtalk-stream-sdk-java-quick-start)）。前置 = 钉钉开发者后台创建**企业内部应用机器人**（消息接收模式选 Stream）。
