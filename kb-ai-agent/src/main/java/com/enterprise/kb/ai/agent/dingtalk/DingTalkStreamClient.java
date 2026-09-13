@@ -42,12 +42,7 @@ public class DingTalkStreamClient implements SmartLifecycle {
     public void start() {
         OpenDingTalkClient built = OpenDingTalkStreamClientBuilder.custom()
             .credential(new AuthClientCredential(properties.getClientId(), properties.getClientSecret()))
-            .registerCallbackListener(DingTalkStreamTopics.BOT_MESSAGE_TOPIC,
-                (OpenDingTalkCallbackListener<ChatbotMessage, Void>) message -> {
-                    chatService.handle(message);
-                    // 应答经 sessionWebhook 异步推回，Stream 通道无同步应答载荷
-                    return null;
-                })
+            .registerCallbackListener(DingTalkStreamTopics.BOT_MESSAGE_TOPIC, buildListener())
             .build();
         try {
             built.start();
@@ -77,5 +72,24 @@ public class DingTalkStreamClient implements SmartLifecycle {
     @Override
     public boolean isRunning() {
         return running;
+    }
+
+    /**
+     * 监听器必须为<b>匿名内部类</b>而非 lambda：SDK CallbackDescriptor.build 经
+     * {@code Class#getGenericInterfaces()} 反射读取监听器的具体化泛型签名
+     * （ChatbotMessage / Void）——lambda 合成类泛型签名不可读，注册期即抛
+     * {@code OpenDingTalkAppException: illegal callback implementation}
+     * （用户侧首启日志实证 2026-09-13，反汇编 CallbackDescriptor 双分支定谳）。
+     * 抽 protected 供单测复现 SDK 解析路径（泛型签名可读性断言）。
+     */
+    protected OpenDingTalkCallbackListener<ChatbotMessage, Void> buildListener() {
+        return new OpenDingTalkCallbackListener<>() {
+            @Override
+            public Void execute(ChatbotMessage message) {
+                chatService.handle(message);
+                // 应答经 sessionWebhook 异步推回，Stream 通道无同步应答载荷
+                return null;
+            }
+        };
     }
 }

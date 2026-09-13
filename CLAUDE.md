@@ -49,7 +49,7 @@ kb-rag-agent/
 
 **全链路审计**：`AuditTraceAdvisor`(order 10)挂双链，异步落 kb_audit_log（旁路容错）；三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏、改写经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
-**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）+ 双供应商 SLA 族（熔断/接管计数，供 supplier-sla 面板与 KbPrimaryModelDegraded 告警）；不带租户标签（防基数）
+**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）+ 双供应商 SLA 族（熔断/接管计数）；不带租户标签（防基数）
 
 **观测地基（Phase4簇①）**：Observation → otel bridge → OTLP Langfuse；总开关默认关；内容捕获单源开关；trace 合树 = 双链装配 + contextWrite 桥接 + 执行器传播
 
@@ -65,17 +65,17 @@ kb-rag-agent/
 
 **MCP Server（Phase4簇⑤ 4.10）**：starter-webmvc 落 kb-api（Streamable HTTP `/mcp` authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent（search/get_document 直调，ask 全链复用，`mcp-` 会话）；`McpIdentityGuard` 物化 RetrievalContext（IDENTITY_INCOMPLETE/MCP_SCOPE_DENIED）；容器无 ToolCallback Bean（HITL 不漏 MCP）；独立限流桶 fail-open + 轻量审计；§11.8
 
-**钉钉群机器人（Phase5簇⑥ 5.12）**：`rag.dingtalk.enabled` 缺省关（服务域恒装配零副作用 + Stream 客户端 SmartLifecycle 条件装配）；**WebSocket 出站长连接（无入站端点，SecurityConfig/安全组零改动）**；开启态三要素 fail-closed 启动校验（服务账号单租户绑定）；复用 `chatRag` 同步链（全护栏/审计零减配），回复 markdown 含 [ref-N] 溯源附录（final trace 与 formatter 编号对齐）；会话域 `dingtalk-{conversationId}`；独立限流桶 + 轻审计 mode=dingtalk + 指标 `rag.dingtalk.*`；可放弃超时（非打断式）；SDK shaded jar 零传递暴露
+**钉钉群机器人（Phase5簇⑥ 5.12）**：`rag.dingtalk.enabled` 缺省关（服务域恒装配零副作用 + Stream 客户端 SmartLifecycle 条件装配）；**WebSocket 出站长连接（无入站端点，SecurityConfig/安全组零改动）**；开启态三要素 fail-closed 启动校验（服务账号单租户绑定）；复用 `chatRag` 同步链（全护栏/审计零减配），回复 markdown 含 [ref-N] 溯源附录（final trace 与 formatter 编号对齐）；监听器须匿名类（lambda 泛型签名 SDK 拒绝，坑㊾）；会话域 `dingtalk-{conversationId}`；独立限流桶 + 轻审计 mode=dingtalk + 指标 `rag.dingtalk.*`；可放弃超时（非打断式）；SDK shaded jar 零传递暴露
 
 **平台层加固（安全簇②）**：CORS 白名单（allowCredentials 显式 false）；上传 50/60MB + chat body 1MB 超限 413；CSP/frameOptions/HSTS 显式钉；actuator include 白名单钉死；dependency-check+CycloneDX（**NVD API key 强制**；B5 残留唯余 B5-4 kotlin 待上游 GA，milvus 服务端误判族级抑制）；台账 12 §12.9 / 17 §17.3
 
 **PII 识别器注册表（安全簇③）**：kb-commons `security/pii`——每类型独立识别器，七类（手机/身份证/邮箱/银行卡 Luhn/座机/车牌/IPv4）；**TextSanitizer.maskPii 退役**——单一实现源迁 Spring 单 Bean，对话链/ETL/审计/MCP/入口日志同实例；配置族 `rag.guardrail.pii.{type}.enabled` 缺省全开；NAME/ADDRESS 默认关；输出回显只计数不替换；kb-eval 干净集零命中门禁；§12.10
 
-**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链（skip 旁路携记忆直答，fail-open 回落）；可关；路由/改写经 RetrievalConfig 局部 Builder 挂 fallbackChatModel（防 TTFT 爆/主模型切换漂移；不注册 Bean 防顶掉全局 Builder）
+**意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链（skip 旁路携记忆直答，fail-open 回落）；可关；路由/改写经 RetrievalConfig 局部 Builder 挂 fallbackChatModel（防 TTFT 爆/模型切换漂移；不注册 Bean 防顶全局 Builder）
 
 **工具链与 HITL（kb-ai-agent）**：`EnterpriseMockReadTools`/`EnterpriseMockWriteTools`（Phase5簇⑤ 拆类，契约对齐真实 OA/ERP）；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + tenant/user 绑定，故障 fail-closed；**ToolCallingAdvisor 自建 order 1000（tool/orchestrator 两链共享）**
 
-**多模型路由**：主模型双形态 `rag.routing.primary.provider`=glm|deepseek（缺省 glm = GLM-5.3-Flash 强制思考、effort 原生字段透传；deepseek 思考显式关）互斥条件装配 + `primaryChatModel` 桥（非法值启动失败）；`SmartRoutingChatModel`（@Primary）包 primary + 备用 `fallbackChatModel`（qwen3.8-flash）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发（异构须重建 Prompt 坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传；deepseek starter 退役（chat=none 防御位）
+**多模型路由**：主模型双形态 `rag.routing.primary.provider`=glm|deepseek（缺省 glm = GLM-5.3-Flash 强制思考 + effort 透传；deepseek 思考关）互斥条件装配 + `primaryChatModel` 桥（非法值启动失败）；`SmartRoutingChatModel`（@Primary）包 primary + 备用 `fallbackChatModel`（qwen3.8-flash）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发（异构须重建 Prompt 坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传；deepseek starter 退役（chat=none 防御位）
 
 **检索与对话链路**
 
@@ -100,7 +100,6 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（actuator 白名单 permitAll，/api/** authenticated，其余 denyAll，无状态）；**运维面三层分级（§12.12）**：isAdmin → ROLE_ADMIN，owner=built-in 超管追加 ROLE_SUPER_ADMIN 独占 guardrail 运维端点；`/api/v1/admin/**` hasRole(ADMIN) + 治理写 @PreAuthorize；统计/上传/列表全员；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
 - 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆（占位符桥接）共消费**不可移除**；**Neo4j**（Phase5簇④）`spring.neo4j.*` 手工装配 Driver 受 `rag.graph.enabled` 门控；生产 `bolt+s://` 经 nginx `stream` 块 L4 TLS 终结（坑位㊱）+ 出借前探活（坑位㊴）
-- **多 ChatClient Bean 纪律**：注入点显式 `@Qualifier`（五 Bean）；新增 Advisor 核对 order 与 11.2 链序表一致
 - 测试：全模块单测绿 + kb-eval 46 Testcontainers IT（含 Neo4j 网关真跑 IT，镜像钉生产同版本 5.26.29；`mvn verify -pl kb-eval -am`，Docker 必需，无则 -DskipITs）
 
 ## 注意事项
@@ -110,9 +109,10 @@ kb-rag-agent/
 - 父 POM dependencyManagement 预埋后续依赖；**`jsonschema-module-jackson` 锁定 5.0.0**（openai-java 传递 4.38.0 覆盖 → `.entity()` NoClassDefFoundError）
 - pgvector 需先以 superuser `CREATE EXTENSION IF NOT EXISTS vector;`
 - Milvus 原生混合检索否决（10 §10.0）；检索为 Spring AI 2.0 模块化 RAG
-- **实证坑**（全量台账 ①-㊺ 见 19 章附录 E）：② allowEmptyContext=true 即空证据自由作答，拒答需 false+模板；⑦ **自动配置让位**：用户 ChatMemory Bean 先注册即静默回退 InMemory，须显式装配；⑬ **Boot 4.1 迁 Jackson 3**：注入 tools.jackson JsonMapper；⑭ **跨厂商路由 Prompt 屏障**：转发异构备用前以备用自身 options 重建 Prompt；⑮ **qwen 商业版默认开思考**（20-60s/调用）须 enable_thinking=false；㉗ **流式 trace 双坑**：builder 单参 = NOOP registry 须显式传；adviseStream 切线程 ThreadLocal 不跨，父观测经 Reactor Context 键 + contextWrite 兜底；㉘ **spring-boot:run 静默跑兄弟模块旧 jar**——改动须先 install；㉙ **@Query 可选参数 `(:p IS NULL OR ...)` PG 预编译雷**——统一 Specification；㉚ **MCP Streamable 须显式钉 `protocol: STREAMABLE`**（缺省装 SSE）；㉛ **allowCredentials 缺省 null 非 false**；㉜ **dependency-check 13.x NVD key 强制**；㊱ **Bolt 禁经 nginx http 块反代**——须 `stream` 块 L4 TLS 终结；㊲ **多构造器类须显式 @Autowired 定夺**；㊳ **CompletableFuture 轮询超时误置中断标志 → 热自旋挤爆堆**（回填 OOM 根因）；㊴ **bolt+s 长闲置池化连接被中间层掐断**——首笔事务瞬抛 ServiceUnavailableException，治本 = `withConnectionLivenessCheckTimeout` 出借前探活；㊵ **Cypher 缺陷仅真库解析期可验**（推导式语序 / MATCH 属性访问两形态，mock 盲视）——治本 = 网关真跑 IT；㊶ **Neo4j 驱动不容线程中断**——检索路超时须非打断式 `cancel(false)`（防杀 bolt 连接）；㊸ **配置缺省双源**——@ConfigurationProperties 字段缺省被 application.yml 显式段遮蔽，改缺省须 Java + yml 两源同查（单测 new 直构不走绑定盲视）；㊹ **yml 插段误挂平级节点 Binder 静默不命中**——插段必核父级链缩进，「配置写了」≠「配置生效」；㊺ **容器内多同类型 Bean 按类型注入歧义**——条件装配新增 ExecutorService 族 Bean → 消费点 found 2 启动失败，治 = 显式 @Qualifier；开启态完整启动是独立验证面；另：Spring 7 MockHttpServletRequest.setContentLength 移除，用 setContent
+- **实证坑**（全量台账 ①-㊽ 见 19 章附录 E）：② allowEmptyContext=true 即空证据自由作答，拒答需 false+模板；⑦ **自动配置让位**：用户 ChatMemory Bean 先注册即静默回退 InMemory，须显式装配；⑬ **Boot 4.1 迁 Jackson 3**：注入 tools.jackson JsonMapper；⑭ **跨厂商路由 Prompt 屏障**：转发异构备用前以备用自身 options 重建 Prompt；⑮ **qwen 商业版默认开思考**（20-60s/调用）须 enable_thinking=false；㉗ **流式 trace 双坑**：builder 单参 = NOOP registry 须显式传；adviseStream 切线程 ThreadLocal 不跨，父观测经 Reactor Context 键 + contextWrite 兜底；㉘ **spring-boot:run 静默跑兄弟模块旧 jar**——改动须先 install；㉙ **@Query 可选参数 `(:p IS NULL OR ...)` PG 预编译雷**——统一 Specification；㉚ **MCP Streamable 须显式钉 `protocol: STREAMABLE`**（缺省装 SSE）；㉛ **allowCredentials 缺省 null 非 false**；㉜ **dependency-check 13.x NVD key 强制**；㊱ **Bolt 禁经 nginx http 块反代**——须 `stream` 块 L4 TLS 终结；㊲ **多构造器类须显式 @Autowired 定夺**；㊳ **CompletableFuture 轮询超时误置中断标志 → 热自旋挤爆堆**（回填 OOM 根因）；㊴ **bolt+s 长闲置池化连接被中间层掐断**——首笔事务瞬抛 ServiceUnavailableException，治本 = `withConnectionLivenessCheckTimeout` 出借前探活；㊵ **Cypher 缺陷仅真库解析期可验**（推导式语序 / MATCH 属性访问两形态，mock 盲视）——治本 = 网关真跑 IT；㊶ **Neo4j 驱动不容线程中断**——检索路超时须非打断式 `cancel(false)`（防杀 bolt 连接）；㊸ **配置缺省双源**——@ConfigurationProperties 字段缺省被 application.yml 显式段遮蔽，改缺省须 Java + yml 两源同查（单测 new 直构不走绑定盲视）；㊹ **yml 插段误挂平级节点 Binder 静默不命中**——插段必核父级链缩进，「配置写了」≠「配置生效」；㊺ **容器内多同类型 Bean 按类型注入歧义**——条件装配新增 ExecutorService 族 Bean → 消费点 found 2 启动失败，治 = 显式 @Qualifier；开启态完整启动是独立验证面；另：Spring 7 MockHttpServletRequest.setContentLength 移除，用 setContent
 - **请求状态传递只用参数链**（RetrievalContext 模式），不用 @RequestScope/ThreadLocal（异步完结后作用域代理不可解析、Reactor 线程不继承）；CONVERSATION_ID 同理
-- **常量收敛纪律**（2026-09-12 专项定案，边界八条见 6 章 §6.3）：Constants 只收**跨类/跨模块共享的协议性字面量**（错误码、检索路名与 metadata 键、对话协议值 mode/SSE 事件/审计三态、JWT claims、MCP 工具名、Bean 名等注册↔消费契约）；有枚举归属的值域以枚举为单一事实源不入 Constants；配置键归 @ConfigurationProperties；日志/描述/提示语与**单类内聚字面**不收敛——新增字面先判归属（跨类契约→Constants 对应分区 / 单类→类内 private static final）再落位
+- **多 ChatClient Bean 纪律**：注入点显式 `@Qualifier`；新增 Advisor 核对 order 与 11.2 链序表一致
+- **常量收敛纪律**（边界八条见 6 章 §6.3）：Constants 只收**跨类/跨模块共享的协议性字面量**（错误码、检索路名与 metadata 键、对话协议值 mode/SSE 事件/审计三态、JWT claims、MCP 工具名、Bean 名等注册↔消费契约）；有枚举归属的值域以枚举为单一事实源不入 Constants；配置键归 @ConfigurationProperties；日志/描述/提示语与**单类内聚字面**不收敛——新增字面先判归属（跨类契约→Constants 对应分区 / 单类→类内 private static final）再落位
 
 ## 开发工作流约定（用户定案）
 
