@@ -20,7 +20,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * A2aAgentService 测试（Phase5簇⑥ 批2）：编排序（计数→限流→审计→chatRag）、
- * 会话前缀（contextId 多轮记忆域）、限流上抛零触达、异常计数。
+ * 会话前缀（contextId 多轮记忆域，去横线派生钉 36 字符——坑位㊿）、
+ * 限流上抛零触达、异常计数。
  */
 class A2aAgentServiceTest {
 
@@ -55,12 +56,24 @@ class A2aAgentServiceTest {
         String answer = service.handle("问题", "ctx-1", context());
 
         assertThat(answer).isEqualTo("答案 [ref-1]");
-        // 会话前缀：contextId 多轮记忆域（A2A client 携同一 contextId 续问即延续）
-        verify(ragChatService).chatRag(anyString(), org.mockito.ArgumentMatchers.eq("a2a-ctx-1"), any());
+        // 会话前缀：contextId 去横线派生（A2A client 携同一 contextId 续问即延续）
+        verify(ragChatService).chatRag(anyString(), org.mockito.ArgumentMatchers.eq("a2a-ctx1"), any());
         verify(auditRecorder).record(anyString(), any(RetrievalContext.class));
         assertThat(meterRegistry.counter("rag.a2a.request").count()).isEqualTo(1.0);
         assertThat(meterRegistry.counter("rag.a2a.error").count()).isZero();
         assertThat(meterRegistry.timer("rag.a2a.chat.duration").count()).isEqualTo(1L);
+    }
+
+    @Test
+    void uuidContextIdDerivesSessionIdWithinAuditColumnBudget() {
+        when(ragChatService.chatRag(anyString(), anyString(), any())).thenReturn("答案");
+        String contextId = "828f4003-eded-41b4-8cdd-0449604f6849"; // DT2 步骤 2 真实回显值
+
+        service.handle("问题", contextId, context());
+
+        // 坑位㊿ 契约：a2a-(4) + 去横线 UUID(32) = 36 恰好钉进 kb_audit_log.session_id VARCHAR(36)
+        verify(ragChatService).chatRag(anyString(),
+            org.mockito.ArgumentMatchers.eq("a2a-828f4003eded41b48cdd0449604f6849"), any());
     }
 
     @Test

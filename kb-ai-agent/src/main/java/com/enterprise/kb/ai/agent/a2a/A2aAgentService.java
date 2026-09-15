@@ -13,9 +13,10 @@ import java.time.Duration;
  * 类名对齐 DingTalkChatService 形态，不吃 SDK AgentExecutor 接口）
  *
  * <p><b>链路形态</b>：复用 {@link RagChatService#chatRag} 同步阻塞式（全护栏/
- * 审计/记忆/租户隔离链零减配，复用即继承）；会话前缀 {@code a2a-{contextId}}
+ * 审计/记忆/租户隔离链零减配，复用即继承）；会话域 {@code a2a-{去横线 contextId}}
  * （v1.0 spec §3.4.1：contextId 逻辑分组同一会话上下文，记忆域与前端/MCP/钉钉
- * 隔离——A2A client 携同一 contextId 续问即多轮延续）。
+ * 隔离——A2A client 携同一 contextId 续问即多轮延续；同一 contextId 确定性
+ * 派生同一会话键）。
  *
  * <p><b>同步应答语义</b>：与钉钉（webhook 异步推回）不同，A2A message 调用是
  * 同步 HTTP 请求——HTTP 线程直接阻塞 chatRag（虚拟线程使能，无双层提交/
@@ -30,6 +31,10 @@ import java.time.Duration;
 @Component
 public class A2aAgentService {
 
+    /** 会话域前缀 4 字符——`a2a-` + 去横线 UUID(32) = 36 恰好钉进
+     *  kb_audit_log.session_id VARCHAR(36)（坑位㊿，MCP `mcp-` 同款算术；
+     *  contextId 协议面回显原形态不变，仅内部派生会话键去横线；客户端携带
+     *  非 UUID/超长 contextId 时超宽由审计旁路容错承接——丢弃审计行，主链无碍） */
     static final String SESSION_PREFIX = "a2a-";
 
     private final RagChatService ragChatService;
@@ -59,7 +64,7 @@ public class A2aAgentService {
         metrics.recordA2aRequest();
         rateLimiter.acquire(ctx.getTenantId());
         auditRecorder.record(query, ctx);
-        String sessionId = SESSION_PREFIX + contextId;
+        String sessionId = SESSION_PREFIX + contextId.replace("-", "");
         long startNanos = System.nanoTime();
         try {
             String answer = ragChatService.chatRag(query, sessionId, ctx);

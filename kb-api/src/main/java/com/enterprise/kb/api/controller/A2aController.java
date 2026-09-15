@@ -96,7 +96,8 @@ public class A2aController {
         if (text.isBlank()) {
             return error(requestId, INVALID_PARAMS, "message.parts 缺少文本内容（仅支持 text part）");
         }
-        // contextId：客户端携带则延续（多轮记忆域 a2a-{contextId}），缺失则服务端生成回填（§3.4.1 MAY）
+        // contextId：客户端携带则延续，缺失则服务端生成回填（§3.4.1 MAY）；
+        // 回显/协议面保持原形态，多轮记忆域经 A2aAgentService 去横线派生（坑位㊿ 列宽）
         String contextId = resolveContextId(request.params().message());
         try {
             RetrievalContext ctx = identityGuard.requireIdentity();
