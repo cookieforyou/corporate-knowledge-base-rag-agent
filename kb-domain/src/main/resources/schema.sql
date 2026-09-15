@@ -4,7 +4,7 @@
 -- ============================================
 
 -- 0. pgvector 扩展（须超级用户权限；存量库已装则 IF NOT EXISTS 空操作。
---    2026-08-13 簇⑥ D3：收入文件使 DDL 自包含——Testcontainers init script
+--    2026-08-13 冲刺簇⑥ D3：收入文件使 DDL 自包含——Testcontainers init script
 --    以 postgres 超级用户直接执行本文件建全套 schema）
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -24,11 +24,11 @@ CREATE TABLE IF NOT EXISTS kb_document (
     image_count     INT,
     chunk_count     INT,
     error_message   TEXT,
-    -- 簇⑥ C1 增量重入库：版本号（首次入库 1，每次重入库成功 +1）
+    -- 冲刺簇⑥ C1 增量重入库：版本号（首次入库 1，每次重入库成功 +1）
     -- 存量库升级 DDL：
     --   ALTER TABLE kb_document ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
     version         INT NOT NULL DEFAULT 1,
-    -- 簇④ GraphRAG（V2）：图谱构建状态（抽取为 ETL 后异步旁路，独立状态机）
+    -- Phase5簇④ GraphRAG（V2）：图谱构建状态（抽取为 ETL 后异步旁路，独立状态机）
     graph_status     VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     graph_updated_at TIMESTAMP,
     created_by      VARCHAR(50),
@@ -105,7 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_session_msg ON kb_message (session_id, created_at
 
 -- 6. 审计日志表
 -- v2.10 扩展（3.12 审计落地，双链路时代补列）：mode/status/error_code/tool_calls
--- v2.34 扩展（Phase 4 簇④ 4.7 Bad Case 闭环）：root_cause 根因标注
+-- v2.34 扩展（Phase4簇④ 4.7 Bad Case 闭环）：root_cause 根因标注
 -- v2.43 扩展（安全簇① T7 FLAG 观察语义）：guardrail_flags 观察标记
 -- 存量库升级 DDL：
 --   ALTER TABLE kb_audit_log ADD COLUMN IF NOT EXISTS mode VARCHAR(10);
