@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段）**：基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash 收官（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）。**Phase5簇①-⑤ 全部收官**（收尾清零/评估进化/语义缓存/GraphRAG/Agent 编排）。**Phase5簇⑥ 产品化收尾推进中**：体验批/补强收官；钉钉批1 收官；A2A 批2 机器侧就绪（E2E 待用户侧）；余归档/文档收口——基线 = sub-cluster-progress/Phase5簇⑥ 实施方案。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：此前完成：Phase 1-4、优化冲刺、安全加固专项。**Phase 5（项目最后阶段）**：基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash 收官（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）。**Phase5簇①-⑤ 全部收官**（收尾清零/评估进化/语义缓存/GraphRAG/Agent 编排）。**Phase5簇⑥ 产品化收尾推进中**：体验批/补强收官；钉钉批1 收官；A2A 批2 收官（DT2 九步全过含官方 a2a-sdk client 判据）；余批3 文档收口——基线 = sub-cluster-progress/Phase5簇⑥ 实施方案。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
