@@ -3789,7 +3789,3 @@ spring:
 > 的**企业级 AI 知识中枢**。
 >
 > **技术栈检查清单**：Java 21 ✓ | Spring Boot 4.1 ✓ | Spring AI 2.0.1 GA ✓ | Milvus ✓ | Elasticsearch ✓ | PostgreSQL 18 ✓ | Redis 8 ✓ | OpenTelemetry ✓ | Vue3 ✓
->
-> ---
->
-> 🤖 Generated with [Claude Code](https://claude.com/claude-code)

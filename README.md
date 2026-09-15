@@ -12,11 +12,11 @@
 [![Neo4j](https://img.shields.io/badge/Neo4j-5.26-008CC1?logo=neo4j&logoColor=white)](https://neo4j.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-基于 **Spring AI 2.0 GA** 构建的企业级 RAG 平台：文档加工流水线、混合检索（向量 + BM25 [+ Graph] 三路 RRF 融合）、带全链路溯源的 Agent 对话、评估门禁与运维闭环。
+基于 **Spring AI 2.0 GA** 构建的企业级 RAG 平台：文档加工流水线、混合检索（向量 + BM25 [+ Graph] 三路 RRF 融合）、带全链路溯源的 Agent 对话（三链路 + Multi-Agent 编排）、MCP / A2A / 钉钉多通道接入、评估门禁与运维闭环。
 
 区别于 Dify / RAGFlow / MaxKB 等通用平台方案，本项目聚焦 Spring AI 生态内的三件事：**深度可溯源**（多路得分透明的检索调试台）、**企业权限集成**（Casdoor 认证 / 多租户 fail-closed 隔离 / 三层角色分级）、**运维闭环**（评估门禁 / 全链路审计 / 护栏体系 / 可观测性）——适合对审计与溯源有强需求、以 Java 为技术栈的企业。
 
-> **项目状态**：Phase 1-4 已全部收官并通过用户侧验收；Phase 5（收官阶段）——①-⑤ 簇与模型层（主答 GLM-5.3-Flash）已收官，Phase5簇⑥ 产品化收尾推进中。能力矩阵见[阶段概览](#阶段概览)。
+> **项目状态**：**全阶段收官**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并通过用户侧验收（2026-09-16）；全阶段验收复盘矩阵见[全景实现报告 §18.6](docs/project-implement/18-交付验收标准.md)。后续演进规划见 [未来扩展方案](docs/project-future/README.md)。
 
 ## 目录
 
@@ -50,6 +50,7 @@
 - ✨ **真流式体验**：输出护栏流式增量放行（安全滞后窗逐块判定，命中吞断 + REPLACE 追回话术，不再整流缓冲瞬间倾泻）；SSE `PROGRESS` 阶段进度 + `TOOL_CALL` 卡片实时推送（委派 / 检索随执行逐次出现）+ 心跳防中间层掐断；溯源与委派 / 审批卡片随会话历史回显
 - ✋ **HITL 人工审批**：企业 Mock 工具对齐真实 OA/ERP 契约，读工具自动执行、写工具三段式审批（挂起 → approve → 一次性消费），Redis 账本 TTL + 租户/用户绑定，故障 fail-closed
 - 📡 **MCP Server**：Streamable HTTP `/mcp` 暴露三工具（search / get_document / ask），JWT 身份守卫 + scope 治理 + 独立限流桶；`ask` 全链复用 RAG 管线与护栏
+- 🌐 **A2A 协议端点 + 钉钉群机器人**：自研 A2A v1.0 协议层（Agent Card 发现 + `SendMessage` 同步应答，官方 a2a-sdk 互操作验证）与钉钉 Stream 群机器人（@ 群内问答，markdown 回复带溯源附录）——与 MCP 同为「知识库即服务」的外部通道，护栏 / 审计 / 记忆 / 租户隔离零减配复用；均缺省关
 
 ### 安全与合规
 
@@ -81,9 +82,14 @@ flowchart TB
         UI5["Admin 运维中心"]
     end
 
-    subgraph API["kb-api · REST + SSE + MCP Server"]
+    subgraph API["kb-api · REST + SSE + MCP + A2A · 钉钉接入"]
         SEC["OAuth2 Resource Server · JWT Casdoor · 三层角色"]
     end
+
+    DING["钉钉群机器人 · Stream 出站长连接"]
+    A2AC["外部 A2A Client / Agent"]
+    DING -.-> API
+    A2AC -.-> API
 
     subgraph RAG["rag 链 ragAgentChatClient · kb-ai-core · 零工具"]
         direction TB
@@ -279,6 +285,8 @@ curl http://localhost:8080/actuator/health
 | 运维 | `/api/v1/admin/**`：Chunk 运维 / 索引重建 / 审计查询 / Bad Case 闭环 | 租户管理员 |
 | 护栏词表 | `/api/v1/admin/guardrail/**`：CRUD / reload / 命中演练 | 系统超管 |
 | MCP | `/mcp`（Streamable HTTP，search / get_document / ask 三工具） | JWT |
+| A2A | `GET /.well-known/agent-card.json` + `POST /a2a`（JSON-RPC `SendMessage` 同步应答，v1.0 单版本） | JWT |
+| 钉钉 | 群内 @ 机器人（WebSocket Stream 出站长连接，无入站端点） | 服务账号单租户 |
 | 健康检查 | `/actuator/health` | 公开 |
 
 完整请求/响应契约、SSE 事件协议与错误码映射见 [API 文档](docs/delivery/API文档.md)。
@@ -293,16 +301,16 @@ curl http://localhost:8080/actuator/health
 | 优化冲刺 | 六簇：流式计账/熔断加固、检索调优 A/B、语境增强、Bad Case 治理、护栏加固、增量重入库 | ✅ |
 | 安全加固专项 | 六簇：词表工程、平台层零缺口、PII 注册表化、间接注入闭环、L2 语义判定、词表运营与对抗自动化 | ✅ |
 | Phase 4 | 七簇：观测地基 / 面板统计 / Chunk 运维与索引重建 / Bad Case 运营闭环 / MCP Server 产品化 / 生产加固压测 / 文档与格式收尾 | ✅ 全阶段收官（用户侧验收通过） |
-| Phase 5 | 六簇：收尾清零 / 评估进化 / 语义缓存 / GraphRAG / Agent 编排 / 产品化收尾 + 模型层批B | 🔄 ①-⑤ + 模型层（GLM-5.3-Flash）已收官，⑥ 产品化收尾推进中 |
+| Phase 5 | 六簇：收尾清零 / 评估进化 / 语义缓存 / GraphRAG / Agent 编排 / 产品化收尾（体验批 / 钉钉 / A2A / 文档收口）+ 模型层批B | ✅ 全阶段收官（2026-09-16 文档评审通过） |
 
 ## 文档
 
-- [全景实现报告（按章拆分，设计唯一依据）](docs/project-implement/README.md)——含历次修订注记（各章头部版本递增）
-- [交付文档三件套](docs/delivery/README.md)——运维手册 / API 文档 / 用户使用手册
+- [全景实现报告（按章拆分，设计唯一依据）](docs/project-implement/README.md)——含历次修订注记（各章头部版本递增）与 [§18.6 全阶段验收复盘矩阵](docs/project-implement/18-交付验收标准.md)
+- [交付文档](docs/delivery/README.md)——运维手册 / 生产部署实操手册 / API 文档 / 用户使用手册
+- [MCP 集成指南](docs/delivery/MCP集成指南.md) · [A2A 集成指南](docs/delivery/A2A集成指南.md)——外部 Agent / 系统对接
+- [未来扩展方案](docs/project-future/README.md)——面向下一阶段的演进设计与规划
 - [进度追踪（按任务行定位）](docs/project-progress/项目阶段推进任务清单完成记录.md)
-- [用户侧待执行项清单](docs/project-progress/用户侧待执行项清单.md)
-- [Phase 4 复审与规划方案（调研实证版）](docs/project-optimization/Phase%204%20复审与规划方案（调研实证版）.md)
-- [Phase 5 复审与规划方案（调研实证版）](docs/project-optimization/Phase%205%20复审与规划方案（调研实证版）.md)
+- [Phase 4 复审与规划方案（调研实证版）](docs/project-optimization/Phase%204%20复审与规划方案（调研实证版）.md) · [Phase 5 复审与规划方案（调研实证版）](docs/project-optimization/Phase%205%20复审与规划方案（调研实证版）.md)
 
 ## License
 
