@@ -1,6 +1,6 @@
 # API 文档 · 企业知识库 RAG Agent 工作台
 
-> 版本：1.1（2026-08-22，随 Phase4簇⑦交付；契约逐字核对源码：kb-api / kb-admin / kb-ai-agent / kb-commons）
+> 版本：1.2（2026-09-16，Phase5簇⑥ 批3 增量：mode=agent 三链 / graph 回填端点 / sessions.mode 与 toolCalls / stats Bad Case 双计数 / 钉钉·A2A 端点登记；1.1 = 2026-08-22 随 Phase4簇⑦交付，契约逐字核对源码：kb-api / kb-admin / kb-ai-agent / kb-commons）
 > 基地址：`http://<host>:8090` · 配套：[运维手册](./运维手册.md) · [用户使用手册](./用户使用手册.md)
 
 ---
@@ -70,7 +70,7 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 |---|---|---|---|
 | `query` | string | 是 | 用户问题 |
 | `sessionId` | string | 否 | 多轮会话标识；缺省后端生成并随响应回传 |
-| `mode` | `rag`\|`tool` | 否 | 双链路显式分流，缺省 `rag`；非法值 `INVALID_MODE` |
+| `mode` | `rag`\|`tool`\|`agent` | 否 | 三链路显式分流，缺省 `rag`；`agent` = 编排链（`rag.orchestrator.enabled` 缺省关，关闭态 400 `ORCHESTRATOR_DISABLED`）；非法值 `INVALID_MODE` |
 | `approvedToolCallId` | string | 否 | HITL 批准后的一次性消费凭证（tool 链二次对话） |
 
 响应 `data`：`{answer, sessionId, messageId, traceId, toolCalls[]}`。
@@ -108,8 +108,8 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 
 | 方法·路径 | 参数 | 响应 data |
 |---|---|---|
-| `GET /` | `page`（0 基，缺省 0）、`size`（缺省 50，上限 100） | `[{id, title, messageCount, updatedAt}]` |
-| `GET /{id}/messages` | path | `[{id, role, content, createdAt, sources(TRACE 帧同形，可 null), traceId, feedback}]` |
+| `GET /` | `page`（0 基，缺省 0）、`size`（缺省 50，上限 100） | `[{id, title, messageCount, updatedAt, mode}]`（`mode` = 会话链路归属快照 rag\|tool\|agent，存量会话 NULL 降级不切） |
+| `GET /{id}/messages` | path | `[{id, role, content, createdAt, sources(TRACE 帧同形，可 null), toolCalls(工具/委派调用记录，可 null), traceId, feedback}]` |
 | `DELETE /{id}` | path | `{deleted: true}` |
 
 跨租户/用户访问 → `SESSION_NOT_FOUND`。
@@ -135,7 +135,7 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 
 | 方法·路径 | 响应 data |
 |---|---|
-| `GET /overview` | `{documentTotal, documentsByStatus, chunkTotal(存活精确), documentsByParseRoute, dailyIngestion[14天]}` |
+| `GET /overview` | `{documentTotal, documentsByStatus, chunkTotal(存活精确), documentsByParseRoute, dailyIngestion[14天], badCaseTotal, unannotatedTotal}`（后二 = Bad Case 双计数：负反馈总数 / 待标注数，全员可读聚合） |
 | `GET /documents/processing` | `{counts{UPLOADING,PARSING,REINDEXING}, documents[{id,name,status,parseRoute,updatedAt}]}` |
 
 ---
@@ -195,6 +195,15 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 
 ---
 
+### 3.5 图谱回填（GraphAdminController，`/api/v1/admin/graph`，Phase5簇④）
+
+`rag.graph.enabled` 关闭态端点条件装配缺位（404）。存量语料图抽取回填（跳过解析/嵌入只走抽取；单租户单任务 409 守卫，RUNNING 超 6h 判陈旧可重发）：
+
+| 方法·路径 | 请求 | 响应 data |
+|---|---|---|
+| `POST /backfill` | body `{docIds[]}` 可选（空 = 租户全量待回填 PENDING/FAILED；指定 = 目标增量） | `GraphBackfillView` |
+| `GET /backfill` | —（轮询至终态） | `GraphBackfillView`：`{status(RUNNING/COMPLETED/...), total, succeeded, failed, startedAt, finishedAt}` |
+
 ## 4. SSE 流式协议（`POST /api/v1/chat/stream`）
 
 **无名帧**（`data:` 负载 JSON）：
@@ -246,7 +255,24 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 
 ---
 
-## 7. actuator 暴露面（permitAll）
+## 7. 钉钉群机器人与 A2A 端点（Phase5簇⑥ 批1/批2）
+
+两通道均**默认关闭**（`rag.dingtalk.enabled` / `rag.a2a.enabled` 缺省 false）：
+
+**钉钉群机器人**——**无 REST 端点**（WebSocket 出站长连接接收消息，消息回复走钉钉 webhook）；开启前置与使用说明见 [用户使用手册](./用户使用手册.md) 钉钉入口节，服务端配置与排障见 [运维手册](./运维手册.md)。
+
+**A2A 协议端点**（自研 v1.0 协议层，仅 `SendMessage` 同步应答 + Card 发现）：
+
+| 方法·路径 | 说明 |
+|---|---|
+| `GET /.well-known/agent-card.json` | Agent Card 发现（authenticated，Cache-Control 1h + ETag） |
+| `POST /a2a` | JSON-RPC 2.0 `SendMessage`，头 `A2A-Version: 1.0` 必须；返回 `result.task`（`TASK_STATE_COMPLETED` + artifact 答案）；错误码 -32009（版本）/ -32601（方法）/ -32602（参数）/ -32603（处理失败固定话术） |
+
+**完整集成契约（认证/多轮/错误语义/官方 SDK 示例）见**：[A2A 集成指南](./A2A集成指南.md) · [MCP 集成指南](./MCP集成指南.md)——两指南为外部集成的唯一详述源，本节仅端点登记。
+
+---
+
+## 8. actuator 暴露面（permitAll）
 
 | 端点 | 用途 |
 |---|---|
@@ -259,7 +285,7 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 
 ---
 
-## 8. 集成备忘
+## 9. 集成备忘
 
 - `messageId`/`traceId` 为请求级 UUID（Controller 请求线程生成，随 DONE 帧回传）；`goldenId = bc-{auditLogId}`；`sessionId` 前端生成后复用即多轮。
 - `ParseRoute` 枚举：`NATIVE | DEEP | OCR`；`RootCause` 四分类；`DocumentStatus` 五态。
