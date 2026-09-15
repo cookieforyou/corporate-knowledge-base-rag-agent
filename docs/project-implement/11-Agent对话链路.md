@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-08 · v2.115（Phase5簇⑥ 体验补强四：kb_session.mode 会话链路归属——历史会话恢复对应链路 tab，§11.7）
+> [📑 返回目录](./README.md) · 最后更新：2026-09-16 · v2.116（Phase5簇⑥ 批3：5.4 剩余两项与 5.5 设计稿归档登记——跨链 mode=auto/复杂度三级路由/多知识库路由，触发条件与复活路径入档 §11.4.1）· v2.115（Phase5簇⑥ 体验补强四：kb_session.mode 会话链路归属——历史会话恢复对应链路 tab，§11.7）
 >
 > **v2.108（2026-09-07，Phase5簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
@@ -801,6 +801,16 @@ record DoneEvent(String sessionId) implements AgentStreamEvent {}
 > - **fail-open 纪律 + 度量**：分类异常/解析失败/未知 intent 一律回落 KNOWLEDGE（最坏=现状）；`rag.routing.chitchat/knowledge` 计数进 AiBusinessMetrics（3.13 注册中心）；闲聊路径免 TRACE 帧（对齐「不推空帧」纪律）；`rag.routing.intent.enabled` 总开关可回退。
 >
 > 历史消息来源：分类器直注 agentChatMemory 经 CONVERSATION_ID 自读（不依赖 MessageChatMemoryAdvisor 内部排序；440 时当前轮未入忆，读到纯历史）。kb-eval 独立 chatClient 不挂本 Advisor，评估基线零影响。
+
+### 11.4.1 归档登记（v2.116，Phase5簇⑥ 批3——5.4 剩余两项与 5.5 设计稿归档）
+
+> **2026-09-16 归档定稿（Phase 5 收官收口，复审 §二裁决执行完毕）**：
+>
+> - **5.4-A 跨链 mode=auto（归档）**：设计要点 = 路由决策面位于三链之上的 Controller/Service 层（按意图在 rag↔tool↔agent 间自适应选链，异于链内 440；`approvedToolCallId` 非空硬路由 tool 链；fail-open 回落 rag）。归档判据维持：价值前提 = 真实工具落地 + 跨链混合流量——工具仍 Mock 演示层（Phase5簇⑤ D4 留存定案），三链分工由请求体 `mode: rag|tool|agent` 显式契约清晰。**触发条件 = 真实 OA/ERP/DB 工具立项**（与 5.3 验收标准复活同步）；复活路径 = `QueryRoutingAdvisor` 意图分类位扩展 + Controller 选链层（§11.5.2 mode 契约不动，路由器对前端透明）。
+> - **5.4-B 复杂度三级路由（不启动项登记）**：依赖轻量模型档位引入，3.2 定案「双模型下形同虚设」判据维持（主答双形态 + 辅助族 qwen3.8-flash 档位拓扑未变）；触发条件 = 引入第三档轻量模型。复活提醒 = 跨厂商转发以备用 options 重建 Prompt（坑位⑭）+ kb-eval 防误路由护栏。
+> - **5.5 多知识库动态路由（设计稿登记）**：原设计 = 领域独立 VectorStore + 领域路由选择层；归档判据 = 单租户单库企业场景无多业务线/多语言/多模态切分需求，**不预迁移**（零空表空列）。**触发条件 = 第二个真实知识库接入需求提出**，届时按原设计复活（`kb.vector-store.provider` 条件装配先例可扩多实例并存）。
+>
+> 归档回执：Phase 5 复审方案对应行已标「已归档 ✅」；进度 07 卷任务表同步。
 
 ---
 
