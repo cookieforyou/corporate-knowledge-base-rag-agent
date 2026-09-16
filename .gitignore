@@ -4,6 +4,7 @@
 target
 logs
 dist
+msitv
 guardrailrules
 node_modules
 .env
