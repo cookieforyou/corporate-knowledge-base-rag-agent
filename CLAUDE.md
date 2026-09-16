@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：**项目全阶段收官（2026-09-16，批3 文档评审通过）**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并经用户侧验收；收官总账本 = 18 章 §18.6 验收复盘矩阵。Phase 5 基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）；簇⑥ = 体验批/钉钉批1/A2A 批2/文档收口批3 全收官（基线 = sub-cluster-progress/Phase5簇⑥ 实施方案）。**后续演进**：`docs/project-future/`（扩展规划分册——真实工具链/协议互通/模型层/检索演进/规模化）。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：**项目全阶段收官（2026-09-16，批3 文档评审通过）**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并经用户侧验收；收官总账本 = 18 章 §18.6 验收复盘矩阵。Phase 5 基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）；Phase5簇⑥ = 体验批/钉钉批1/A2A 批2/文档收口批3 全收官（基线 = sub-cluster-progress/Phase5簇⑥实施方案）。**后续演进**：`docs/project-future/`（扩展规划分册——真实工具链/协议互通/模型层/检索演进/规模化）。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
