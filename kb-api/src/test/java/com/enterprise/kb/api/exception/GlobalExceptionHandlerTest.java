@@ -24,7 +24,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiResponse<Void>> response = handler.handleBusinessException(
             new BusinessException(Constants.ErrorCodes.FILE_TOO_LARGE, "上传文件超过单文件 50MB 上限"), request);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
         assertThat(response.getBody().code()).isEqualTo(413);
     }
 
@@ -33,7 +33,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiResponse<Void>> response = handler.handleMaxUploadSizeExceeded(
             new MaxUploadSizeExceededException(50L * 1024 * 1024), request);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
         assertThat(response.getBody().code()).isEqualTo(413);
     }
 

@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
                 : STORE_UNAVAILABLE_ERROR_CODES.contains(e.getErrorCode())
                     ? HttpStatus.SERVICE_UNAVAILABLE
                     : PAYLOAD_TOO_LARGE_ERROR_CODES.contains(e.getErrorCode())
-                        ? HttpStatus.PAYLOAD_TOO_LARGE
+                        ? HttpStatus.CONTENT_TOO_LARGE
                         : HttpStatus.BAD_REQUEST;
         log.warn("业务异常 [{}] {} {}: {}", e.getErrorCode(), request.getMethod(),
             request.getRequestURI(), e.getMessage());
@@ -84,8 +84,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(
             MaxUploadSizeExceededException e, HttpServletRequest request) {
         log.warn("上传超限 {} {}: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-            .body(ApiResponse.error(HttpStatus.PAYLOAD_TOO_LARGE.value(), "上传文件超过大小上限"));
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+            .body(ApiResponse.error(HttpStatus.CONTENT_TOO_LARGE.value(), "上传文件超过大小上限"));
     }
 
     /**
