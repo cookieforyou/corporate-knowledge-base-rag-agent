@@ -28,12 +28,23 @@ import java.util.Map;
  * <ul>
  *   <li>{@code Entity}：实体节点，{@code id} 唯一约束（{@link GraphIds} 派生），
  *       {@code embedding} 1024 维余弦向量索引（与主检索链路 EmbeddingModel 同源——
- *       pgvector/Milvus/语义缓存三处 1024 钉死同值）；</li>
- *   <li>{@code Chunk}：chunk 锚点（不存内容，PG 为事实源），{@code id} 唯一约束；</li>
+ *       pgvector/Milvus/语义缓存三处 1024 钉死同值），{@code tenant_id} 范围索引；</li>
+ *   <li>{@code Chunk}：chunk 锚点（不存内容，PG 为事实源），{@code id} 唯一约束 +
+ *       {@code doc_id}/{@code tenant_id} 范围索引；</li>
  *   <li>{@code MENTIONS}：Chunk→Entity 提及关系；</li>
  *   <li>{@code RELATED_TO}：Entity→Entity 语义关系（幂等键 = 源×目标×类型），
- *       {@code doc_ids}/{@code chunk_ids} 溯源引用列表。</li>
+ *       {@code doc_ids}/{@code chunk_ids} 溯源引用列表 + <b>{@code tenant_id} 关系属性索引</b>
+ *       （v3.00 补：租户域清扫/计数从全库关系类型扫描收敛为索引 seek）。</li>
  * </ul>
+ *
+ * <p><b>维度三处守卫（v3.00）</b>：向量维度是三处配置的共同契约（图常量 × 向量库
+ * {@code kb.vector-store.*} × 缓存 {@code rag.cache.embedding-dim}），任一处漂移都会
+ * 静默降级——真库实证：向 1024 维索引写 768 维向量<b>不报错、不落日志、事务成功，
+ * 但该节点对向量索引永久不可见</b>；且 {@code CREATE VECTOR INDEX IF NOT EXISTS}
+ * 对维度漂移既不报错也不改维度，故启动期读回自省是唯一信号面。守卫三层：
+ * ① 写入侧 {@link #requireEmbedding}（快失败，兑现接口契约）；② 读路径维度前置守卫
+ * （返回空 + ERROR，不让 Neo4j 兜底抛错）；③ {@link #verifyVectorIndexDimensions}
+ * 既有索引维度读回比对。
  */
 @Slf4j
 public class Neo4jGraphGateway implements GraphGateway {
@@ -68,6 +79,11 @@ public class Neo4jGraphGateway implements GraphGateway {
             "CREATE CONSTRAINT kb_chunk_id IF NOT EXISTS FOR (c:Chunk) REQUIRE c.id IS UNIQUE",
             "CREATE INDEX kb_entity_tenant IF NOT EXISTS FOR (e:Entity) ON (e.tenant_id)",
             "CREATE INDEX kb_chunk_doc IF NOT EXISTS FOR (c:Chunk) ON (c.doc_id)",
+            // v3.00 补两项索引：前者使租户域关系清扫/计数从全库关系类型扫描
+            // （DirectedRelationshipTypeScan + Eager）收敛为索引 seek；后者使
+            // countByTenant 的锚点统计不再全库扫 Chunk 标签（实测计划取证）
+            "CREATE INDEX kb_chunk_tenant IF NOT EXISTS FOR (c:Chunk) ON (c.tenant_id)",
+            "CREATE INDEX kb_relation_tenant IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.tenant_id)",
             """
             CREATE VECTOR INDEX %s IF NOT EXISTS
             FOR (e:Entity) ON (e.embedding)
@@ -83,8 +99,40 @@ public class Neo4jGraphGateway implements GraphGateway {
                 }
                 return null;
             }, txConfig);
+            verifyVectorIndexDimensions(session);
         }
-        log.info("图谱 Schema 幂等初始化完成（约束 ×2 / 索引 ×2 / 向量索引 ×1，维度 {}）", EMBEDDING_DIMENSIONS);
+        log.info("图谱 Schema 幂等初始化完成（约束 ×2 / 索引 ×4 / 向量索引 ×1，维度 {}）", EMBEDDING_DIMENSIONS);
+    }
+
+    /**
+     * 既有向量索引维度读回自省（v3.00）：{@code CREATE VECTOR INDEX … IF NOT EXISTS}
+     * 对维度漂移既不报错也不改维度（真库实证：拿 768 重放后索引仍 1024），故必须读回比对。
+     * 不符只 ERROR 显形不阻断启动——图是检索增强件，由运行期读路径守卫兜底空路
+     * （{@link #ensureSchema()} 失败不阻断启动的同一条纪律）。
+     */
+    private void verifyVectorIndexDimensions(Session session) {
+        try {
+            Result result = session.run(
+                "SHOW INDEXES YIELD name, options WHERE name = $indexName "
+                    + "RETURN options.indexConfig.`vector.dimensions` AS dimensions",
+                Map.of("indexName", ENTITY_VECTOR_INDEX));
+            if (!result.hasNext()) {
+                return;   // 索引缺位（本次 DDL 首建）——无需比对
+            }
+            Value dimensions = result.next().get("dimensions");
+            if (dimensions.isNull()) {
+                return;
+            }
+            long actual = dimensions.asLong();
+            if (actual != EMBEDDING_DIMENSIONS) {
+                log.error("图向量索引维度与代码常量不符：索引 {} 维 / 期望 {} 维——IF NOT EXISTS "
+                    + "不会重建索引，实体写入将对向量检索永久不可见（实测语义，无报错无日志）；"
+                    + "处置 = DROP INDEX {} 后重启（重建）→ 回填存量实体",
+                    actual, EMBEDDING_DIMENSIONS, ENTITY_VECTOR_INDEX);
+            }
+        } catch (Exception e) {
+            log.warn("图向量索引维度自省失败（不阻断启动）: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -104,21 +152,24 @@ public class Neo4jGraphGateway implements GraphGateway {
         if (docId == null || docId.isBlank()) {
             throw new IllegalArgumentException("图谱写入缺失 docId");
         }
+        List<GraphRecords.ChunkAnchor> safeChunks = chunks == null ? List.of() : chunks;
+        List<GraphRecords.EntityWrite> safeEntities = entities == null ? List.of() : entities;
         List<GraphRecords.RelationWrite> safeRelations = relations == null ? List.of() : relations;
-        List<Map<String, Object>> mentionPairs = buildMentionPairs(entities);
+        requireEmbeddings(safeEntities);   // 写前快失败：维度不符不进事务（兑现接口契约）
+        List<Map<String, Object>> mentionPairs = buildMentionPairs(safeEntities);
         try (Session session = driver.session(sessionConfig)) {
             session.executeWrite(tx -> {
                 // 阶段一：清除该文档既有图引用（幂等重写前置，重入库收敛无残留）
                 tx.run(REMOVE_DOC_REFERENCES, Map.of("tenantId", tenantId, "docId", docId));
                 gcOrphans(tx, tenantId);
                 // 阶段二：写入新抽取结果（MERGE 语义）
-                if (!chunks.isEmpty()) {
+                if (!safeChunks.isEmpty()) {
                     tx.run(MERGE_CHUNK_ANCHORS, Map.of(
-                        "tenantId", tenantId, "docId", docId, "chunks", toChunkParams(chunks)));
+                        "tenantId", tenantId, "docId", docId, "chunks", toChunkParams(safeChunks)));
                 }
-                if (!entities.isEmpty()) {
+                if (!safeEntities.isEmpty()) {
                     tx.run(MERGE_ENTITIES, Map.of(
-                        "tenantId", tenantId, "docId", docId, "entities", toEntityParams(entities)));
+                        "tenantId", tenantId, "docId", docId, "entities", toEntityParams(safeEntities)));
                 }
                 if (!mentionPairs.isEmpty()) {
                     tx.run(MERGE_MENTIONS, Map.of("tenantId", tenantId, "mentions", mentionPairs));
@@ -175,7 +226,7 @@ public class Neo4jGraphGateway implements GraphGateway {
         if (tenantId == null || tenantId.isBlank()) {
             return List.of();   // fail-closed：无租户零触达
         }
-        if (queryEmbedding == null || queryEmbedding.length == 0) {
+        if (!isQueryVectorUsable(queryEmbedding)) {
             return List.of();
         }
         String cypher = expandNeighbors ? RETRIEVE_WITH_EXPANSION : RETRIEVE_SEEDS_ONLY;
@@ -212,9 +263,8 @@ public class Neo4jGraphGateway implements GraphGateway {
                                                                     int entityFetchLimit,
                                                                     double similarityThreshold) {
         GraphRecords.GraphRetrievalDiagnostics zero = GraphRecords.GraphRetrievalDiagnostics.EMPTY;
-        if (tenantId == null || tenantId.isBlank()
-            || queryEmbedding == null || queryEmbedding.length == 0) {
-            return zero;   // fail-closed：无租户/无向量零触达
+        if (tenantId == null || tenantId.isBlank() || !isQueryVectorUsable(queryEmbedding)) {
+            return zero;   // fail-closed：无租户/无向量/维度不符零触达
         }
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
@@ -273,6 +323,48 @@ public class Neo4jGraphGateway implements GraphGateway {
         if (tenantId == null || tenantId.isBlank()) {
             throw new IllegalArgumentException("图谱写入拒绝：缺失租户身份（fail-closed）");
         }
+    }
+
+    /**
+     * 实体嵌入守卫（v3.00，兑现 {@link GraphGateway} 的写入侧契约）：null 或维度不符一律拒绝。
+     *
+     * <p>必要性 = 真库实证的静默失败语义：向 1024 维向量索引写入 768 维向量<b>不报错、
+     * 不落日志、事务成功</b>，但该节点对向量索引永久不可见（检索永不召回，且无任何痕迹）；
+     * {@code Values.value(null)} 亦只落 {@code NullValue}（属性被清除、同样不进索引）。
+     * 落地纪律 = 网关自守（不依赖调用方守卫，kb-etl 侧守卫保留为双保险）。
+     * 包内可见供单测直断（快失败边界 ≤ 维度契约）。
+     */
+    static void requireEmbeddings(List<GraphRecords.EntityWrite> entities) {
+        for (GraphRecords.EntityWrite entity : entities) {
+            float[] embedding = entity.embedding();
+            if (embedding == null || embedding.length != EMBEDDING_DIMENSIONS) {
+                throw new IllegalArgumentException("实体嵌入维度不符（期望 " + EMBEDDING_DIMENSIONS
+                    + "，实际 " + (embedding == null ? "null" : embedding.length)
+                    + "）——嵌入源与图向量索引不同源，拒绝写入以免索引静默失配（改维须重建索引）: "
+                    + "entityId=" + entity.id());
+            }
+        }
+    }
+
+    /**
+     * 查询向量可用性守卫（v3.00）：空向量与<b>维度不符</b>一律判不可用。
+     *
+     * <p>维度不符若不前置拦截，会由 Neo4j 侧抛 {@code IllegalArgumentException}
+     * （"Index query vector has 768 dimensions, but indexed vectors have 1024"）——
+     * 虽被单路容错吞成空路，但错误归因落在「图库」而非「嵌入源与索引不同源」；
+     * 此处显式 ERROR 显形（维度漂移的启动期信号面之一）。
+     */
+    private static boolean isQueryVectorUsable(float[] queryEmbedding) {
+        if (queryEmbedding == null || queryEmbedding.length == 0) {
+            return false;
+        }
+        if (queryEmbedding.length != EMBEDDING_DIMENSIONS) {
+            log.error("图路查询向量维度不符（期望 {}，实际 {}）——嵌入源与图向量索引不同源，"
+                + "本路返回空（处置：维度对齐后重建图向量索引并回填）",
+                EMBEDDING_DIMENSIONS, queryEmbedding.length);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -392,7 +484,17 @@ public class Neo4jGraphGateway implements GraphGateway {
 
     /**
      * 实体合并写入：幂等键 = id（租户×名称×类型派生）。
-     * 合并语义：描述/嵌入取最新，doc_ids/chunk_ids 取并集，mention_count 累加。
+     * 合并语义：<b>描述与嵌入「信息量更大者胜」</b>（v3.00），doc_ids/chunk_ids 取并集，
+     * mention_count 累加（语义重算见批3）。
+     *
+     * <p><b>描述策略（v3.00 修正）</b>：原「取最新」在跨文档时会把已存的长描述冲成短描述，
+     * 甚至被空描述冲成 {@code ""}——而嵌入语料在描述为空时回落<b>名称向量</b>
+     * （{@code GraphExtractionService#embeddingCorpus}），即一条无描述文档会把该实体
+     * 已存的好描述与好向量一并降级（embedding 是检索键，直接伤向量召回）。实证：
+     * 长描述 + 描述向量写后，空描述文档再写 → {@code description=""，embedding=名称向量}。
+     * 现策与 ETL 文档内策略（{@code mergeEntities} 取最长）统一为「较长者胜」。
+     * <b>配对纪律</b>：{@code SET} 子句内所有项读的都是赋值前的值，故 description 与
+     * embedding 的两个 CASE 判据一致、不会错位（IT 实证：保留「长描述 + 描述向量」）。
      */
     private static final String MERGE_ENTITIES = """
         UNWIND $entities AS ent
@@ -401,7 +503,10 @@ public class Neo4jGraphGateway implements GraphGateway {
                       e.description = ent.description, e.embedding = ent.embedding,
                       e.doc_ids = [$docId], e.chunk_ids = ent.chunkIds,
                       e.mention_count = 1, e.created_at = datetime(), e.updated_at = datetime()
-        ON MATCH SET e.description = ent.description, e.embedding = ent.embedding,
+        ON MATCH SET e.description = CASE WHEN size(coalesce(e.description, '')) >= size(ent.description)
+                                          THEN e.description ELSE ent.description END,
+                     e.embedding = CASE WHEN size(coalesce(e.description, '')) >= size(ent.description)
+                                        THEN e.embedding ELSE ent.embedding END,
                      e.doc_ids = CASE WHEN $docId IN e.doc_ids THEN e.doc_ids ELSE e.doc_ids + $docId END,
                      e.chunk_ids = coalesce(e.chunk_ids, []) + [x IN ent.chunkIds WHERE NOT x IN coalesce(e.chunk_ids, [])],
                      e.mention_count = coalesce(e.mention_count, 0) + 1,
@@ -415,7 +520,14 @@ public class Neo4jGraphGateway implements GraphGateway {
         MERGE (c)-[:MENTIONS]->(e)
         """;
 
-    /** 关系合并写入：幂等键 = (源, 目标, relation_type)；溯源引用列表并集更新 */
+    /**
+     * 关系合并写入：幂等键 = (源, 目标, relation_type)；溯源引用列表并集更新。
+     *
+     * <p><b>描述策略（v3.00 与实体同策）</b>：原 {@code ON MATCH} 直接覆盖为最新描述，
+     * 多文档描述不同即反复互覆、丢失历史；现改「信息量更大者胜」（较长者保留），
+     * 与实体描述策略及 ETL 文档内「首见保留」取向一致（后者保首见，前者保信息量，
+     * 统一判据 = 不被更短/空的描述降级）。
+     */
     private static final String MERGE_RELATIONS = """
         UNWIND $relations AS rel
         MATCH (s:Entity {id: rel.sourceId, tenant_id: $tenantId}),
@@ -426,7 +538,8 @@ public class Neo4jGraphGateway implements GraphGateway {
         ON MATCH SET r.doc_ids = CASE WHEN $docId IN r.doc_ids THEN r.doc_ids ELSE r.doc_ids + $docId END,
                      r.chunk_ids = coalesce(r.chunk_ids, []) + [x IN rel.chunkIds WHERE NOT x IN coalesce(r.chunk_ids, [])],
                      r.weight = coalesce(r.weight, 1.0) + 1.0,
-                     r.description = rel.description
+                     r.description = CASE WHEN size(coalesce(r.description, '')) >= size(rel.description)
+                                          THEN r.description ELSE rel.description END
         """;
 
     private static final String SET_CHUNKS_DELETED = """

@@ -206,12 +206,12 @@ mvn -q --no-transfer-progress test -pl kb-eval -am
 | `id` | STRING (PK) | 确定性 ID：`nameUUID v3(name + type + tenantId)` |
 | `name` | STRING | 实体名称（规范化小写 + trim） |
 | `type` | STRING | 实体类型（PERSON / ORG / PRODUCT / CONCEPT / LOCATION / TECH / EVENT / OTHER） |
-| `description` | STRING | 实体描述（抽取时 LLM 生成，≤200 字） |
+| `description` | STRING | 实体描述（抽取时 LLM 生成；文档内「取最长」，**跨文档 v3.01 起同为「信息量更大者胜」**——原「取最新」会被空/短描述降级并把描述向量换成名称向量） |
 | `embedding` | FLOAT[1024] | 描述向量（qwen3.7-text-embedding 同源，维度 1024 钉死） |
 | `tenant_id` | STRING | 租户 ID（隔离必携） |
 | `doc_ids` | LIST<STRING> | 出现文档 ID 集合（溯源） |
 | `chunk_ids` | LIST<STRING> | 出现 chunk ID 集合（反查） |
-| `mention_count` | INTEGER | 出现次数（合并计数） |
+| `mention_count` | INTEGER | 出现次数（合并计数；**语义待批3重算为去重片段数**——现为抽取写入次数） |
 | `created_at` | STRING | ISO 时间戳 |
 | `updated_at` | STRING | ISO 时间戳 |
 
@@ -231,23 +231,30 @@ mvn -q --no-transfer-progress test -pl kb-eval -am
 
 | 关系 | 方向 | 属性 | 说明 |
 |------|------|------|------|
-| `RELATED_TO` | Entity → Entity | `weight` (FLOAT), `relation_type` (STRING), `doc_ids` (LIST), `chunk_ids` (LIST) | 实体间语义关系 |
+| `RELATED_TO` | Entity → Entity | `weight` (FLOAT), `relation_type` (STRING), `doc_ids` (LIST), `chunk_ids` (LIST) | 实体间语义关系（**有向**：抽取提示词产出 `WORKS_AT/PART_OF/DEPENDS_ON/PRODUCED_BY` 等方向性类型；图路 1 跳展开按无向召回——设计取舍，v3.02 方向可配） |
 | `MENTIONS` | Chunk → Entity | `position` (INTEGER) | chunk 提及实体（反向 = 实体被哪些 chunk 引用） |
 
 > **关系去重**：`RELATED_TO` 以 `(source_id, target_id, relation_type)` 为幂等键，MERGE 语义。
 
 ### 2.3 约束与索引（幂等 Cypher）
 
+> **落码实况（v3.01 对齐）**：本节初稿的复合索引清单（`entity_tenant_name` 等四项）未按稿落地——
+> 实际实现 = 双唯一约束 + 四项**单属性**范围索引 + 1024 维余弦向量索引（`Neo4jGraphGateway#ensureSchema`），
+> 差异原因是查询形态实际只用得上单属性等值/范围（复合索引前导列与单属性索引等价，多出的后置列无消费者）。
+> 2026-10 评审热修补齐两项缺口并以计划实证定因（详 10 章 §10.9.5 v3.01）。
+
 ```cypher
 // 约束（幂等：CREATE CONSTRAINT IF NOT EXISTS）
-CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE;
-CREATE CONSTRAINT chunk_id IF NOT EXISTS FOR (c:Chunk) REQUIRE c.id IS UNIQUE;
+CREATE CONSTRAINT kb_entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE;
+CREATE CONSTRAINT kb_chunk_id IF NOT EXISTS FOR (c:Chunk) REQUIRE c.id IS UNIQUE;
 
-// 复合索引（租户隔离查询加速）
-CREATE INDEX entity_tenant_name IF NOT EXISTS FOR (e:Entity) ON (e.tenant_id, e.name);
-CREATE INDEX entity_tenant_type IF NOT EXISTS FOR (e:Entity) ON (e.tenant_id, e.type);
-CREATE INDEX chunk_tenant_doc IF NOT EXISTS FOR (c:Chunk) ON (c.tenant_id, c.doc_id);
-CREATE INDEX chunk_doc_deleted IF NOT EXISTS FOR (c:Chunk) ON (c.doc_id, c.is_deleted);
+// 范围索引（租户隔离与反查加速）
+CREATE INDEX kb_entity_tenant IF NOT EXISTS FOR (e:Entity) ON (e.tenant_id);
+CREATE INDEX kb_chunk_doc IF NOT EXISTS FOR (c:Chunk) ON (c.doc_id);
+// v3.01 补齐：缺此项时 countByTenant 全库扫 Chunk 标签（NodeByLabelScan）
+CREATE INDEX kb_chunk_tenant IF NOT EXISTS FOR (c:Chunk) ON (c.tenant_id);
+// v3.01 补齐：缺此项时租户域关系清扫全库扫关系类型（DirectedRelationshipTypeScan + Eager）
+CREATE INDEX kb_relation_tenant IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.tenant_id);
 
 // 向量索引（Neo4j 5.x 内建向量索引，1024 维余弦相似度）
 // 落码前核验：Neo4j Community 5.x CREATE VECTOR INDEX 语法与参数
@@ -258,6 +265,11 @@ CREATE VECTOR INDEX entity_embedding IF NOT EXISTS
     `vector.similarity_function`: 'cosine'
   }};
 ```
+
+> **维度契约（v3.01）**：`vector.dimensions` 必须与主检索链路 EmbeddingModel 及
+> `kb.vector-store.*` / `rag.cache.embedding-dim` 同值；`IF NOT EXISTS` 对维度漂移
+> **既不报错也不改维度**，而异维实体写入「成功但对索引永久不可见」——故设三层守卫
+> （写入拒异维 / 读路径前置返空 / 启动期索引维度自省 + 配置交叉校验），详 10 章 §10.9.2。
 
 ### 2.4 ID/去重策略
 

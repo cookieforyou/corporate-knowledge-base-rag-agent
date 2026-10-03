@@ -14,15 +14,20 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
+import org.neo4j.driver.Record;
 import org.neo4j.driver.Session;
+import org.neo4j.driver.Value;
 import org.testcontainers.neo4j.Neo4jContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 /**
@@ -63,6 +68,30 @@ class Neo4jGraphGatewayIT {
     private static final String GC_CHUNK_C = "chunk-gc-c";
     private static final String GC_X_ID = GraphIds.entityId(GC_TENANT, "gc-x", "CONCEPT");
     private static final String GC_Y_ID = GraphIds.entityId(GC_TENANT, "gc-y", "CONCEPT");
+
+    // ── v2.85 批2 夹具常量（索引 / 维度守卫 / 描述策略）─────────────
+
+    /** 描述策略夹具：同实体三文档，描述长度递变（长 → 空 → 更长） */
+    private static final String DESC_TENANT = "t-desc";
+    private static final String DESC_DOC_A = "doc-desc-a";
+    private static final String DESC_DOC_B = "doc-desc-b";
+    private static final String DESC_DOC_C = "doc-desc-c";
+    private static final String DESC_CHUNK_A = "chunk-desc-a";
+    private static final String DESC_CHUNK_B = "chunk-desc-b";
+    private static final String DESC_CHUNK_C = "chunk-desc-c";
+    private static final String DESC_ENTITY = GraphIds.entityId(DESC_TENANT, "desc-entity", "CONCEPT");
+    private static final String DESC_LONG = "信息量充分的长描述：含上下文、限定条件与关键属性";
+    private static final String DESC_LONGER = DESC_LONG + "，并补充适用范围、生效时间与责任主体";
+
+    /** 关系描述策略夹具：同关系两文档，长描述先写、短描述后写 */
+    private static final String REL_DESC_TENANT = "t-rel-desc";
+    private static final String REL_DESC_DOC_A = "doc-rel-desc-a";
+    private static final String REL_DESC_DOC_B = "doc-rel-desc-b";
+    private static final String REL_DESC_CHUNK_A = "chunk-rel-desc-a";
+    private static final String REL_DESC_CHUNK_B = "chunk-rel-desc-b";
+    private static final String REL_DESC_X = GraphIds.entityId(REL_DESC_TENANT, "rel-desc-x", "CONCEPT");
+    private static final String REL_DESC_Y = GraphIds.entityId(REL_DESC_TENANT, "rel-desc-y", "CONCEPT");
+    private static final String REL_DESC_LONG = "关系的长描述：桥接两个实体并说明方向、条件与生效范围";
 
     /** 名额挤占夹具：本租户 1 个 0.995 分种子 vs 他租户 6 个 1.0 分候选；冷租户无任何图数据 */
     private static final String MINE_TENANT = "t-mine";
@@ -293,6 +322,103 @@ class Neo4jGraphGatewayIT {
         assertThat(cold.starved()).as("冷租户不计饿死（防指标被「图里没有」污染）").isFalse();
     }
 
+    // ── v2.85 批2 用例（索引 / 维度守卫 / 描述策略）─────────────────
+
+    /** 索引补齐回归（v3.00）：Chunk.tenant_id（锚点统计不再全库扫标签）+ RELATED_TO.tenant_id（租户域清扫走索引） */
+    @Test
+    @Order(12)
+    void schemaCreatesTenantIndexesForChunkAndRelation() {
+        Map<String, String> entityTypes = new HashMap<>();
+        try (Session session = driver.session()) {
+            session.run("SHOW INDEXES YIELD name, entityType "
+                    + "WHERE name IN ['kb_chunk_tenant', 'kb_relation_tenant'] RETURN name, entityType")
+                .forEachRemaining(record -> entityTypes.put(
+                    record.get("name").asString(), record.get("entityType").asString()));
+        }
+        assertThat(entityTypes)
+            .as("缺前者 countByTenant 全库扫 Chunk 标签；缺后者租户域清扫全库扫关系类型（计划实证）")
+            .containsEntry("kb_chunk_tenant", "NODE")
+            .containsEntry("kb_relation_tenant", "RELATIONSHIP");
+    }
+
+    /** 实体描述与嵌入「信息量更大者胜」（v3.00）：空/短描述不得降级已存长描述与其描述向量 */
+    @Test
+    @Order(13)
+    void entityDescriptionAndEmbeddingNotDowngradedByShorterDescription() {
+        gateway.replaceDocumentGraph(DESC_TENANT, DESC_DOC_A, descChunks(DESC_CHUNK_A),
+            descEntity(DESC_LONG, unitVector(20), DESC_CHUNK_A), List.of());
+        // 空描述后写：原「取最新」会把长描述冲成 ""，并把向量降级为名称向量（embedding 是检索键）
+        gateway.replaceDocumentGraph(DESC_TENANT, DESC_DOC_B, descChunks(DESC_CHUNK_B),
+            descEntity("", unitVector(21), DESC_CHUNK_B), List.of());
+
+        try (Session session = driver.session()) {
+            Record afterEmpty = entityRecord(session);
+            assertThat(afterEmpty.get("description").asString())
+                .as("空描述不得冲掉长描述").isEqualTo(DESC_LONG);
+            assertThat(afterEmpty.get("embedding").asList(Value::asDouble).get(20))
+                .as("向量与描述配对保留（未被名称向量降级覆盖）").isEqualTo(1.0);
+            assertThat(afterEmpty.get("embedding").asList(Value::asDouble).get(21))
+                .as("后写文档的向量未夺位").isEqualTo(0.0);
+        }
+
+        // 更长描述后写：应当胜出（策略 = 较长者胜，非「首见保留」），且描述与向量同批更新
+        gateway.replaceDocumentGraph(DESC_TENANT, DESC_DOC_C, descChunks(DESC_CHUNK_C),
+            descEntity(DESC_LONGER, unitVector(22), DESC_CHUNK_C), List.of());
+
+        try (Session session = driver.session()) {
+            Record afterLonger = entityRecord(session);
+            assertThat(afterLonger.get("description").asString()).isEqualTo(DESC_LONGER);
+            assertThat(afterLonger.get("embedding").asList(Value::asDouble).get(22))
+                .as("描述与描述向量同批更新（配对不错位）").isEqualTo(1.0);
+            assertThat(afterLonger.get("embedding").asList(Value::asDouble).get(20))
+                .as("旧描述向量已被替换").isEqualTo(0.0);
+            assertThat(afterLonger.get("doc_ids").asList(Value::asString))
+                .as("溯源 doc_ids 取并集（三文档）")
+                .containsExactlyInAnyOrder(DESC_DOC_A, DESC_DOC_B, DESC_DOC_C);
+        }
+    }
+
+    /** 关系描述策略（v3.00）：短描述后写不得覆盖长描述；doc_ids 并集不变 */
+    @Test
+    @Order(14)
+    void relationDescriptionNotOverwrittenByShorterOne() {
+        gateway.replaceDocumentGraph(REL_DESC_TENANT, REL_DESC_DOC_A, descChunks(REL_DESC_CHUNK_A),
+            relDescEntities(REL_DESC_CHUNK_A),
+            List.of(new GraphRecords.RelationWrite(REL_DESC_X, REL_DESC_Y, "RELATED",
+                REL_DESC_LONG, List.of(REL_DESC_CHUNK_A))));
+        gateway.replaceDocumentGraph(REL_DESC_TENANT, REL_DESC_DOC_B, descChunks(REL_DESC_CHUNK_B),
+            relDescEntities(REL_DESC_CHUNK_B),
+            List.of(new GraphRecords.RelationWrite(REL_DESC_X, REL_DESC_Y, "RELATED",
+                "短", List.of(REL_DESC_CHUNK_B))));
+
+        try (Session session = driver.session()) {
+            Record record = session.run(
+                    "MATCH (:Entity {id: $s})-[r:RELATED_TO]->(:Entity {id: $t}) "
+                        + "RETURN r.description AS description, size(r.doc_ids) AS docCount",
+                    Map.of("s", REL_DESC_X, "t", REL_DESC_Y)).single();
+            assertThat(record.get("description").asString())
+                .as("短描述不得互覆长描述（原 ON MATCH 直接覆盖）").isEqualTo(REL_DESC_LONG);
+            assertThat(record.get("docCount").asLong()).as("两文档引用合并").isEqualTo(2L);
+        }
+    }
+
+    /** 写入侧维度守卫（v3.00）：异维实体写前快失败，不落图、不进事务 */
+    @Test
+    @Order(15)
+    void mismatchedEmbeddingRejectedBeforeTouchingGraph() {
+        GraphGateway.GraphCounts before = gateway.countByTenant(GC_TENANT);
+
+        assertThatThrownBy(() -> gateway.replaceDocumentGraph(GC_TENANT, "doc-bad-dim", descChunks("chunk-bad-dim"),
+            List.of(new GraphRecords.EntityWrite(GraphIds.entityId(GC_TENANT, "bad-dim", "CONCEPT"),
+                "bad-dim", "CONCEPT", "异维实体", new float[768], List.of("chunk-bad-dim"))), List.of()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("维度不符");
+
+        GraphGateway.GraphCounts after = gateway.countByTenant(GC_TENANT);
+        assertThat(after.entities()).as("快失败：未落实体").isEqualTo(before.entities());
+        assertThat(after.chunkAnchors()).as("快失败：未落锚点").isEqualTo(before.chunkAnchors());
+    }
+
     // ── 夹具 ──────────────────────────────────────────────────────────
 
     private static List<GraphRecords.ChunkAnchor> chunks() {
@@ -365,6 +491,33 @@ class Neo4jGraphGatewayIT {
         vector[0] = 0.99f;
         vector[1] = 0.14f;
         return vector;
+    }
+
+    // ── v2.85 批2 夹具构造 ────────────────────────────────────────────
+
+    private static List<GraphRecords.ChunkAnchor> descChunks(String chunkId) {
+        return List.of(new GraphRecords.ChunkAnchor(chunkId, 0));
+    }
+
+    private static List<GraphRecords.EntityWrite> descEntity(String description, float[] embedding,
+                                                             String chunkId) {
+        return List.of(new GraphRecords.EntityWrite(DESC_ENTITY, "desc-entity", "CONCEPT",
+            description, embedding, List.of(chunkId)));
+    }
+
+    private static Record entityRecord(Session session) {
+        return session.run(
+            "MATCH (e:Entity {id: $id}) RETURN e.description AS description, "
+                + "e.embedding AS embedding, e.doc_ids AS doc_ids",
+            Map.of("id", DESC_ENTITY)).single();
+    }
+
+    private static List<GraphRecords.EntityWrite> relDescEntities(String chunkId) {
+        return List.of(
+            new GraphRecords.EntityWrite(REL_DESC_X, "rel-desc-x", "CONCEPT", "关系描述夹具 X",
+                unitVector(22), List.of(chunkId)),
+            new GraphRecords.EntityWrite(REL_DESC_Y, "rel-desc-y", "CONCEPT", "关系描述夹具 Y",
+                unitVector(23), List.of(chunkId)));
     }
 
     private static float[] unitVector(int axis) {
