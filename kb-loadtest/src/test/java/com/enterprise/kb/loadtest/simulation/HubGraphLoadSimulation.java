@@ -63,8 +63,13 @@ import static io.gatling.javaapi.http.HttpDsl.status;
  * 三路融合基线 600ms + hub 展开/候选封顶余量 200ms；须以用户侧 ECS 实测基线复核后回写压测文档，
  * <b>不得</b>在复核前声称该阈值已验证。断言 = P95 &lt; 阈值 + 失败请求数 = 0。
  *
- * <p><b>⑤ 边界</b>：本场景只压检索调试端点（图路检索本身零 LLM：查询嵌入 + 实体匹配 + 展开 + 反查），
- * <b>不触发 LLM 生成</b>（无 {@code /chat/stream} 调用），生成侧计费为零；token 成本仅来自查询嵌入。
+ * <p><b>⑤ 边界与计费</b>：本场景只压检索调试端点——<b>不触发答案生成</b>（无 {@code /chat/stream}
+ * 调用），但该端点链路含<b>查询改写 LLM 调用 + rerank 外部调用</b>（与场景 A 同链：
+ * {@code rewriteQueryTransformer} → 多路召回 → RRF → 重排，调试端点恒定展示改写结果），
+ * 故每请求计费 = 改写 LLM + 重排 + 查询嵌入三项（<b>非零成本</b>，量级 = 注入请求数 × 单次短调用；
+ * 缺省 2 rps × 60s ≈ 120 请求）；<b>图路自身零 LLM</b>（查询嵌入 + 实体匹配 + 展开 + 反查）。
+ * 若只想压图路、不计改写/重排：把 {@code rag.retrieval.rewrite.enabled} 与 rerank 关闭后重启服务
+ * （读数随之变化，须在报告里标注形态）。
  */
 public class HubGraphLoadSimulation extends Simulation {
 
