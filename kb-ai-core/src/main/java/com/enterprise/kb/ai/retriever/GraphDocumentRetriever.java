@@ -49,6 +49,14 @@ import java.util.Set;
 @Slf4j
 public class GraphDocumentRetriever {
 
+    /**
+     * 归因放大窗口倍数/下限（v3.03 修正 F3）：饿死判据 = 本租户阈值内实体在
+     * {@code fetchLimit × 本倍数}（不低于下限）的窗口内可见，却挤不进检索窗口。
+     * 倍数须足够大以容纳「他租户密集占位」的真实场景，下限兜住小 fetchLimit 情形。
+     */
+    static final int DIAGNOSTIC_WINDOW_MULTIPLIER = 10;
+    static final int DIAGNOSTIC_WINDOW_MIN = 200;
+
     private final GraphGateway graphGateway;
     private final EmbeddingModel embeddingModel;
     private final KbChunkRepository chunkRepository;
@@ -85,18 +93,30 @@ public class GraphDocumentRetriever {
             return List.of();   // fail-closed：无租户零触达（网关侧同守卫，双保险）
         }
         long start = System.currentTimeMillis();
+        Retrieval retrieval;
         try {
-            List<Document> documents = Observation
+            retrieval = Observation
                 .createNotStarted("kb.retrieval.graph", observationRegistry)
                 .observeChecked(() -> doRetrieve(query.text(), tenantId, recallSize));
-            metrics.recordGraphRetrieval(!documents.isEmpty());
-            return documents;
+            metrics.recordGraphRetrieval(!retrieval.documents().isEmpty());
         } finally {
             metrics.recordGraphRetrievalLatency(Duration.ofMillis(System.currentTimeMillis() - start));
         }
+        // 归因触发门 = 最终 documents 为空（v3.03 复核修正 F10：与命中指标同门）。
+        // 原以「网关 hits 为空」触发——hits 非空但被 PG 纵深校验全丢（锚点/PG 漂移）时，
+        // 图路实际零贡献却无任何归因读数（仅余一条 WARN 日志）。归因在计时窗口之外，
+        // 不污染图路延迟读数。
+        if (retrieval.documents().isEmpty()) {
+            diagnoseEmptyRetrieval(tenantId, retrieval.queryEmbedding(), retrieval.fetchLimit());
+        }
+        return retrieval.documents();
     }
 
-    private List<Document> doRetrieve(String queryText, String tenantId, int recallSize) {
+    /** doRetrieve 产物：文档 + 归因读数材料（复用查询向量，避免为空路径重复嵌入） */
+    private record Retrieval(List<Document> documents, float[] queryEmbedding, int fetchLimit) {
+    }
+
+    private Retrieval doRetrieve(String queryText, String tenantId, int recallSize) {
         float[] queryEmbedding = embeddingModel.embed(queryText);
         int seedLimit = properties.getEntityTopN();
         int fetchLimit = fetchLimit(seedLimit);
@@ -104,10 +124,9 @@ public class GraphDocumentRetriever {
             new GraphRecords.GraphRetrievalSpec(queryEmbedding, seedLimit, fetchLimit,
                 properties.getEntitySimilarityThreshold(), expandDirection(), candidateLimit(), recallSize));
         if (hits.isEmpty()) {
-            diagnoseEmptyRetrieval(tenantId, queryEmbedding, fetchLimit);
-            return List.of();
+            return new Retrieval(List.of(), queryEmbedding, fetchLimit);
         }
-        return toDocuments(hits, tenantId);
+        return new Retrieval(toDocuments(hits, tenantId), queryEmbedding, fetchLimit);
     }
 
     /** 展开方向（v3.02）：展开开关关闭时强制 NONE（方向键被忽略，避免语义歧义） */
@@ -136,28 +155,33 @@ public class GraphDocumentRetriever {
     }
 
     /**
-     * 空召回归因（v2.85）：<b>仅空路径调用</b>（多一次 Neo4j 往返，命中路径零成本），
-     * 区分「图里就没有」（正常，含冷租户）与「种子被他租户挤占」（饿死，可调过取倍数）
-     * 与「有种子无存活锚点」（抽取/锚点链路缺口）。
+     * 空召回归因（v3.03 复核修正 F3/F10）：<b>仅最终 documents 为空时调用</b>
+     * （多一次 Neo4j 往返，命中路径零成本），用<b>放大窗口</b>区分三态——
+     * 饿死（本租户确有阈值内实体却挤不进检索窗口，调过取倍数有依据）｜
+     * 锚点/GAP 缺口（窗口内有本租户种子却零召回）｜
+     * 正常空（本租户相关实体在阈值之外或图内无数据）。
      *
      * <p>计数落 {@code rag.retrieval.graph.seed_starved / anchor_gap}；诊断自身故障
      * 只降级为「无归因读数」——绝不改变图路空结果语义（单路容错纪律）。
      */
     private void diagnoseEmptyRetrieval(String tenantId, float[] queryEmbedding, int fetchLimit) {
         try {
+            int wideLimit = Math.max(fetchLimit * DIAGNOSTIC_WINDOW_MULTIPLIER, DIAGNOSTIC_WINDOW_MIN);
             GraphRecords.GraphRetrievalDiagnostics diagnostics = graphGateway.diagnoseRetrieval(
-                tenantId, queryEmbedding, fetchLimit, properties.getEntitySimilarityThreshold());
+                tenantId, queryEmbedding, fetchLimit, wideLimit,
+                properties.getEntitySimilarityThreshold());
             if (diagnostics.starved()) {
                 metrics.recordGraphSeedStarved();
-                log.debug("图路空召回归因=种子被跨租户后过滤饿死（窗口候选={}，本租户种子 0；"
-                    + "可调大 rag.graph.retrieval.entity-over-fetch）: tenantId={}",
-                    diagnostics.indexCandidates(), tenantId);
+                log.debug("图路空召回归因=种子被跨租户后过滤饿死（放大窗口 {} 内有本租户阈值内实体 {}，"
+                    + "检索窗口 0；可调大 rag.graph.retrieval.entity-over-fetch）: tenantId={}",
+                    wideLimit, diagnostics.tenantSeeds(), tenantId);
             } else if (diagnostics.anchorGap()) {
                 metrics.recordGraphAnchorGap();
-                log.debug("图路空召回归因=锚点链路缺口（本租户阈值内种子={}，零存活锚点）: tenantId={}",
-                    diagnostics.tenantSeeds(), tenantId);
+                log.debug("图路空召回归因=锚点链路缺口（检索窗口内本租户种子={}，零存活锚点）: tenantId={}",
+                    diagnostics.tenantSeedsInWindow(), tenantId);
             } else if (diagnostics.coldTenant()) {
-                log.debug("图路空召回归因=本租户图谱无实体（正常空，不计饿死）: tenantId={}", tenantId);
+                log.debug("图路空召回归因=本租户在放大窗口内无阈值内实体（正常空，不计饿死）: tenantId={}",
+                    tenantId);
             }
         } catch (Exception e) {
             log.debug("图路归因诊断失败（不影响主路径空结果语义）: {}", e.getMessage());

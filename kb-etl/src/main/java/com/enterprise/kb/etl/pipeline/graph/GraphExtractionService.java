@@ -143,7 +143,11 @@ public class GraphExtractionService {
         }
         markStatus(doc, GraphStatus.EXTRACTING);
 
-        List<KbChunk> chunks = chunkRepository.findByDocIdOrderByChunkIndex(docId).stream()
+        // 全量 chunk（锚点镜像用）与可抽取 chunk（抽取用）分离（v3.03 复核修正）：
+        // 原形态 chunks 本身已滤掉软删片段，锚点集合因而永远拿不到 is_deleted=true 的映射——
+        // 软删片段既不落锚点、其 MENTIONS 边又会被重写删掉，restore 后图路永久不可召回
+        List<KbChunk> allChunks = chunkRepository.findByDocIdOrderByChunkIndex(docId);
+        List<KbChunk> chunks = allChunks.stream()
             .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
             .toList();
         List<KbChunk> candidates = chunks.stream().filter(this::extractable).toList();
@@ -165,10 +169,10 @@ public class GraphExtractionService {
             // 阶段三：关系解析（名称→ID，越集丢弃）+ 幂等写图
             List<GraphRecords.RelationWrite> relationWrites =
                 resolveRelations(tenantId, chunks, candidates, results, aggregates);
-            // v3.02 锚点镜像 PG 全量 chunk（含软删与不可抽取片段，is_deleted 随 PG 标记）：
-            // 原形态只写「含实体 chunk」且恒置 false，与幂等重写阶段一「删除该文档全部锚点」
-            // 叠加后，软删期间的重抽取会使该 chunk 永久失去锚点（restore 翻转不到节点）
-            List<GraphRecords.ChunkAnchor> anchors = chunks.stream()
+            // v3.02/v3.03 锚点镜像 PG 全量 chunk（含软删与不可抽取片段，is_deleted 随 PG 标记）：
+            // 网关侧配合「保留在场锚点 + 清扫延后」使锚点与其 MENTIONS 边全程存活，
+            // 恢复只需翻标记即恢复图路可召回（复核实证链路见 Neo4jGraphGatewayIT#restore…）
+            List<GraphRecords.ChunkAnchor> anchors = allChunks.stream()
                 .map(c -> new GraphRecords.ChunkAnchor(c.getId(),
                     c.getChunkIndex() == null ? 0 : c.getChunkIndex(),
                     Boolean.TRUE.equals(c.getIsDeleted())))
@@ -289,7 +293,11 @@ public class GraphExtractionService {
                             entity.type() == null ? "OTHER" : entity.type().trim().toUpperCase(),
                             entity.description(), new ArrayList<>(List.of(candidate.getId())));
                     }
-                    existing.chunkIds().add(candidate.getId());
+                    if (!existing.chunkIds().contains(candidate.getId())) {
+                        // v3.03 复核修正 F2：同 chunk 抽取结果内同实体重复出现时不得重复登记
+                        // （否则网关侧并集带重复 → mention_count 失真；网关侧 reduce 去重为双保险）
+                        existing.chunkIds().add(candidate.getId());
+                    }
                     // 描述取最长（信息量更大的胜出，跨文档重抽同语义）
                     String description = longer(existing.description(), entity.description());
                     return new EntityAggregate(existing.id(), existing.name(), existing.type(),

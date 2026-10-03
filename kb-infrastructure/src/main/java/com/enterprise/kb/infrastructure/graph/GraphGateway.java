@@ -74,22 +74,33 @@ public interface GraphGateway {
                                                     GraphRecords.GraphRetrievalSpec spec);
 
     /**
-     * 图路空召回归因读数（v2.85）：按与 {@link #retrieveChunks} 同参复算索引窗口，
-     * 返回「窗口内候选数 / 其中本租户种子数」——供调用方区分「图里没有」与
-     * 「名额被他租户占满」（饿死）两种空召回，前者正常、后者是可调参数的实证信号。
+     * 图路空召回归因读数（v3.03 双窗口判据）：检索窗口 + <b>放大窗口</b>各取一次阈值内候选，
+     * 返回「放大窗口候选数 / 放大窗口本租户实体数 / 检索窗口本租户实体数」——把
+     * 「本租户确有相关实体却被挤占」（饿死，调过取倍数有依据）与「本租户实体全在阈值外 /
+     * 图内无数据」（正常空）区分开；原同宽窗口形态无法区分二者（复核实证会误导调参）。
      *
-     * <p>调用纪律：<b>仅在 {@code retrieveChunks} 返回空时调用</b>（多一次往返，
-     * 命中路径零成本）；失败语义与检索路径同形（异常上抛由调用方按单路容错降级）。
+     * <p>调用纪律：<b>仅在最终召回为空时调用</b>（多一次往返，命中路径零成本）；
+     * 失败语义与检索路径同形（异常上抛由调用方按单路容错降级）。
      * 空租户返回零读数（fail-closed 读守卫同形）。
      *
-     * @param entityFetchLimit 与 {@link #retrieveChunks} 同值的过取条数（窗口可比）
+     * @param entityFetchLimit 与 {@link #retrieveChunks} 同值的过取条数（检索窗口可比）
+     * @param wideFetchLimit   放大窗口条数（≥ {@code entityFetchLimit}；判「本租户是否确有
+     *                         阈值内实体」用）
      */
     GraphRecords.GraphRetrievalDiagnostics diagnoseRetrieval(String tenantId,
                                                              float[] queryEmbedding,
                                                              int entityFetchLimit,
+                                                             int wideFetchLimit,
                                                              double similarityThreshold);
 
-    /** 运维观测：租户域实体/关系/锚点计数（回填任务与 E2E 核验用） */
+    /**
+     * 运维观测：租户域实体/关系/锚点计数（回填任务与 E2E 核验用）。
+     *
+     * <p><b>{@code chunkAnchors} 口径（v3.02 起，v3.03 标注）</b>：锚点镜像 PG <b>全量</b>
+     * chunk，故该计数<b>含软删与不可抽取片段</b>的锚点——它既不等于「可图路召回的 chunk 数」
+     * （那还要求锚点未被软删且有 MENTIONS 边），也不同于 v3.01 前的「含实体 chunk 数」；
+     * 跨版本读数不可直接比较（E2E 核验须同版本对照）。
+     */
     GraphCounts countByTenant(String tenantId);
 
     /**

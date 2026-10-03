@@ -236,6 +236,42 @@ class GraphExtractionServiceTest {
     }
 
     @Test
+    void softDeletedChunkMirroredAsDeletedAnchorAndExcludedFromExtraction() {
+        // v3.03 复核修正 F8：原夹具只覆盖 is_deleted=false，软删映射（锚点携标记 + 实体不引用）
+        // 从未被测——这正是 F1 半修漏网的直接原因
+        KbDocument doc = doc("t1");
+        when(documentRepository.findById("d1")).thenReturn(Optional.of(doc));
+        KbChunk live = chunk("c1", 0, "Alpha Corp 发布了年度财报，营收增长显著。");
+        KbChunk softDeleted = chunk("c2", 1, "Alpha Corp 同时宣布了新的研发中心建设计划。");
+        softDeleted.setIsDeleted(true);
+        when(chunkRepository.findByDocIdOrderByChunkIndex("d1")).thenReturn(List.of(live, softDeleted));
+        when(entityExtractor.extract(any(), anyString(), any())).thenReturn(result(
+            List.of(new ExtractionResult.EntityExtraction("Alpha Corp", "ORG", "企业")), List.of()));
+
+        assertThat(service.extract("t1", "d1")).isTrue();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<GraphRecords.ChunkAnchor>> anchors = ArgumentCaptor.forClass(List.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<GraphRecords.EntityWrite>> entities = ArgumentCaptor.forClass(List.class);
+        verify(graphGateway).replaceDocumentGraph(eq("t1"), eq("d1"),
+            anchors.capture(), entities.capture(), any());
+
+        assertThat(anchors.getValue()).as("锚点镜像 PG 全量 chunk（软删片段也在）").hasSize(2);
+        assertThat(anchors.getValue())
+            .filteredOn(anchor -> anchor.id().equals("c2"))
+            .singleElement()
+            .satisfies(anchor -> assertThat(anchor.isDeleted())
+                .as("软删标记随锚点落图（恢复只翻标记，锚点与边不需重建）").isTrue());
+        assertThat(anchors.getValue())
+            .filteredOn(anchor -> anchor.id().equals("c1"))
+            .singleElement()
+            .satisfies(anchor -> assertThat(anchor.isDeleted()).isFalse());
+        assertThat(entities.getValue().get(0).chunkIds())
+            .as("软删片段不参与抽取 → 实体引用只含存活片段").containsExactly("c1");
+    }
+
+    @Test
     void tenantMismatchRejectedWithoutTouchingPipeline() {
         KbDocument doc = doc("other-tenant");
         when(documentRepository.findById("d1")).thenReturn(Optional.of(doc));

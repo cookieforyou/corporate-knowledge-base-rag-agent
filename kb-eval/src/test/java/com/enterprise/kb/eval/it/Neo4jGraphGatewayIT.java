@@ -123,6 +123,21 @@ class Neo4jGraphGatewayIT {
     private static final String HUB_Z = GraphIds.entityId(HUB_TENANT, "hub-z", "CONCEPT");
     private static final String HUB_M1 = GraphIds.entityId(HUB_TENANT, "hub-m1", "CONCEPT");
 
+    /** F1 真序列夹具（v3.03）：单文档两 chunk，实体被两 chunk 共同提及（轴向 60，阈值内） */
+    private static final String SOFT_TENANT = "t-soft";
+    private static final String SOFT_DOC = "doc-soft";
+    private static final String SOFT_CHUNK_K1 = "chunk-soft-k1";
+    private static final String SOFT_CHUNK_K2 = "chunk-soft-k2";
+    private static final String SOFT_ENTITY = GraphIds.entityId(SOFT_TENANT, "soft-entity", "CONCEPT");
+
+    /** F8 双链夹具（v3.03）：a→b→c 与 a→b→d，用于非空转的确定性断言 */
+    private static final String CHAIN_TENANT = "t-chain2";
+    private static final String CHAIN_DOC = "doc-chain2";
+    private static final String CHAIN_A = GraphIds.entityId(CHAIN_TENANT, "chain-a", "CONCEPT");
+    private static final String CHAIN_B = GraphIds.entityId(CHAIN_TENANT, "chain-b", "CONCEPT");
+    private static final String CHAIN_C = GraphIds.entityId(CHAIN_TENANT, "chain-c", "CONCEPT");
+    private static final String CHAIN_D = GraphIds.entityId(CHAIN_TENANT, "chain-d", "CONCEPT");
+
     /** 名额挤占夹具：本租户 1 个 0.995 分种子 vs 他租户 6 个 1.0 分候选；冷租户无任何图数据 */
     private static final String MINE_TENANT = "t-mine";
     private static final String NOISY_TENANT = "t-noisy";
@@ -332,24 +347,34 @@ class Neo4jGraphGatewayIT {
     @Test
     @Order(11)
     void diagnosticsSeparateStarvationFromColdTenantAndAnchorGap() {
+        // v3.03 双窗口判据：饿死 = 放大窗口内有本租户阈值内实体，却挤不进检索窗口
         GraphRecords.GraphRetrievalDiagnostics starved = Awaitility.await()
             .atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(500))
-            .until(() -> gateway.diagnoseRetrieval(MINE_TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD),
-                d -> d.indexCandidates() > 0);
+            .until(() -> gateway.diagnoseRetrieval(MINE_TENANT, QUERY_ALPHA, 5, 200, SEED_THRESHOLD),
+                d -> d.wideCandidates() > 0);
 
-        assertThat(starved.tenantSeeds()).as("窗口 = 5 被他租户占满").isZero();
-        assertThat(starved.starved()).as("窗口有候选 + 本租户零种子 + 本租户图谱有数据 = 饿死").isTrue();
+        assertThat(starved.tenantSeeds()).as("放大窗口内本租户 0.995 分实体在场").isEqualTo(1);
+        assertThat(starved.tenantSeedsInWindow()).as("检索窗口 5 被他租户 1.0 分候选占满").isZero();
+        assertThat(starved.starved()).as("确有相关实体却挤不进窗口 = 饿死（调过取有依据）").isTrue();
 
         GraphRecords.GraphRetrievalDiagnostics wide =
-            gateway.diagnoseRetrieval(MINE_TENANT, QUERY_ALPHA, 40, SEED_THRESHOLD);
-        assertThat(wide.tenantSeeds()).as("过取窗口内本租户种子在场").isEqualTo(1);
+            gateway.diagnoseRetrieval(MINE_TENANT, QUERY_ALPHA, 40, 200, SEED_THRESHOLD);
+        assertThat(wide.tenantSeedsInWindow()).as("过取窗口内本租户种子在场").isEqualTo(1);
         assertThat(wide.starved()).isFalse();
 
         GraphRecords.GraphRetrievalDiagnostics cold =
-            gateway.diagnoseRetrieval(COLD_TENANT, QUERY_ALPHA, 40, SEED_THRESHOLD);
-        assertThat(cold.indexCandidates()).as("窗口内确有他租户候选").isGreaterThan(0);
+            gateway.diagnoseRetrieval(COLD_TENANT, QUERY_ALPHA, 40, 200, SEED_THRESHOLD);
+        assertThat(cold.wideCandidates()).as("窗口内确有他租户候选").isGreaterThan(0);
         assertThat(cold.coldTenant()).as("本租户图谱无实体 → 冷租户").isTrue();
         assertThat(cold.starved()).as("冷租户不计饿死（防指标被「图里没有」污染）").isFalse();
+
+        // F3 复核修正点（原形态在此误报）：本租户**有实体但全在阈值之外**——放大窗口
+        // 也看不见，故不是饿死（GC 租户 X/Y 为 0.5 分正交向量，阈值 0.75）
+        GraphRecords.GraphRetrievalDiagnostics lowScore =
+            gateway.diagnoseRetrieval(GC_TENANT, QUERY_ALPHA, 40, 200, SEED_THRESHOLD);
+        assertThat(lowScore.tenantSeeds()).as("本租户阈值内实体为 0").isZero();
+        assertThat(lowScore.starved())
+            .as("全在阈值外 ≠ 被挤占：调过取倍数无效，不得计饿死（原形态在此误报）").isFalse();
     }
 
     // ── v2.85 批2 用例（索引 / 维度守卫 / 描述策略）─────────────────
@@ -562,6 +587,60 @@ class Neo4jGraphGatewayIT {
             .isEqualTo(first);
     }
 
+    // ── v2.85 复核修正用例（锚点/边共存活；链采样确定性非空转）──────────
+
+    /**
+     * F1 真序列回归（v3.03）：软删 → <b>软删期重抽取</b> → 恢复 → 图路可召回。
+     *
+     * <p>原形态只把锚点标记修好（锚点在、MENTIONS 边被重写阶段一删掉且不为软删 chunk 重建），
+     * 恢复后图路仍不可召回——原 IT 夹具手写了软删锚点与提及它的实体，绕过了 ETL 的软删过滤，
+     * 因而误报绿（复核实证：真实链路 ⑤ 恢复后仅返回 K2）。本用例按 ETL 真实投稿形态构造：
+     * 锚点 = PG 全量 chunk（含软删），实体 chunkIds 只来自非软删候选。
+     */
+    @Test
+    @Order(21)
+    void restoreAfterReextractionKeepsGraphRetrievalWorking() {
+        gateway.replaceDocumentGraph(SOFT_TENANT, SOFT_DOC,
+            softChunks(false), softEntity(List.of(SOFT_CHUNK_K1, SOFT_CHUNK_K2)), List.of());
+
+        gateway.setChunksDeleted(SOFT_TENANT, List.of(SOFT_CHUNK_K1), true);
+        // 软删期重抽取：锚点仍全量（k1 携 is_deleted=true），但实体只由非软删候选重建
+        gateway.replaceDocumentGraph(SOFT_TENANT, SOFT_DOC,
+            softChunks(true), softEntity(List.of(SOFT_CHUNK_K2)), List.of());
+
+        assertThat(mentionsOf(SOFT_CHUNK_K1))
+            .as("软删期重抽取后 k1 的 MENTIONS 边仍在（原形态被 DETACH DELETE 抹掉且不重建）")
+            .isEqualTo(1L);
+        assertThat(gateway.retrieveChunks(SOFT_TENANT, spec(unitVector(60), 5, 40, NONE, 10)))
+            .as("软删中：k1 不参与反查，仍存活的 k2 照常可达")
+            .extracting(GraphRecords.GraphChunkHit::chunkId)
+            .containsExactly(SOFT_CHUNK_K2);
+
+        gateway.setChunksDeleted(SOFT_TENANT, List.of(SOFT_CHUNK_K1), false);
+        assertThat(gateway.retrieveChunks(SOFT_TENANT, spec(unitVector(60), 5, 40, NONE, 10)))
+            .as("恢复后即经图路可召回（无需重抽取——锚点与 MENTIONS 边全程存活）")
+            .extracting(GraphRecords.GraphChunkHit::chunkId)
+            .containsExactlyInAnyOrder(SOFT_CHUNK_K1, SOFT_CHUNK_K2);
+    }
+
+    /** F8：确定性断言须非空转——两链夹具下顺序由 (a,b,c) id 全序决定且两次一致 */
+    @Test
+    @Order(22)
+    void chainSamplingOrderIsDeterministicAcrossMultipleChains() {
+        gateway.replaceDocumentGraph(CHAIN_TENANT, CHAIN_DOC, List.of(),
+            chainEntities(), chainRelations());
+
+        List<GraphRecords.EntityChainSample> first = gateway.sampleEntityChains(CHAIN_TENANT, 10, 40);
+        List<GraphRecords.EntityChainSample> second = gateway.sampleEntityChains(CHAIN_TENANT, 10, 40);
+
+        assertThat(first).as("夹具：a→b→c 与 a→b→d 两条二跳链（非单元素，排序漂移可辨）").hasSize(2);
+        assertThat(first.stream().map(GraphRecords.EntityChainSample::entityNames).toList())
+            .containsExactlyInAnyOrder(
+                List.of("chain-a", "chain-b", "chain-c"),
+                List.of("chain-a", "chain-b", "chain-d"));
+        assertThat(second).as("同参两次采样逐位一致（含链间顺序）").isEqualTo(first);
+    }
+
     // ── 夹具 ──────────────────────────────────────────────────────────
 
     /** 检索规格夹具（v3.02 参数对象化）：候选上限 100（种子恒在，不干扰既有断言） */
@@ -735,6 +814,44 @@ class Neo4jGraphGatewayIT {
 
     private static String hubNeighborId(int index) {
         return GraphIds.entityId(HUB_TENANT, "hub-n" + index, "CONCEPT");
+    }
+
+    // ── v2.85 复核修正夹具构造 ────────────────────────────────────────
+
+    /** 锚点 = PG 全量 chunk（k1 是否软删由入参定）；实体 embedding 取轴向 60（阈值内） */
+    private static List<GraphRecords.ChunkAnchor> softChunks(boolean k1Deleted) {
+        return List.of(
+            new GraphRecords.ChunkAnchor(SOFT_CHUNK_K1, 0, k1Deleted),
+            new GraphRecords.ChunkAnchor(SOFT_CHUNK_K2, 1, false));
+    }
+
+    private static List<GraphRecords.EntityWrite> softEntity(List<String> chunkIds) {
+        return List.of(new GraphRecords.EntityWrite(SOFT_ENTITY, "soft-entity", "CONCEPT",
+            "软删序列夹具实体", unitVector(60), chunkIds));
+    }
+
+    /** k1 的 MENTIONS 入边数（0 = 边的关联已丢，恢复后图路仍不可召回） */
+    private static long mentionsOf(String chunkId) {
+        try (Session session = driver.session()) {
+            return session.run("MATCH (:Chunk {id: $id})-[:MENTIONS]->() RETURN count(*) AS n",
+                Map.of("id", chunkId)).single().get("n").asLong();
+        }
+    }
+
+    /** 双链夹具：轴向取阈值外（0.5 分），避免与其它用例的种子竞争 */
+    private static List<GraphRecords.EntityWrite> chainEntities() {
+        return List.of(
+            new GraphRecords.EntityWrite(CHAIN_A, "chain-a", "CONCEPT", "链首", unitVector(70), List.of()),
+            new GraphRecords.EntityWrite(CHAIN_B, "chain-b", "CONCEPT", "链中", unitVector(71), List.of()),
+            new GraphRecords.EntityWrite(CHAIN_C, "chain-c", "CONCEPT", "链尾 C", unitVector(72), List.of()),
+            new GraphRecords.EntityWrite(CHAIN_D, "chain-d", "CONCEPT", "链尾 D", unitVector(73), List.of()));
+    }
+
+    private static List<GraphRecords.RelationWrite> chainRelations() {
+        return List.of(
+            new GraphRecords.RelationWrite(CHAIN_A, CHAIN_B, "RELATED", "a→b", List.of()),
+            new GraphRecords.RelationWrite(CHAIN_B, CHAIN_C, "RELATED", "b→c", List.of()),
+            new GraphRecords.RelationWrite(CHAIN_B, CHAIN_D, "RELATED", "b→d", List.of()));
     }
 
     private static List<GraphRecords.EntityWrite> relDescEntities(String chunkId) {

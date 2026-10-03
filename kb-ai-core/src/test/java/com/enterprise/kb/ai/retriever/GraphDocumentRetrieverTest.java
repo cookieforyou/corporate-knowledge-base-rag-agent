@@ -183,8 +183,8 @@ class GraphDocumentRetrieverTest {
     void retrieve_emptyWithOtherTenantCandidatesCountsSeedStarved() {
         when(graphGateway.retrieveChunks(eq(TENANT), any(GraphRecords.GraphRetrievalSpec.class)))
             .thenReturn(List.of());
-        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyDouble()))
-            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 0, true));
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyInt(), anyDouble()))
+            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 0));
 
         assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
         assertEquals(1.0, registry.counter("rag.retrieval.graph.seed_starved").count());
@@ -195,8 +195,8 @@ class GraphDocumentRetrieverTest {
     void retrieve_emptyWithOwnSeedsCountsAnchorGap() {
         when(graphGateway.retrieveChunks(eq(TENANT), any(GraphRecords.GraphRetrievalSpec.class)))
             .thenReturn(List.of());
-        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyDouble()))
-            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true));
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyInt(), anyDouble()))
+            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 2));
 
         assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
         assertEquals(1.0, registry.counter("rag.retrieval.graph.anchor_gap").count());
@@ -208,12 +208,28 @@ class GraphDocumentRetrieverTest {
         // 归因是旁路观测：诊断抛错不得改变「图路空 = 空结果」语义
         when(graphGateway.retrieveChunks(eq(TENANT), any(GraphRecords.GraphRetrievalSpec.class)))
             .thenReturn(List.of());
-        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyDouble()))
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyInt(), anyDouble()))
             .thenThrow(new IllegalStateException("图库瞬断"));
 
         assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
         assertEquals(1.0, registry.counter("rag.retrieval.graph.total").count());
         assertEquals(0.0, registry.counter("rag.retrieval.graph.seed_starved").count());
+    }
+
+    @Test
+    void retrieve_hitsDroppedByPgDeepCheckStillDiagnosed() {
+        // v3.03 F10：网关 hits 非空但 chunk/文档在 PG 已消失（锚点漂移）→ 图路零贡献，
+        // 原以 hits.isEmpty() 触发归因会漏掉这一态（只余一条 WARN），现与命中门同口径
+        when(graphGateway.retrieveChunks(eq(TENANT), any(GraphRecords.GraphRetrievalSpec.class)))
+            .thenReturn(List.of(hit("c-gone", "d-gone", 0.9)));
+        when(chunkRepository.findAllById(any())).thenReturn(List.of());
+        when(documentRepository.findAllById(any())).thenReturn(List.of());
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyInt(), anyDouble()))
+            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 2));
+
+        assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
+        verify(graphGateway).diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyInt(), anyDouble());
+        assertEquals(1.0, registry.counter("rag.retrieval.graph.anchor_gap").count());
     }
 
     @Test
@@ -225,6 +241,6 @@ class GraphDocumentRetrieverTest {
         when(documentRepository.findAllById(any())).thenReturn(List.of(doc("d1", TENANT)));
 
         assertEquals(1, retriever.retrieve(queryWithTenant(TENANT), 10).size());
-        verify(graphGateway, never()).diagnoseRetrieval(anyString(), any(), anyInt(), anyDouble());
+        verify(graphGateway, never()).diagnoseRetrieval(anyString(), any(), anyInt(), anyInt(), anyDouble());
     }
 }

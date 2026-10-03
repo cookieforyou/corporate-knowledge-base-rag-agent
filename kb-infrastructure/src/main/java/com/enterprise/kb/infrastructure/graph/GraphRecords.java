@@ -97,39 +97,41 @@ public final class GraphRecords {
     }
 
     /**
-     * 图路召回归因读数（空路径诊断专用）：向量索引窗口内候选数 + 其中本租户种子数
-     * + 本租户图谱是否有数据。
+     * 图路召回归因读数（空路径诊断专用，v3.03 复核修正 F3）。
      *
-     * <p>三个读数足以区分空召回成因（v2.85 实证）：
-     * <ul>
-     *   <li>{@code indexCandidates = 0}——窗口内无阈值内近邻实体（查询与图无关联，正常空）；</li>
-     *   <li>{@link #starved()}——窗口内有他租户近邻、本租户零种子<b>且本租户图谱有数据</b>
-     *       （索引过取倍数不足，调 {@code spring.neo4j.entity-over-fetch}）；</li>
-     *   <li>{@link #coldTenant()}——本租户图谱无任何实体（未抽取/未回填，空召回正常，
-     *       不计饿死——否则「图里没有」会污染饿死指标）；</li>
-     *   <li>{@link #anchorGap()}——本租户有阈值内种子实体却召回为空（抽取/锚点链路缺口，
-     *       非检索参数问题）。</li>
-     * </ul>
+     * <p><b>为何要两个窗口</b>：原读数只在「与检索同宽的窗口」内取数，结构上无法区分
+     * 「本租户种子被他租户挤占」与「本租户实体全在阈值之外」——后者放大窗口也永远为 0
+     * （复核实证：某租户仅一条 0.5 分实体、阈值 0.7，窗口放大到 1000 仍判饿死），
+     * 会把运维带向「调大过取倍数」的无效调参。故诊断从<b>放大窗口</b>判「本租户是否确有
+     * 阈值内实体」，再看它是否挤进了<b>检索窗口</b>。
+     *
+     * @param wideCandidates      放大窗口内阈值内候选总数（他租户 + 本租户）
+     * @param tenantSeeds         放大窗口内本租户阈值内实体数（&gt;0 = 本租户确有相关实体）
+     * @param tenantSeedsInWindow 检索窗口内本租户阈值内实体数（0 = 一个名额都没拿到）
      */
-    public record GraphRetrievalDiagnostics(int indexCandidates, int tenantSeeds, boolean tenantHasGraph) {
+    public record GraphRetrievalDiagnostics(int wideCandidates, int tenantSeeds,
+                                            int tenantSeedsInWindow) {
 
         /** 冷租户零读数（无租户/无向量守卫返回） */
         public static final GraphRetrievalDiagnostics EMPTY =
-            new GraphRetrievalDiagnostics(0, 0, false);
+            new GraphRetrievalDiagnostics(0, 0, 0);
 
-        /** 种子被跨租户后过滤饿死：窗口内有候选，本租户一个都没进，且本租户图谱确有数据 */
+        /**
+         * 种子被跨租户后过滤饿死：<b>本租户确有阈值内实体（放大窗口可见）却挤不进检索窗口</b>。
+         * 该判据下「调大过取倍数」才是有依据的动作（冷租户 / 全在阈值外不再误报）。
+         */
         public boolean starved() {
-            return indexCandidates > 0 && tenantSeeds == 0 && tenantHasGraph;
+            return tenantSeeds > 0 && tenantSeedsInWindow == 0;
         }
 
-        /** 本租户图谱无数据：空召回属正常（不计饿死，避免冷租户污染指标） */
+        /** 本租户在放大窗口内无阈值内实体：空召回正常（冷租户或查询与图无关联），不计饿死 */
         public boolean coldTenant() {
-            return !tenantHasGraph;
+            return tenantSeeds == 0;
         }
 
-        /** 本租户有阈值内种子实体却召回为空——锚点链路缺口而非检索参数问题 */
+        /** 本租户有阈值内种子进了窗口却召回为空——锚点链路缺口而非检索参数问题 */
         public boolean anchorGap() {
-            return tenantSeeds > 0;
+            return tenantSeedsInWindow > 0;
         }
     }
 }

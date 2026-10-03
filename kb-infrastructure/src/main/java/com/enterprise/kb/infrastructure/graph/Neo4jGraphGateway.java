@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
@@ -99,7 +100,7 @@ public class Neo4jGraphGateway implements GraphGateway {
               `vector.dimensions`: %d,
               `vector.similarity_function`: 'cosine'
             }}
-            """.formatted(ENTITY_VECTOR_INDEX, EMBEDDING_DIMENSIONS));
+            """.formatted(ENTITY_VECTOR_INDEX, EMBEDDING_DIMENSIONS));   // 纯整型占位，locale 无关
         try (Session session = driver.session(sessionConfig)) {
             session.executeWrite(tx -> {
                 for (String statement : ddl) {
@@ -168,8 +169,9 @@ public class Neo4jGraphGateway implements GraphGateway {
         try (Session session = driver.session(sessionConfig)) {
             session.executeWrite(tx -> {
                 // 阶段一：清除该文档既有图引用（幂等重写前置，重入库收敛无残留）
-                tx.run(REMOVE_DOC_REFERENCES, Map.of("tenantId", tenantId, "docId", docId));
-                gcOrphans(tx, tenantId);
+                // keepChunkIds = 本次锚点集（PG 现存全量 chunk）——锚点与 MENTIONS 边对其保留
+                tx.run(REMOVE_DOC_REFERENCES, Map.of(
+                    "tenantId", tenantId, "docId", docId, "keepChunkIds", chunkIdsOf(safeChunks)));
                 // 阶段二：写入新抽取结果（MERGE 语义）
                 if (!safeChunks.isEmpty()) {
                     tx.run(MERGE_CHUNK_ANCHORS, Map.of(
@@ -186,6 +188,21 @@ public class Neo4jGraphGateway implements GraphGateway {
                     tx.run(MERGE_RELATIONS, Map.of(
                         "tenantId", tenantId, "docId", docId, "relations", toRelationParams(safeRelations)));
                 }
+                // 阶段三：孤儿清扫（v3.03 复核修正 F1）——**必须排在重写之后**：阶段一摘除
+                // doc_ids 后、重写补回之前，被重写的实体会瞬时「零文档引用」成孤儿，此时清扫
+                // 会 DETACH DELETE 掉它及其全部 MENTIONS 边（含保留锚点的边）→ 软删恢复后图路
+                // 仍不可召回。移到重写后：已重写实体 doc_ids 已补回（非孤儿），真正失引的实体/
+                // 关系才被清除，收敛语义不变
+                gcOrphans(tx, tenantId);
+                // 阶段四：计数重算（v3.03 F2）——落库值恒等于引用列表大小，与算式演进解耦
+                if (!safeEntities.isEmpty()) {
+                    tx.run(REFRESH_MENTION_COUNTS, Map.of(
+                        "tenantId", tenantId, "entityIds", entityIdsOf(safeEntities)));
+                }
+                if (!safeRelations.isEmpty()) {
+                    tx.run(REFRESH_RELATION_WEIGHTS, Map.of(
+                        "tenantId", tenantId, "relations", toRelationParams(safeRelations)));
+                }
                 return null;
             }, writeTxConfig);
         }
@@ -199,7 +216,9 @@ public class Neo4jGraphGateway implements GraphGateway {
         }
         try (Session session = driver.session(sessionConfig)) {
             session.executeWrite(tx -> {
-                tx.run(REMOVE_DOC_REFERENCES, Map.of("tenantId", tenantId, "docId", docId));
+                // 文档删除语义不变：keepChunkIds 空 → 该文档全部锚点（连同 MENTIONS 边）删除
+                tx.run(REMOVE_DOC_REFERENCES, Map.of(
+                    "tenantId", tenantId, "docId", docId, "keepChunkIds", List.of()));
                 gcOrphans(tx, tenantId);
                 return null;
             }, writeTxConfig);
@@ -234,8 +253,13 @@ public class Neo4jGraphGateway implements GraphGateway {
         }
         String cypher = retrievalCypher(spec.expandDirection());
         int seedLimit = Math.max(1, spec.entityTopN());
-        int fetchLimit = Math.max(seedLimit, spec.entityFetchLimit());   // 过取不足时退化为不放过取（旧行为）
-        int candidateLimit = Math.max(seedLimit, spec.candidateLimit());  // 候选上限不得低于种子数（种子恒在）
+        int fetchLimit = fetchCap(seedLimit, spec.entityFetchLimit());
+        int candidateLimit = candidateCap(seedLimit, spec.candidateLimit());
+        if (fetchLimit != spec.entityFetchLimit() || candidateLimit != spec.candidateLimit()) {
+            // 兜底改写不静默（v3.03 F8）：配置值非法（过取/候选低于种子上限）时留痕
+            log.debug("图路检索参数被兜底改写（不得低于种子上限）：fetch {}→{}, candidate {}→{}, 种子上限={}",
+                spec.entityFetchLimit(), fetchLimit, spec.candidateLimit(), candidateLimit, seedLimit);
+        }
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
                 Result result = tx.run(cypher, Map.of(
@@ -272,13 +296,16 @@ public class Neo4jGraphGateway implements GraphGateway {
             case INCOMING -> "<-[:RELATED_TO]-";
             default -> "-[:RELATED_TO]-";   // BOTH
         };
-        return RETRIEVE_WITH_EXPANSION_TEMPLATE.formatted(pattern, NEIGHBOR_DECAY);
+        // Locale.ROOT（v3.03 复核修正 F4）：String.formatted 走默认 locale，JDK 21 下
+        // de_DE 等区域会把 %f 渲染成 "0,500000" → Cypher 语法错 → 展开路整段降级空路
+        return String.format(Locale.ROOT, RETRIEVE_WITH_EXPANSION_TEMPLATE, pattern, NEIGHBOR_DECAY);
     }
 
     @Override
     public GraphRecords.GraphRetrievalDiagnostics diagnoseRetrieval(String tenantId,
                                                                     float[] queryEmbedding,
                                                                     int entityFetchLimit,
+                                                                    int wideFetchLimit,
                                                                     double similarityThreshold) {
         GraphRecords.GraphRetrievalDiagnostics zero = GraphRecords.GraphRetrievalDiagnostics.EMPTY;
         if (tenantId == null || tenantId.isBlank() || !isQueryVectorUsable(queryEmbedding)) {
@@ -286,16 +313,18 @@ public class Neo4jGraphGateway implements GraphGateway {
         }
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
+                int window = Math.max(1, entityFetchLimit);
                 Record record = tx.run(DIAGNOSE_RETRIEVAL, Map.of(
                     "indexName", ENTITY_VECTOR_INDEX,
-                    "fetchLimit", Math.max(1, entityFetchLimit),
+                    "fetchLimit", window,
+                    "wideLimit", Math.max(window, wideFetchLimit),   // 放大窗口须 ≥ 检索窗口
                     "vector", Values.value(queryEmbedding),
                     "tenantId", tenantId,
                     "threshold", similarityThreshold)).single();
                 return new GraphRecords.GraphRetrievalDiagnostics(
-                    (int) record.get("indexCandidates").asLong(),
+                    (int) record.get("wideCandidates").asLong(),
                     (int) record.get("tenantSeeds").asLong(),
-                    record.get("tenantHasGraph").asBoolean());
+                    (int) record.get("tenantSeedsInWindow").asLong());
             }, txConfig);
         }
     }
@@ -368,6 +397,16 @@ public class Neo4jGraphGateway implements GraphGateway {
         }
     }
 
+    /** 过取条数兜底（≤ 种子上限即退化为不放过取——旧行为；包内可见供单测直断） */
+    static int fetchCap(int seedLimit, int entityFetchLimit) {
+        return Math.max(seedLimit, entityFetchLimit);
+    }
+
+    /** 候选上限兜底（不得低于种子上限：种子恒在是候选封顶的语义前提；包内可见供单测直断） */
+    static int candidateCap(int seedLimit, int candidateLimit) {
+        return Math.max(seedLimit, candidateLimit);
+    }
+
     /**
      * 查询向量可用性守卫（v3.00）：空向量与<b>维度不符</b>一律判不可用。
      *
@@ -399,6 +438,16 @@ public class Neo4jGraphGateway implements GraphGateway {
     private static void gcOrphans(TransactionContext tx, String tenantId) {
         tx.run(GC_ORPHAN_ENTITIES, Map.of("tenantId", tenantId));
         tx.run(GC_ORPHAN_RELATIONS, Map.of("tenantId", tenantId));
+    }
+
+    /** 锚点 id 集（幂等重写的 keep 列表：这些锚点与其 MENTIONS 边保留，其余删除） */
+    private static List<String> chunkIdsOf(List<GraphRecords.ChunkAnchor> chunks) {
+        return chunks.stream().map(GraphRecords.ChunkAnchor::id).toList();
+    }
+
+    /** 实体 id 集（计数重算语句的 UNWIND 材料） */
+    private static List<String> entityIdsOf(List<GraphRecords.EntityWrite> entities) {
+        return entities.stream().map(GraphRecords.EntityWrite::id).toList();
     }
 
     /** 实体 → chunk 提及对展开（MENTIONS 写入材料） */
@@ -452,21 +501,39 @@ public class Neo4jGraphGateway implements GraphGateway {
 
     // ── Cypher 常量 ───────────────────────────────────────────────────
 
-    /** 清除文档图引用：摘除实体/关系引用列表 + 删除 Chunk 锚点（孤儿清扫另行执行） */
+    /**
+     * 清除文档图引用：摘除实体/关系引用列表 + 删除<b>已离开 PG</b> 的 Chunk 锚点
+     * （孤儿清扫另行执行）。
+     *
+     * <p><b>保留在场锚点（v3.03 复核修正 F1）</b>：{@code $keepChunkIds} = 本次写入的锚点集
+     * （= PG 该文档现存全量 chunk）。原形态无条件 {@code DETACH DELETE} 该文档全部锚点——
+     * 锚点一删其 {@code MENTIONS} 边随之消失，而 {@code MERGE_MENTIONS} 只为<b>可抽取</b>
+     * chunk 重建边，故「软删期间发生过重抽取」的 chunk 在 restore 后<b>锚点在、边不在</b>，
+     * 图路仍不可召回（复核实证：restore 后只返回 K2，K1 未复活）。改为保留在场锚点后：
+     * 锚点节点与其 MENTIONS 边全程存活（{@code is_deleted} 由 {@link #MERGE_CHUNK_ANCHORS}
+     * 按 PG 标记刷新），restore 仅翻标记即恢复图路可召回；仅当 PG 已无该 chunk（物理删除）
+     * 时才连带删除锚点。
+     *
+     * <p><b>引用列表只摘「已离开」的 chunk id</b>：软删 chunk 仍被实体真实提及（MENTIONS 边
+     * 在场），故其 id 保留在 {@code chunk_ids} 中——保证 {@code mention_count = size(chunk_ids)}
+     * 与边集一致（原形态会摘掉软删 chunk 的 id，使元数据低于真实提及数）。
+     */
     private static final String REMOVE_DOC_REFERENCES = """
         MATCH (c:Chunk {tenant_id: $tenantId, doc_id: $docId})
         WITH collect(c.id) AS oldChunkIds
+        WITH [x IN oldChunkIds WHERE NOT x IN $keepChunkIds] AS departedChunkIds
         OPTIONAL MATCH (e:Entity {tenant_id: $tenantId})
         WHERE $docId IN e.doc_ids
         SET e.doc_ids = [x IN e.doc_ids WHERE x <> $docId],
-            e.chunk_ids = [x IN coalesce(e.chunk_ids, []) WHERE NOT x IN oldChunkIds]
-        WITH oldChunkIds
+            e.chunk_ids = [x IN coalesce(e.chunk_ids, []) WHERE NOT x IN departedChunkIds]
+        WITH departedChunkIds
         OPTIONAL MATCH (:Entity)-[r:RELATED_TO]->(:Entity)
         WHERE r.tenant_id = $tenantId AND $docId IN r.doc_ids
         SET r.doc_ids = [x IN r.doc_ids WHERE x <> $docId],
-            r.chunk_ids = [x IN coalesce(r.chunk_ids, []) WHERE NOT x IN oldChunkIds]
-        WITH oldChunkIds
+            r.chunk_ids = [x IN coalesce(r.chunk_ids, []) WHERE NOT x IN departedChunkIds]
+        WITH departedChunkIds
         MATCH (c:Chunk {tenant_id: $tenantId, doc_id: $docId})
+        WHERE c.id IN departedChunkIds
         DETACH DELETE c
         """;
 
@@ -513,10 +580,12 @@ public class Neo4jGraphGateway implements GraphGateway {
 
     /**
      * 实体合并写入：幂等键 = id（租户×名称×类型派生）。
-     * 合并语义：<b>描述与嵌入「信息量更大者胜」</b>（v3.01），doc_ids/chunk_ids 取并集，
-     * <b>mention_count = 去重片段数</b>（v3.02 重算：取 chunk_ids 并集大小，即「提及它的
-     * 不同 chunk 数」——原「每次 ON MATCH +1」是抽取写入次数：同一文档重抽 N 次即 N，
-     * 既非提及次数也非文档数）。
+     * 合并语义：<b>描述与嵌入「信息量更大者胜」</b>（v3.01），doc_ids/chunk_ids 取并集
+     * （<b>真去重</b>：v3.03 复核修正 F2——用 {@code reduce} 去重，原并集式只与赋值前的
+     * {@code chunk_ids} 比对，入参内部重复（同 chunk 抽取结果同实体出现两次）会漏去重）。
+     * <b>计数不在此处累加</b>：{@code mention_count} 由 {@link #REFRESH_MENTION_COUNTS}
+     * 按 {@code size(chunk_ids)} 重算（v3.02 语义 = 去重片段数；v3.03 改为独立重算语句，
+     * 使「mention_count = size(chunk_ids)」成为结构性不变量而非算式巧合）。
      *
      * <p><b>描述策略（v3.01 修正）</b>：原「取最新」在跨文档时会把已存的长描述冲成短描述，
      * 甚至被空描述冲成 {@code ""}——而嵌入语料在描述为空时回落<b>名称向量</b>
@@ -532,7 +601,9 @@ public class Neo4jGraphGateway implements GraphGateway {
         MERGE (e:Entity {id: ent.id})
         ON CREATE SET e.tenant_id = $tenantId, e.name = ent.name, e.type = ent.type,
                       e.description = ent.description, e.embedding = ent.embedding,
-                      e.doc_ids = [$docId], e.chunk_ids = ent.chunkIds,
+                      e.doc_ids = [$docId],
+                      e.chunk_ids = reduce(acc = [], x IN ent.chunkIds |
+                          CASE WHEN x IN acc THEN acc ELSE acc + [x] END),
                       e.mention_count = size(ent.chunkIds),
                       e.created_at = datetime(), e.updated_at = datetime()
         ON MATCH SET e.description = CASE WHEN size(coalesce(e.description, '')) >= size(ent.description)
@@ -540,10 +611,23 @@ public class Neo4jGraphGateway implements GraphGateway {
                      e.embedding = CASE WHEN size(coalesce(e.description, '')) >= size(ent.description)
                                         THEN e.embedding ELSE ent.embedding END,
                      e.doc_ids = CASE WHEN $docId IN e.doc_ids THEN e.doc_ids ELSE e.doc_ids + $docId END,
-                     e.chunk_ids = coalesce(e.chunk_ids, []) + [x IN ent.chunkIds WHERE NOT x IN coalesce(e.chunk_ids, [])],
-                     e.mention_count = size(coalesce(e.chunk_ids, [])
-                         + [x IN ent.chunkIds WHERE NOT x IN coalesce(e.chunk_ids, [])]),
+                     e.chunk_ids = reduce(acc = [], x IN coalesce(e.chunk_ids, []) + ent.chunkIds |
+                         CASE WHEN x IN acc THEN acc ELSE acc + [x] END),
                      e.updated_at = datetime()
+        """;
+
+    /**
+     * 实体提及计数重算（v3.03 复核修正 F2）：{@code mention_count = size(chunk_ids)}。
+     *
+     * <p>独立语句而非 {@code MERGE_ENTITIES} 内的算式——使不变量<b>结构性成立</b>：
+     * 无论入参是否含重复、无论并集算式如何演进，落库值恒等于去重片段数
+     * （用户侧 E2E 判据 {@code mention_count == size(e.chunk_ids)} 因此必然成立，
+     * 不会掩盖语义偏差）。写入实体数为百级，重算为一次属性读取 + 写入，成本可忽略。
+     */
+    private static final String REFRESH_MENTION_COUNTS = """
+        UNWIND $entityIds AS id
+        MATCH (e:Entity {id: id, tenant_id: $tenantId})
+        SET e.mention_count = size(coalesce(e.chunk_ids, []))
         """;
 
     private static final String MERGE_MENTIONS = """
@@ -570,13 +654,24 @@ public class Neo4jGraphGateway implements GraphGateway {
               (t:Entity {id: rel.targetId, tenant_id: $tenantId})
         MERGE (s)-[r:RELATED_TO {relation_type: rel.relationType}]->(t)
         ON CREATE SET r.tenant_id = $tenantId, r.description = rel.description,
-                      r.doc_ids = [$docId], r.chunk_ids = rel.chunkIds, r.weight = 1.0
+                      r.doc_ids = [$docId],
+                      r.chunk_ids = reduce(acc = [], x IN rel.chunkIds |
+                          CASE WHEN x IN acc THEN acc ELSE acc + [x] END),
+                      r.weight = 1.0
         ON MATCH SET r.doc_ids = CASE WHEN $docId IN r.doc_ids THEN r.doc_ids ELSE r.doc_ids + $docId END,
-                     r.chunk_ids = coalesce(r.chunk_ids, []) + [x IN rel.chunkIds WHERE NOT x IN coalesce(r.chunk_ids, [])],
-                     r.weight = toFloat(size(coalesce(r.doc_ids, [])
-                         + CASE WHEN $docId IN r.doc_ids THEN [] ELSE [$docId] END)),
+                     r.chunk_ids = reduce(acc = [], x IN coalesce(r.chunk_ids, []) + rel.chunkIds |
+                         CASE WHEN x IN acc THEN acc ELSE acc + [x] END),
                      r.description = CASE WHEN size(coalesce(r.description, '')) >= size(rel.description)
                                           THEN r.description ELSE rel.description END
+        """;
+
+    /** 关系权重重算（v3.03 复核修正 F2 同策）：{@code weight = toFloat(size(doc_ids))} = 关联文档数 */
+    private static final String REFRESH_RELATION_WEIGHTS = """
+        UNWIND $relations AS rel
+        MATCH (s:Entity {id: rel.sourceId, tenant_id: $tenantId})
+              -[r:RELATED_TO {relation_type: rel.relationType}]->
+              (t:Entity {id: rel.targetId, tenant_id: $tenantId})
+        SET r.weight = toFloat(size(coalesce(r.doc_ids, [])))
         """;
 
     private static final String SET_CHUNKS_DELETED = """
@@ -628,18 +723,26 @@ public class Neo4jGraphGateway implements GraphGateway {
         """;
 
     /**
-     * 空召回归因读数（v2.85）：同一过取窗口内「阈值内候选总数 / 其中本租户候选数」
-     * + 本租户图谱是否有实体（{@code EXISTS} 走 kb_entity_tenant 索引，O(1) 判据——
-     * 把「冷租户无数据」从「种子被挤占」中分离，避免污染饿死指标）。
-     * 聚合无分组键 → 恒返回一行（空候选亦为 0/0/false），不会有空结果短路。
+     * 空召回归因读数（v3.03 复核修正 F3：双窗口判据）：检索窗口（{@code $fetchLimit}）与
+     * <b>放大窗口</b>（{@code $wideLimit}）各取一次阈值内候选，返回「放大窗口候选总数 /
+     * 放大窗口本租户实体数 / 检索窗口本租户实体数」。
+     *
+     * <p>判据意图：<b>饿死 = 本租户确有阈值内实体（放大窗口能看见）却挤不进检索窗口</b>。
+     * 原形态用「无阈值 {@code EXISTS} 判本租户有无图数据」，无法区分「被挤占」与
+     * 「本租户实体全在阈值之外」——后者放大窗口仍为 0，调过取永远无效（复核实证：
+     * 仅一条 0.5 分实体、阈值 0.7 的租户被误判饿死，窗口放大到 1000 依旧）。
+     * 聚合无分组键 → 恒返回一行，不会有空结果短路；两次索引调用均参数化。
      */
     private static final String DIAGNOSE_RETRIEVAL = """
         CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
         WHERE score >= $threshold
-        WITH collect(e) AS candidates
-        RETURN size(candidates) AS indexCandidates,
-               size([x IN candidates WHERE x.tenant_id = $tenantId]) AS tenantSeeds,
-               EXISTS { MATCH (:Entity {tenant_id: $tenantId}) } AS tenantHasGraph
+        WITH collect(e) AS windowCandidates
+        CALL db.index.vector.queryNodes($indexName, $wideLimit, $vector) YIELD node AS w, score AS score2
+        WHERE score2 >= $threshold
+        WITH windowCandidates, collect(w) AS wideCandidates
+        RETURN size(wideCandidates) AS wideCandidates,
+               size([x IN wideCandidates WHERE x.tenant_id = $tenantId]) AS tenantSeeds,
+               size([x IN windowCandidates WHERE x.tenant_id = $tenantId]) AS tenantSeedsInWindow
         """;
 
     private static final String COUNT_BY_TENANT = """

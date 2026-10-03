@@ -31,11 +31,11 @@ class Neo4jGraphGatewayGuardTest {
 
     @Test
     void diagnoseWithBlankTenantOrVectorReturnsZeroWithoutTouchingDriver() {
-        assertThat(gateway.diagnoseRetrieval(null, new float[1024], 40, 0.7))
+        assertThat(gateway.diagnoseRetrieval(null, new float[1024], 40, 200, 0.7))
             .as("归因读数同守读路径 fail-closed 纪律")
             .isEqualTo(GraphRecords.GraphRetrievalDiagnostics.EMPTY);
-        assertThat(gateway.diagnoseRetrieval("", new float[1024], 40, 0.7).starved()).isFalse();
-        assertThat(gateway.diagnoseRetrieval("t1", new float[0], 40, 0.7).anchorGap()).isFalse();
+        assertThat(gateway.diagnoseRetrieval("", new float[1024], 40, 200, 0.7).starved()).isFalse();
+        assertThat(gateway.diagnoseRetrieval("t1", new float[0], 40, 200, 0.7).anchorGap()).isFalse();
         verifyNoInteractions(driver);
     }
 
@@ -44,7 +44,7 @@ class Neo4jGraphGatewayGuardTest {
         // v3.00：维度不符前置守卫（否则由 Neo4j 抛 "Index query vector has 768 dimensions…"，
         // 归因落在「图库」而非「嵌入源与索引不同源」，且错误面被单路容错吞成空路）
         assertThat(gateway.retrieveChunks("t1", spec(new float[768], true))).isEmpty();
-        assertThat(gateway.diagnoseRetrieval("t1", new float[768], 40, 0.7))
+        assertThat(gateway.diagnoseRetrieval("t1", new float[768], 40, 200, 0.7))
             .isEqualTo(GraphRecords.GraphRetrievalDiagnostics.EMPTY);
         verifyNoInteractions(driver);
     }
@@ -113,17 +113,28 @@ class Neo4jGraphGatewayGuardTest {
     }
 
     @Test
-    void retrievalDiagnosticsClassifiesEmptyCauseByWindowReadings() {        // 窗口内有他租户候选、本租户零种子、且本租户图谱有数据 = 饿死（过取倍数不足）
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, true).starved()).isTrue();
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, true).anchorGap()).isFalse();
-        // 窗口内无候选 = 查询与图无关联（正常空），不算饿死
+    void retrievalDiagnosticsClassifiesEmptyCauseByDualWindowReadings() {
+        // v3.03 双窗口判据：饿死 = 放大窗口内有本租户阈值内实体，却挤不进检索窗口
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 0).starved()).isTrue();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 0).anchorGap()).isFalse();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 0).coldTenant()).isFalse();
+        // 本租户实体全在阈值之外（放大窗口也看不见）→ 正常空，不计饿死（F3 复核修正点）
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, 0).starved()).isFalse();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, 0).coldTenant()).isTrue();
+        // 窗口内无候选（查询与图无关联）同样不算饿死
         assertThat(GraphRecords.GraphRetrievalDiagnostics.EMPTY.starved()).isFalse();
-        // 冷租户（图谱无数据）：空召回正常，不计饿死——否则冷租户会污染饿死指标
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, false).starved()).isFalse();
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, false).coldTenant()).isTrue();
-        // 本租户有阈值内种子 = 锚点链路缺口（非检索参数问题）
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true).starved()).isFalse();
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true).anchorGap()).isTrue();
-        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true).coldTenant()).isFalse();
+        // 本租户种子进了窗口却零召回 → 锚点链路缺口
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 2).anchorGap()).isTrue();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, 2).starved()).isFalse();
+    }
+
+    @Test
+    void retrievalWindowCapsNeverDropBelowSeedLimit() {
+        // v3.03 F8：兜底改写边界直断（原仅路径内联，未覆盖）
+        assertThat(Neo4jGraphGateway.fetchCap(5, 40)).as("正常过取").isEqualTo(40);
+        assertThat(Neo4jGraphGateway.fetchCap(5, 3)).as("过取低于种子上限 → 退化为不否过取").isEqualTo(5);
+        assertThat(Neo4jGraphGateway.fetchCap(5, 0)).isEqualTo(5);
+        assertThat(Neo4jGraphGateway.candidateCap(5, 100)).isEqualTo(100);
+        assertThat(Neo4jGraphGateway.candidateCap(5, 3)).as("候选上限不得低于种子数（种子恒在）").isEqualTo(5);
     }
 }
