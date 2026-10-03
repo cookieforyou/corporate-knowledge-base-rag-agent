@@ -56,27 +56,22 @@ public interface GraphGateway {
      * → 邻域展开（≤1 跳，衰减）→ MENTIONS 反查存活 Chunk 锚点，按贡献分降序返回。
      * 检索期零 LLM 调用；空租户返回空列表（fail-closed）。
      *
-     * <p><b>过取与种子封顶两段式</b>（v2.85，跨租户饿死修复）：Neo4j 5.26 的
+     * <p><b>过取与种子封顶两段式</b>（v3.00，跨租户饿死修复）：Neo4j 5.26 的
      * {@code db.index.vector.queryNodes} 无索引内过滤——租户条件只能后过滤，他租户
      * 近邻会占满 topN 名额致本租户零种子（实证：他租户 6 条 1.0 分候选使本租户
      * 0.995 分候选完全不可见）。故索引侧按 {@code entityFetchLimit} 取候选，过滤后
-     * 再按 {@code entityTopN} 封顶，调用方以「倍数过取」补齐被挤占的名额。
+     * 再按 {@code entityTopN} 封顶回原语义。
      *
-     * @param entityTopN        种子实体上限（<b>租户过滤后</b>的封顶值，语义与过取前一致）
-     * @param entityFetchLimit  向量索引取候选条数（≥ {@code entityTopN}；过取倍数由调用方
-     *                          按 {@code rag.graph.retrieval.entity-over-fetch} 计算；
-     *                          小于 {@code entityTopN} 时按 {@code entityTopN} 兜底）
-     * @param similarityThreshold 种子相似度下限
-     * @param expandNeighbors   是否 1 跳邻域展开（衰减系数 0.5 固定于实现）
-     * @param limit             chunk 结果上限（对齐召回口径）
+     * <p><b>候选封顶与展开方向</b>（v3.02）：展开后候选实体按
+     * {@code hop ASC, 贡献分 DESC, 实体 id ASC} 排序并截断至 {@code candidateLimit}
+     * （种子恒在——hop=0 恒排前），把 hub 实体的中间结果收敛为有界集；
+     * 展开方向由 {@link GraphRecords.ExpandDirection} 显式指定（模型有向，
+     * 缺省双向保持既有召回行为）。
+     *
+     * @param spec 检索规格（种子上限 / 过取条数 / 阈值 / 展开方向 / 候选上限 / 结果上限）
      */
     List<GraphRecords.GraphChunkHit> retrieveChunks(String tenantId,
-                                                    float[] queryEmbedding,
-                                                    int entityTopN,
-                                                    int entityFetchLimit,
-                                                    double similarityThreshold,
-                                                    boolean expandNeighbors,
-                                                    int limit);
+                                                    GraphRecords.GraphRetrievalSpec spec);
 
     /**
      * 图路空召回归因读数（v2.85）：按与 {@link #retrieveChunks} 同参复算索引窗口，
@@ -102,8 +97,17 @@ public interface GraphGateway {
      * a→b→c 关系链 + 链首/链尾实体关联的存活 chunk ID——多跳题即
      * 「经 b 桥接 a 与 c」的跨片段推理，本方法产出出题真值材料。
      * 空租户返回空列表（读路径守卫同形）。
+     *
+     * <p><b>有界采样与确定性</b>（v3.02）：原形态先枚举租户全域 a→b→c 三元组再去重截断
+     * （{@code Expand×2 → Distinct → Limit}，计划实证），大租户/高连接度图下中间结果
+     * 无界，且 {@code LIMIT} 无 {@code ORDER BY} 使多次采样结果不一致（出题材料不可复现）。
+     * 现改为<b>先按 id 序有界采样链首</b>（{@code seedLimit}）再展开，并对链三元组显式
+     * 排序——工作量收敛为 seedLimit × 平均度数²，输出可复现。
+     *
+     * @param limit     链样本上限
+     * @param seedLimit 链首采样上限（须 ≥ limit；建议 limit 的 3-5 倍）
      */
-    List<GraphRecords.EntityChainSample> sampleEntityChains(String tenantId, int limit);
+    List<GraphRecords.EntityChainSample> sampleEntityChains(String tenantId, int limit, int seedLimit);
 
     /** 租户域图规模计数 */
     record GraphCounts(long entities, long relations, long chunkAnchors) {

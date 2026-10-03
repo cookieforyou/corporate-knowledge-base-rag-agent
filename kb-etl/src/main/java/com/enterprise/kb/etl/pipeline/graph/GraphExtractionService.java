@@ -165,10 +165,13 @@ public class GraphExtractionService {
             // 阶段三：关系解析（名称→ID，越集丢弃）+ 幂等写图
             List<GraphRecords.RelationWrite> relationWrites =
                 resolveRelations(tenantId, chunks, candidates, results, aggregates);
-            List<GraphRecords.ChunkAnchor> anchors = aggregates.stream()
-                .flatMap(a -> a.chunkIds().stream())
-                .distinct()
-                .map(id -> new GraphRecords.ChunkAnchor(id, chunkIndexOf(chunks, id)))
+            // v3.02 锚点镜像 PG 全量 chunk（含软删与不可抽取片段，is_deleted 随 PG 标记）：
+            // 原形态只写「含实体 chunk」且恒置 false，与幂等重写阶段一「删除该文档全部锚点」
+            // 叠加后，软删期间的重抽取会使该 chunk 永久失去锚点（restore 翻转不到节点）
+            List<GraphRecords.ChunkAnchor> anchors = chunks.stream()
+                .map(c -> new GraphRecords.ChunkAnchor(c.getId(),
+                    c.getChunkIndex() == null ? 0 : c.getChunkIndex(),
+                    Boolean.TRUE.equals(c.getIsDeleted())))
                 .toList();
             graphGateway.replaceDocumentGraph(tenantId, docId, anchors, entityWrites, relationWrites);
 
@@ -473,15 +476,6 @@ public class GraphExtractionService {
             return a;
         }
         return a.length() >= b.length() ? a : b;
-    }
-
-    private static int chunkIndexOf(List<KbChunk> chunks, String chunkId) {
-        for (KbChunk chunk : chunks) {
-            if (chunk.getId().equals(chunkId)) {
-                return chunk.getChunkIndex() == null ? 0 : chunk.getChunkIndex();
-            }
-        }
-        return 0;
     }
 
     private void markStatus(KbDocument doc, GraphStatus status) {

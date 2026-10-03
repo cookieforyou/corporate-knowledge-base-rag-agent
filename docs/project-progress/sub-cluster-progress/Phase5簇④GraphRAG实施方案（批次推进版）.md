@@ -211,7 +211,7 @@ mvn -q --no-transfer-progress test -pl kb-eval -am
 | `tenant_id` | STRING | 租户 ID（隔离必携） |
 | `doc_ids` | LIST<STRING> | 出现文档 ID 集合（溯源） |
 | `chunk_ids` | LIST<STRING> | 出现 chunk ID 集合（反查） |
-| `mention_count` | INTEGER | 出现次数（合并计数；**语义待批3重算为去重片段数**——现为抽取写入次数） |
+| `mention_count` | INTEGER | **去重片段数**（v3.02 重算 = `chunk_ids` 并集大小，即提及它的不同 chunk 数；原为抽取写入次数） |
 | `created_at` | STRING | ISO 时间戳 |
 | `updated_at` | STRING | ISO 时间戳 |
 
@@ -231,7 +231,7 @@ mvn -q --no-transfer-progress test -pl kb-eval -am
 
 | 关系 | 方向 | 属性 | 说明 |
 |------|------|------|------|
-| `RELATED_TO` | Entity → Entity | `weight` (FLOAT), `relation_type` (STRING), `doc_ids` (LIST), `chunk_ids` (LIST) | 实体间语义关系（**有向**：抽取提示词产出 `WORKS_AT/PART_OF/DEPENDS_ON/PRODUCED_BY` 等方向性类型；图路 1 跳展开按无向召回——设计取舍，v3.02 方向可配） |
+| `RELATED_TO` | Entity → Entity | `weight` (FLOAT), `relation_type` (STRING), `doc_ids` (LIST), `chunk_ids` (LIST) | 实体间语义关系（**有向**：抽取提示词产出 `WORKS_AT/PART_OF/DEPENDS_ON/PRODUCED_BY` 等方向性类型）；`weight` = **关联文档数**（v3.02 重算）；图路 1 跳展开方向经 `rag.graph.retrieval.expand-direction` 显式可配（缺省 BOTH 保持既有召回行为） |
 | `MENTIONS` | Chunk → Entity | `position` (INTEGER) | chunk 提及实体（反向 = 实体被哪些 chunk 引用） |
 
 > **关系去重**：`RELATED_TO` 以 `(source_id, target_id, relation_type)` 为幂等键，MERGE 语义。

@@ -27,8 +27,16 @@ public class Neo4jProperties {
 
     private int connectionTimeoutSeconds = 10;
 
-    /** 会话级查询超时（秒）——图路检索/写入的单次事务上限 */
+    /** 读路径会话级查询超时（秒）——图路检索单次事务上限 */
     private int queryTimeoutSeconds = 5;
+
+    /**
+     * 写路径事务超时（秒，v3.02 与读分设）——幂等重写 = 清旧引用 + 两段孤儿清扫 +
+     * 批量 MERGE（含 1024 维向量与 HNSW 索引写入），随文档规模线性增长：
+     * 真库实测 300 实体 + 299 关系单事务 ≈2s，千级实体大文档贴近读路径 5s 上限
+     * 即被服务端掐断（整篇抽取白跑 → graph_status=FAILED，只能回填重试）。
+     */
+    private int writeTimeoutSeconds = 30;
 
     /**
      * 闲置连接存活探测阈值（秒）——池内连接闲置超过该阈值，出借前先验证存活，

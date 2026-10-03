@@ -32,8 +32,53 @@ public final class GraphRecords {
         List<String> chunkIds) {
     }
 
-    /** Chunk 锚点节点（图内不存内容，PG 为事实源，仅存反查所需最小字段） */
-    public record ChunkAnchor(String id, int chunkIndex) {
+    /**
+     * Chunk 锚点节点（图内不存内容，PG 为事实源，仅存反查所需最小字段）。
+     *
+     * <p>{@code isDeleted}（v3.02）：锚点集合镜像 <b>PG 全量 chunk</b>（含软删与不可抽取
+     * 片段）——原形态只写"含实体 chunk"，而幂等重写阶段一会删除该文档全部锚点，
+     * 故软删期间发生过重抽取的 chunk 会永久失去锚点（之后 restore 翻转不到任何节点，
+     * 该 chunk 的图路召回静默丢失直到再次重抽取）。带标记全量写入后，锚点生命周期
+     * 与抽取结果解耦（软删 = 标记，恢复 = 翻回）。
+     */
+    public record ChunkAnchor(String id, int chunkIndex, boolean isDeleted) {
+    }
+
+    /**
+     * 图路检索规格（v3.02 参数对象化）：8 项调优参数中四个 int 语义相邻
+     * （种子上限/过取条数/候选上限/结果上限），位置参数易错，故收敛为显式规格。
+     *
+     * @param entityTopN       租户过滤后的种子实体上限
+     * @param entityFetchLimit 向量索引取候选条数（≥ entityTopN；过取补偿跨租户名额挤占）
+     * @param expandDirection  邻域展开方向（NONE = 不展开；模型为有向，召回取舍见接口 javadoc）
+     * @param candidateLimit   展开后候选实体总量上限（种子恒在，仅截断低贡献邻居）
+     * @param limit            chunk 结果上限
+     */
+    public record GraphRetrievalSpec(
+        float[] queryEmbedding,
+        int entityTopN,
+        int entityFetchLimit,
+        double similarityThreshold,
+        ExpandDirection expandDirection,
+        int candidateLimit,
+        int limit) {
+    }
+
+    /**
+     * 邻域展开方向（v3.02）：图模型为<b>有向</b>（抽取提示词产出 {@code WORKS_AT /
+     * PART_OF / DEPENDS_ON / PRODUCED_BY} 等方向性类型），而展开是召回机制而非逻辑推理——
+     * 缺省 {@link #BOTH} 保持既有召回行为（双向），需方向敏感时切 {@link #OUTGOING} /
+     * {@link #INCOMING} 并以多跳集 A/B 定调。
+     */
+    public enum ExpandDirection {
+        /** 不展开（仅种子实体） */
+        NONE,
+        /** 双向（缺省，保持 v3.00 前既有召回行为） */
+        BOTH,
+        /** 仅出边（种子 → 邻居，语义方向一致） */
+        OUTGOING,
+        /** 仅入边（邻居 → 种子） */
+        INCOMING
     }
 
     /** 图路检索命中：chunk 反查结果 + 溯源元数据（实体命中名/跳数，供 TRACE 与调试台） */

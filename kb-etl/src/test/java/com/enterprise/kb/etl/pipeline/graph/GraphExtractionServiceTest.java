@@ -177,7 +177,9 @@ class GraphExtractionServiceTest {
         assertThat(entities.getValue()).hasSize(2);
         assertThat(relations.getValue()).hasSize(1);
         assertThat(relations.getValue().get(0).relationType()).isEqualTo("PRODUCED_BY");
-        assertThat(anchors.getValue()).hasSize(2);    // 两个含实体 chunk 落锚
+        // v3.02 锚点镜像 PG 全量 chunk（c3「过短」不可抽取也落锚且标记未删）——原形态只写含实体 chunk
+        assertThat(anchors.getValue()).hasSize(3);
+        assertThat(anchors.getValue()).allSatisfy(anchor -> assertThat(anchor.isDeleted()).isFalse());
         assertThat(listener.started).isEqualTo(1);
         assertThat(listener.succeeded).isEqualTo(1);
         // 增量档桶键钉死（双档分桶基线侧，与回填档守卫互为镜像；每可抽取 chunk 一次获取）

@@ -21,9 +21,9 @@ class Neo4jGraphGatewayGuardTest {
 
     @Test
     void retrieveWithBlankTenantReturnsEmptyWithoutTouchingDriver() {
-        assertThat(gateway.retrieveChunks(null, new float[1024], 5, 40, 0.7, true, 10)).isEmpty();
-        assertThat(gateway.retrieveChunks("", new float[1024], 5, 40, 0.7, true, 10)).isEmpty();
-        assertThat(gateway.retrieveChunks("t1", new float[0], 5, 40, 0.7, true, 10))
+        assertThat(gateway.retrieveChunks(null, spec(new float[1024], true))).isEmpty();
+        assertThat(gateway.retrieveChunks("", spec(new float[1024], true))).isEmpty();
+        assertThat(gateway.retrieveChunks("t1", spec(new float[0], true)))
             .as("空向量同样零触达")
             .isEmpty();
         verifyNoInteractions(driver);
@@ -43,7 +43,7 @@ class Neo4jGraphGatewayGuardTest {
     void mismatchedQueryVectorDimensionFailsClosedWithoutTouchingDriver() {
         // v3.00：维度不符前置守卫（否则由 Neo4j 抛 "Index query vector has 768 dimensions…"，
         // 归因落在「图库」而非「嵌入源与索引不同源」，且错误面被单路容错吞成空路）
-        assertThat(gateway.retrieveChunks("t1", new float[768], 5, 40, 0.7, true, 10)).isEmpty();
+        assertThat(gateway.retrieveChunks("t1", spec(new float[768], true))).isEmpty();
         assertThat(gateway.diagnoseRetrieval("t1", new float[768], 40, 0.7))
             .isEqualTo(GraphRecords.GraphRetrievalDiagnostics.EMPTY);
         verifyNoInteractions(driver);
@@ -72,6 +72,12 @@ class Neo4jGraphGatewayGuardTest {
             .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> Neo4jGraphGateway.requireEmbeddings(List.of(entityWith(new float[1536]))))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** 检索规格夹具（v3.02 参数对象化）：种子上限 5 / 过取 40 / 阈值 0.7 / 候选 100 / 结果 10 */
+    private static GraphRecords.GraphRetrievalSpec spec(float[] embedding, boolean expand) {
+        return new GraphRecords.GraphRetrievalSpec(embedding, 5, 40, 0.7,
+            expand ? GraphRecords.ExpandDirection.BOTH : GraphRecords.ExpandDirection.NONE, 100, 10);
     }
 
     private static GraphRecords.EntityWrite entityWith(float[] embedding) {

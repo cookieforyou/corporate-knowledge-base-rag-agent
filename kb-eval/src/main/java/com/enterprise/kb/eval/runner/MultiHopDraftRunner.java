@@ -53,6 +53,9 @@ public class MultiHopDraftRunner implements ApplicationRunner {
     @Value("${eval.multi-hop.draft-sample-size:30}")
     private int draftSampleSize;
 
+    /** 链首采样倍数（v3.02）：目标链数的 4 倍（下限 40）——保证出题材料量同时有界 */
+    private static final int CHAIN_SEED_MULTIPLIER = 4;
+
     public MultiHopDraftRunner(ObjectProvider<GraphGateway> graphGatewayProvider,
                                KbChunkRepository chunkRepository,
                                JsonMapper jsonMapper) {
@@ -76,7 +79,11 @@ public class MultiHopDraftRunner implements ApplicationRunner {
                 "--eval.draft-multihop 需设置 eval.chain-probe.tenant-id（图采样租户域必填）");
         }
 
-        List<GraphRecords.EntityChainSample> chains = gateway.sampleEntityChains(tenantId, draftSampleSize);
+        // 链首有界采样（v3.02）：目标链数 × 4（下限 40）——原形态从租户全域实体枚举
+        // 二跳三元组再截断，大图中间结果无界；链首上限把工作量收敛为 seed × 平均度数²
+        int seedLimit = Math.max(40, draftSampleSize * CHAIN_SEED_MULTIPLIER);
+        List<GraphRecords.EntityChainSample> chains =
+            gateway.sampleEntityChains(tenantId, draftSampleSize, seedLimit);
         if (chains.isEmpty()) {
             log.info("═══ 无二跳实体链样本——请先跑存量回填（POST /api/v1/admin/graph/backfill）建图 ═══");
             return;

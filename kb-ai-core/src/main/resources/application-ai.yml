@@ -371,6 +371,13 @@ rag:
       # 官方口径），0.7 ≈ 原始余弦 ≥ 0.4；调参须按此语义，勿当原始余弦解读（v2.80）
       entity-similarity-threshold: ${RAG_GRAPH_ENTITY_SIMILARITY_THRESHOLD:0.7}
       expand-neighbors: ${RAG_GRAPH_EXPAND_NEIGHBORS:true}               # 1 跳邻域展开（衰减 0.5）
+      # 展开方向（v3.02）：图模型有向（WORKS_AT/PART_OF/DEPENDS_ON/PRODUCED_BY 等方向性类型），
+      # 而 1 跳展开是召回机制非逻辑推理——缺省 BOTH 保持既有召回行为；
+      # OUTGOING/INCOMING 供方向敏感场景，须以多跳集 A/B 实测定调。expand-neighbors=false 时忽略
+      expand-direction: ${RAG_GRAPH_EXPAND_DIRECTION:BOTH}
+      # 展开后候选实体上限（v3.02，种子恒在只截断低贡献邻居）：原形态 MENTIONS 展开与聚合
+      # 整体落在最终 LIMIT 之前（计划实证），高连接度 hub 实体使中间结果按「种子 × 全邻居」膨胀
+      candidate-limit: ${RAG_GRAPH_CANDIDATE_LIMIT:100}
   # ── 语义缓存（Phase5簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
   # 命中短路「检索+重排+生成」全链重放缓存回答与溯源；缺省关（用户侧 E2E 验证后启用，
   # 同 eval L2 / 间接注入缺省关族纪律）；验收线 = 命中率 >30% + 命中延迟 P95 降 >40%（对照 18 §18.4）

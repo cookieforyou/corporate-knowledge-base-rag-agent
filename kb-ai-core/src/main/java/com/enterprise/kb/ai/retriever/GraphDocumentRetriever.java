@@ -100,14 +100,28 @@ public class GraphDocumentRetriever {
         float[] queryEmbedding = embeddingModel.embed(queryText);
         int seedLimit = properties.getEntityTopN();
         int fetchLimit = fetchLimit(seedLimit);
-        List<GraphRecords.GraphChunkHit> hits = graphGateway.retrieveChunks(
-            tenantId, queryEmbedding, seedLimit, fetchLimit,
-            properties.getEntitySimilarityThreshold(), properties.isExpandNeighbors(), recallSize);
+        List<GraphRecords.GraphChunkHit> hits = graphGateway.retrieveChunks(tenantId,
+            new GraphRecords.GraphRetrievalSpec(queryEmbedding, seedLimit, fetchLimit,
+                properties.getEntitySimilarityThreshold(), expandDirection(), candidateLimit(), recallSize));
         if (hits.isEmpty()) {
             diagnoseEmptyRetrieval(tenantId, queryEmbedding, fetchLimit);
             return List.of();
         }
         return toDocuments(hits, tenantId);
+    }
+
+    /** 展开方向（v3.02）：展开开关关闭时强制 NONE（方向键被忽略，避免语义歧义） */
+    private GraphRecords.ExpandDirection expandDirection() {
+        if (!properties.isExpandNeighbors()) {
+            return GraphRecords.ExpandDirection.NONE;
+        }
+        GraphRecords.ExpandDirection direction = properties.getExpandDirection();
+        return direction == null ? GraphRecords.ExpandDirection.BOTH : direction;
+    }
+
+    /** 候选上限（v3.02）：不得低于种子上限（种子恒在，网关侧再兜底一次） */
+    private int candidateLimit() {
+        return Math.max(properties.getEntityTopN(), properties.getCandidateLimit());
     }
 
     /**

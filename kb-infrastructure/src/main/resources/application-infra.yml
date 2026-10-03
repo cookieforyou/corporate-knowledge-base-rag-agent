@@ -54,6 +54,9 @@ spring:
     database: ${NEO4J_DATABASE:neo4j}
     connection-timeout-seconds: ${NEO4J_CONNECTION_TIMEOUT_SECONDS:10}
     query-timeout-seconds: ${NEO4J_QUERY_TIMEOUT_SECONDS:5}
+    # 写路径超时（v3.02 与读分设）：写图 = 清引用 + 两段孤儿清扫 + 批量 MERGE（含向量
+    # 与 HNSW 索引写入），随文档规模线性增长——实测 300 实体 + 299 关系单事务 ≈2s
+    write-timeout-seconds: ${NEO4J_WRITE_TIMEOUT_SECONDS:30}
     # 闲置连接存活探测阈值——出借前验证，死连接（中间层闲置超时掐断）剔除换新（v2.79）
     liveness-check-seconds: ${NEO4J_LIVENESS_CHECK_SECONDS:60}
 

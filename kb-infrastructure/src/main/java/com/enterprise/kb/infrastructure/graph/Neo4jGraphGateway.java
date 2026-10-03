@@ -61,12 +61,20 @@ public class Neo4jGraphGateway implements GraphGateway {
     private final Driver driver;
     private final SessionConfig sessionConfig;
     private final TransactionConfig txConfig;
+    /** 写路径事务上限（v3.02 分设：读 5s / 写 30s，见构造器注释） */
+    private final TransactionConfig writeTxConfig;
 
     public Neo4jGraphGateway(Driver driver, Neo4jProperties properties) {
         this.driver = driver;
         this.sessionConfig = SessionConfig.forDatabase(properties.getDatabase());
         this.txConfig = TransactionConfig.builder()
             .withTimeout(Duration.ofSeconds(properties.getQueryTimeoutSeconds()))
+            .build();
+        // 读写超时分设（v3.02）：读路径 5s 宽裕，写路径（幂等重写 + 两段孤儿清扫 +
+        // 批量 MERGE）随文档规模线性增长——实测 300 实体 + 299 关系单事务 ≈2s，
+        // 千级实体大文档贴近 5s 上限即被服务端掐断（整篇抽取白跑）
+        this.writeTxConfig = TransactionConfig.builder()
+            .withTimeout(Duration.ofSeconds(properties.getWriteTimeoutSeconds()))
             .build();
     }
 
@@ -179,7 +187,7 @@ public class Neo4jGraphGateway implements GraphGateway {
                         "tenantId", tenantId, "docId", docId, "relations", toRelationParams(safeRelations)));
                 }
                 return null;
-            }, txConfig);
+            }, writeTxConfig);
         }
     }
 
@@ -194,7 +202,7 @@ public class Neo4jGraphGateway implements GraphGateway {
                 tx.run(REMOVE_DOC_REFERENCES, Map.of("tenantId", tenantId, "docId", docId));
                 gcOrphans(tx, tenantId);
                 return null;
-            }, txConfig);
+            }, writeTxConfig);
         }
     }
 
@@ -209,7 +217,7 @@ public class Neo4jGraphGateway implements GraphGateway {
                 tx.run(SET_CHUNKS_DELETED, Map.of(
                     "tenantId", tenantId, "chunkIds", new ArrayList<>(chunkIds), "deleted", deleted));
                 return null;
-            }, txConfig);
+            }, writeTxConfig);
         }
     }
 
@@ -217,31 +225,28 @@ public class Neo4jGraphGateway implements GraphGateway {
 
     @Override
     public List<GraphRecords.GraphChunkHit> retrieveChunks(String tenantId,
-                                                           float[] queryEmbedding,
-                                                           int entityTopN,
-                                                           int entityFetchLimit,
-                                                           double similarityThreshold,
-                                                           boolean expandNeighbors,
-                                                           int limit) {
+                                                           GraphRecords.GraphRetrievalSpec spec) {
         if (tenantId == null || tenantId.isBlank()) {
             return List.of();   // fail-closed：无租户零触达
         }
-        if (!isQueryVectorUsable(queryEmbedding)) {
+        if (spec == null || !isQueryVectorUsable(spec.queryEmbedding())) {
             return List.of();
         }
-        String cypher = expandNeighbors ? RETRIEVE_WITH_EXPANSION : RETRIEVE_SEEDS_ONLY;
-        int seedLimit = Math.max(1, entityTopN);
-        int fetchLimit = Math.max(seedLimit, entityFetchLimit);   // 过取不足时退化为不放过取（旧行为）
+        String cypher = retrievalCypher(spec.expandDirection());
+        int seedLimit = Math.max(1, spec.entityTopN());
+        int fetchLimit = Math.max(seedLimit, spec.entityFetchLimit());   // 过取不足时退化为不放过取（旧行为）
+        int candidateLimit = Math.max(seedLimit, spec.candidateLimit());  // 候选上限不得低于种子数（种子恒在）
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
                 Result result = tx.run(cypher, Map.of(
                     "indexName", ENTITY_VECTOR_INDEX,
                     "fetchLimit", fetchLimit,
                     "seedLimit", seedLimit,
-                    "vector", Values.value(queryEmbedding),
+                    "candidateLimit", candidateLimit,
+                    "vector", Values.value(spec.queryEmbedding()),
                     "tenantId", tenantId,
-                    "threshold", similarityThreshold,
-                    "limit", Math.max(1, limit)));
+                    "threshold", spec.similarityThreshold(),
+                    "limit", Math.max(1, spec.limit())));
                 List<GraphRecords.GraphChunkHit> hits = new ArrayList<>();
                 while (result.hasNext()) {
                     Record record = result.next();
@@ -255,6 +260,19 @@ public class Neo4jGraphGateway implements GraphGateway {
                 return hits;
             }, txConfig);
         }
+    }
+
+    /** 展开方向 → 检索 Cypher（NONE = 仅种子；BOTH/OUTGOING/INCOMING = 关系模式方向） */
+    private static String retrievalCypher(GraphRecords.ExpandDirection direction) {
+        if (direction == null || direction == GraphRecords.ExpandDirection.NONE) {
+            return RETRIEVE_SEEDS_ONLY;
+        }
+        String pattern = switch (direction) {
+            case OUTGOING -> "-[:RELATED_TO]->";
+            case INCOMING -> "<-[:RELATED_TO]-";
+            default -> "-[:RELATED_TO]-";   // BOTH
+        };
+        return RETRIEVE_WITH_EXPANSION_TEMPLATE.formatted(pattern, NEIGHBOR_DECAY);
     }
 
     @Override
@@ -297,14 +315,18 @@ public class Neo4jGraphGateway implements GraphGateway {
     }
 
     @Override
-    public List<GraphRecords.EntityChainSample> sampleEntityChains(String tenantId, int limit) {
+    public List<GraphRecords.EntityChainSample> sampleEntityChains(String tenantId, int limit,
+                                                                   int seedLimit) {
         if (tenantId == null || tenantId.isBlank()) {
             return List.of();   // fail-closed：无租户零触达
         }
+        int rows = Math.max(1, limit);
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
                 Result result = tx.run(SAMPLE_ENTITY_CHAINS, Map.of(
-                    "tenantId", tenantId, "limit", Math.max(1, limit)));
+                    "tenantId", tenantId,
+                    "limit", rows,
+                    "seedLimit", Math.max(rows, seedLimit)));   // 链首采样不得少于目标链数
                 List<GraphRecords.EntityChainSample> samples = new ArrayList<>();
                 while (result.hasNext()) {
                     Record record = result.next();
@@ -393,7 +415,8 @@ public class Neo4jGraphGateway implements GraphGateway {
     private static List<Map<String, Object>> toChunkParams(List<GraphRecords.ChunkAnchor> chunks) {
         List<Map<String, Object>> list = new ArrayList<>(chunks.size());
         for (GraphRecords.ChunkAnchor chunk : chunks) {
-            list.add(Map.of("id", chunk.id(), "chunkIndex", chunk.chunkIndex()));
+            list.add(Map.of("id", chunk.id(), "chunkIndex", chunk.chunkIndex(),
+                "isDeleted", chunk.isDeleted()));
         }
         return list;
     }
@@ -475,17 +498,25 @@ public class Neo4jGraphGateway implements GraphGateway {
         DELETE r
         """;
 
+    /**
+     * Chunk 锚点写入（v3.02）：锚点集合 = <b>PG 全量 chunk</b>（含软删与不可抽取片段），
+     * {@code is_deleted} 随 PG 标记走。原形态只写「含实体 chunk」且恒置 false——与
+     * 幂等重写阶段一「删除该文档全部锚点」叠加，软删期间的重抽取会让该 chunk 永久
+     * 失去锚点（restore 翻转不到任何节点，图路召回静默丢失至下次重抽取）。
+     */
     private static final String MERGE_CHUNK_ANCHORS = """
         UNWIND $chunks AS ch
         MERGE (c:Chunk {id: ch.id})
         SET c.tenant_id = $tenantId, c.doc_id = $docId,
-            c.chunk_index = ch.chunkIndex, c.is_deleted = false
+            c.chunk_index = ch.chunkIndex, c.is_deleted = ch.isDeleted
         """;
 
     /**
      * 实体合并写入：幂等键 = id（租户×名称×类型派生）。
-     * 合并语义：<b>描述与嵌入「信息量更大者胜」</b>（v3.00），doc_ids/chunk_ids 取并集，
-     * mention_count 累加（语义重算见批3）。
+     * 合并语义：<b>描述与嵌入「信息量更大者胜」</b>（v3.01），doc_ids/chunk_ids 取并集，
+     * <b>mention_count = 去重片段数</b>（v3.02 重算：取 chunk_ids 并集大小，即「提及它的
+     * 不同 chunk 数」——原「每次 ON MATCH +1」是抽取写入次数：同一文档重抽 N 次即 N，
+     * 既非提及次数也非文档数）。
      *
      * <p><b>描述策略（v3.00 修正）</b>：原「取最新」在跨文档时会把已存的长描述冲成短描述，
      * 甚至被空描述冲成 {@code ""}——而嵌入语料在描述为空时回落<b>名称向量</b>
@@ -502,14 +533,16 @@ public class Neo4jGraphGateway implements GraphGateway {
         ON CREATE SET e.tenant_id = $tenantId, e.name = ent.name, e.type = ent.type,
                       e.description = ent.description, e.embedding = ent.embedding,
                       e.doc_ids = [$docId], e.chunk_ids = ent.chunkIds,
-                      e.mention_count = 1, e.created_at = datetime(), e.updated_at = datetime()
+                      e.mention_count = size(ent.chunkIds),
+                      e.created_at = datetime(), e.updated_at = datetime()
         ON MATCH SET e.description = CASE WHEN size(coalesce(e.description, '')) >= size(ent.description)
                                           THEN e.description ELSE ent.description END,
                      e.embedding = CASE WHEN size(coalesce(e.description, '')) >= size(ent.description)
                                         THEN e.embedding ELSE ent.embedding END,
                      e.doc_ids = CASE WHEN $docId IN e.doc_ids THEN e.doc_ids ELSE e.doc_ids + $docId END,
                      e.chunk_ids = coalesce(e.chunk_ids, []) + [x IN ent.chunkIds WHERE NOT x IN coalesce(e.chunk_ids, [])],
-                     e.mention_count = coalesce(e.mention_count, 0) + 1,
+                     e.mention_count = size(coalesce(e.chunk_ids, [])
+                         + [x IN ent.chunkIds WHERE NOT x IN coalesce(e.chunk_ids, [])]),
                      e.updated_at = datetime()
         """;
 
@@ -523,7 +556,10 @@ public class Neo4jGraphGateway implements GraphGateway {
     /**
      * 关系合并写入：幂等键 = (源, 目标, relation_type)；溯源引用列表并集更新。
      *
-     * <p><b>描述策略（v3.00 与实体同策）</b>：原 {@code ON MATCH} 直接覆盖为最新描述，
+     * <p><b>weight 语义重算（v3.02）</b>：{@code weight = 关联文档数}（doc_ids 并集大小）——
+     * 原「每次 ON MATCH +1.0」是写入次数，同一文档重抽即重复计数，非真实关系强度。
+     *
+     * <p><b>描述策略（v3.01 与实体同策）</b>：原 {@code ON MATCH} 直接覆盖为最新描述，
      * 多文档描述不同即反复互覆、丢失历史；现改「信息量更大者胜」（较长者保留），
      * 与实体描述策略及 ETL 文档内「首见保留」取向一致（后者保首见，前者保信息量，
      * 统一判据 = 不被更短/空的描述降级）。
@@ -537,7 +573,8 @@ public class Neo4jGraphGateway implements GraphGateway {
                       r.doc_ids = [$docId], r.chunk_ids = rel.chunkIds, r.weight = 1.0
         ON MATCH SET r.doc_ids = CASE WHEN $docId IN r.doc_ids THEN r.doc_ids ELSE r.doc_ids + $docId END,
                      r.chunk_ids = coalesce(r.chunk_ids, []) + [x IN rel.chunkIds WHERE NOT x IN coalesce(r.chunk_ids, [])],
-                     r.weight = coalesce(r.weight, 1.0) + 1.0,
+                     r.weight = toFloat(size(coalesce(r.doc_ids, [])
+                         + CASE WHEN $docId IN r.doc_ids THEN [] ELSE [$docId] END)),
                      r.description = CASE WHEN size(coalesce(r.description, '')) >= size(rel.description)
                                           THEN r.description ELSE rel.description END
         """;
@@ -560,23 +597,35 @@ public class Neo4jGraphGateway implements GraphGateway {
         LIMIT $limit
         """;
 
-    /** 图路检索（种子 + 1 跳邻域展开，邻居贡献衰减 0.5） */
-    private static final String RETRIEVE_WITH_EXPANSION = """
+    /**
+     * 图路检索（种子 + 1 跳邻域展开，邻居贡献衰减 0.5）。
+     *
+     * <p>两处 v3.02 结构：① 关系模式由 {@link #retrievalCypher} 按展开方向注入
+     * （{@code %s}——仅三种编译期字面量，无外部输入拼接）；② 候选实体在 MENTIONS
+     * 反查前<b>排序 + 封顶</b>（{@code candidateLimit}）——种子 hop=0 恒排前故恒在，
+     * 只截断低贡献邻居，把 hub 实体（高连接度）的中间结果从「种子 × 全邻居」收敛为
+     * 有界集；排序含 {@code ent.id} 兜底键，保证同图同查询结果可复现。
+     * 计划实证（v3.00）：MENTIONS 展开 + 聚合原本整体落在最终 {@code Top(LIMIT)} 之前，
+     * 无早剪枝。
+     */
+    private static final String RETRIEVE_WITH_EXPANSION_TEMPLATE = """
         CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
         WHERE e.tenant_id = $tenantId AND score >= $threshold
         WITH e, score ORDER BY score DESC LIMIT $seedLimit
-        OPTIONAL MATCH (e)-[:RELATED_TO]-(n:Entity {tenant_id: $tenantId})
+        OPTIONAL MATCH (e)%s(n:Entity {tenant_id: $tenantId})
         WITH e, score, collect(DISTINCT n) AS neighbors
         UNWIND ([{ent: e, s: score, hop: 0}]
                 + [x IN neighbors | {ent: x, s: score * %f, hop: 1}]) AS cand
         WITH cand.ent AS ent, cand.s AS contrib, cand.hop AS hop
+        ORDER BY hop ASC, contrib DESC, ent.id ASC
+        LIMIT $candidateLimit
         MATCH (c:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(ent)
         WITH c, max(contrib) AS chunkScore, collect(DISTINCT ent.name)[0..5] AS entityNames,
              min(hop) AS hop
         RETURN c.id AS chunkId, c.doc_id AS docId, chunkScore, entityNames, hop
         ORDER BY chunkScore DESC, hop ASC
         LIMIT $limit
-        """.formatted(NEIGHBOR_DECAY);
+        """;
 
     /**
      * 空召回归因读数（v2.85）：同一过取窗口内「阈值内候选总数 / 其中本租户候选数」
@@ -602,12 +651,23 @@ public class Neo4jGraphGateway implements GraphGateway {
         RETURN entities, relations, count(c) AS chunkAnchors
         """;
 
-    /** 二跳实体链采样（多跳草稿材料）：a→b→c 链 + 链首/尾关联存活 chunk 反查 */
+    /**
+     * 二跳实体链采样（多跳草稿材料）：a→b→c 链 + 链首/尾关联存活 chunk 反查。
+     *
+     * <p><b>v3.02 有界 + 确定性</b>：先按 {@code a.id} 序有界采样链首（{@code seedLimit}）
+     * 再展开——原形态直接从租户全域实体枚举起（计划实证 {@code NodeIndexSeek c:Entity →
+     * Expand×2 → Distinct → Limit}，限额落在展开与去重之后），大租户/高连接度图下中间
+     * 结果无界；且无 {@code ORDER BY} 时 {@code LIMIT} 结果随执行计划漂移，出题材料不可
+     * 复现（eval 产物须可复现）。链三元组按 id 全序排序，同图同参输出恒定。
+     */
     private static final String SAMPLE_ENTITY_CHAINS = """
-        MATCH (a:Entity {tenant_id: $tenantId})-[:RELATED_TO]->(b:Entity {tenant_id: $tenantId})
+        MATCH (a:Entity {tenant_id: $tenantId})
+        WITH a ORDER BY a.id ASC LIMIT $seedLimit
+        MATCH (a)-[:RELATED_TO]->(b:Entity {tenant_id: $tenantId})
               -[:RELATED_TO]->(c:Entity {tenant_id: $tenantId})
         WHERE a.id <> c.id
         WITH DISTINCT a, b, c
+        ORDER BY a.id ASC, b.id ASC, c.id ASC
         LIMIT $limit
         OPTIONAL MATCH (ca:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(a)
         OPTIONAL MATCH (cc:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(c)

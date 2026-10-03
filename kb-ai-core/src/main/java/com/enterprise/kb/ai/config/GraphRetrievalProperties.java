@@ -1,5 +1,6 @@
 package com.enterprise.kb.ai.config;
 
+import com.enterprise.kb.infrastructure.graph.GraphRecords;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -35,4 +36,23 @@ public class GraphRetrievalProperties {
 
     /** 1 跳邻域展开开关（邻居贡献 = 种子分 × 0.5，衰减固定于网关实现） */
     private boolean expandNeighbors = true;
+
+    /**
+     * 邻域展开方向（v3.02，缺省 {@code BOTH} = 保持既有召回行为）。
+     *
+     * <p>图模型是<b>有向</b>的（抽取提示词产出 {@code WORKS_AT / PART_OF / DEPENDS_ON /
+     * PRODUCED_BY} 等方向性类型），而 1 跳展开是<b>召回机制</b>而非逻辑推理——缺省双向
+     * 以保召回，方向敏感场景（如"上级/下级"类语义）可切 {@code OUTGOING} / {@code INCOMING}，
+     * 以多跳集 A/B 实测定调。展开关闭（{@code expand-neighbors=false}）时本键被忽略。
+     */
+    private GraphRecords.ExpandDirection expandDirection = GraphRecords.ExpandDirection.BOTH;
+
+    /**
+     * 展开后候选实体总量上限（v3.02，缺省 100）：按 {@code hop ASC, 贡献分 DESC, id ASC}
+     * 排序截断——<b>种子恒在</b>（hop=0 恒排前），只截断低贡献邻居。原形态无早剪枝
+     * （计划实证：MENTIONS 展开与聚合整体落在最终 LIMIT 之前），高连接度 hub 实体
+     * 会使中间结果按「种子 × 全邻居」膨胀；本上限把中间集收敛为有界。
+     * 不得低于 {@code entity-top-n}（网关侧按种子数兜底）。
+     */
+    private int candidateLimit = 100;
 }

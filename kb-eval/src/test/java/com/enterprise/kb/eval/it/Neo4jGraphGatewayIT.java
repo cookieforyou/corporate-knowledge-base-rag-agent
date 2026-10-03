@@ -21,11 +21,16 @@ import org.testcontainers.neo4j.Neo4jContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static com.enterprise.kb.infrastructure.graph.GraphRecords.ExpandDirection.BOTH;
+import static com.enterprise.kb.infrastructure.graph.GraphRecords.ExpandDirection.INCOMING;
+import static com.enterprise.kb.infrastructure.graph.GraphRecords.ExpandDirection.NONE;
+import static com.enterprise.kb.infrastructure.graph.GraphRecords.ExpandDirection.OUTGOING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
@@ -93,6 +98,31 @@ class Neo4jGraphGatewayIT {
     private static final String REL_DESC_Y = GraphIds.entityId(REL_DESC_TENANT, "rel-desc-y", "CONCEPT");
     private static final String REL_DESC_LONG = "关系的长描述：桥接两个实体并说明方向、条件与生效范围";
 
+    /** 计数语义夹具（v3.02）：实体 E 跨片段/A/B 文档；关系 E→F 跨文档 */
+    private static final String CNT_TENANT = "t-counters";
+    private static final String CNT_DOC_A = "doc-cnt-a";
+    private static final String CNT_DOC_B = "doc-cnt-b";
+    private static final String CNT_CHUNK_A1 = "chunk-cnt-a1";
+    private static final String CNT_CHUNK_A2 = "chunk-cnt-a2";
+    private static final String CNT_CHUNK_B1 = "chunk-cnt-b1";
+    private static final String CNT_E = GraphIds.entityId(CNT_TENANT, "cnt-e", "CONCEPT");
+    private static final String CNT_F = GraphIds.entityId(CNT_TENANT, "cnt-f", "CONCEPT");
+
+    /** hub 夹具（v3.02）：种子 Z（轴向 40）+ 5 邻居（41-45）+ 二跳 m1（46，锚点软删） */
+    private static final String HUB_TENANT = "t-hub";
+    private static final String HUB_DOC = "doc-hub";
+    private static final String HUB_CHUNK_Z = "chunk-hub-z";
+    private static final String HUB_CHUNK_N1 = "chunk-hub-n1";
+    private static final String HUB_CHUNK_N2 = "chunk-hub-n2";
+    private static final String HUB_CHUNK_N3 = "chunk-hub-n3";
+    private static final String HUB_CHUNK_N4 = "chunk-hub-n4";
+    private static final String HUB_CHUNK_N5 = "chunk-hub-n5";
+    private static final String HUB_CHUNK_M1 = "chunk-hub-m1";
+    private static final List<String> HUB_NEIGHBOR_CHUNKS =
+        List.of(HUB_CHUNK_N1, HUB_CHUNK_N2, HUB_CHUNK_N3, HUB_CHUNK_N4, HUB_CHUNK_N5);
+    private static final String HUB_Z = GraphIds.entityId(HUB_TENANT, "hub-z", "CONCEPT");
+    private static final String HUB_M1 = GraphIds.entityId(HUB_TENANT, "hub-m1", "CONCEPT");
+
     /** 名额挤占夹具：本租户 1 个 0.995 分种子 vs 他租户 6 个 1.0 分候选；冷租户无任何图数据 */
     private static final String MINE_TENANT = "t-mine";
     private static final String NOISY_TENANT = "t-noisy";
@@ -158,7 +188,7 @@ class Neo4jGraphGatewayIT {
         List<GraphRecords.GraphChunkHit> hits = Awaitility.await()
             .atMost(Duration.ofSeconds(30))
             .pollInterval(Duration.ofMillis(500))
-            .until(() -> gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10),
+            .until(() -> gateway.retrieveChunks(TENANT, spec(QUERY_ALPHA, 5, 40, BOTH, 10)),
                    h -> h.size() == 2);
         assertThat(hits).hasSize(2);
         GraphRecords.GraphChunkHit seedHit = hits.get(0);
@@ -177,7 +207,7 @@ class Neo4jGraphGatewayIT {
     @Order(3)
     void seedsOnlyRetrievalSkipsNeighborChunks() {
         List<GraphRecords.GraphChunkHit> hits =
-            gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,false, 10);
+            gateway.retrieveChunks(TENANT, spec(QUERY_ALPHA, 5, 40, NONE, 10));
         assertThat(hits).hasSize(1);
         assertThat(hits.get(0).chunkId()).isEqualTo(CHUNK_1);
         assertThat(hits.get(0).hop()).isZero();
@@ -186,7 +216,7 @@ class Neo4jGraphGatewayIT {
     @Test
     @Order(4)
     void otherTenantRetrievesNothing() {
-        assertThat(gateway.retrieveChunks(OTHER_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10))
+        assertThat(gateway.retrieveChunks(OTHER_TENANT, spec(QUERY_ALPHA, 5, 40, BOTH, 10)))
             .as("跨租户读零触达（fail-closed 读路径）")
             .isEmpty();
         assertThat(gateway.countByTenant(OTHER_TENANT).entities()).isZero();
@@ -197,12 +227,12 @@ class Neo4jGraphGatewayIT {
     void softDeletedChunkExcludedAndRestorable() {
         gateway.setChunksDeleted(TENANT, List.of(CHUNK_1), true);
         List<GraphRecords.GraphChunkHit> hits =
-            gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10);
+            gateway.retrieveChunks(TENANT, spec(QUERY_ALPHA, 5, 40, BOTH, 10));
         assertThat(hits).extracting(GraphRecords.GraphChunkHit::chunkId)
             .as("软删锚点不参与图路检索")
             .doesNotContain(CHUNK_1);
         gateway.setChunksDeleted(TENANT, List.of(CHUNK_1), false);
-        assertThat(gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10))
+        assertThat(gateway.retrieveChunks(TENANT, spec(QUERY_ALPHA, 5, 40, BOTH, 10)))
             .extracting(GraphRecords.GraphChunkHit::chunkId)
             .as("恢复后重新可见")
             .contains(CHUNK_1);
@@ -211,7 +241,7 @@ class Neo4jGraphGatewayIT {
     @Test
     @Order(6)
     void chainSamplingYieldsTwoHopBridgeMaterial() {
-        List<GraphRecords.EntityChainSample> samples = gateway.sampleEntityChains(TENANT, 10);
+        List<GraphRecords.EntityChainSample> samples = gateway.sampleEntityChains(TENANT, 10, 40);
         assertThat(samples).hasSize(1);
         GraphRecords.EntityChainSample sample = samples.get(0);
         assertThat(sample.entityNames()).containsExactly(ALPHA, BETA, GAMMA);
@@ -279,20 +309,20 @@ class Neo4jGraphGatewayIT {
         gateway.replaceDocumentGraph(MINE_TENANT, MINE_DOC, mineChunks(), mineEntities(), List.of());
 
         Awaitility.await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(500))
-            .until(() -> gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD, false, 10),
+            .until(() -> gateway.retrieveChunks(MINE_TENANT, spec(QUERY_ALPHA, 5, 40, NONE, 10)),
                 hits -> hits.size() == 1);
 
-        assertThat(gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 5, SEED_THRESHOLD, false, 10))
+        assertThat(gateway.retrieveChunks(MINE_TENANT, spec(QUERY_ALPHA, 5, 5, NONE, 10)))
             .as("不过取（窗口 = 种子上限 5）名额被他租户占满 → 零召回（饿死复原）")
             .isEmpty();
-        assertThat(gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD, false, 10))
+        assertThat(gateway.retrieveChunks(MINE_TENANT, spec(QUERY_ALPHA, 5, 40, NONE, 10)))
             .as("过取 8 倍后本租户种子进入窗口 → chunk 反查命中")
             .singleElement()
             .satisfies(hit -> {
                 assertThat(hit.chunkId()).isEqualTo(MINE_CHUNK);
                 assertThat(hit.score()).as("0.995 分（0.99/0.14 夹角向量）").isCloseTo(0.995, within(0.005));
             });
-        assertThat(gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD, true, 10))
+        assertThat(gateway.retrieveChunks(MINE_TENANT, spec(QUERY_ALPHA, 5, 40, BOTH, 10)))
             .as("展开形态同样可达（无关系时邻居集为空，退化为种子自身）")
             .singleElement()
             .satisfies(hit -> assertThat(hit.hop()).isZero());
@@ -419,13 +449,133 @@ class Neo4jGraphGatewayIT {
         assertThat(after.chunkAnchors()).as("快失败：未落锚点").isEqualTo(before.chunkAnchors());
     }
 
+    // ── v2.85 批3 用例（计数语义 / 方向 / 候选封顶 / 锚点镜像 / 链采样确定性）──
+
+    /** 计数语义（v3.02）：mention_count = 去重片段数、weight = 关联文档数——重抽不累加 */
+    @Test
+    @Order(16)
+    void countersRecomputedAsDistinctChunkAndDocCounts() {
+        // 同文档重抽 3 次（reparse/重建触发）：原「ON MATCH +1」把计数记成写入次数
+        for (int i = 0; i < 3; i++) {
+            gateway.replaceDocumentGraph(CNT_TENANT, CNT_DOC_A,
+                cntChunks(CNT_CHUNK_A1, CNT_CHUNK_A2),
+                cntEntities(List.of(CNT_CHUNK_A1, CNT_CHUNK_A2), CNT_CHUNK_A1),
+                cntRelation(CNT_CHUNK_A1));
+        }
+
+        try (Session session = driver.session()) {
+            Record record = counters(session);
+            assertThat(record.get("mentionCount").asLong())
+                .as("重抽 3 次仍 = 去重片段数 2（原形态记 3）").isEqualTo(2L);
+            assertThat(record.get("weight").asDouble())
+                .as("单文档引用 = 1.0（原形态记 3.0）").isEqualTo(1.0);
+        }
+
+        // 第二个文档引用同一实体与关系：去重并集扩张
+        gateway.replaceDocumentGraph(CNT_TENANT, CNT_DOC_B, cntChunks(CNT_CHUNK_B1),
+            cntEntities(List.of(CNT_CHUNK_B1), null), cntRelation(CNT_CHUNK_B1));
+        gateway.replaceDocumentGraph(CNT_TENANT, CNT_DOC_B, cntChunks(CNT_CHUNK_B1),
+            cntEntities(List.of(CNT_CHUNK_B1), null), cntRelation(CNT_CHUNK_B1));
+
+        try (Session session = driver.session()) {
+            Record record = counters(session);
+            assertThat(record.get("mentionCount").asLong())
+                .as("三片段（A1/A2/B1）提及 = 3").isEqualTo(3L);
+            assertThat(record.get("weight").asDouble())
+                .as("两文档引用 = 2.0，重抽不累加").isEqualTo(2.0);
+        }
+    }
+
+    /** 展开方向可配（v3.02）：关系 Z→n1 下，OUTGOING 可达邻居、INCOMING 不可达、BOTH 可达 */
+    @Test
+    @Order(17)
+    void expansionDirectionIsExplicitAndConfigurable() {
+        gateway.replaceDocumentGraph(HUB_TENANT, HUB_DOC, hubChunks(), hubEntities(), hubRelations());
+
+        assertThat(gateway.retrieveChunks(HUB_TENANT, spec(unitVector(40), 5, 40, BOTH, 10)))
+            .as("双向：种子 + 1 跳邻居（模型有向，缺省保持既有召回行为）")
+            .extracting(GraphRecords.GraphChunkHit::chunkId)
+            .contains(HUB_CHUNK_Z, HUB_CHUNK_N1);
+        assertThat(gateway.retrieveChunks(HUB_TENANT, spec(unitVector(40), 5, 40, OUTGOING, 10)))
+            .as("出边：Z→n1 方向一致，可达").extracting(GraphRecords.GraphChunkHit::chunkId)
+            .contains(HUB_CHUNK_N1);
+        assertThat(gateway.retrieveChunks(HUB_TENANT, spec(unitVector(40), 5, 40, INCOMING, 10)))
+            .as("入边：无关系指向 Z，故仅种子自身（方向语义显式可辨）")
+            .extracting(GraphRecords.GraphChunkHit::chunkId)
+            .containsExactly(HUB_CHUNK_Z);
+        assertThat(gateway.retrieveChunks(HUB_TENANT, spec(unitVector(40), 5, 40, NONE, 10)))
+            .as("NONE：不展开，仅种子锚点").extracting(GraphRecords.GraphChunkHit::chunkId)
+            .containsExactly(HUB_CHUNK_Z);
+    }
+
+    /** 候选封顶（v3.02）：种子恒在，仅截断低贡献邻居（hop/贡献/id 全序，结果可复现） */
+    @Test
+    @Order(18)
+    void candidateLimitTruncatesLowContributionNeighborsButKeepsSeeds() {
+        // 种子上限取 1（只有一个实体过阈值）：候选上限 = 1 种子 + 2 邻居才可能在种子数之上生效
+        List<GraphRecords.GraphChunkHit> uncapped = gateway.retrieveChunks(HUB_TENANT,
+            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 100, 10));
+        assertThat(uncapped).as("不封顶：种子 + 5 邻居各带锚点 = 6 行").hasSize(6);
+
+        List<GraphRecords.GraphChunkHit> capped = gateway.retrieveChunks(HUB_TENANT,
+            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 3, 10));
+        assertThat(capped).as("候选上限 3 = 种子（hop 0 恒排前）+ 2 个邻居（网关侧按种子上限兜底）").hasSize(3);
+        assertThat(capped).extracting(GraphRecords.GraphChunkHit::chunkId)
+            .as("种子锚点恒在（封顶不得饿死 hop=0）").contains(HUB_CHUNK_Z);
+        long keptNeighbors = capped.stream()
+            .map(GraphRecords.GraphChunkHit::chunkId)
+            .filter(HUB_NEIGHBOR_CHUNKS::contains)
+            .count();
+        assertThat(keptNeighbors).as("恰好保留 2 个低贡献邻居（其余 3 个被截断）").isEqualTo(2);
+        assertThat(gateway.retrieveChunks(HUB_TENANT,
+            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 3, 10)))
+            .as("同参两次结果逐位一致（hop/贡献/id 全序兜底，不随计划漂移）").isEqualTo(capped);
+    }
+
+    /** 锚点镜像全量 chunk（v3.02）：软删锚点随写、图路按标记过滤、翻回即复活 */
+    @Test
+    @Order(19)
+    void anchorMirrorCarriesSoftDeletedFlagAndFiltersRetrieval() {
+        assertThat(gateway.countByTenant(HUB_TENANT).chunkAnchors())
+            .as("锚点镜像全量 chunk（含软删）：7 个").isEqualTo(7);
+
+        assertThat(gateway.retrieveChunks(HUB_TENANT, spec(unitVector(46), 5, 40, NONE, 10)))
+            .as("软删锚点不参与图路反查（m1 锚点以 is_deleted=true 落图）").isEmpty();
+
+        gateway.setChunksDeleted(HUB_TENANT, List.of(HUB_CHUNK_M1), false);
+        assertThat(gateway.retrieveChunks(HUB_TENANT, spec(unitVector(46), 5, 40, NONE, 10)))
+            .as("翻回即复活（锚点未因重抽取丢失——原形态软删期重抽取会永久失去锚点）")
+            .extracting(GraphRecords.GraphChunkHit::chunkId)
+            .contains(HUB_CHUNK_M1);
+    }
+
+    /** 链采样有界 + 确定性（v3.02）：同图同参两次采样一致且按 id 全序 */
+    @Test
+    @Order(20)
+    void chainSamplingIsDeterministicUnderSeedBound() {
+        List<GraphRecords.EntityChainSample> first = gateway.sampleEntityChains(HUB_TENANT, 10, 40);
+        List<GraphRecords.EntityChainSample> second = gateway.sampleEntityChains(HUB_TENANT, 10, 40);
+
+        assertThat(first).as("夹具：Z→n1→m1 一条二跳链").hasSize(1);
+        assertThat(first.get(0).entityNames()).containsExactly("hub-z", "hub-n1", "hub-m1");
+        assertThat(second).as("同参两次采样逐位一致（原形态 LIMIT 无 ORDER BY，随计划漂移）")
+            .isEqualTo(first);
+    }
+
     // ── 夹具 ──────────────────────────────────────────────────────────
+
+    /** 检索规格夹具（v3.02 参数对象化）：候选上限 100（种子恒在，不干扰既有断言） */
+    private static GraphRecords.GraphRetrievalSpec spec(float[] embedding, int topN, int fetchLimit,
+                                                        GraphRecords.ExpandDirection direction, int limit) {
+        return new GraphRecords.GraphRetrievalSpec(embedding, topN, fetchLimit, SEED_THRESHOLD,
+            direction, 100, limit);
+    }
 
     private static List<GraphRecords.ChunkAnchor> chunks() {
         return List.of(
-            new GraphRecords.ChunkAnchor(CHUNK_1, 0),
-            new GraphRecords.ChunkAnchor(CHUNK_2, 1),
-            new GraphRecords.ChunkAnchor(CHUNK_3, 2));
+            new GraphRecords.ChunkAnchor(CHUNK_1, 0, false),
+            new GraphRecords.ChunkAnchor(CHUNK_2, 1, false),
+            new GraphRecords.ChunkAnchor(CHUNK_3, 2, false));
     }
 
     private static List<GraphRecords.EntityWrite> entities() {
@@ -449,7 +599,7 @@ class Neo4jGraphGatewayIT {
     // ── v2.85 批1 夹具构造 ────────────────────────────────────────────
 
     private static List<GraphRecords.ChunkAnchor> gcChunks(String chunkId) {
-        return List.of(new GraphRecords.ChunkAnchor(chunkId, 0));
+        return List.of(new GraphRecords.ChunkAnchor(chunkId, 0, false));
     }
 
     /** 共享实体 X/Y（两文档各写一次）——向量取正交基（0.5 分，不参与种子竞争） */
@@ -476,7 +626,7 @@ class Neo4jGraphGatewayIT {
     }
 
     private static List<GraphRecords.ChunkAnchor> mineChunks() {
-        return List.of(new GraphRecords.ChunkAnchor(MINE_CHUNK, 0));
+        return List.of(new GraphRecords.ChunkAnchor(MINE_CHUNK, 0, false));
     }
 
     /** 本租户种子：0.995 分（刻意排在 1.0 分候选之后，不过取即不可见） */
@@ -496,7 +646,7 @@ class Neo4jGraphGatewayIT {
     // ── v2.85 批2 夹具构造 ────────────────────────────────────────────
 
     private static List<GraphRecords.ChunkAnchor> descChunks(String chunkId) {
-        return List.of(new GraphRecords.ChunkAnchor(chunkId, 0));
+        return List.of(new GraphRecords.ChunkAnchor(chunkId, 0, false));
     }
 
     private static List<GraphRecords.EntityWrite> descEntity(String description, float[] embedding,
@@ -510,6 +660,81 @@ class Neo4jGraphGatewayIT {
             "MATCH (e:Entity {id: $id}) RETURN e.description AS description, "
                 + "e.embedding AS embedding, e.doc_ids AS doc_ids",
             Map.of("id", DESC_ENTITY)).single();
+    }
+
+    // ── v2.85 批3 夹具构造 ────────────────────────────────────────────
+
+    private static List<GraphRecords.ChunkAnchor> cntChunks(String... chunkIds) {
+        List<GraphRecords.ChunkAnchor> anchors = new ArrayList<>();
+        for (int i = 0; i < chunkIds.length; i++) {
+            anchors.add(new GraphRecords.ChunkAnchor(chunkIds[i], i, false));
+        }
+        return anchors;
+    }
+
+    /** 实体 E（提及 eChunkIds）+ 可选实体 F（提及 fChunkId）——关系 E→F 的两端 */
+    private static List<GraphRecords.EntityWrite> cntEntities(List<String> eChunkIds, String fChunkId) {
+        List<GraphRecords.EntityWrite> entities = new ArrayList<>();
+        entities.add(new GraphRecords.EntityWrite(CNT_E, "cnt-e", "CONCEPT", "计数夹具 E",
+            unitVector(50), eChunkIds));
+        if (fChunkId != null) {
+            entities.add(new GraphRecords.EntityWrite(CNT_F, "cnt-f", "CONCEPT", "计数夹具 F",
+                unitVector(51), List.of(fChunkId)));
+        }
+        return entities;
+    }
+
+    private static List<GraphRecords.RelationWrite> cntRelation(String chunkId) {
+        return List.of(new GraphRecords.RelationWrite(CNT_E, CNT_F, "RELATED",
+            "计数夹具关系", List.of(chunkId)));
+    }
+
+    private static Record counters(Session session) {
+        return session.run(
+            "MATCH (e:Entity {id: $e}) WITH e.mention_count AS mentionCount "
+                + "MATCH (:Entity {id: $e})-[r:RELATED_TO]->(:Entity {id: $f}) "
+                + "RETURN mentionCount, r.weight AS weight",
+            Map.of("e", CNT_E, "f", CNT_F)).single();
+    }
+
+    private static List<GraphRecords.ChunkAnchor> hubChunks() {
+        List<GraphRecords.ChunkAnchor> anchors = new ArrayList<>();
+        anchors.add(new GraphRecords.ChunkAnchor(HUB_CHUNK_Z, 0, false));
+        for (int i = 0; i < HUB_NEIGHBOR_CHUNKS.size(); i++) {
+            anchors.add(new GraphRecords.ChunkAnchor(HUB_NEIGHBOR_CHUNKS.get(i), i + 1, false));
+        }
+        anchors.add(new GraphRecords.ChunkAnchor(HUB_CHUNK_M1, 6, true));   // 软删锚点随写
+        return anchors;
+    }
+
+    private static List<GraphRecords.EntityWrite> hubEntities() {
+        List<GraphRecords.EntityWrite> entities = new ArrayList<>();
+        entities.add(new GraphRecords.EntityWrite(HUB_Z, "hub-z", "CONCEPT", "hub 种子",
+            unitVector(40), List.of(HUB_CHUNK_Z)));
+        for (int i = 0; i < HUB_NEIGHBOR_CHUNKS.size(); i++) {
+            entities.add(new GraphRecords.EntityWrite(hubNeighborId(i + 1), "hub-n" + (i + 1),
+                "CONCEPT", "hub 邻居 " + (i + 1), unitVector(41 + i),
+                List.of(HUB_NEIGHBOR_CHUNKS.get(i))));
+        }
+        entities.add(new GraphRecords.EntityWrite(HUB_M1, "hub-m1", "CONCEPT", "hub 二跳链尾",
+            unitVector(46), List.of(HUB_CHUNK_M1)));
+        return entities;
+    }
+
+    /** 关系 Z→n1..n5（seed 出边）+ n1→m1（二跳链）；链采样素材 */
+    private static List<GraphRecords.RelationWrite> hubRelations() {
+        List<GraphRecords.RelationWrite> relations = new ArrayList<>();
+        for (int i = 0; i < HUB_NEIGHBOR_CHUNKS.size(); i++) {
+            relations.add(new GraphRecords.RelationWrite(HUB_Z, hubNeighborId(i + 1), "RELATED",
+                "hub 出边 " + (i + 1), List.of(HUB_CHUNK_Z)));
+        }
+        relations.add(new GraphRecords.RelationWrite(hubNeighborId(1), HUB_M1, "RELATED",
+            "hub 二跳边", List.of(HUB_CHUNK_N1)));
+        return relations;
+    }
+
+    private static String hubNeighborId(int index) {
+        return GraphIds.entityId(HUB_TENANT, "hub-n" + index, "CONCEPT");
     }
 
     private static List<GraphRecords.EntityWrite> relDescEntities(String chunkId) {
