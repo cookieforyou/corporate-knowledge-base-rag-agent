@@ -598,13 +598,15 @@ rag:
       window-chars: ${RAG_GRAPH_EXTRACTION_WINDOW_CHARS:1500}  # 上下文窗口字符数
       max-chunk-chars: ${RAG_GRAPH_EXTRACTION_MAX_CHUNK_CHARS:1500}  # 单 chunk 截断阈值
 
-    # 检索配置
+    # 检索配置（落码实况：hops/decay 未做成配置键——跳数恒 1、衰减恒 0.5 钉在网关实现内）
     retrieval:
-      entity-top-n: ${RAG_GRAPH_ENTITY_TOP_N:5}              # 向量索引实体匹配 topN
+      entity-top-n: ${RAG_GRAPH_ENTITY_TOP_N:5}              # 种子实体上限（租户过滤后封顶）
+      entity-over-fetch: ${RAG_GRAPH_ENTITY_OVER_FETCH:8}    # 索引过取倍数（v3.00 跨租户饿死修复）
       entity-similarity-threshold: ${RAG_GRAPH_ENTITY_SIMILARITY_THRESHOLD:0.7}
-      hops: ${RAG_GRAPH_HOPS:1}                               # 邻域展开跳数
-      decay: ${RAG_GRAPH_DECAY:0.5}                            # 展开衰减系数
-      path-timeout-seconds: ${RAG_GRAPH_PATH_TIMEOUT_SECONDS:5}  # 单路超时（与双路同口径）
+      expand-neighbors: ${RAG_GRAPH_EXPAND_NEIGHBORS:true}   # 1 跳邻域展开开关
+      expand-direction: ${RAG_GRAPH_EXPAND_DIRECTION:BOTH}   # 展开方向（v3.02）
+      candidate-limit: ${RAG_GRAPH_CANDIDATE_LIMIT:100}      # 候选封顶（v3.02）
+      # path-timeout 走 rag.retrieval.path-timeout-seconds（与双路同口径，不设独立键）
 ```
 
 ### 7.2 `spring.neo4j.*`（kb-infrastructure Neo4jProperties）
