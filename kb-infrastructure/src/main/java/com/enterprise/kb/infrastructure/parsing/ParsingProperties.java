@@ -22,7 +22,7 @@ public class ParsingProperties {
     private String provider = "docmind";
 
     /** PDF 默认走 DEEP；false 时仅低文本密度扫描件走 OCR、常规 PDF 走 NATIVE */
-    private boolean deepByDefault = false;
+    private boolean deepByDefault = true;
 
     private final Docmind docmind = new Docmind();
     private final QwenOcr qwenOcr = new QwenOcr();
