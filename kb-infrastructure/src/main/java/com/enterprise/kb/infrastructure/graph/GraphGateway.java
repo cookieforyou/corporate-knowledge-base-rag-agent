@@ -64,7 +64,9 @@ public interface GraphGateway {
      *
      * <p><b>候选封顶与展开方向</b>（v3.02）：展开后候选实体按
      * {@code hop ASC, 贡献分 DESC, 实体 id ASC} 排序并截断至 {@code candidateLimit}
-     * （种子恒在——hop=0 恒排前），把 hub 实体的中间结果收敛为有界集；
+     * （种子恒在——hop=0 恒排前），使 <b>MENTIONS 反查前的候选实体集有界</b>
+     * （注意作用域：候选之前的**邻域收集** `OPTIONAL MATCH + collect` 仍与种子度数成正比
+     * ——超大度数场景需另按度采样，属后续项，勿把本上限当全链路有界保证）；
      * 展开方向由 {@link GraphRecords.ExpandDirection} 显式指定（模型有向，
      * 缺省双向保持既有召回行为）。
      *

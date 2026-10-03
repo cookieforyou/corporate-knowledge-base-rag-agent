@@ -51,7 +51,8 @@ public class GraphRetrievalProperties {
      * 展开后候选实体总量上限（v3.02，缺省 100）：按 {@code hop ASC, 贡献分 DESC, id ASC}
      * 排序截断——<b>种子恒在</b>（hop=0 恒排前），只截断低贡献邻居。原形态无早剪枝
      * （计划实证：MENTIONS 展开与聚合整体落在最终 LIMIT 之前），高连接度 hub 实体
-     * 会使中间结果按「种子 × 全邻居」膨胀；本上限把中间集收敛为有界。
+     * 会使中间结果按「种子 × 全邻居」膨胀；本上限使 MENTIONS 反查前的候选集有界
+     * （作用域：候选之前的邻域收集仍与度数成正比——超大度数需另按度采样，属后续项）。
      * 不得低于 {@code entity-top-n}（网关侧按种子数兜底）。
      */
     private int candidateLimit = 100;
