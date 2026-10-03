@@ -4,6 +4,9 @@ spring:
     import:
       - classpath:application-infra.yml   # PG/ES/Redis/MinIO/向量库（来自 kb-infrastructure jar）
       - classpath:application-ai.yml      # DeepSeek + Embedding（来自 kb-ai-core jar）
+      # 必须最后导入：导入源优先级高于本文件，工具形态要覆盖的键（flyway.enabled /
+      # 记忆仓储 initialize-schema）只能放在**更靠后的导入源**里才生效（详见该文件注释）
+      - classpath:application-eval-tooling.yml
   application:
     name: kb-eval
   main:
@@ -12,20 +15,9 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-  # Flyway（Phase4簇⑥ 4.11）：eval 为度量工具，不参与 schema 迁移——显式关闭，
-  # 防评估进程启动即向目标库写 baseline 登记（迁移权归 kb-api 运行时）；
-  # IT 形态经 AbstractAdvisorChainIT 显式重开，作 baseline 路径回归保险
-  flyway:
-    enabled: false
-  ai:
-    chat:
-      memory:
-        repository:
-          redis:
-            # 3.1：评估进程不依赖 Redis——关闭启动期 FT.CREATE（Jedis 惰性建连，
-            # 记忆 Bean 存在但被测 chatClient 链无记忆 Advisor，全程不触碰）
-            # 前缀 2.0.1 迁移：chat.memory.redis → chat.memory.repository.redis
-            initialize-schema: false
+  # Flyway 与记忆仓储的两个工具形态覆盖**不写在这里**（写了也不生效：被导入源遮蔽）——
+  # 见 application-eval-tooling.yml（import 列表末项）。IT 形态经 AbstractAdvisorChainIT
+  # 显式重开 Flyway，作 baseline 路径回归保险。
 
 # ── 评估配置（阈值表对应设计文档 16.4，Phase 2 建基线期从宽）──
 eval:

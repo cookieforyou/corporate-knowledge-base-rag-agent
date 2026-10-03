@@ -1,0 +1,22 @@
+# kb-eval 工具形态强制覆盖（**必须作为 spring.config.import 的最后一项**）
+#
+# 为何需要这个文件：`spring.config.import` 的**导入源优先级高于导入者自身的
+# application.yml**，且多项导入时后者优先——故 application-infra.yml / application-ai.yml
+# 里为**生产链路**设定的值会静默遮蔽 kb-eval application.yml 里的同键覆盖
+# （2026-10-03 E2E 实证：kb-eval 连 localhost:6379 做 FT.CREATE 失败 + Flyway 进入
+#  migrate 模式，与「评估进程不依赖 Redis」「eval 不参与 schema 迁移」两条设计声明相悖）。
+#
+# 纪律：kb-eval 需要覆盖任何**同时存在于 application-infra.yml / application-ai.yml**
+# 的键时，一律写在本文件（并追加到 import 列表末尾），不要写在 application.yml。
+spring:
+  # 迁移权归 kb-api 运行时：eval 进程禁跑 Flyway（防向目标库写 baseline 登记 / 应用待跑迁移）
+  flyway:
+    enabled: false
+  ai:
+    chat:
+      memory:
+        repository:
+          redis:
+            # 评估进程不依赖 Redis：禁启动期 FT.CREATE（Jedis 惰性建连，记忆 Bean 存在但
+            # 被测 chatClient 链无记忆 Advisor，全程不触碰）
+            initialize-schema: false
