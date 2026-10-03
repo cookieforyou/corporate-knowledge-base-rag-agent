@@ -67,8 +67,13 @@ public class RedisGraphBackfillStore {
             "total", String.valueOf(total),
             "startedAt", LocalDateTime.now().toString()));
         state.expire(taskTtl);
-        counter(tenantId, "succeeded").set(0);
-        counter(tenantId, "failed").set(0);
+        // v3.04 修复（同 RedisRebuildTaskStore）：计数键在此首次建键，必须建键后挂 TTL——
+        // 原形态「set(0) 后再无 expire」使两枚计数键无 TTL 永久驻留（按前缀清理不存在于本 store）
+        for (String name : new String[]{"succeeded", "failed"}) {
+            RAtomicLong cnt = counter(tenantId, name);
+            cnt.set(0);
+            cnt.expire(taskTtl);
+        }
         return true;
     }
 

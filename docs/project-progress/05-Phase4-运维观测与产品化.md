@@ -25,6 +25,17 @@
 | 4.13 | 运维手册 + API 文档 + 用户使用手册 | 文档 | 2d | 完整文档交付 | ✅ 2026-08-22 Phase4簇⑦ 批3（用户定案落 `docs/delivery/` 新建）。三件套 + 目录导航：**运维手册**（部署拓扑/资产清单/环境变量族/首次部署·升级·CDS/备份恢复/监控告警 14 条速查/故障处置表/安全运维要点/99.5% 例行自检——事实源 17 章 §17.3-17.5 + 用户侧清单交叉引用）+ **API 文档**（通用约定：JWT 认证与 IDENTITY_INCOMPLETE 守卫/ApiResponse 包裹/全局错误码表 14 项/请求体限制；业务 8 组 18 端点 + 运维后台 4 组 17 端点全契约；SSE 帧协议三类命名帧；WS 进度实证形态 ?token= 握手；MCP 三工具集成要点；actuator 四项暴露面）+ **用户使用手册**（登录/五页面角色分层/溯源对话·审批卡片·反馈闭环/文档管理含 4.14 新格式/检索调试/Chunk 观测/运维中心五 Tab 工作流/FAQ）。素材采集实证：两路代理 + 源码直读交叉核验（WS 路径 /ws/etl/progress?token=&docId= 源码实证修正；Admin 五 Tab 与导航逐项核对）。**用户侧评审回传通过（2026-08-22）：无修订意见，4.13 验收达成 → Phase 4 全阶段收官** |
 | 4.14 | PPT/Excel 格式支持（白名单扩容 + Tika 解析 + E2E） | kb-api/kb-etl | 0.5d | 新格式上传入库 E2E | ✅ 2026-08-22 Phase4簇⑦ 批1（v2.60：用户定案仅收 OOXML 新格式 +PPTX/XLSX 两类 MIME；extractFileType 映射 PPTX/XLSX；解析面零改动实证——SmartParsingRouter 仅 `.pdf` 分叉，非 PDF → NATIVE Tika，tika-parser-microsoft-module 3.3.1 + poi-ooxml 5.5.1 编译域核验在列；前端三处 accept 与格式提示同步（Documents 上传/替换 + Chat 附件）；DocumentServiceTest +11 白名单与映射单测（含旧格式 .ppt/.xls/.doc 拒绝面）；kb-api -am 110 绿 + 前端构建绿）。**用户侧 E2E 回传通过（2026-08-22）：两格式上传入库 → 检索命中全链无异常，4.14 验收达成** |
 
+> **4.5 补记（2026-10-03，Phase5簇④ 收尾热修）——重建任务表 TTL 惰性建键漏挂（真缺陷）+ kb-admin IT 入门禁**：
+> 任务表「TTL 挂全部任务键」在**计数键与明细列表键**上静默失效（Redis 空列表不存在、计数键由
+> `INCR` 建，登记期 `EXPIRE` 对不存在键是 no-op）→ 每任务 4 枚键无 TTL 永久驻留，仅靠每租户 20 条
+> FIFO 淘汰的按前缀清理兜底；`RedisGraphBackfillStore` 同源（计数键 `set(0)` 后未挂 TTL）。
+> 治法 = 计数键登记期 `set(0)` 建键再挂 TTL + 明细列表键首次写入后按状态键剩余寿命对齐
+> （`alignTtlWithState`，全键同刻过期）。**发现路径即纪律教训**：kb-admin `RedisRebuildTaskStoreIT`
+> 从未进过门禁（门禁只跑 `-pl kb-eval -am`）——IT 入闸后首跑即失败（`remainTimeToLive() = -2L`），
+> 该 IT 的自身缺陷同批修（裸检视默认 `Kryo5Codec` 与 store 的 `StringCodec` 混用 → 解码层
+> `Encountered unregistered class ID: 95`）。**门禁扩为 `mvn verify -pl kb-eval,kb-admin -am`**
+> （15 章 v2.61 / 14 章 v2.38 / 用户清单同步），确立「有 IT 的模块必须入门禁」。
+
 ### 交付物
 
 - [ ] LLM 全链路观测（Langfuse Cloud + Grafana 四面板 + 告警规则）

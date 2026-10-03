@@ -7,7 +7,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.redisson.Redisson;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RDeque;
+import org.redisson.api.RList;
+import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
 import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -24,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 /**
  * RedisRebuildTaskStore 真 Redis 集成测试（v2.36）——任务表 Redis 形态回归锚点：
@@ -164,26 +170,72 @@ class RedisRebuildTaskStoreIT {
         assertThat(store.find(taskIds.get(taskIds.size() - 1), "t-1")).isPresent();
     }
 
+    /**
+     * TTL 挂全键（v3.04 修复回归锚点）：登记后状态键 / 三枚计数键 / 租户索引键即带 TTL；
+     * 明细列表键**首次写入后**带 TTL。原形态计数键与明细列表键是惰性建键（EXPIRE 对不存在
+     * 键是 no-op），4 枚键无 TTL 永久驻留——本用例是其唯一发现者。
+     */
     @Test
     void ttlAppliedToTaskKeys() {
         store.create("t-1", "task-ttl", 1, List.of());
 
-        assertThat(redisson.getMap("rag:rebuild-task:task-ttl").remainTimeToLive()).isPositive();
-        assertThat(redisson.getAtomicLong("rag:rebuild-task:task-ttl:cnt:succeeded")
-            .remainTimeToLive()).isPositive();
-        assertThat(redisson.getDeque("rag:rebuild-tasks:t-1").remainTimeToLive()).isPositive();
+        assertThat(stateMap("task-ttl").remainTimeToLive()).isPositive();
+        assertThat(counter("task-ttl", "succeeded").remainTimeToLive()).isPositive();
+        assertThat(counter("task-ttl", "failed").remainTimeToLive()).isPositive();
+        assertThat(counter("task-ttl", "skipped").remainTimeToLive()).isPositive();
+        assertThat(indexDeque("t-1").remainTimeToLive()).isPositive();
+
+        // 计数键自增后仍带 TTL；明细列表键首次写入后按状态键剩余寿命对齐（不得为 -1 无 TTL）
+        store.recordSuccess("task-ttl");
+        store.recordFailure("task-ttl", "d-a", "重入库异常");
+        assertThat(counter("task-ttl", "succeeded").remainTimeToLive()).isPositive();
+        assertThat(counter("task-ttl", "failed").remainTimeToLive()).isPositive();
+        assertThat(failuresList("task-ttl").remainTimeToLive()).isPositive();
+        // 明细列表寿命与状态键对齐（同刻过期语义；两次读数间 TTL 自然递减，容差 2s）
+        assertThat(failuresList("task-ttl").remainTimeToLive())
+            .isCloseTo(stateMap("task-ttl").remainTimeToLive(), within(2_000L));
+    }
+
+    /** 登记即带初始跳过明细时，明细列表键同样必须挂上 TTL（create 路径的第 4 枚惰性键） */
+    @Test
+    void initialSkippedFailuresListCarriesTtl() {
+        store.create("t-1", "task-skip", 2,
+            List.of(new FailureView("d-x", "文档处理中，不可重入库（PARSING）")));
+
+        assertThat(failuresList("task-skip").remainTimeToLive()).isPositive();
+        assertThat(store.find("task-skip", "t-1").orElseThrow().skipped()).isEqualTo(1);
     }
 
     @Test
     void staleIndexEntriesCleanedOnList() {
         store.create("t-1", "alive", 1, List.of());
-        // 模拟 TTL 过期残留：索引有条目而任务键已失效
-        redisson.getDeque("rag:rebuild-tasks:t-1").addLast("ghost-" + UUID.randomUUID());
+        // 模拟 TTL 过期残留：索引有条目而任务键已失效。裸检视必须用 store 同款 StringCodec
+        // （v3.04 修 IT 自身缺陷：默认 codec 为 Kryo5Codec，混用会以
+        // 「Encountered unregistered class ID」炸在解码而非断言上）
+        String ghost = "ghost-" + UUID.randomUUID();
+        indexDeque("t-1").addLast(ghost);
 
         List<RebuildTaskView> views = store.listByTenant("t-1");
 
         assertThat(views).extracting(RebuildTaskView::taskId).containsExactly("alive");
-        assertThat(redisson.getDeque("rag:rebuild-tasks:t-1").readAll())
-            .containsExactly("alive");
+        assertThat(indexDeque("t-1").readAll()).containsExactly("alive");
+    }
+
+    // ── 裸检视助手（与 store 同 codec，否则解码层即炸） ──
+
+    private static RMap<String, String> stateMap(String taskId) {
+        return redisson.getMap("rag:rebuild-task:" + taskId, StringCodec.INSTANCE);
+    }
+
+    private static RAtomicLong counter(String taskId, String name) {
+        return redisson.getAtomicLong("rag:rebuild-task:" + taskId + ":cnt:" + name);
+    }
+
+    private static RList<String> failuresList(String taskId) {
+        return redisson.getList("rag:rebuild-task:" + taskId + ":failures", StringCodec.INSTANCE);
+    }
+
+    private static RDeque<String> indexDeque(String tenantId) {
+        return redisson.getDeque("rag:rebuild-tasks:" + tenantId, StringCodec.INSTANCE);
     }
 }

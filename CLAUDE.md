@@ -101,7 +101,7 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（actuator 白名单 permitAll，/api/** authenticated，其余 denyAll，无状态）；**运维面三层分级（§12.12）**：isAdmin → ROLE_ADMIN，owner=built-in 超管追加 ROLE_SUPER_ADMIN 独占 guardrail 运维端点；`/api/v1/admin/**` hasRole(ADMIN) + 治理写 @PreAuthorize；统计/上传/列表全员；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
 - 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆（占位符桥接）共消费**不可移除**；**Neo4j**（Phase5簇④）`spring.neo4j.*` 手工装配 Driver 受 `rag.graph.enabled` 门控；生产 `bolt+s://` 经 nginx `stream` 块 L4 TLS 终结（坑位㊱）+ 出借前探活（坑位㊴）
-- 测试：全模块单测绿 + kb-eval 46 Testcontainers IT（含 Neo4j 网关真跑 IT，镜像钉生产同版本 5.26.29；`mvn verify -pl kb-eval -am`，Docker 必需，无则 -DskipITs）
+- 测试：全模块单测绿 + Testcontainers IT 两宿主入门禁（kb-eval 60 含 Neo4j 网关真跑 23 例钉 5.26.29；kb-admin 8 真 Redis）——`mvn verify -pl kb-eval,kb-admin -am`，Docker 必需，无则 -DskipITs
 
 ## 注意事项
 

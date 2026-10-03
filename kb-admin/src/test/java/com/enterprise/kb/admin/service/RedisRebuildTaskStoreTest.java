@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 /**
  * RedisRebuildTaskStore 单测（v2.36）——Redisson 经 mock 隔离：
  * fail-closed/fail-open 语义、跨租户隐藏、FIFO 淘汰、过期残留清理、键布局。
- * 真实 Redis 回归（原子计数并发/明细保序/TTL）见 kb-eval RedisRebuildTaskStoreIT。
+ * 真实 Redis 回归（原子计数并发/明细保序/TTL 挂全键）见同包 RedisRebuildTaskStoreIT。
  */
 class RedisRebuildTaskStoreTest {
 

@@ -7,6 +7,7 @@ import com.enterprise.kb.commons.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RAtomicLong;
 import org.redisson.api.RDeque;
+import org.redisson.api.RExpirable;
 import org.redisson.api.RList;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
@@ -46,6 +47,12 @@ import java.util.Optional;
  * 存储形态取字符串键值（任意 Redisson codec 均安全，同 ToolApprovalService
  * 纪律，StringCodec 显式钉死免默认 codec 漂移）；TTL
  * {@code rag.admin.rebuild.task-ttl-hours}（默认 24h）挂全部任务键。
+ *
+ * <p><b>TTL 挂全键（v3.04 修复）</b>：计数键与明细列表键是<b>惰性创建</b>的（Redis 中
+ * 空列表不存在、计数键由 INCR 建），故登记期的 {@code EXPIRE} 对它们静默失效——
+ * 已改为计数键登记期 {@code set(0)} 建键后挂 TTL、明细列表首次写入后按状态键剩余寿命
+ * 对齐（{@link #alignTtlWithState}）。原形态每任务泄漏 4 个无 TTL 键，仅靠 FIFO
+ * 淘汰的按前缀清理兜底（kb-admin IT {@code ttlAppliedToTaskKeys} 实证）。
  *
  * <p><b>Redis 故障语义</b>：create / find / list fail-closed 抛
  * {@code REBUILD_STORE_UNAVAILABLE}（任务不可无表启动；状态不可读不谎报）；
@@ -87,13 +94,18 @@ public class RedisRebuildTaskStore implements RebuildTaskStore {
                 "startedAt", LocalDateTime.now().toString()));
             state.expire(taskTtl);
             for (String name : new String[]{"succeeded", "failed", "skipped"}) {
-                counter(taskId, name).expire(taskTtl);
+                // v3.04 修复（kb-admin IT 挖出）：EXPIRE 对**尚不存在**的键是 no-op，而计数键
+                // 由 INCR 惰性创建 → 原形态「挂 TTL」静默失效，计数键永久驻留（每任务 3 个 +
+                // 明细列表 1 个，仅靠 FIFO 淘汰兜底）。故先 set(0) 显式建键再挂 TTL。
+                RAtomicLong cnt = counter(taskId, name);
+                cnt.set(0);
+                cnt.expire(taskTtl);
             }
             RList<String> failures = failuresList(taskId);
-            failures.expire(taskTtl);
             if (!initialSkipped.isEmpty()) {
                 failures.addAll(initialSkipped.stream().map(this::toJson).toList());
                 counter(taskId, "skipped").addAndGet(initialSkipped.size());
+                alignTtlWithState(taskId, failures);
             }
             RDeque<String> index = indexDeque(tenantId);
             index.addLast(taskId);
@@ -124,7 +136,9 @@ public class RedisRebuildTaskStore implements RebuildTaskStore {
     public void recordFailure(String taskId, String docId, String reason) {
         try {
             counter(taskId, "failed").incrementAndGet();
-            failuresList(taskId).add(toJson(new FailureView(docId, reason)));
+            RList<String> failures = failuresList(taskId);
+            failures.add(toJson(new FailureView(docId, reason)));
+            alignTtlWithState(taskId, failures);   // 首次写入才建键（空列表在 Redis 中不存在）
         } catch (Exception e) {
             log.warn("重建任务失败明细写入失败（不阻断）: taskId={}, {}", taskId, e.getMessage());
         }
@@ -134,7 +148,9 @@ public class RedisRebuildTaskStore implements RebuildTaskStore {
     public void recordSkipped(String taskId, String docId, String reason) {
         try {
             counter(taskId, "skipped").incrementAndGet();
-            failuresList(taskId).add(toJson(new FailureView(docId, reason)));
+            RList<String> failures = failuresList(taskId);
+            failures.add(toJson(new FailureView(docId, reason)));
+            alignTtlWithState(taskId, failures);
         } catch (Exception e) {
             log.warn("重建任务跳过明细写入失败（不阻断）: taskId={}, {}", taskId, e.getMessage());
         }
@@ -221,6 +237,21 @@ public class RedisRebuildTaskStore implements RebuildTaskStore {
             redissonClient.getKeys().deleteByPattern(TASK_KEY_PREFIX + taskId + "*");
         } catch (Exception e) {
             log.warn("淘汰任务键清理失败（TTL 兜底）: taskId={}, {}", taskId, e.getMessage());
+        }
+    }
+
+    /**
+     * 惰性建键后的 TTL 对齐（v3.04 修复，kb-admin IT 挖出）：Redis 里空列表与未自增的
+     * 计数键**并不存在**，登记期 {@code EXPIRE} 对不存在键是 no-op——首次写入后必须补挂，
+     * 否则该键无 TTL 永久驻留（只有 FIFO 淘汰的按前缀清理兜底）。寿命取<b>状态键剩余
+     * TTL</b>，使任务全部键同刻过期（状态键 = 任务寿命单一事实源）；状态键已过期
+     * （在途写入撞上 TTL 残留）时回落一个完整 TTL，保证任何路径都不留无 TTL 的键。
+     */
+    private void alignTtlWithState(String taskId, RExpirable... keys) {
+        long remaining = stateMap(taskId).remainTimeToLive();
+        Duration ttl = remaining > 0 ? Duration.ofMillis(remaining) : taskTtl;
+        for (RExpirable key : keys) {
+            key.expire(ttl);
         }
     }
 
