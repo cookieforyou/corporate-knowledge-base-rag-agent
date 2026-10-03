@@ -3,20 +3,19 @@
 # 为何需要这个文件：`spring.config.import` 的**导入源优先级高于导入者自身的
 # application.yml**，且多项导入时后者优先——故 application-infra.yml / application-ai.yml
 # 里为**生产链路**设定的值会静默遮蔽 kb-eval application.yml 里的同键覆盖
-# （2026-10-03 E2E 实证：kb-eval 连 localhost:6379 做 FT.CREATE 失败 + Flyway 进入
-#  migrate 模式，与「评估进程不依赖 Redis」「eval 不参与 schema 迁移」两条设计声明相悖）。
+# （2026-10-03 E2E 实证：kb-eval 启动即进入 Flyway migrate 模式，与「eval 不参与 schema
+# 迁移、迁移权归 kb-api 运行时」的设计声明相悖；本次实测恰好无待跑迁移故零写入）。
 #
 # 纪律：kb-eval 需要覆盖任何**同时存在于 application-infra.yml / application-ai.yml**
 # 的键时，一律写在本文件（并追加到 import 列表末尾），不要写在 application.yml。
 spring:
-  # 迁移权归 kb-api 运行时：eval 进程禁跑 Flyway（防向目标库写 baseline 登记 / 应用待跑迁移）
+  # 迁移权归 kb-api 运行时：eval 进程禁跑 Flyway（防向目标库写 baseline 登记 / 应用待跑迁移）。
+  # IT 形态需要 Flyway 时经 @TestPropertySource / @DynamicPropertySource 重开——测试属性源
+  # 优先级高于配置数据导入，故本覆盖不影响 IT（AbstractAdvisorChainIT 的 baseline 回归保险）。
   flyway:
     enabled: false
-  ai:
-    chat:
-      memory:
-        repository:
-          redis:
-            # 评估进程不依赖 Redis：禁启动期 FT.CREATE（Jedis 惰性建连，记忆 Bean 存在但
-            # 被测 chatClient 链无记忆 Advisor，全程不触碰）
-            initialize-schema: false
+
+# 注意：**记忆仓储 initialize-schema 不在此处关闭**（曾试，实测挂 MultiTurnMemoryIT 2 例：
+# 该 IT 依赖真 Redis 上由仓储自建的记忆索引）。评估进程本就无法完全摆脱 Redis——Redisson
+# 自动装配在启动期强连（实测：连不上即 UnsatisfiedDependencyException 启动失败），故正确
+# 做法是「把 REDIS_* 指向一次性本地容器」而非关闭 schema 初始化（详见 16 章 v3.00 与本机运行配方）。

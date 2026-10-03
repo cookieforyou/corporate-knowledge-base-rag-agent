@@ -15,9 +15,11 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-  # Flyway 与记忆仓储的两个工具形态覆盖**不写在这里**（写了也不生效：被导入源遮蔽）——
+  # Flyway 的工具形态覆盖**不写在这里**（写了也不生效：被导入源遮蔽）——
   # 见 application-eval-tooling.yml（import 列表末项）。IT 形态经 AbstractAdvisorChainIT
   # 显式重开 Flyway，作 baseline 路径回归保险。
+  # 记忆仓储 initialize-schema 亦不在工具形态关闭：评估进程本就需要一个可达的 Redis
+  # （Redisson 启动期强连），正确做法是把 REDIS_* 指向一次性本地容器（16 章 v3.00 配方）。
 
 # ── 评估配置（阈值表对应设计文档 16.4，Phase 2 建基线期从宽）──
 eval:
