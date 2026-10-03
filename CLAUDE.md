@@ -57,7 +57,7 @@ kb-rag-agent/
 
 **语义缓存（Phase5簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索经 Redisson RSearch 零新增依赖（租户隔离 + KNN 0.95 + docIds TAG 失效反查接四处写路径）；指标 `rag.retrieval.cache.*`；§11.9/11.10
 
-**GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态条件装配缺位，双路零变化）。图 = Neo4j Community（第二台 ECS 独占，原生驱动手工装配）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫**实体段/关系段两条独立语句**——串联被 Cypher 空结果短路，v3.00 修复）。图路检索**零 LLM**：查询嵌入→实体匹配（**索引过取 ×`entity-over-fetch` + 租户过滤后种子封顶**——Neo4j 5.26 无索引内过滤，后过滤会被他租户占满名额致零召回，v3.00 实证修复；空召回三态指标 `seed_starved/anchor_gap`）→1 跳展开（**方向可配** `expand-direction` BOTH/OUTGOING/INCOMING，候选按 hop/贡献/中心度/id 全序截断 `candidate-limit` 且**种子恒在**，v3.02；**单种子邻居按 `mention_count` 采样 `neighbor-limit`（缺省 256）**——子查询 `Top→collect` 使邻域收集有界，v3.04）→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删除清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`。**维度契约与描述策略（v3.01）**：1024 维三处同源（图常量 × 向量库配置 × 缓存），守卫三层——写入拒异维/null（真库实证：异维写入成功却对索引永久不可见）+ 读路径异维前置返空 + 启动期索引维度自省与 `kb.vector-store.*` 交叉校验（缓存维度跨模块不可见，由缓存自身兜底）；实体/关系描述 `ON MATCH` 取「信息量更大者胜」（原「取最新」会被空描述冲掉长描述）；计数语义 `mention_count`=去重片段数、`weight`=关联文档数（v3.02 幂等重算，原为写入次数）；写路径超时独立 `write-timeout-seconds`（30s）；Chunk 锚点镜像 PG 全量 chunk 且**锚点与 MENTIONS 边共存活**（重写只删已离开 PG 的锚点 + 孤儿清扫延后至重写后 → 软删期重抽取后 restore 即恢复图路召回）。§10.9/13.3/17.5-17.6/18.5
+**GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态条件装配缺位，双路零变化）。图 = Neo4j Community（第二台 ECS 独占）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫**实体段/关系段两条独立语句**——串联被 Cypher 空结果短路，v3.00 修复）。图路检索**零 LLM**：查询嵌入→实体匹配（**索引过取 ×`entity-over-fetch` + 租户过滤后种子封顶**——Neo4j 5.26 无索引内过滤，后过滤会被他租户占满名额致零召回，v3.00 实证修复；空召回三态指标 `seed_starved/anchor_gap`）→1 跳展开（**方向可配** `expand-direction` BOTH/OUTGOING/INCOMING，候选按 hop/贡献/中心度/id 全序截断 `candidate-limit` 且**种子恒在**，v3.02；**单种子邻居按 `mention_count` 采样 `neighbor-limit`（缺省 256）**——子查询 `Top→collect` 使邻域收集有界，v3.04）→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`。**维度契约与描述（v3.01）**：1024 维三处同源（图常量 × 向量库 × 缓存），守卫三层——写入拒异维/null（异维写入成功却对索引不可见，真库实证）+ 读路径异维前置返空 + 启动期索引维度自省与 `kb.vector-store.*` 交叉校验（缓存维度跨模块不可见，由缓存自身兜底）；实体/关系描述 `ON MATCH` 取「信息量更大者胜」（原「取最新」会被空描述冲掉长描述）；计数语义 `mention_count`=去重片段数、`weight`=关联文档数（v3.02 幂等重算，原为写入次数）；写路径超时独立 `write-timeout-seconds`（30s）；Chunk 锚点镜像 PG 全量 chunk 且**锚点与 MENTIONS 边共存活**（重写只删已离开 PG 的锚点 + 孤儿清扫延后至重写后 → 软删期重抽取后 restore 即恢复图路召回）。§10.9/13.3/17.5-17.6/18.5
 
 **Chunk 运维与重建（Phase4簇③）**：kb-admin 首建（kb-api 聚合禁反向依赖；Jwt 直消费防成环）。Chunk CRUD：编辑 = 同源消毒→PG→异步重嵌入（**delete→add 两步**，Milvus 非 upsert）+ ES 覆写（联动图重抽取/锚点翻转）；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
@@ -89,7 +89,7 @@ kb-rag-agent/
 - **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1）**：双 volatile 快照原子替换 + pub/sub/mtime 双触发；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload）；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（坑位⑦，显式装配必须保留）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`；Golden 267（干净110+注入127+多跳30）；门禁三分区契约 16 章（L1 ≥95% / L2 ≥90% / 观察集只报告）+ Phase 5 指标线 AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3 重锚）；judge 剥壳容错；干净集 BLOCK+FLAG 零命中；间接注入默认关；A/B 快照 eval-diff；导出 JSONL SFT/DPO
+- 评估（kb-eval）：探针 `eval.probe`；Golden 267（干净110+注入127+多跳30）；门禁三分区契约 16 章（L1 ≥95% / L2 ≥90% / 观察集只报告）+ Phase 5 指标线 AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3 重锚）；judge 剥壳容错；干净集 BLOCK+FLAG 零命中；间接注入默认关；A/B 快照 eval-diff；图路方向 A/B 扫描 `--eval.graph-direction-ab`；导出 JSONL SFT/DPO
 
 **压测资产（kb-loadtest）**：Gatling Java DSL（gatling:test 显式触发）；五场景 = 检索真压 / 生成桩压（纯 JDK StubChatServer）/ 真实 LLM TTFT·TPOT（缺省关）/ SSE 多轮 / hub 图路（v3.04）；语料 = Golden 干净集；§15.4/§18.4
 
@@ -101,7 +101,7 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（actuator 白名单 permitAll，/api/** authenticated，其余 denyAll，无状态）；**运维面三层分级（§12.12）**：isAdmin → ROLE_ADMIN，owner=built-in 超管追加 ROLE_SUPER_ADMIN 独占 guardrail 运维端点；`/api/v1/admin/**` hasRole(ADMIN) + 治理写 @PreAuthorize；统计/上传/列表全员；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
 - 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆（占位符桥接）共消费**不可移除**；**Neo4j**（Phase5簇④）`spring.neo4j.*` 手工装配 Driver 受 `rag.graph.enabled` 门控；生产 `bolt+s://` 经 nginx `stream` 块 L4 TLS 终结（坑位㊱）+ 出借前探活（坑位㊴）
-- 测试：全模块单测绿 + Testcontainers IT 两宿主入门禁（kb-eval 60 含 Neo4j 网关真跑 23 例钉 5.26.29；kb-admin 8 真 Redis）——`mvn verify -pl kb-eval,kb-admin -am`，Docker 必需，无则 -DskipITs
+- 测试：全模块单测绿 + Testcontainers IT 两宿主入门禁（kb-eval 61 含 Neo4j 网关真跑 23 例钉 5.26.29；kb-admin 8 真 Redis）——`mvn verify -pl kb-eval,kb-admin -am`，Docker 必需，无则 -DskipITs
 
 ## 注意事项
 
