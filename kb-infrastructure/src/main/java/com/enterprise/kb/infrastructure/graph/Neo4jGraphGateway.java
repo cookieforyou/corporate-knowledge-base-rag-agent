@@ -718,10 +718,17 @@ public class Neo4jGraphGateway implements GraphGateway {
      * 无早剪枝。③ 单种子<b>邻居采样上限</b>（{@code $neighborLimit}，v3.04）——
      * 变量作用域子查询内 `Top(LIMIT) → collect` 使邻域收集本身有界（计划实证：
      * {@code Apply → Top(LIMIT $neighborLimit) → EagerAggregation}），按
-     * {@code mention_count DESC, id ASC} 保留中心度最高的邻居；子查询内聚合无分组键
+     * {@code size(chunk_ids) DESC, id ASC} 保留中心度最高的邻居；子查询内聚合无分组键
      * 故零邻居种子恒返回一行（空列表）不丢种子。④ 全局候选截断排序补
-     * {@code mention_count DESC} 次键（v3.04）：hop/贡献相同的邻居此前按 <b>id 字典序</b>
+     * {@code size(chunk_ids) DESC} 次键（v3.04）：hop/贡献相同的邻居此前按 <b>id 字典序</b>
      * 定去留（对相关性无意义），现按中心度优先、{@code id} 仍作末位兜底键保可复现。
+     *
+     * <p><b>排序键为何读 {@code size(chunk_ids)} 而非物化字段 {@code mention_count}
+     * （v3.05，真库取证）</b>：两者语义相同（{@code REFRESH_MENTION_COUNTS} 即把后者置为前者），
+     * 但 {@code mention_count} 是<b>抽取期物化</b>的标量——v3.02 之前抽取的存量图里它仍是旧语义
+     * （写入次数，恒为 1），此时按它排序会退化成 {@code id} 字典序，采样保留的就不是中心度最高的
+     * 邻居。读列表长度则与写路径维护的 {@code chunk_ids} 同源，<b>不受计数新鲜度影响</b>；
+     * 生产实证：某租户 748 实体图中 {@code mention_count} 全为 1 而 {@code chunk_ids} 最大 14。
      */
     private static final String RETRIEVE_WITH_EXPANSION_TEMPLATE = """
         CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
@@ -729,14 +736,14 @@ public class Neo4jGraphGateway implements GraphGateway {
         WITH e, score ORDER BY score DESC LIMIT $seedLimit
         CALL (e) {
             MATCH (e)%s(n:Entity {tenant_id: $tenantId})
-            WITH n ORDER BY coalesce(n.mention_count, 0) DESC, n.id ASC LIMIT $neighborLimit
+            WITH n ORDER BY size(coalesce(n.chunk_ids, [])) DESC, n.id ASC LIMIT $neighborLimit
             RETURN collect(n) AS neighbors
         }
         WITH e, score, neighbors
         UNWIND ([{ent: e, s: score, hop: 0}]
                 + [x IN neighbors | {ent: x, s: score * %f, hop: 1}]) AS cand
         WITH cand.ent AS ent, cand.s AS contrib, cand.hop AS hop
-        ORDER BY hop ASC, contrib DESC, coalesce(ent.mention_count, 0) DESC, ent.id ASC
+        ORDER BY hop ASC, contrib DESC, size(coalesce(ent.chunk_ids, [])) DESC, ent.id ASC
         LIMIT $candidateLimit
         MATCH (c:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(ent)
         WITH c, max(contrib) AS chunkScore, collect(DISTINCT ent.name)[0..5] AS entityNames,

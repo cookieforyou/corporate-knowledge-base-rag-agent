@@ -60,8 +60,10 @@ public class GraphRetrievalProperties {
      * 单种子邻居采样上限（v3.04，缺省 256）：hub 实体（高连接度）下把<b>邻域收集本身</b>
      * 收敛为有界集——原形态 {@code OPTIONAL MATCH + collect} 与种子度数成正比（只有候选
      * 封顶兜在其后），度数千的实体单查询即产生数千中间行。实现取变量作用域子查询内
-     * {@code Top(LIMIT) → collect}，按 {@code mention_count DESC, id ASC} 保留中心度最高者
-     * （中心度 = 去重片段数，是「该邻居能带回多少 chunk」的代理）。
+     * {@code Top(LIMIT) → collect}，按 {@code size(chunk_ids) DESC, id ASC} 保留中心度最高者
+     * （中心度 = 去重片段数 = {@code mention_count} 同量，是「该邻居能带回多少 chunk」的代理；
+     * 排序读列表长度而非物化计数——存量图（v3.02 前抽取）的 {@code mention_count} 仍是旧语义，
+     * 按它排序会退化成 id 字典序，真库取证见 10 章 §10.9.4）。
      *
      * <p>缺省 256 ≈ 2.5 × 候选上限：正常图（平均度数远小于 256）行为逐字节不变，仅 hub
      * 截断；置 0/负值视为未配置（网关回落候选上限 = v3.02 等价上界），低于候选上限则是
