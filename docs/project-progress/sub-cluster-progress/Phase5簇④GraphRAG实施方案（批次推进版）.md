@@ -614,6 +614,7 @@ rag:
       expand-neighbors: ${RAG_GRAPH_EXPAND_NEIGHBORS:true}   # 1 跳邻域展开开关
       expand-direction: ${RAG_GRAPH_EXPAND_DIRECTION:BOTH}   # 展开方向（v3.02）
       candidate-limit: ${RAG_GRAPH_CANDIDATE_LIMIT:100}      # 候选封顶（v3.02）
+      neighbor-limit: ${RAG_GRAPH_NEIGHBOR_LIMIT:256}        # 单种子邻居采样上限（v3.04，按度采样）
       # path-timeout 走 rag.retrieval.path-timeout-seconds（与双路同口径，不设独立键）
 ```
 
@@ -880,6 +881,18 @@ double entityChainCoverage = avg(entityHits / expectedChainLength);
 
 8. **压测**
    - `mvn gatling:test -pl kb-loadtest` → 场景 A P95 ≤600ms
+   - 场景 E（v3.04 hub 图路，前置 = `rag.graph.enabled=true` + 图内高连接度实体 + hub 语料 feeder）：
+     `mvn gatling:test -pl kb-loadtest -Dgatling.simulationClass=com.enterprise.kb.loadtest.simulation.HubGraphLoadSimulation`
+     → P95 < 800ms（**建议线**，须用户侧实测复核）
+
+8.1 **落码实况（v3.04 对齐，2026-10-03 收尾）**：本轮把复核登记的「邻域收集按度采样」后续项落地
+——① 参数新增 `rag.graph.retrieval.neighbor-limit`（缺省 256，按 `mention_count DESC, id ASC` 取，
+经变量作用域子查询 `Top(LIMIT) → collect` 使**邻域收集本身有界**；原 `OPTIONAL MATCH + collect`
+与度数成正比）；② 全局候选截断排序补 `mention_count DESC` 次键（原并列时按实体 id 字典序定去留）；
+③ 兜底规则 = 非正值回落候选上限（v3.02 等价上界），正值显式生效（低于候选上限即主动收紧）；
+④ 作用域边界写明：上限只约束**中间结果规模**，Neo4j 展开扫描代价仍与度数成正比，耗时观测走场景 E；
+⑤ 回归守卫 `Neo4jGraphGatewayIT` 增至 23 例（hub 度采样用例：30 度 + 上限 8 → 恰留中心度最高 8 邻居、
+零邻居种子不丢行、同参可复现、非正值回落等价不截断）；⑥ 压测资产新增场景 E + `loadtest.e.*` 参数族。
 
 ### 12.3 文档回写清单
 

@@ -123,6 +123,24 @@ class Neo4jGraphGatewayIT {
     private static final String HUB_Z = GraphIds.entityId(HUB_TENANT, "hub-z", "CONCEPT");
     private static final String HUB_M1 = GraphIds.entityId(HUB_TENANT, "hub-m1", "CONCEPT");
 
+    /**
+     * hub 度采样夹具（v3.04）：度数 {@value #HUBDEG_DEGREE} 的 hub（轴向 80，得分 1.0）
+     * + 零邻居种子（80/81 双轴混合，得分 0.8536 阈值内，验子查询聚合不丢行）
+     * + 30 个邻居（各自单轴，得分 0.5 阈值外，只经 1 跳可达）。
+     */
+    private static final String HUBDEG_TENANT = "t-hubdeg";
+    private static final String HUBDEG_DOC = "doc-hubdeg";
+    private static final String HUBDEG_CHUNK_HUB = "chunk-hubdeg-hub";
+    private static final String HUBDEG_CHUNK_ISO = "chunk-hubdeg-iso";
+    private static final int HUBDEG_DEGREE = 30;
+    private static final int HUBDEG_SEED_AXIS = 80;
+    private static final int HUBDEG_NEIGHBOR_AXIS_BASE = 120;
+    private static final String HUBDEG_HUB = GraphIds.entityId(HUBDEG_TENANT, "hubdeg-hub", "CONCEPT");
+    private static final String HUBDEG_ISO = GraphIds.entityId(HUBDEG_TENANT, "hubdeg-iso", "CONCEPT");
+
+    /** 检索规格夹具用邻域上限（v3.04）：远大于夹具度数 → 等价「不截断」，既有用例语义不变 */
+    private static final int NEIGHBOR_LIMIT = 1000;
+
     /** F1 真序列夹具（v3.03）：单文档两 chunk，实体被两 chunk 共同提及（轴向 60，阈值内） */
     private static final String SOFT_TENANT = "t-soft";
     private static final String SOFT_DOC = "doc-soft";
@@ -539,11 +557,11 @@ class Neo4jGraphGatewayIT {
     void candidateLimitTruncatesLowContributionNeighborsButKeepsSeeds() {
         // 种子上限取 1（只有一个实体过阈值）：候选上限 = 1 种子 + 2 邻居才可能在种子数之上生效
         List<GraphRecords.GraphChunkHit> uncapped = gateway.retrieveChunks(HUB_TENANT,
-            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 100, 10));
+            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 100, NEIGHBOR_LIMIT, 10));
         assertThat(uncapped).as("不封顶：种子 + 5 邻居各带锚点 = 6 行").hasSize(6);
 
         List<GraphRecords.GraphChunkHit> capped = gateway.retrieveChunks(HUB_TENANT,
-            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 3, 10));
+            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 3, NEIGHBOR_LIMIT, 10));
         assertThat(capped).as("候选上限 3 = 种子（hop 0 恒排前）+ 2 个邻居（网关侧按种子上限兜底）").hasSize(3);
         assertThat(capped).extracting(GraphRecords.GraphChunkHit::chunkId)
             .as("种子锚点恒在（封顶不得饿死 hop=0）").contains(HUB_CHUNK_Z);
@@ -553,7 +571,8 @@ class Neo4jGraphGatewayIT {
             .count();
         assertThat(keptNeighbors).as("恰好保留 2 个低贡献邻居（其余 3 个被截断）").isEqualTo(2);
         assertThat(gateway.retrieveChunks(HUB_TENANT,
-            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 3, 10)))
+            new GraphRecords.GraphRetrievalSpec(unitVector(40), 1, 40, SEED_THRESHOLD, BOTH, 3,
+                NEIGHBOR_LIMIT, 10)))
             .as("同参两次结果逐位一致（hop/贡献/id 全序兜底，不随计划漂移）").isEqualTo(capped);
     }
 
@@ -641,13 +660,70 @@ class Neo4jGraphGatewayIT {
         assertThat(second).as("同参两次采样逐位一致（含链间顺序）").isEqualTo(first);
     }
 
+    /**
+     * hub 按度采样（v3.04）：单种子邻居上限把邻域收集从「与度数成正比」收敛为有界集，
+     * 并按中心度（{@code mention_count DESC}）保留邻居——真库实证：截断后只剩
+     * mention_count 最高的 8 个邻居，种子（含<b>零邻居</b>种子）恒在，同参可复现；
+     * 非正值回落候选上限即等价不截断（v3.02 上界）。
+     */
+    @Test
+    @Order(23)
+    void hubNeighborSamplingBoundsCollectionAndKeepsCentralNeighbors() {
+        gateway.replaceDocumentGraph(HUBDEG_TENANT, HUBDEG_DOC,
+            hubdegChunks(), hubdegEntities(), hubdegRelations());
+        setHubdegMentionCounts();
+
+        // 不截断基线（上限 > 度数）：种子 2 + 邻居 30 = 32 行；向量索引可见性有异步窗口，轮询
+        List<GraphRecords.GraphChunkHit> uncapped = Awaitility.await()
+            .atMost(Duration.ofSeconds(30))
+            .pollInterval(Duration.ofMillis(500))
+            .until(() -> gateway.retrieveChunks(HUBDEG_TENANT,
+                    new GraphRecords.GraphRetrievalSpec(unitVector(HUBDEG_SEED_AXIS), 2, 40,
+                        SEED_THRESHOLD, BOTH, 100, 100, 200)),
+                hits -> hits.size() == 2 + HUBDEG_DEGREE);
+        assertThat(uncapped).as("夹具自检：30 邻居全部可达").hasSize(2 + HUBDEG_DEGREE);
+        assertThat(uncapped).extracting(GraphRecords.GraphChunkHit::chunkId)
+            .contains(HUBDEG_CHUNK_HUB, HUBDEG_CHUNK_ISO);
+
+        // 每种子邻居上限 8：只保留 mention_count 最高的 8 个（n30..n23），种子恒在
+        List<GraphRecords.GraphChunkHit> capped = gateway.retrieveChunks(HUBDEG_TENANT,
+            new GraphRecords.GraphRetrievalSpec(unitVector(HUBDEG_SEED_AXIS), 2, 40,
+                SEED_THRESHOLD, BOTH, 100, 8, 200));
+        assertThat(capped).as("2 种子 + 8 邻居（原形态会带回 32 行）").hasSize(10);
+        assertThat(capped).extracting(GraphRecords.GraphChunkHit::chunkId)
+            .as("种子恒在（hop=0 恒排前；零邻居种子经子查询内无分组键聚合仍返回一行）")
+            .contains(HUBDEG_CHUNK_HUB, HUBDEG_CHUNK_ISO)
+            .as("低中心度邻居（mention_count 22 与 1）被采样截断")
+            .doesNotContain(hubdegChunk(22), hubdegChunk(1));
+        assertThat(capped.stream()
+                .filter(hit -> hit.hop() == 1)
+                .map(GraphRecords.GraphChunkHit::chunkId)
+                .toList())
+            .as("保留集 = mention_count 最高的 8 个邻居（n30..n23）")
+            .containsExactlyInAnyOrderElementsOf(IntStream.rangeClosed(
+                    HUBDEG_DEGREE - 7, HUBDEG_DEGREE)
+                .mapToObj(Neo4jGraphGatewayIT::hubdegChunk)
+                .toList());
+
+        assertThat(gateway.retrieveChunks(HUBDEG_TENANT,
+            new GraphRecords.GraphRetrievalSpec(unitVector(HUBDEG_SEED_AXIS), 2, 40,
+                SEED_THRESHOLD, BOTH, 100, 8, 200)))
+            .as("同参两次结果逐位一致（mention_count DESC + id ASC 全序）").isEqualTo(capped);
+
+        assertThat(gateway.retrieveChunks(HUBDEG_TENANT,
+            new GraphRecords.GraphRetrievalSpec(unitVector(HUBDEG_SEED_AXIS), 2, 40,
+                SEED_THRESHOLD, BOTH, 100, 0, 200)))
+            .as("邻域上限非正值 = 未配置 → 回落候选上限（v3.02 等价上界，不截断）")
+            .hasSize(2 + HUBDEG_DEGREE);
+    }
+
     // ── 夹具 ──────────────────────────────────────────────────────────
 
     /** 检索规格夹具（v3.02 参数对象化）：候选上限 100（种子恒在，不干扰既有断言） */
     private static GraphRecords.GraphRetrievalSpec spec(float[] embedding, int topN, int fetchLimit,
                                                         GraphRecords.ExpandDirection direction, int limit) {
         return new GraphRecords.GraphRetrievalSpec(embedding, topN, fetchLimit, SEED_THRESHOLD,
-            direction, 100, limit);
+            direction, 100, NEIGHBOR_LIMIT, limit);
     }
 
     private static List<GraphRecords.ChunkAnchor> chunks() {
@@ -816,6 +892,68 @@ class Neo4jGraphGatewayIT {
         return GraphIds.entityId(HUB_TENANT, "hub-n" + index, "CONCEPT");
     }
 
+    // ── v3.04 hub 度采样夹具构造 ──────────────────────────────────────
+
+    private static String hubdegChunk(int index) {
+        return "chunk-hubdeg-n" + index;
+    }
+
+    private static String hubdegNeighborId(int index) {
+        return GraphIds.entityId(HUBDEG_TENANT, "hubdeg-n" + index, "CONCEPT");
+    }
+
+    /** 锚点：hub + 零邻居种子 + 每邻居一个自有 chunk */
+    private static List<GraphRecords.ChunkAnchor> hubdegChunks() {
+        List<GraphRecords.ChunkAnchor> chunks = new ArrayList<>();
+        chunks.add(new GraphRecords.ChunkAnchor(HUBDEG_CHUNK_HUB, 0, false));
+        chunks.add(new GraphRecords.ChunkAnchor(HUBDEG_CHUNK_ISO, 1, false));
+        for (int i = 1; i <= HUBDEG_DEGREE; i++) {
+            chunks.add(new GraphRecords.ChunkAnchor(hubdegChunk(i), i + 1, false));
+        }
+        return chunks;
+    }
+
+    private static List<GraphRecords.EntityWrite> hubdegEntities() {
+        List<GraphRecords.EntityWrite> entities = new ArrayList<>();
+        entities.add(new GraphRecords.EntityWrite(HUBDEG_HUB, "hubdeg-hub", "CONCEPT",
+            "度采样夹具 hub", unitVector(HUBDEG_SEED_AXIS), List.of(HUBDEG_CHUNK_HUB)));
+        entities.add(new GraphRecords.EntityWrite(HUBDEG_ISO, "hubdeg-iso", "CONCEPT",
+            "零邻居种子", blendVector(HUBDEG_SEED_AXIS, HUBDEG_SEED_AXIS + 1),
+            List.of(HUBDEG_CHUNK_ISO)));
+        for (int i = 1; i <= HUBDEG_DEGREE; i++) {
+            entities.add(new GraphRecords.EntityWrite(hubdegNeighborId(i), "hubdeg-n" + i,
+                "CONCEPT", "hub 邻居 " + i, unitVector(HUBDEG_NEIGHBOR_AXIS_BASE + i),
+                List.of(hubdegChunk(i))));
+        }
+        return entities;
+    }
+
+    /** hub → 30 邻居（全部出边；邻居自身无出边，零邻居种子无任何关系） */
+    private static List<GraphRecords.RelationWrite> hubdegRelations() {
+        List<GraphRecords.RelationWrite> relations = new ArrayList<>();
+        for (int i = 1; i <= HUBDEG_DEGREE; i++) {
+            relations.add(new GraphRecords.RelationWrite(HUBDEG_HUB, hubdegNeighborId(i),
+                "RELATED", "hub 出边 " + i, List.of(HUBDEG_CHUNK_HUB)));
+        }
+        return relations;
+    }
+
+    /**
+     * 中心度置值：邻居 n_i 的 {@code mention_count = i}。
+     *
+     * <p>排名只读该属性，而按真实不变量（= 去重片段数）构造需 465 个锚点 + MENTIONS 边，
+     * 会显著拖慢 IT；计数不变量本身由 Order 16 用例独立断言，故此处裸 Cypher 置值。
+     */
+    private static void setHubdegMentionCounts() {
+        List<Map<String, Object>> rows = IntStream.rangeClosed(1, HUBDEG_DEGREE)
+            .mapToObj(i -> Map.<String, Object>of("id", hubdegNeighborId(i), "mc", i))
+            .toList();
+        try (Session session = driver.session()) {
+            session.run("UNWIND $rows AS row MATCH (e:Entity {id: row.id}) "
+                + "SET e.mention_count = row.mc", Map.of("rows", rows)).consume();
+        }
+    }
+
     // ── v2.85 复核修正夹具构造 ────────────────────────────────────────
 
     /** 锚点 = PG 全量 chunk（k1 是否软删由入参定）；实体 embedding 取轴向 60（阈值内） */
@@ -865,6 +1003,15 @@ class Neo4jGraphGatewayIT {
     private static float[] unitVector(int axis) {
         float[] vector = new float[GraphGateway.ENTITY_EMBEDDING_DIMENSIONS];
         vector[axis] = 1.0f;
+        return vector;
+    }
+
+    /** 双轴等权混合（每轴 1/√2）：与单轴查询的余弦 = 0.7071 → Neo4j 归一化得分 0.8536（阈值内） */
+    private static float[] blendVector(int axisA, int axisB) {
+        float[] vector = new float[GraphGateway.ENTITY_EMBEDDING_DIMENSIONS];
+        float weight = (float) (1.0 / Math.sqrt(2));
+        vector[axisA] = weight;
+        vector[axisB] = weight;
         return vector;
     }
 }

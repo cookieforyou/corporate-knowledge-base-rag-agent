@@ -62,15 +62,18 @@ public interface GraphGateway {
      * 0.995 分候选完全不可见）。故索引侧按 {@code entityFetchLimit} 取候选，过滤后
      * 再按 {@code entityTopN} 封顶回原语义。
      *
-     * <p><b>候选封顶与展开方向</b>（v3.02）：展开后候选实体按
+     * <p><b>候选封顶、邻域采样与展开方向</b>（v3.02 / v3.04）：展开后候选实体按
      * {@code hop ASC, 贡献分 DESC, 实体 id ASC} 排序并截断至 {@code candidateLimit}
-     * （种子恒在——hop=0 恒排前），使 <b>MENTIONS 反查前的候选实体集有界</b>
-     * （注意作用域：候选之前的**邻域收集** `OPTIONAL MATCH + collect` 仍与种子度数成正比
-     * ——超大度数场景需另按度采样，属后续项，勿把本上限当全链路有界保证）；
-     * 展开方向由 {@link GraphRecords.ExpandDirection} 显式指定（模型有向，
-     * 缺省双向保持既有召回行为）。
+     * （种子恒在——hop=0 恒排前）；单种子邻居另按 {@code mention_count DESC, id ASC}
+     * 采样至 {@code neighborLimit}（v3.04，变量作用域子查询内 {@code Top(LIMIT)} 先于
+     * 聚合 → <b>邻域收集本身有界</b>；原形态 {@code collect} 与种子度数成正比）。
+     * 作用域边界：两条上限均只约束<b>中间结果规模（内存）</b>；Neo4j 的展开遍历没有
+     * 按度数索引，<b>扫描代价仍与度数成正比</b>——超大度数图的耗时观测靠 loadtest
+     * 场景 E，勿把上限当耗时保证。展开方向由 {@link GraphRecords.ExpandDirection}
+     * 显式指定（模型有向，缺省双向保持既有召回行为）。
      *
-     * @param spec 检索规格（种子上限 / 过取条数 / 阈值 / 展开方向 / 候选上限 / 结果上限）
+     * @param spec 检索规格（种子上限 / 过取条数 / 阈值 / 展开方向 / 候选上限 /
+     *             单种子邻域上限 / 结果上限）
      */
     List<GraphRecords.GraphChunkHit> retrieveChunks(String tenantId,
                                                     GraphRecords.GraphRetrievalSpec spec);

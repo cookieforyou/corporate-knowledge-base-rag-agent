@@ -378,6 +378,12 @@ rag:
       # 展开后候选实体上限（v3.02，种子恒在只截断低贡献邻居）：原形态 MENTIONS 展开与聚合
       # 整体落在最终 LIMIT 之前（计划实证），高连接度 hub 实体使中间结果按「种子 × 全邻居」膨胀
       candidate-limit: ${RAG_GRAPH_CANDIDATE_LIMIT:100}
+      # 单种子邻居采样上限（v3.04，按 mention_count DESC + id ASC 取）：原形态邻域收集
+      # （OPTIONAL MATCH + collect）与种子度数成正比，hub 实体单查询产生数千中间行；
+      # 本键在变量作用域子查询内以 Top(LIMIT) 先剪枝再 collect（计划实证：Apply → Top → 聚合）。
+      # 缺省 256 ≈ 2.5 × 候选上限——正常图行为不变，仅 hub 截断；置 0/负 = 未配置（网关回落候选上限）；
+      # 边界：只约束中间结果规模，Neo4j 展开遍历的扫描代价仍与度数成正比（耗时观测见 loadtest 场景 E）
+      neighbor-limit: ${RAG_GRAPH_NEIGHBOR_LIMIT:256}
   # ── 语义缓存（Phase5簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
   # 命中短路「检索+重排+生成」全链重放缓存回答与溯源；缺省关（用户侧 E2E 验证后启用，
   # 同 eval L2 / 间接注入缺省关族纪律）；验收线 = 命中率 >30% + 命中延迟 P95 降 >40%（对照 18 §18.4）

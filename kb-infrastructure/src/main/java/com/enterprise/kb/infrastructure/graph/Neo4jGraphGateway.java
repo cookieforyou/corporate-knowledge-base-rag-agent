@@ -255,10 +255,14 @@ public class Neo4jGraphGateway implements GraphGateway {
         int seedLimit = Math.max(1, spec.entityTopN());
         int fetchLimit = fetchCap(seedLimit, spec.entityFetchLimit());
         int candidateLimit = candidateCap(seedLimit, spec.candidateLimit());
-        if (fetchLimit != spec.entityFetchLimit() || candidateLimit != spec.candidateLimit()) {
-            // 兜底改写不静默（v3.03 F8）：配置值非法（过取/候选低于种子上限）时留痕
-            log.debug("图路检索参数被兜底改写（不得低于种子上限）：fetch {}→{}, candidate {}→{}, 种子上限={}",
-                spec.entityFetchLimit(), fetchLimit, spec.candidateLimit(), candidateLimit, seedLimit);
+        int neighborLimit = neighborCap(candidateLimit, spec.neighborLimit());
+        if (fetchLimit != spec.entityFetchLimit() || candidateLimit != spec.candidateLimit()
+            || neighborLimit != spec.neighborLimit()) {
+            // 兜底改写不静默（v3.03 F8）：配置值非法（过取/候选/邻域低于下界）时留痕
+            log.debug("图路检索参数被兜底改写（fetch/candidate 不得低于种子上限，neighbor 非正值回落候选上限）："
+                    + "fetch {}→{}, candidate {}→{}, neighbor {}→{}, 种子上限={}",
+                spec.entityFetchLimit(), fetchLimit, spec.candidateLimit(), candidateLimit,
+                spec.neighborLimit(), neighborLimit, seedLimit);
         }
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
@@ -267,6 +271,7 @@ public class Neo4jGraphGateway implements GraphGateway {
                     "fetchLimit", fetchLimit,
                     "seedLimit", seedLimit,
                     "candidateLimit", candidateLimit,
+                    "neighborLimit", neighborLimit,
                     "vector", Values.value(spec.queryEmbedding()),
                     "tenantId", tenantId,
                     "threshold", spec.similarityThreshold(),
@@ -405,6 +410,16 @@ public class Neo4jGraphGateway implements GraphGateway {
     /** 候选上限兜底（不得低于种子上限：种子恒在是候选封顶的语义前提；包内可见供单测直断） */
     static int candidateCap(int seedLimit, int candidateLimit) {
         return Math.max(seedLimit, candidateLimit);
+    }
+
+    /**
+     * 单种子邻居采样上限兜底（v3.04）：<b>非正值（未配置 / 非法）回落候选上限</b>——
+     * 即 v3.02 的等价上界（单种子最多贡献到候选预算），不引入新的召回收紧；正值一律
+     * 按显式配置生效（低于候选上限 = 主动收紧单种子采样：内存更省、多种子更易分享
+     * 候选预算；高于 = 更接近不截断）。包内可见供单测直断。
+     */
+    static int neighborCap(int candidateLimit, int neighborLimit) {
+        return neighborLimit > 0 ? neighborLimit : Math.max(1, candidateLimit);
     }
 
     /**
@@ -695,24 +710,33 @@ public class Neo4jGraphGateway implements GraphGateway {
     /**
      * 图路检索（种子 + 1 跳邻域展开，邻居贡献衰减 0.5）。
      *
-     * <p>两处 v3.02 结构：① 关系模式由 {@link #retrievalCypher} 按展开方向注入
+     * <p>三处版本结构：① 关系模式由 {@link #retrievalCypher} 按展开方向注入
      * （{@code %s}——仅三种编译期字面量，无外部输入拼接）；② 候选实体在 MENTIONS
      * 反查前<b>排序 + 封顶</b>（{@code candidateLimit}）——种子 hop=0 恒排前故恒在，
-     * 只截断低贡献邻居，把 hub 实体（高连接度）的中间结果从「种子 × 全邻居」收敛为
-     * 有界集；排序含 {@code ent.id} 兜底键，保证同图同查询结果可复现。
+     * 只截断低贡献邻居；排序含 {@code ent.id} 兜底键，保证同图同查询结果可复现。
      * 计划实证（v3.00）：MENTIONS 展开 + 聚合原本整体落在最终 {@code Top(LIMIT)} 之前，
-     * 无早剪枝。
+     * 无早剪枝。③ 单种子<b>邻居采样上限</b>（{@code $neighborLimit}，v3.04）——
+     * 变量作用域子查询内 `Top(LIMIT) → collect` 使邻域收集本身有界（计划实证：
+     * {@code Apply → Top(LIMIT $neighborLimit) → EagerAggregation}），按
+     * {@code mention_count DESC, id ASC} 保留中心度最高的邻居；子查询内聚合无分组键
+     * 故零邻居种子恒返回一行（空列表）不丢种子。④ 全局候选截断排序补
+     * {@code mention_count DESC} 次键（v3.04）：hop/贡献相同的邻居此前按 <b>id 字典序</b>
+     * 定去留（对相关性无意义），现按中心度优先、{@code id} 仍作末位兜底键保可复现。
      */
     private static final String RETRIEVE_WITH_EXPANSION_TEMPLATE = """
         CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
         WHERE e.tenant_id = $tenantId AND score >= $threshold
         WITH e, score ORDER BY score DESC LIMIT $seedLimit
-        OPTIONAL MATCH (e)%s(n:Entity {tenant_id: $tenantId})
-        WITH e, score, collect(DISTINCT n) AS neighbors
+        CALL (e) {
+            MATCH (e)%s(n:Entity {tenant_id: $tenantId})
+            WITH n ORDER BY coalesce(n.mention_count, 0) DESC, n.id ASC LIMIT $neighborLimit
+            RETURN collect(n) AS neighbors
+        }
+        WITH e, score, neighbors
         UNWIND ([{ent: e, s: score, hop: 0}]
                 + [x IN neighbors | {ent: x, s: score * %f, hop: 1}]) AS cand
         WITH cand.ent AS ent, cand.s AS contrib, cand.hop AS hop
-        ORDER BY hop ASC, contrib DESC, ent.id ASC
+        ORDER BY hop ASC, contrib DESC, coalesce(ent.mention_count, 0) DESC, ent.id ASC
         LIMIT $candidateLimit
         MATCH (c:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(ent)
         WITH c, max(contrib) AS chunkScore, collect(DISTINCT ent.name)[0..5] AS entityNames,

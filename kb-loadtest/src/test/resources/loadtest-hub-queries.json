@@ -1,0 +1,17 @@
+[
+  {
+    "id": "hub-placeholder-01",
+    "category": "PLACEHOLDER",
+    "question": "示例实体 关联的制度文档有哪些？"
+  },
+  {
+    "id": "hub-placeholder-02",
+    "category": "PLACEHOLDER",
+    "question": "示例实体 与哪些业务流程存在关联？"
+  },
+  {
+    "id": "hub-placeholder-03",
+    "category": "PLACEHOLDER",
+    "question": "示例实体 的相邻实体分别出现在哪些文档中？"
+  }
+]

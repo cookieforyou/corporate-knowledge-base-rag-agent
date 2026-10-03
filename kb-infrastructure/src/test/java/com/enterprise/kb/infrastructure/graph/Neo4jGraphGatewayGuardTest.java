@@ -16,6 +16,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
  */
 class Neo4jGraphGatewayGuardTest {
 
+    /** 夹具用邻域上限：远大于夹具度数 → 等价「不截断」，保持既有用例语义（v3.04） */
+    private static final int NEIGHBOR_LIMIT = 1000;
+
     private final Driver driver = mock(Driver.class);
     private final Neo4jGraphGateway gateway = new Neo4jGraphGateway(driver, new Neo4jProperties());
 
@@ -77,7 +80,8 @@ class Neo4jGraphGatewayGuardTest {
     /** 检索规格夹具（v3.02 参数对象化）：种子上限 5 / 过取 40 / 阈值 0.7 / 候选 100 / 结果 10 */
     private static GraphRecords.GraphRetrievalSpec spec(float[] embedding, boolean expand) {
         return new GraphRecords.GraphRetrievalSpec(embedding, 5, 40, 0.7,
-            expand ? GraphRecords.ExpandDirection.BOTH : GraphRecords.ExpandDirection.NONE, 100, 10);
+            expand ? GraphRecords.ExpandDirection.BOTH : GraphRecords.ExpandDirection.NONE, 100,
+            NEIGHBOR_LIMIT, 10);
     }
 
     private static GraphRecords.EntityWrite entityWith(float[] embedding) {
@@ -136,5 +140,17 @@ class Neo4jGraphGatewayGuardTest {
         assertThat(Neo4jGraphGateway.fetchCap(5, 0)).isEqualTo(5);
         assertThat(Neo4jGraphGateway.candidateCap(5, 100)).isEqualTo(100);
         assertThat(Neo4jGraphGateway.candidateCap(5, 3)).as("候选上限不得低于种子数（种子恒在）").isEqualTo(5);
+    }
+
+    @Test
+    void neighborSamplingCapFallsBackToCandidateLimitWhenUnset() {
+        // v3.04：非正值（未配置/非法）回落候选上限 = v3.02 等价上界（不引入新召回收紧）；
+        // 正值一律显式生效——低于候选上限是「主动收紧单种子采样」，不得被静默抬高
+        assertThat(Neo4jGraphGateway.neighborCap(100, 256)).as("缺省形态：高于候选上限").isEqualTo(256);
+        assertThat(Neo4jGraphGateway.neighborCap(100, 100)).as("等于候选上限").isEqualTo(100);
+        assertThat(Neo4jGraphGateway.neighborCap(100, 8)).as("显式收紧不被抬高").isEqualTo(8);
+        assertThat(Neo4jGraphGateway.neighborCap(100, 1)).isEqualTo(1);
+        assertThat(Neo4jGraphGateway.neighborCap(100, 0)).as("未配置 → 回落候选上限").isEqualTo(100);
+        assertThat(Neo4jGraphGateway.neighborCap(100, -1)).isEqualTo(100);
     }
 }

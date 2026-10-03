@@ -119,6 +119,41 @@ public final class LoadTestConfig {
         return intOf("loadtest.d.duration.seconds", "LOADTEST_D_DURATION_SECONDS", 180);
     }
 
+    // ── 场景 E：hub 图路（图路 1 跳展开；需 rag.graph.enabled=true 且图内存在高连接度实体） ──
+
+    /**
+     * 场景 E 语料 feeder 文件（字符串类型）：缺省 {@code loadtest-hub-queries.json} 仅为
+     * 3 条占位样例（中性示例实体名、无攻击载荷/真实密钥），<b>不代表 hub 语义</b>；
+     * 真实 hub 压测前由用户从自有语料生成覆盖——先查租户内度数最高的实体（度数须高于图路
+     * 邻域上限，见场景 javadoc 前置②），再写入若干命名该实体的问题，格式同
+     * {@code loadtest-queries.json}（id/category/question）；
+     * 亦可经 {@code -Dloadtest.e.feeder=...} / {@code LOADTEST_E_FEEDER} 指向自定义语料。
+     */
+    public static final String HUB_QUERY_FEEDER =
+        resolve("loadtest.e.feeder", "LOADTEST_E_FEEDER", "loadtest-hub-queries.json");
+
+    /**
+     * 场景 E 注入速率（int，常量用户/秒，注入模型与场景 A 同形）：缺省 2——
+     * hub 种子放大邻域收集与候选封顶开销，起始速率取场景 A 的 2/3，避免首跑即打满。
+     */
+    public static int eRate() {
+        return intOf("loadtest.e.rate", "LOADTEST_E_RATE", 2);
+    }
+
+    /** 场景 E 持续时长（int，秒）：缺省 60，与场景 A 同窗口，便于两场景 P95 直接对照 */
+    public static int eDurationSeconds() {
+        return intOf("loadtest.e.duration.seconds", "LOADTEST_E_DURATION_SECONDS", 60);
+    }
+
+    /**
+     * 场景 E 验收线（int，毫秒）：hub 实体命中时检索链路 P95 阈值，缺省 800。
+     * <b>建议线而非已验证基线</b>——取值口径 = 场景 A 三路融合基线 600 + hub 展开/候选封顶余量 200；
+     * 须以用户侧 ECS 实测基线复核后回写文档，复核前不得以「已验证」表述引用。
+     */
+    public static int eP95ThresholdMs() {
+        return intOf("loadtest.e.p95.threshold.ms", "LOADTEST_E_P95_THRESHOLD_MS", 800);
+    }
+
     // ── 解析原语 ──
 
     private static String resolve(String systemProperty, String envName, String defaultValue) {

@@ -122,7 +122,8 @@ public class GraphDocumentRetriever {
         int fetchLimit = fetchLimit(seedLimit);
         List<GraphRecords.GraphChunkHit> hits = graphGateway.retrieveChunks(tenantId,
             new GraphRecords.GraphRetrievalSpec(queryEmbedding, seedLimit, fetchLimit,
-                properties.getEntitySimilarityThreshold(), expandDirection(), candidateLimit(), recallSize));
+                properties.getEntitySimilarityThreshold(), expandDirection(), candidateLimit(),
+                properties.getNeighborLimit(), recallSize));
         if (hits.isEmpty()) {
             return new Retrieval(List.of(), queryEmbedding, fetchLimit);
         }

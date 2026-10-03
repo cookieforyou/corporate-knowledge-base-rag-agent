@@ -45,13 +45,16 @@ public final class GraphRecords {
     }
 
     /**
-     * 图路检索规格（v3.02 参数对象化）：8 项调优参数中四个 int 语义相邻
-     * （种子上限/过取条数/候选上限/结果上限），位置参数易错，故收敛为显式规格。
+     * 图路检索规格（v3.02 参数对象化 / v3.04 补邻域上限）：调优参数语义相邻
+     * （种子上限/过取条数/候选上限/单种子邻域上限/结果上限），位置参数易错，故收敛为显式规格。
      *
      * @param entityTopN       租户过滤后的种子实体上限
      * @param entityFetchLimit 向量索引取候选条数（≥ entityTopN；过取补偿跨租户名额挤占）
      * @param expandDirection  邻域展开方向（NONE = 不展开；模型为有向，召回取舍见接口 javadoc）
      * @param candidateLimit   展开后候选实体总量上限（种子恒在，仅截断低贡献邻居）
+     * @param neighborLimit    单个种子的邻居采样上限（v3.04，按 {@code mention_count} 降序取，
+     *                         id 兜底——邻域收集本身有界；{@code <=0} 表示未配置，
+     *                         网关回落 {@code candidateLimit}）
      * @param limit            chunk 结果上限
      */
     public record GraphRetrievalSpec(
@@ -61,6 +64,7 @@ public final class GraphRecords {
         double similarityThreshold,
         ExpandDirection expandDirection,
         int candidateLimit,
+        int neighborLimit,
         int limit) {
     }
 
