@@ -5,6 +5,7 @@ import org.neo4j.driver.Driver;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.SessionConfig;
+import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.TransactionConfig;
 import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
@@ -109,7 +110,7 @@ public class Neo4jGraphGateway implements GraphGateway {
             session.executeWrite(tx -> {
                 // 阶段一：清除该文档既有图引用（幂等重写前置，重入库收敛无残留）
                 tx.run(REMOVE_DOC_REFERENCES, Map.of("tenantId", tenantId, "docId", docId));
-                tx.run(GC_ORPHANS, Map.of("tenantId", tenantId));
+                gcOrphans(tx, tenantId);
                 // 阶段二：写入新抽取结果（MERGE 语义）
                 if (!chunks.isEmpty()) {
                     tx.run(MERGE_CHUNK_ANCHORS, Map.of(
@@ -140,7 +141,7 @@ public class Neo4jGraphGateway implements GraphGateway {
         try (Session session = driver.session(sessionConfig)) {
             session.executeWrite(tx -> {
                 tx.run(REMOVE_DOC_REFERENCES, Map.of("tenantId", tenantId, "docId", docId));
-                tx.run(GC_ORPHANS, Map.of("tenantId", tenantId));
+                gcOrphans(tx, tenantId);
                 return null;
             }, txConfig);
         }
@@ -167,6 +168,7 @@ public class Neo4jGraphGateway implements GraphGateway {
     public List<GraphRecords.GraphChunkHit> retrieveChunks(String tenantId,
                                                            float[] queryEmbedding,
                                                            int entityTopN,
+                                                           int entityFetchLimit,
                                                            double similarityThreshold,
                                                            boolean expandNeighbors,
                                                            int limit) {
@@ -177,15 +179,18 @@ public class Neo4jGraphGateway implements GraphGateway {
             return List.of();
         }
         String cypher = expandNeighbors ? RETRIEVE_WITH_EXPANSION : RETRIEVE_SEEDS_ONLY;
+        int seedLimit = Math.max(1, entityTopN);
+        int fetchLimit = Math.max(seedLimit, entityFetchLimit);   // 过取不足时退化为不放过取（旧行为）
         try (Session session = driver.session(sessionConfig)) {
             return session.executeRead(tx -> {
                 Result result = tx.run(cypher, Map.of(
                     "indexName", ENTITY_VECTOR_INDEX,
-                    "topN", entityTopN,
+                    "fetchLimit", fetchLimit,
+                    "seedLimit", seedLimit,
                     "vector", Values.value(queryEmbedding),
                     "tenantId", tenantId,
                     "threshold", similarityThreshold,
-                    "limit", limit));
+                    "limit", Math.max(1, limit)));
                 List<GraphRecords.GraphChunkHit> hits = new ArrayList<>();
                 while (result.hasNext()) {
                     Record record = result.next();
@@ -197,6 +202,32 @@ public class Neo4jGraphGateway implements GraphGateway {
                         record.get("hop").asInt()));
                 }
                 return hits;
+            }, txConfig);
+        }
+    }
+
+    @Override
+    public GraphRecords.GraphRetrievalDiagnostics diagnoseRetrieval(String tenantId,
+                                                                    float[] queryEmbedding,
+                                                                    int entityFetchLimit,
+                                                                    double similarityThreshold) {
+        GraphRecords.GraphRetrievalDiagnostics zero = GraphRecords.GraphRetrievalDiagnostics.EMPTY;
+        if (tenantId == null || tenantId.isBlank()
+            || queryEmbedding == null || queryEmbedding.length == 0) {
+            return zero;   // fail-closed：无租户/无向量零触达
+        }
+        try (Session session = driver.session(sessionConfig)) {
+            return session.executeRead(tx -> {
+                Record record = tx.run(DIAGNOSE_RETRIEVAL, Map.of(
+                    "indexName", ENTITY_VECTOR_INDEX,
+                    "fetchLimit", Math.max(1, entityFetchLimit),
+                    "vector", Values.value(queryEmbedding),
+                    "tenantId", tenantId,
+                    "threshold", similarityThreshold)).single();
+                return new GraphRecords.GraphRetrievalDiagnostics(
+                    (int) record.get("indexCandidates").asLong(),
+                    (int) record.get("tenantSeeds").asLong(),
+                    record.get("tenantHasGraph").asBoolean());
             }, txConfig);
         }
     }
@@ -242,6 +273,18 @@ public class Neo4jGraphGateway implements GraphGateway {
         if (tenantId == null || tenantId.isBlank()) {
             throw new IllegalArgumentException("图谱写入拒绝：缺失租户身份（fail-closed）");
         }
+    }
+
+    /**
+     * 租户域孤儿清扫（实体段 + 关系段，两条独立语句）。
+     *
+     * <p><b>不可合并为单条 Cypher</b>：空结果短路会让「无孤儿实体」时的关系段永不执行
+     * （详见 {@link #GC_ORPHAN_RELATIONS}）。两条语句同事务执行——原子性不变，
+     * 短路与行放大（原形态关系段被驱动 N 次）一并消除。
+     */
+    private static void gcOrphans(TransactionContext tx, String tenantId) {
+        tx.run(GC_ORPHAN_ENTITIES, Map.of("tenantId", tenantId));
+        tx.run(GC_ORPHAN_RELATIONS, Map.of("tenantId", tenantId));
     }
 
     /** 实体 → chunk 提及对展开（MENTIONS 写入材料） */
@@ -313,13 +356,30 @@ public class Neo4jGraphGateway implements GraphGateway {
         """;
 
     /** 孤儿清扫：引用归零的实体与关系删除（DETACH 连带其余边） */
-    private static final String GC_ORPHANS = """
+    private static final String GC_ORPHAN_ENTITIES = """
         MATCH (e:Entity {tenant_id: $tenantId})
         WHERE size(coalesce(e.doc_ids, [])) = 0
         DETACH DELETE e
-        WITH 1 AS dummy
-        MATCH ()-[r:RELATED_TO]->()
-        WHERE r.tenant_id = $tenantId AND size(coalesce(r.doc_ids, [])) = 0
+        """;
+
+    /**
+     * 孤儿清扫（关系段）：引用归零的关系删除。
+     *
+     * <p><b>必须与实体段拆成两条独立语句</b>（v2.85 实证）：Cypher 空结果会短路后续子句，
+     * 两段串联时「本租户无孤儿实体」使关系段永不执行——空引用关系永久残留（实测：
+     * 重抽取未产出关系时，关系 doc_ids/chunk_ids 归零但节点留存，继续参与邻域展开与计数）；
+     * 且串联形态首段逐行传递，使关系段被驱动 N 次（N = 孤儿实体数）并叠加 Eager 缓冲。
+     * 拆开后短路与行放大一并消除。
+     *
+     * <p>匹配形态从租户实体锚定（而非 {@code ()-[r:RELATED_TO]->()} + 租户过滤）：走
+     * {@code kb_entity_tenant} 索引 + Expand，避开全库关系类型扫描（实测原形态为
+     * {@code DirectedRelationshipTypeScan} + Eager，随全租户关系总量线性退化）；
+     * 关系两端必为同租户实体（{@link #MERGE_RELATIONS} 写入侧以 tenant_id 约束两端），
+     * 故以源端实体锚定与全量扫描的租户过滤语义等价。
+     */
+    private static final String GC_ORPHAN_RELATIONS = """
+        MATCH (:Entity {tenant_id: $tenantId})-[r:RELATED_TO]->()
+        WHERE size(coalesce(r.doc_ids, [])) = 0
         DELETE r
         """;
 
@@ -375,11 +435,11 @@ public class Neo4jGraphGateway implements GraphGateway {
         SET c.is_deleted = $deleted
         """;
 
-    /** 图路检索（仅种子实体，不展开）：向量匹配 → MENTIONS 反查存活锚点 */
+    /** 图路检索（仅种子实体，不展开）：向量过取 → 租户过滤 + 阈值 → 种子封顶 → MENTIONS 反查存活锚点 */
     private static final String RETRIEVE_SEEDS_ONLY = """
-        CALL db.index.vector.queryNodes($indexName, $topN, $vector) YIELD node AS e, score
+        CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
         WHERE e.tenant_id = $tenantId AND score >= $threshold
-        WITH e, score
+        WITH e, score ORDER BY score DESC LIMIT $seedLimit
         MATCH (c:Chunk {tenant_id: $tenantId, is_deleted: false})-[:MENTIONS]->(e)
         WITH c, max(score) AS chunkScore, collect(DISTINCT e.name)[0..5] AS entityNames, 0 AS hop
         RETURN c.id AS chunkId, c.doc_id AS docId, chunkScore, entityNames, hop
@@ -389,9 +449,9 @@ public class Neo4jGraphGateway implements GraphGateway {
 
     /** 图路检索（种子 + 1 跳邻域展开，邻居贡献衰减 0.5） */
     private static final String RETRIEVE_WITH_EXPANSION = """
-        CALL db.index.vector.queryNodes($indexName, $topN, $vector) YIELD node AS e, score
+        CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
         WHERE e.tenant_id = $tenantId AND score >= $threshold
-        WITH e, score
+        WITH e, score ORDER BY score DESC LIMIT $seedLimit
         OPTIONAL MATCH (e)-[:RELATED_TO]-(n:Entity {tenant_id: $tenantId})
         WITH e, score, collect(DISTINCT n) AS neighbors
         UNWIND ([{ent: e, s: score, hop: 0}]
@@ -404,6 +464,21 @@ public class Neo4jGraphGateway implements GraphGateway {
         ORDER BY chunkScore DESC, hop ASC
         LIMIT $limit
         """.formatted(NEIGHBOR_DECAY);
+
+    /**
+     * 空召回归因读数（v2.85）：同一过取窗口内「阈值内候选总数 / 其中本租户候选数」
+     * + 本租户图谱是否有实体（{@code EXISTS} 走 kb_entity_tenant 索引，O(1) 判据——
+     * 把「冷租户无数据」从「种子被挤占」中分离，避免污染饿死指标）。
+     * 聚合无分组键 → 恒返回一行（空候选亦为 0/0/false），不会有空结果短路。
+     */
+    private static final String DIAGNOSE_RETRIEVAL = """
+        CALL db.index.vector.queryNodes($indexName, $fetchLimit, $vector) YIELD node AS e, score
+        WHERE score >= $threshold
+        WITH collect(e) AS candidates
+        RETURN size(candidates) AS indexCandidates,
+               size([x IN candidates WHERE x.tenant_id = $tenantId]) AS tenantSeeds,
+               EXISTS { MATCH (:Entity {tenant_id: $tenantId}) } AS tenantHasGraph
+        """;
 
     private static final String COUNT_BY_TENANT = """
         MATCH (e:Entity {tenant_id: $tenantId})

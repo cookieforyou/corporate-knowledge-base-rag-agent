@@ -31,6 +31,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -98,7 +100,7 @@ class GraphDocumentRetrieverTest {
 
     @Test
     void retrieve_mapsHitsToDocumentsWithGraphMetadata() {
-        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
             .thenReturn(List.of(hit("c1", "d1", 0.9), hit("c2", "d1", 0.7)));
         when(chunkRepository.findAllById(any())).thenReturn(List.of(chunk("c1", "d1", false), chunk("c2", "d1", false)));
         when(documentRepository.findAllById(any())).thenReturn(List.of(doc("d1", TENANT)));
@@ -130,7 +132,7 @@ class GraphDocumentRetrieverTest {
     @Test
     void retrieve_crossTenantDocFromGraphDroppedAsDefenseInDepth() {
         // 图数据错写场景：网关返回的 docId 归属他租户 → PG 纵深校验丢弃
-        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
             .thenReturn(List.of(hit("c1", "d-evil", 0.9), hit("c2", "d1", 0.8)));
         when(chunkRepository.findAllById(any()))
             .thenReturn(List.of(chunk("c1", "d-evil", false), chunk("c2", "d1", false)));
@@ -145,7 +147,7 @@ class GraphDocumentRetrieverTest {
 
     @Test
     void retrieve_softDeletedChunkDropped() {
-        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
             .thenReturn(List.of(hit("c1", "d1", 0.9)));
         when(chunkRepository.findAllById(any())).thenReturn(List.of(chunk("c1", "d1", true)));
         when(documentRepository.findAllById(any())).thenReturn(List.of(doc("d1", TENANT)));
@@ -155,11 +157,72 @@ class GraphDocumentRetrieverTest {
 
     @Test
     void retrieve_emptyGraphResultCountsMiss() {
-        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
             .thenReturn(List.of());
 
         assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
         assertEquals(1.0, registry.counter("rag.retrieval.graph.total").count());
         assertEquals(0.0, registry.counter("rag.retrieval.graph.hit").count());
+    }
+
+    @Test
+    void retrieve_overFetchesIndexWindowByMultiplier() {
+        // v2.85 跨租户饿死修复：索引侧过取 = entityTopN × entity-over-fetch（缺省 5 × 8 = 40），
+        // 租户过滤后由网关封顶回 entityTopN —— 名额补偿的接线契约
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), eq(5), eq(40), anyDouble(), anyBoolean(), anyInt()))
+            .thenReturn(List.of());
+
+        retriever.retrieve(queryWithTenant(TENANT), 10);
+
+        verify(graphGateway).retrieveChunks(eq(TENANT), any(), eq(5), eq(40), anyDouble(), anyBoolean(), anyInt());
+    }
+
+    @Test
+    void retrieve_emptyWithOtherTenantCandidatesCountsSeedStarved() {
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+            .thenReturn(List.of());
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyDouble()))
+            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 0, true));
+
+        assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
+        assertEquals(1.0, registry.counter("rag.retrieval.graph.seed_starved").count());
+        assertEquals(0.0, registry.counter("rag.retrieval.graph.anchor_gap").count());
+    }
+
+    @Test
+    void retrieve_emptyWithOwnSeedsCountsAnchorGap() {
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+            .thenReturn(List.of());
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyDouble()))
+            .thenReturn(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true));
+
+        assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
+        assertEquals(1.0, registry.counter("rag.retrieval.graph.anchor_gap").count());
+        assertEquals(0.0, registry.counter("rag.retrieval.graph.seed_starved").count());
+    }
+
+    @Test
+    void retrieve_diagnosticsFailureKeepsEmptySemantics() {
+        // 归因是旁路观测：诊断抛错不得改变「图路空 = 空结果」语义
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+            .thenReturn(List.of());
+        when(graphGateway.diagnoseRetrieval(eq(TENANT), any(), anyInt(), anyDouble()))
+            .thenThrow(new IllegalStateException("图库瞬断"));
+
+        assertTrue(retriever.retrieve(queryWithTenant(TENANT), 10).isEmpty());
+        assertEquals(1.0, registry.counter("rag.retrieval.graph.total").count());
+        assertEquals(0.0, registry.counter("rag.retrieval.graph.seed_starved").count());
+    }
+
+    @Test
+    void retrieve_hitPathSkipsDiagnosticsRoundTrip() {
+        // 命中路径零归因成本：diagnoseRetrieval 不得被调用
+        when(graphGateway.retrieveChunks(eq(TENANT), any(), anyInt(), anyInt(), anyDouble(), anyBoolean(), anyInt()))
+            .thenReturn(List.of(hit("c1", "d1", 0.9)));
+        when(chunkRepository.findAllById(any())).thenReturn(List.of(chunk("c1", "d1", false)));
+        when(documentRepository.findAllById(any())).thenReturn(List.of(doc("d1", TENANT)));
+
+        assertEquals(1, retriever.retrieve(queryWithTenant(TENANT), 10).size());
+        verify(graphGateway, never()).diagnoseRetrieval(anyString(), any(), anyInt(), anyDouble());
     }
 }

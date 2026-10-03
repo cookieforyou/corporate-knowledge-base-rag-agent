@@ -21,11 +21,21 @@ class Neo4jGraphGatewayGuardTest {
 
     @Test
     void retrieveWithBlankTenantReturnsEmptyWithoutTouchingDriver() {
-        assertThat(gateway.retrieveChunks(null, new float[1024], 5, 0.7, true, 10)).isEmpty();
-        assertThat(gateway.retrieveChunks("", new float[1024], 5, 0.7, true, 10)).isEmpty();
-        assertThat(gateway.retrieveChunks("t1", new float[0], 5, 0.7, true, 10))
+        assertThat(gateway.retrieveChunks(null, new float[1024], 5, 40, 0.7, true, 10)).isEmpty();
+        assertThat(gateway.retrieveChunks("", new float[1024], 5, 40, 0.7, true, 10)).isEmpty();
+        assertThat(gateway.retrieveChunks("t1", new float[0], 5, 40, 0.7, true, 10))
             .as("空向量同样零触达")
             .isEmpty();
+        verifyNoInteractions(driver);
+    }
+
+    @Test
+    void diagnoseWithBlankTenantOrVectorReturnsZeroWithoutTouchingDriver() {
+        assertThat(gateway.diagnoseRetrieval(null, new float[1024], 40, 0.7))
+            .as("归因读数同守读路径 fail-closed 纪律")
+            .isEqualTo(GraphRecords.GraphRetrievalDiagnostics.EMPTY);
+        assertThat(gateway.diagnoseRetrieval("", new float[1024], 40, 0.7).starved()).isFalse();
+        assertThat(gateway.diagnoseRetrieval("t1", new float[0], 40, 0.7).anchorGap()).isFalse();
         verifyNoInteractions(driver);
     }
 
@@ -55,5 +65,21 @@ class Neo4jGraphGatewayGuardTest {
         assertThat(GraphGateway.ENTITY_EMBEDDING_DIMENSIONS)
             .as("1024 维与主检索链路同源（pgvector/Milvus/语义缓存三处钉死）")
             .isEqualTo(1024);
+    }
+
+    @Test
+    void retrievalDiagnosticsClassifiesEmptyCauseByWindowReadings() {
+        // 窗口内有他租户候选、本租户零种子、且本租户图谱有数据 = 饿死（过取倍数不足）
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, true).starved()).isTrue();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, true).anchorGap()).isFalse();
+        // 窗口内无候选 = 查询与图无关联（正常空），不算饿死
+        assertThat(GraphRecords.GraphRetrievalDiagnostics.EMPTY.starved()).isFalse();
+        // 冷租户（图谱无数据）：空召回正常，不计饿死——否则冷租户会污染饿死指标
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, false).starved()).isFalse();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 0, false).coldTenant()).isTrue();
+        // 本租户有阈值内种子 = 锚点链路缺口（非检索参数问题）
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true).starved()).isFalse();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true).anchorGap()).isTrue();
+        assertThat(new GraphRecords.GraphRetrievalDiagnostics(6, 2, true).coldTenant()).isFalse();
     }
 }

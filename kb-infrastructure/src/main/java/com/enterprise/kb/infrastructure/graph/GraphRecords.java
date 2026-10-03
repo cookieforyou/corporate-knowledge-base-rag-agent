@@ -50,4 +50,41 @@ public final class GraphRecords {
         List<String> entityNames,
         List<String> chunkIds) {
     }
+
+    /**
+     * 图路召回归因读数（空路径诊断专用）：向量索引窗口内候选数 + 其中本租户种子数
+     * + 本租户图谱是否有数据。
+     *
+     * <p>三个读数足以区分空召回成因（v2.85 实证）：
+     * <ul>
+     *   <li>{@code indexCandidates = 0}——窗口内无阈值内近邻实体（查询与图无关联，正常空）；</li>
+     *   <li>{@link #starved()}——窗口内有他租户近邻、本租户零种子<b>且本租户图谱有数据</b>
+     *       （索引过取倍数不足，调 {@code spring.neo4j.entity-over-fetch}）；</li>
+     *   <li>{@link #coldTenant()}——本租户图谱无任何实体（未抽取/未回填，空召回正常，
+     *       不计饿死——否则「图里没有」会污染饿死指标）；</li>
+     *   <li>{@link #anchorGap()}——本租户有阈值内种子实体却召回为空（抽取/锚点链路缺口，
+     *       非检索参数问题）。</li>
+     * </ul>
+     */
+    public record GraphRetrievalDiagnostics(int indexCandidates, int tenantSeeds, boolean tenantHasGraph) {
+
+        /** 冷租户零读数（无租户/无向量守卫返回） */
+        public static final GraphRetrievalDiagnostics EMPTY =
+            new GraphRetrievalDiagnostics(0, 0, false);
+
+        /** 种子被跨租户后过滤饿死：窗口内有候选，本租户一个都没进，且本租户图谱确有数据 */
+        public boolean starved() {
+            return indexCandidates > 0 && tenantSeeds == 0 && tenantHasGraph;
+        }
+
+        /** 本租户图谱无数据：空召回属正常（不计饿死，避免冷租户污染指标） */
+        public boolean coldTenant() {
+            return !tenantHasGraph;
+        }
+
+        /** 本租户有阈值内种子实体却召回为空——锚点链路缺口而非检索参数问题 */
+        public boolean anchorGap() {
+            return tenantSeeds > 0;
+        }
+    }
 }

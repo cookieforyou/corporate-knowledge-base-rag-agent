@@ -349,7 +349,13 @@ public record RelationExtraction(
 1. 先 `graphGateway.deleteByDocId(tenantId, docId)` —— 删除该文档所有 `Chunk` 节点及关联 `MENTIONS` 关系
 2. 实体节点**不直接删除**——从 `doc_ids` / `chunk_ids` 中移除当前 docId/chunkIds
 3. 若实体 `doc_ids` 变空 → 删除该实体节点（孤儿清扫）
-4. 重新写入新抽取结果（MERGE 语义）
+4. **关系引用同样摘除**：`RELATED_TO` 的 `doc_ids` / `chunk_ids` 剔除本档
+5. **引用归零的实体与关系分别清扫**——两段必须是**两条独立语句**（v3.00 修正）：
+   Cypher 空结果会短路后续子句，串联单条时「无孤儿实体」使关系段永不执行，
+   空引用关系永久残留（触发面：重抽取未产出关系 / 抽取限流跳过 chunk / 关系仅归
+   单文档而实体跨文档共享）；关系段同时改从租户实体锚定以避开全库关系扫描。
+   详见 10 章 §10.9.5 v3.00
+6. 重新写入新抽取结果（MERGE 语义）
 
 ### 3.5 失败处理
 
@@ -390,12 +396,16 @@ public record RelationExtraction(
 
 ```
 查询文本 → qwen3.7-text-embedding 嵌入（复用现有 EmbeddingModel Bean）
-         → Neo4j 向量索引实体匹配（topN=5, threshold=0.7）
+         → Neo4j 向量索引实体匹配（v3.00：索引侧过取 entityTopN × entity-over-fetch
+           ——Neo4j 5.26 索引无租户内过滤，后过滤会被他租户占满名额；
+           租户过滤 + threshold=0.7 后 ORDER BY score DESC LIMIT entityTopN 封顶回原语义）
          → 邻域展开（1 跳，双向，衰减 0.5）
          → 候选实体集合（种子 + 展开，去重）
          → Chunk 反查（MENTIONS 关系 → chunk_id 列表）
          → PG 反查内容（KbChunkRepository.findAllById + 租户/软删过滤）
          → 输出 List<Document>（metadata 携 graph_rank / entity_hits / hop）
+空召回时追加一次归因读数（indexCandidates / tenantSeeds / tenantHasGraph）→
+指标 seed_starved（饿死，调过取倍数）/ anchor_gap（锚点缺口）/ 冷租户（正常空）
 ```
 
 ### 4.2 延迟预算分解（总 ~100ms 量级）

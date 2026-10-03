@@ -85,6 +85,13 @@ import java.util.Map;
  *       / 未命中（含索引空与相似度不足）/ 按文档失效删除条数，接线点
  *       SemanticCacheService；命中率 = hit/(hit+miss)，对照 08 章Phase5簇③验收
  *       （>30% 真实流量）</li>
+ *   <li>{@code rag.retrieval.graph.total / hit / latency}——Graph 路检索执行 /
+ *       命中 / 耗时（Phase5簇④ 5.2，三路融合第三路），接线点 GraphDocumentRetriever；
+ *       v2.85 扩充空召回归因两态 {@code rag.retrieval.graph.seed_starved}
+ *       （索引窗口内他租户近邻占满名额致本租户零种子——过取倍数不足的实证信号，
+ *       调 {@code rag.graph.retrieval.entity-over-fetch}）与
+ *       {@code …graph.anchor_gap}（有阈值内种子实体却零存活锚点——抽取/锚点链路缺口）。
+ *       两态仅空路径计（多一次归因往返，命中路径零成本）</li>
  * </ul>
  *
  * <p><b>标签纪律</b>：全部指标不带租户标签（防指标基数膨胀，3.8 定案延续）；
@@ -203,6 +210,10 @@ public class AiBusinessMetrics {
     private final Counter graphRetrievalHit;
     /** Graph 路检索耗时（查询嵌入 → 向量索引 → 邻域展开 → PG 反查全管线） */
     private final Timer graphRetrievalLatency;
+    /** Graph 路空召回归因：种子被跨租户后过滤饿死（v2.85，过取倍数不足的实证信号） */
+    private final Counter graphRetrievalSeedStarved;
+    /** Graph 路空召回归因：有阈值内种子实体却零存活锚点（v2.85，锚点链路缺口） */
+    private final Counter graphRetrievalAnchorGap;
     /** 图谱抽取执行计数（Phase5簇④ 5.1，经 GraphExtractionListener SPI 委派） */
     private final Counter graphExtractionTotal;
     /** 图谱抽取成功计数（实体/关系写图完成） */
@@ -393,6 +404,12 @@ public class AiBusinessMetrics {
             .description("Graph 路检索耗时——嵌入/向量索引/邻域展开/PG 反查全管线（Phase5簇④ 5.2）")
             .publishPercentiles(0.5, 0.95, 0.99)
             .register(registry);
+        this.graphRetrievalSeedStarved = Counter.builder("rag.retrieval.graph.seed_starved")
+            .description("Graph 路种子被跨租户后过滤饿死次数——索引过取倍数不足（v2.85 空召回归因）")
+            .register(registry);
+        this.graphRetrievalAnchorGap = Counter.builder("rag.retrieval.graph.anchor_gap")
+            .description("Graph 路有阈值内种子实体却零召回次数——锚点链路缺口（v2.85 空召回归因）")
+            .register(registry);
         this.graphExtractionTotal = Counter.builder("rag.graph.extraction.total")
             .description("图谱抽取执行次数——经 GraphExtractionListener SPI 委派（Phase5簇④ 5.1）").register(registry);
         this.graphExtractionSucceeded = Counter.builder("rag.graph.extraction.succeeded")
@@ -576,6 +593,19 @@ public class AiBusinessMetrics {
     /** Graph 路检索耗时（Phase5簇④ 5.2）：全管线真实耗时，Prometheus 侧出分位 */
     public void recordGraphRetrievalLatency(Duration elapsed) {
         graphRetrievalLatency.record(elapsed);
+    }
+
+    /**
+     * Graph 路空召回归因——种子饿死（v2.85）：索引窗口内有他租户近邻、本租户零种子。
+     * 该计数持续增长即 {@code rag.graph.retrieval.entity-over-fetch} 偏小的实证。
+     */
+    public void recordGraphSeedStarved() {
+        graphRetrievalSeedStarved.increment();
+    }
+
+    /** Graph 路空召回归因——锚点缺口（v2.85）：本租户有阈值内种子实体却零存活锚点 */
+    public void recordGraphAnchorGap() {
+        graphRetrievalAnchorGap.increment();
     }
 
     /** 图谱抽取结果计数（Phase5簇④ 5.1）：total 每文档抽取各计一次，成败分桶 */

@@ -57,7 +57,7 @@ kb-rag-agent/
 
 **语义缓存（Phase5簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索经 Redisson RSearch 零新增依赖（租户隔离 + KNN 0.95 + docIds TAG 失效反查接四处写路径）；指标 `rag.retrieval.cache.*`；§11.9/11.10
 
-**GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态全族条件装配缺位，双路逐字节零变化）。图 = Neo4j Community（第二台 ECS 独占，原生驱动手工装配不引 SDN）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫）。图路检索**零 LLM**：查询嵌入→实体匹配→1 跳展开→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删除清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`。§10.9/13.3/17.5-17.6/18.5
+**GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态全族条件装配缺位，双路逐字节零变化）。图 = Neo4j Community（第二台 ECS 独占，原生驱动手工装配不引 SDN）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫**实体段/关系段两条独立语句**——串联会被 Cypher 空结果短路，v3.00 实证修复）。图路检索**零 LLM**：查询嵌入→实体匹配（**索引过取 ×`entity-over-fetch` + 租户过滤后种子封顶**——Neo4j 5.26 无索引内过滤，后过滤会被他租户占满名额致零召回，v3.00 实证修复；空召回三态归因指标 `seed_starved/anchor_gap`）→1 跳展开→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删除清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`。§10.9/13.3/17.5-17.6/18.5
 
 **Chunk 运维与重建（Phase4簇③）**：kb-admin 首建（kb-api 聚合禁反向依赖；Jwt 直消费防成环）。Chunk CRUD：编辑 = 同源消毒→PG→异步重嵌入（**delete→add 两步**，Milvus 非 upsert）+ ES 覆写（联动图重抽取/锚点翻转）；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 

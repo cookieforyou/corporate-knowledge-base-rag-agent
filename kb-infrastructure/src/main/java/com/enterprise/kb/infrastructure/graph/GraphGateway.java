@@ -56,7 +56,16 @@ public interface GraphGateway {
      * → 邻域展开（≤1 跳，衰减）→ MENTIONS 反查存活 Chunk 锚点，按贡献分降序返回。
      * 检索期零 LLM 调用；空租户返回空列表（fail-closed）。
      *
-     * @param entityTopN        向量索引种子实体上限
+     * <p><b>过取与种子封顶两段式</b>（v2.85，跨租户饿死修复）：Neo4j 5.26 的
+     * {@code db.index.vector.queryNodes} 无索引内过滤——租户条件只能后过滤，他租户
+     * 近邻会占满 topN 名额致本租户零种子（实证：他租户 6 条 1.0 分候选使本租户
+     * 0.995 分候选完全不可见）。故索引侧按 {@code entityFetchLimit} 取候选，过滤后
+     * 再按 {@code entityTopN} 封顶，调用方以「倍数过取」补齐被挤占的名额。
+     *
+     * @param entityTopN        种子实体上限（<b>租户过滤后</b>的封顶值，语义与过取前一致）
+     * @param entityFetchLimit  向量索引取候选条数（≥ {@code entityTopN}；过取倍数由调用方
+     *                          按 {@code rag.graph.retrieval.entity-over-fetch} 计算；
+     *                          小于 {@code entityTopN} 时按 {@code entityTopN} 兜底）
      * @param similarityThreshold 种子相似度下限
      * @param expandNeighbors   是否 1 跳邻域展开（衰减系数 0.5 固定于实现）
      * @param limit             chunk 结果上限（对齐召回口径）
@@ -64,9 +73,26 @@ public interface GraphGateway {
     List<GraphRecords.GraphChunkHit> retrieveChunks(String tenantId,
                                                     float[] queryEmbedding,
                                                     int entityTopN,
+                                                    int entityFetchLimit,
                                                     double similarityThreshold,
                                                     boolean expandNeighbors,
                                                     int limit);
+
+    /**
+     * 图路空召回归因读数（v2.85）：按与 {@link #retrieveChunks} 同参复算索引窗口，
+     * 返回「窗口内候选数 / 其中本租户种子数」——供调用方区分「图里没有」与
+     * 「名额被他租户占满」（饿死）两种空召回，前者正常、后者是可调参数的实证信号。
+     *
+     * <p>调用纪律：<b>仅在 {@code retrieveChunks} 返回空时调用</b>（多一次往返，
+     * 命中路径零成本）；失败语义与检索路径同形（异常上抛由调用方按单路容错降级）。
+     * 空租户返回零读数（fail-closed 读守卫同形）。
+     *
+     * @param entityFetchLimit 与 {@link #retrieveChunks} 同值的过取条数（窗口可比）
+     */
+    GraphRecords.GraphRetrievalDiagnostics diagnoseRetrieval(String tenantId,
+                                                             float[] queryEmbedding,
+                                                             int entityFetchLimit,
+                                                             double similarityThreshold);
 
     /** 运维观测：租户域实体/关系/锚点计数（回填任务与 E2E 核验用） */
     GraphCounts countByTenant(String tenantId);

@@ -20,6 +20,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
@@ -51,6 +52,26 @@ class Neo4jGraphGatewayIT {
     private static final String ALPHA_ID = GraphIds.entityId(TENANT, ALPHA, "CONCEPT");
     private static final String BETA_ID = GraphIds.entityId(TENANT, BETA, "CONCEPT");
     private static final String GAMMA_ID = GraphIds.entityId(TENANT, GAMMA, "CONCEPT");
+
+    // ── v2.85 批1 夹具常量 ────────────────────────────────────────────
+
+    /** 孤儿关系回归租户：doc-c 先写（共享 X/Y 无关系），doc-a 后写（X/Y + 关系） */
+    private static final String GC_TENANT = "t-gc";
+    private static final String GC_DOC_A = "doc-gc-a";
+    private static final String GC_DOC_C = "doc-gc-c";
+    private static final String GC_CHUNK_A = "chunk-gc-a";
+    private static final String GC_CHUNK_C = "chunk-gc-c";
+    private static final String GC_X_ID = GraphIds.entityId(GC_TENANT, "gc-x", "CONCEPT");
+    private static final String GC_Y_ID = GraphIds.entityId(GC_TENANT, "gc-y", "CONCEPT");
+
+    /** 名额挤占夹具：本租户 1 个 0.995 分种子 vs 他租户 6 个 1.0 分候选；冷租户无任何图数据 */
+    private static final String MINE_TENANT = "t-mine";
+    private static final String NOISY_TENANT = "t-noisy";
+    private static final String COLD_TENANT = "t-cold-none";
+    private static final String NOISY_DOC = "doc-noisy";
+    private static final String MINE_DOC = "doc-mine";
+    private static final String MINE_CHUNK = "chunk-mine";
+    private static final String MINE_ENTITY = GraphIds.entityId(MINE_TENANT, "mine-entity", "CONCEPT");
 
     /** 1024 维单位基向量——Neo4j 余弦得分归一化形态 (1+cos)/2：alpha↔查询=1.0，
      * 与 beta/gamma 正交=0.5（IT 首跑实证 + 官方口径），故种子阈值取 0.75 排除正交向量 */
@@ -108,7 +129,7 @@ class Neo4jGraphGatewayIT {
         List<GraphRecords.GraphChunkHit> hits = Awaitility.await()
             .atMost(Duration.ofSeconds(30))
             .pollInterval(Duration.ofMillis(500))
-            .until(() -> gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD,true, 10),
+            .until(() -> gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10),
                    h -> h.size() == 2);
         assertThat(hits).hasSize(2);
         GraphRecords.GraphChunkHit seedHit = hits.get(0);
@@ -127,7 +148,7 @@ class Neo4jGraphGatewayIT {
     @Order(3)
     void seedsOnlyRetrievalSkipsNeighborChunks() {
         List<GraphRecords.GraphChunkHit> hits =
-            gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD,false, 10);
+            gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,false, 10);
         assertThat(hits).hasSize(1);
         assertThat(hits.get(0).chunkId()).isEqualTo(CHUNK_1);
         assertThat(hits.get(0).hop()).isZero();
@@ -136,7 +157,7 @@ class Neo4jGraphGatewayIT {
     @Test
     @Order(4)
     void otherTenantRetrievesNothing() {
-        assertThat(gateway.retrieveChunks(OTHER_TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD,true, 10))
+        assertThat(gateway.retrieveChunks(OTHER_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10))
             .as("跨租户读零触达（fail-closed 读路径）")
             .isEmpty();
         assertThat(gateway.countByTenant(OTHER_TENANT).entities()).isZero();
@@ -147,12 +168,12 @@ class Neo4jGraphGatewayIT {
     void softDeletedChunkExcludedAndRestorable() {
         gateway.setChunksDeleted(TENANT, List.of(CHUNK_1), true);
         List<GraphRecords.GraphChunkHit> hits =
-            gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD,true, 10);
+            gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10);
         assertThat(hits).extracting(GraphRecords.GraphChunkHit::chunkId)
             .as("软删锚点不参与图路检索")
             .doesNotContain(CHUNK_1);
         gateway.setChunksDeleted(TENANT, List.of(CHUNK_1), false);
-        assertThat(gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD,true, 10))
+        assertThat(gateway.retrieveChunks(TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD,true, 10))
             .extracting(GraphRecords.GraphChunkHit::chunkId)
             .as("恢复后重新可见")
             .contains(CHUNK_1);
@@ -190,6 +211,88 @@ class Neo4jGraphGatewayIT {
         assertThat(counts.chunkAnchors()).isZero();
     }
 
+    // ── v2.85 批1 回归夹具 ────────────────────────────────────────────
+
+    /**
+     * 孤儿关系回归（v2.85）：两文档共享实体 X/Y，关系仅归 doc-a。
+     * 重写 doc-a 时不给关系（限流跳过 chunk / LLM 抖动）→ 关系引用归零而
+     * <b>无孤儿实体</b>（X/Y 仍被 doc-c 引用）——正是串联 GC 空结果短路的触发条件。
+     */
+    @Test
+    @Order(9)
+    void orphanRelationCollectedWhenNoOrphanEntityExists() {
+        gateway.replaceDocumentGraph(GC_TENANT, GC_DOC_C, gcChunks(GC_CHUNK_C),
+            gcEntities(GC_CHUNK_C), List.of());
+        gateway.replaceDocumentGraph(GC_TENANT, GC_DOC_A, gcChunks(GC_CHUNK_A),
+            gcEntities(GC_CHUNK_A), gcRelation(GC_CHUNK_A));
+        assertThat(gateway.countByTenant(GC_TENANT).relations()).as("夹具：关系已落图").isEqualTo(1);
+
+        gateway.replaceDocumentGraph(GC_TENANT, GC_DOC_A, gcChunks(GC_CHUNK_A),
+            gcEntities(GC_CHUNK_A), List.of());
+
+        GraphGateway.GraphCounts counts = gateway.countByTenant(GC_TENANT);
+        assertThat(counts.entities()).as("实体仍被 doc-c 引用 → 无孤儿实体（短路触发条件）").isEqualTo(2);
+        assertThat(counts.chunkAnchors()).as("两文档锚点在场").isEqualTo(2);
+        assertThat(counts.relations())
+            .as("空引用关系必须被关系段独立清扫——串联形态在此短路残留（修复前本断言必挂）")
+            .isZero();
+    }
+
+    /**
+     * 跨租户名额挤占回归（v2.85）：Neo4j 5.26 索引无租户内过滤（计划实证
+     * ProcedureCall → Filter 后过滤），他租户 6 条 1.0 分候选占满缺省 5 个名额，
+     * 本租户 0.995 分候选在不过取窗口内完全不可见。
+     */
+    @Test
+    @Order(10)
+    void crossTenantSlotCompetitionResolvedByIndexOverFetch() {
+        gateway.replaceDocumentGraph(NOISY_TENANT, NOISY_DOC, List.of(), noisyEntities(), List.of());
+        gateway.replaceDocumentGraph(MINE_TENANT, MINE_DOC, mineChunks(), mineEntities(), List.of());
+
+        Awaitility.await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(500))
+            .until(() -> gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD, false, 10),
+                hits -> hits.size() == 1);
+
+        assertThat(gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 5, SEED_THRESHOLD, false, 10))
+            .as("不过取（窗口 = 种子上限 5）名额被他租户占满 → 零召回（饿死复原）")
+            .isEmpty();
+        assertThat(gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD, false, 10))
+            .as("过取 8 倍后本租户种子进入窗口 → chunk 反查命中")
+            .singleElement()
+            .satisfies(hit -> {
+                assertThat(hit.chunkId()).isEqualTo(MINE_CHUNK);
+                assertThat(hit.score()).as("0.995 分（0.99/0.14 夹角向量）").isCloseTo(0.995, within(0.005));
+            });
+        assertThat(gateway.retrieveChunks(MINE_TENANT, QUERY_ALPHA, 5, 40, SEED_THRESHOLD, true, 10))
+            .as("展开形态同样可达（无关系时邻居集为空，退化为种子自身）")
+            .singleElement()
+            .satisfies(hit -> assertThat(hit.hop()).isZero());
+    }
+
+    /** 空召回归因回归（v2.85）：窗口读数区分「饿死」与「冷租户」与「锚点缺口」 */
+    @Test
+    @Order(11)
+    void diagnosticsSeparateStarvationFromColdTenantAndAnchorGap() {
+        GraphRecords.GraphRetrievalDiagnostics starved = Awaitility.await()
+            .atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(500))
+            .until(() -> gateway.diagnoseRetrieval(MINE_TENANT, QUERY_ALPHA, 5, SEED_THRESHOLD),
+                d -> d.indexCandidates() > 0);
+
+        assertThat(starved.tenantSeeds()).as("窗口 = 5 被他租户占满").isZero();
+        assertThat(starved.starved()).as("窗口有候选 + 本租户零种子 + 本租户图谱有数据 = 饿死").isTrue();
+
+        GraphRecords.GraphRetrievalDiagnostics wide =
+            gateway.diagnoseRetrieval(MINE_TENANT, QUERY_ALPHA, 40, SEED_THRESHOLD);
+        assertThat(wide.tenantSeeds()).as("过取窗口内本租户种子在场").isEqualTo(1);
+        assertThat(wide.starved()).isFalse();
+
+        GraphRecords.GraphRetrievalDiagnostics cold =
+            gateway.diagnoseRetrieval(COLD_TENANT, QUERY_ALPHA, 40, SEED_THRESHOLD);
+        assertThat(cold.indexCandidates()).as("窗口内确有他租户候选").isGreaterThan(0);
+        assertThat(cold.coldTenant()).as("本租户图谱无实体 → 冷租户").isTrue();
+        assertThat(cold.starved()).as("冷租户不计饿死（防指标被「图里没有」污染）").isFalse();
+    }
+
     // ── 夹具 ──────────────────────────────────────────────────────────
 
     private static List<GraphRecords.ChunkAnchor> chunks() {
@@ -215,6 +318,53 @@ class Neo4jGraphGatewayIT {
                 List.of(CHUNK_1, CHUNK_2)),
             new GraphRecords.RelationWrite(BETA_ID, GAMMA_ID, "RELATED", "桥接关系",
                 List.of(CHUNK_2, CHUNK_3)));
+    }
+
+    // ── v2.85 批1 夹具构造 ────────────────────────────────────────────
+
+    private static List<GraphRecords.ChunkAnchor> gcChunks(String chunkId) {
+        return List.of(new GraphRecords.ChunkAnchor(chunkId, 0));
+    }
+
+    /** 共享实体 X/Y（两文档各写一次）——向量取正交基（0.5 分，不参与种子竞争） */
+    private static List<GraphRecords.EntityWrite> gcEntities(String chunkId) {
+        return List.of(
+            new GraphRecords.EntityWrite(GC_X_ID, "gc-x", "CONCEPT", "共享实体 X",
+                unitVector(10), List.of(chunkId)),
+            new GraphRecords.EntityWrite(GC_Y_ID, "gc-y", "CONCEPT", "共享实体 Y",
+                unitVector(11), List.of(chunkId)));
+    }
+
+    private static List<GraphRecords.RelationWrite> gcRelation(String chunkId) {
+        return List.of(new GraphRecords.RelationWrite(GC_X_ID, GC_Y_ID, "RELATED",
+            "仅归 doc-a 的关系", List.of(chunkId)));
+    }
+
+    /** 他租户 6 条 1.0 分候选（占满缺省 5 个索引名额）——不建锚点，只参与名额竞争 */
+    private static List<GraphRecords.EntityWrite> noisyEntities() {
+        return IntStream.range(0, 6)
+            .mapToObj(i -> new GraphRecords.EntityWrite(
+                GraphIds.entityId(NOISY_TENANT, "noisy-" + i, "CONCEPT"),
+                "noisy-" + i, "CONCEPT", "他租户近邻", QUERY_ALPHA.clone(), List.of()))
+            .toList();
+    }
+
+    private static List<GraphRecords.ChunkAnchor> mineChunks() {
+        return List.of(new GraphRecords.ChunkAnchor(MINE_CHUNK, 0));
+    }
+
+    /** 本租户种子：0.995 分（刻意排在 1.0 分候选之后，不过取即不可见） */
+    private static List<GraphRecords.EntityWrite> mineEntities() {
+        return List.of(new GraphRecords.EntityWrite(MINE_ENTITY, "mine-entity", "CONCEPT",
+            "本租户种子", rotatedQueryVector(), List.of(MINE_CHUNK)));
+    }
+
+    /** 与 QUERY_ALPHA 夹角 8° 的向量：归一化余弦分 ≈ 0.995（(1+cos)/2） */
+    private static float[] rotatedQueryVector() {
+        float[] vector = new float[GraphGateway.ENTITY_EMBEDDING_DIMENSIONS];
+        vector[0] = 0.99f;
+        vector[1] = 0.14f;
+        return vector;
     }
 
     private static float[] unitVector(int axis) {
