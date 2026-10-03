@@ -40,6 +40,9 @@ import java.util.Map;
 @Component
 public class MultiHopDraftRunner implements ApplicationRunner {
 
+    /** 触发开关（工具模式；须登记于 {@link EvalRunner#TOOL_MODE_OPTIONS}，否则工具启动会连带跑全量评估） */
+    static final String OPTION = "eval.draft-multihop";
+
     /** 单条摘录截断长度（材料表可读性） */
     private static final int EXCERPT_CHARS = 240;
 
@@ -66,7 +69,7 @@ public class MultiHopDraftRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!args.containsOption("eval.draft-multihop")) {
+        if (!args.containsOption(OPTION)) {
             return;
         }
         GraphGateway gateway = graphGatewayProvider.getIfAvailable();

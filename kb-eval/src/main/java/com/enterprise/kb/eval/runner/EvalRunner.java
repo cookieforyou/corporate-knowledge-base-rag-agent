@@ -47,6 +47,25 @@ import java.util.stream.Collectors;
 @Component
 public class EvalRunner {
 
+    /**
+     * 工具模式开关清单（v3.05 收口）：命中任一即<b>不跑全量评估</b>——工具启动只做自己的事，
+     * 避免白烧一整轮模型调用（生成 + Judge 真金白银）。
+     *
+     * <p><b>纪律（新增工具必须登记）</b>：本清单原为内联字面量，漏登记即静默跑全量评估——
+     * 实证：`--eval.draft-multihop`（Phase5簇④ 批4）与 `--eval.graph-direction-ab`（v3.05）
+     * 两个工具开关此前均未登记，工具性启动会连带触发 267 例全量评估。故抽为包内常量
+     * 并以单测钉住「每个工具 runner 的开关都在清单内」（见 {@code GraphDirectionAbRunnerTest}）。
+     */
+    static final Set<String> TOOL_MODE_OPTIONS = Set.of(
+        "eval.annotate-query",
+        "eval.annotate-all",
+        "eval.draft-answers",
+        "eval.calibration-readback",
+        "eval.diff",
+        MultiHopDraftRunner.OPTION,
+        GraphDirectionAbRunner.OPTION);
+
+
     private final GoldenDatasetLoader datasetLoader;
     private final RetrievalProbe retrievalProbe;
     private final ChatClient chatClient;        // 被测链路
@@ -101,12 +120,7 @@ public class EvalRunner {
     @EventListener(ApplicationReadyEvent.class)
     public void runOnStartup() {
         boolean ci = props.getCi().isEnabled();
-        // 工具模式不跑全量评估：标注辅助（冲刺簇④ A4）/ expectedAnswer 草稿与 κ 回读
-        // （Phase5簇② 批2）/ A/B 差异报表（Phase5簇② 批3，纯快照消费零计费）——
-        // 避免工具性启动白烧一整轮模型调用
-        if (!ci && (args.containsOption("eval.annotate-query") || args.containsOption("eval.annotate-all")
-                || args.containsOption("eval.draft-answers") || args.containsOption("eval.calibration-readback")
-                || args.containsOption("eval.diff"))) {
+        if (!ci && TOOL_MODE_OPTIONS.stream().anyMatch(args::containsOption)) {
             return;
         }
         // 前置快失败：Judge 密钥缺失时所有生成侧评分必然失败，不允许静默「通过」

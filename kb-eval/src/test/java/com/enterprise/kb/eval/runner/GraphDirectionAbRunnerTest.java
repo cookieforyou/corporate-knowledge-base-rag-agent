@@ -308,6 +308,24 @@ class GraphDirectionAbRunnerTest {
         assertThat(floored.neighborLimit()).as("非正值直传，由网关回落候选上限").isZero();
     }
 
+    /**
+     * 工具模式登记纪律（v3.05）：EvalRunner 命中任一工具开关即不跑全量评估——漏登记即静默
+     * 跑 267 例全量评估（生成 + Judge 真金白银）。本断言钉住「本工具与既有工具开关都在清单内」。
+     */
+    @Test
+    void graphDirectionFlagIsRegisteredAsToolModeSoFullEvalIsSkipped() {
+        assertThat(EvalRunner.TOOL_MODE_OPTIONS)
+            .as("本工具开关必须登记，否则 --eval.graph-direction-ab 启动会连带跑全量评估")
+            .contains(GraphDirectionAbRunner.OPTION);
+        assertThat(EvalRunner.TOOL_MODE_OPTIONS)
+            .as("同批补齐的历史遗漏：多跳草稿工具开关")
+            .contains(MultiHopDraftRunner.OPTION);
+        assertThat(EvalRunner.TOOL_MODE_OPTIONS)
+            .as("既有工具开关不得被本次收敛误删")
+            .contains("eval.annotate-query", "eval.annotate-all", "eval.draft-answers",
+                "eval.calibration-readback", "eval.diff");
+    }
+
     @Test
     void triggeredAcceptsBareFlagAndRejectsExplicitFalse() {
         assertThat(GraphDirectionAbRunner.triggered(appArgs("--eval.graph-direction-ab"))).isTrue();
