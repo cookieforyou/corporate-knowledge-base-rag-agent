@@ -275,11 +275,11 @@ CREATE VECTOR INDEX entity_embedding IF NOT EXISTS
 
 **实体 ID**：`UUID.nameUUIDFromBytes((name + "|" + type + "|" + tenantId).getBytes(UTF_8))`
 
-**合并语义**：同租户 + 同名 + 同类型 → 同 ID → MERGE 覆写：
-- `description` 取最新（或最长）
-- `embedding` 取最新描述重嵌入
+**合并语义**：同租户 + 同名 + 同类型 → 同 ID → MERGE 覆写（**v3.01/v3.02 修正后实况**）：
+- `description` + `embedding` **取「信息量更大者胜」**（原「取最新」会被空/短描述降级，
+  并把描述向量换成名称向量——embedding 是检索键）；两者同批更新、配对不错位
 - `doc_ids` / `chunk_ids` 取并集
-- `mention_count` 累加
+- `mention_count` = **去重片段数**（`chunk_ids` 并集大小，v3.02 幂等重算；原为写入次数）
 
 **跨租户隔离**：实体 ID 含 `tenantId`，同名称不同租户 → 不同节点，物理隔离。
 
@@ -287,9 +287,13 @@ CREATE VECTOR INDEX entity_embedding IF NOT EXISTS
 
 ```cypher
 // 向量匹配（参数化，fail-closed：$tenantId 必填）
-CALL db.index.vector.queryNodes('entity_embedding', $topN, $queryVector)
+// v3.00 实况：索引侧过取 $fetchLimit（= 种子上限 × entity-over-fetch），租户过滤后
+// ORDER BY score DESC LIMIT $seedLimit 封顶回原语义——Neo4j 5.26 无索引内过滤，
+// 否则他租户近邻占满名额致本租户零种子（实证见 10 章 §10.9.4）
+CALL db.index.vector.queryNodes('entity_embedding', $fetchLimit, $queryVector)
 YIELD node AS e, score
 WHERE e.tenant_id = $tenantId AND score >= $threshold
+WITH e, score ORDER BY score DESC LIMIT $seedLimit
 RETURN e, score ORDER BY score DESC
 
 // 邻域展开（参数化）

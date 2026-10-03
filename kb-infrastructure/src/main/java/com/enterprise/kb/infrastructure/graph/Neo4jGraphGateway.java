@@ -518,7 +518,7 @@ public class Neo4jGraphGateway implements GraphGateway {
      * 不同 chunk 数」——原「每次 ON MATCH +1」是抽取写入次数：同一文档重抽 N 次即 N，
      * 既非提及次数也非文档数）。
      *
-     * <p><b>描述策略（v3.00 修正）</b>：原「取最新」在跨文档时会把已存的长描述冲成短描述，
+     * <p><b>描述策略（v3.01 修正）</b>：原「取最新」在跨文档时会把已存的长描述冲成短描述，
      * 甚至被空描述冲成 {@code ""}——而嵌入语料在描述为空时回落<b>名称向量</b>
      * （{@code GraphExtractionService#embeddingCorpus}），即一条无描述文档会把该实体
      * 已存的好描述与好向量一并降级（embedding 是检索键，直接伤向量召回）。实证：
