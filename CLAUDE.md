@@ -28,8 +28,8 @@ kb-rag-agent/
 ├── kb-ai-agent/       # Agent 事务域：tool/（Mock 读/写拆类+HITL 账本）、config/（toolAgent+orchestrator 两 ChatClient）、orchestration/（Phase5簇⑤ 编排：TaskTool+SubAgentRegistry+KnowledgeSearchTools）、service/、mcp/（4.10 三件套+身份守卫）、dingtalk/（5.12 群机器人）、a2a/（批2 A2A 治理域）
 ├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
-├── kb-eval/           # EvalRunner + 探针 + Golden Dataset(267=干净110+注入127+多跳30) + CI 门禁
-├── kb-loadtest/       # Gatling 压测五场景 + StubChatServer 生成桩（Phase4簇⑥ 批5，显式触发）
+├── kb-eval/           # EvalRunner + 探针 + Golden Dataset + CI 门禁
+├── kb-loadtest/       # Gatling 压测五场景（Phase4簇⑥ 批5）
 ├── frontend/          # Vue3（Login/Chat 溯源对话/Documents/Debug 检索台/Chunks 观测台/Admin 运维中心五 Tab）
 └── docs/              # 设计章 + 进度
 ```
@@ -93,7 +93,7 @@ kb-rag-agent/
 
 **压测资产（kb-loadtest）**：Gatling Java DSL（gatling:test 显式触发）；五场景 = 检索真压 / 生成桩压（纯 JDK StubChatServer）/ 真实 LLM TTFT·TPOT（缺省关）/ SSE 多轮 / hub 图路（v3.04）；语料 = Golden 干净集；§15.4/§18.4
 
-**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；自动失败回落）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img + heading_path；**Contextual 语境增强默认开**；chunk 确定性 ID；向量化 10 条/批
+**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；失败回落）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img（**递归 DOM + 围栏屏蔽**，9.2 v2.22-23）+ heading_path（Markdown/HTML 双形态）；**Contextual 增强默认开**；chunk 确定性 ID；向量化 10 条/批
 
 **基础设施**
 

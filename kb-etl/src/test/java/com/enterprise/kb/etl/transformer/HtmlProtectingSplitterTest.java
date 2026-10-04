@@ -357,4 +357,85 @@ class HtmlProtectingSplitterTest {
         assertThat(chunks.stream().filter(c -> c.getText().contains("附则正文")).toList())
             .allSatisfy(c -> assertThat(headingPathOf(c)).isEqualTo("管理办法 > 附则"));
     }
+
+    // ── 修复批 2（9.2 v2.23）：递归 DOM 遍历 + 块级边界 + 字面块/跳过标签 ──
+
+    @Test
+    void nestedHtml_headingAndTableRecognized_withoutCellTextDuplication() {
+        // 旧实现只遍历 body 直接子节点：div 内 h1 与 table 一并退化纯文本、保护失效
+        String text = "<div>\n<h1>合同条款</h1>\n<p>" + "合同正文内容说明。".repeat(40) + "</p>\n"
+            + LONG_TABLE + "\n</div>";
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        List<Document> tableChunks = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk).toList();
+        assertThat(tableChunks).hasSize(1);
+        assertThat(headingPathOf(tableChunks.get(0))).isEqualTo("合同条款");
+        assertThat(tableChunks.get(0).getMetadata().get("original_html").toString()).contains("<table>");
+        // 表格单元格文本只出现在 TABLE chunk（递归不得把保护块内容重复并入文本流）
+        assertThat(chunks.stream().filter(c -> !isTableChunk(c)).toList())
+            .allSatisfy(c -> assertThat(c.getText()).doesNotContain("重大事件").doesNotContain("单部门业务中断"));
+        assertThat(chunks.stream().filter(c -> c.getText().contains("合同正文")).toList())
+            .allSatisfy(c -> assertThat(headingPathOf(c)).isEqualTo("合同条款"));
+    }
+
+    @Test
+    void nestedImage_becomesImageChunk_atAnyDepth() {
+        String inParagraph = "<p>图示说明如下：</p>\n<p><img src=\"arch.png\" alt=\"架构图\"></p>\n<p>"
+            + "正文内容段落说明。".repeat(40) + "</p>";
+        String deep = LONG_TABLE + "\n<div><section><figure><img src=\"deep.png\" alt=\"深层图\"></figure>"
+            + "</section></div>\n" + "后续正文内容说明。".repeat(30);
+
+        List<Document> inParagraphChunks = splitter.apply(List.of(new Document(inParagraph)));
+        List<Document> imageChunks = inParagraphChunks.stream()
+            .filter(c -> "IMAGE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE))).toList();
+        assertThat(imageChunks).hasSize(1);
+        assertThat(imageChunks.get(0).getMetadata().get("original_html").toString()).contains("arch.png");
+
+        List<Document> deepChunks = splitter.apply(List.of(new Document(deep)));
+        List<Document> deepImageChunks = deepChunks.stream()
+            .filter(c -> "IMAGE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE))).toList();
+        assertThat(deepImageChunks).hasSize(1);
+        assertThat(deepImageChunks.get(0).getMetadata().get("original_html").toString()).contains("deep.png");
+    }
+
+    @Test
+    void blockBoundariesPreserved_brListAndParagraphs() {
+        // 旧实现 default 分支 el.text() 把块级内容合并成一行（BM25/向量语义受损）
+        String text = LONG_TABLE + "\n<div>第一行<br>第二行</div>\n"
+            + "<ul><li>第一项内容</li><li>第二项内容</li><li>第三项内容</li></ul>\n"
+            + "<div><p>段落一内容</p><p>段落二内容</p></div>\n" + "后续正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+        String body = chunks.stream().filter(c -> !isTableChunk(c)).map(Document::getText)
+            .reduce("", (a, b) -> a + b);
+
+        assertThat(body).contains("第一行\n第二行");
+        assertThat(body).contains("第一项内容\n第二项内容\n第三项内容");
+        assertThat(body).contains("段落一内容\n段落二内容");
+    }
+
+    @Test
+    void literalBlocks_verbatim_noFalseHeading_noSpuriousBreak() {
+        // pre/code 为字面内容：代码里的 `# 注释` 不成标题；行内 code 不凭空断行
+        String text = LONG_TABLE + "\n<pre>\n# 这不是标题\n正文内容\n</pre>\n"
+            + "<p>参考 <code># 注释</code> 的写法。</p>\n" + "后续正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).allSatisfy(c -> assertThat(headingPathOf(c)).doesNotContain("这不是标题"));
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("# 这不是标题"))).isTrue();
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("参考 # 注释 的写法。"))).isTrue();
+    }
+
+    @Test
+    void scriptAndStyleText_notInChunkContent() {
+        String text = LONG_TABLE + "\n<style>p{color:red}</style><script>var x=1;</script>\n"
+            + "后续正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).allSatisfy(c -> assertThat(c.getText())
+            .doesNotContain("color:red").doesNotContain("var x=1"));
+    }
 }

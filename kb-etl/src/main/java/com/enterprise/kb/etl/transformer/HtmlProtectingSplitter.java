@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,6 +59,23 @@ import java.util.regex.Pattern;
  *       （原实现先冲刷后判空 → 章节被劈成两个 chunk，NBSP 还可能进 heading_path）。</li>
  * </ol>
  * 无结构标签且无标题的纯文本文档走快速路径，行为零变化（真实语料 6 篇逐 chunk 字节一致）。
+ *
+ * <p><b>修复批 2（2026-10-04，9.2 v2.23）——递归 DOM 遍历 + 块级边界</b>：
+ * AST 路径由「body 直接子节点」改为<b>递归遍历</b>——嵌套 {@code <div>}/{@code <section>}
+ * 内的 {@code h1}~{@code h6} 与 {@code table}/{@code img} 同样识别（原实现下
+ * {@code <div><h1>…</h1><table>…</table></div>} 的标题与表格一并退化纯文本、
+ * {@code <p><img/></p>} 与深层 {@code div>section>figure>img} 的图片零 chunk 丢失）。
+ * 配套三处纪律：
+ * <ol>
+ *   <li><b>块级边界</b>：块级元素前后补行边界（{@code <br>} 补换行）——段落/列表项/换行
+ *       不再被 {@code el.text()} 合并成一行（影响 BM25 与向量语义）；</li>
+ *   <li><b>字面内容</b>：{@code pre}/{@code code} 原文入缓冲且不做标题扫描
+ *       （原实现靠「整段 {@code el.text()}」恰好不出错，递归后必须显式保留——
+ *       否则代码里的 `# 注释` 会成为假标题）；</li>
+ *   <li><b>跳过标签</b>：{@code script}/{@code style}/{@code noscript}/{@code title} 等不入正文
+ *       （同理，原实现靠不递归才没有噪声）；文本节点换行语义改为「行间补换行、行尾不补」，
+ *       避免行内元素处凭空断行。</li>
+ * </ol>
  */
 @Component
 public class HtmlProtectingSplitter implements DocumentTransformer {
@@ -96,6 +114,12 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
     /** HTML 注释：仅用于结构判据剔除（注释内的 `<table>` 不应触发 AST 路径） */
     private static final Pattern HTML_COMMENT = Pattern.compile("(?s)<!--.*?-->");
+
+    /** 不入正文的标签（脚本/样式/元信息）：递归遍历下须显式跳过，否则其文本会进 chunk */
+    private static final Set<String> SKIP_TAGS = Set.of("script", "style", "noscript", "head", "title", "template");
+
+    /** 字面内容标签：原文入缓冲，不做标题扫描（围栏转义载体 pre + 行内 code） */
+    private static final Set<String> LITERAL_TAGS = Set.of("pre", "code");
 
     private final TokenTextSplitter textSplitter = newTextSplitter();
 
@@ -221,33 +245,22 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
     // ── 路径 1：仅 Markdown 标题的文档（逐行扫描，围栏区间不判标题） ──
 
+    /** 路径 1：仅 Markdown 标题的文档逐行扫描（`trailingNewline=true` 与初版逐字一致；围栏区间不判标题） */
     private List<Document> splitByMarkdownHeadings(Document doc, String[] lines, boolean[] inFence) {
         List<Document> result = new ArrayList<>();
         StringBuilder buffer = new StringBuilder();
         String[] headings = new String[7];
         for (int i = 0; i < lines.length; i++) {
-            Matcher m = MARKDOWN_HEADING.matcher(lines[i].stripTrailing());
-            if (!inFence[i] && m.matches()) {
-                String title = normalizeTitle(m.group(2));
-                if (!title.isEmpty()) {
-                    flushBuffer(buffer, doc, result, headingPathOf(headings));
-                    setHeading(headings, m.group(1).length(), title);
-                    buffer.append(title).append('\n');   // 标题文字保留正文首部
-                    continue;
-                }
-            }
-            buffer.append(lines[i]).append('\n');
+            appendLine(buffer, doc, result, headings, lines[i], !inFence[i], true);
         }
         flushBuffer(buffer, doc, result, headingPathOf(headings));
         return result;
     }
 
     /**
-     * 路径 2：结构感知切分——JSoup 遍历 body 直接子节点，文本按行扫描 Markdown 标题，
+     * 路径 2：结构感知切分——JSoup 递归遍历 DOM（9.2 v2.23），文本按行扫描 Markdown 标题，
      * 标题栈随遇随更新；标题变更即冲刷缓冲（chunk 与章节对齐），
-     * 保护块（TABLE/IMAGE）独立成 chunk 并携带当前 heading_path。
-     *
-     * <p>批 2 将改为递归遍历（嵌套 {@code <div>}/{@code <section>} 内的标题与保护块当前不识别）。
+     * 保护块（TABLE/IMAGE）独立成 chunk 并携带当前 heading_path，块级元素补行边界。
      */
     private List<Document> splitWithTracking(Document doc, String text) {
         List<Document> result = new ArrayList<>();
@@ -255,34 +268,77 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         String[] headings = new String[7];   // 下标 1..6 = h1..h6 当前标题
 
         for (Node node : Jsoup.parseBodyFragment(text).body().childNodes()) {
-            if (node instanceof TextNode textNode) {
-                appendTextLines(buffer, doc, result, headings, textNode.getWholeText());
-            } else if (node instanceof Element el) {
-                int level = headingLevelOf(el.tagName());
-                if (level > 0) {
-                    onHtmlHeading(el, level, doc, result, headings, buffer);
-                    continue;
-                }
-                switch (el.tagName().toLowerCase()) {
-                    case "table" -> {
-                        if (el.text().length() < MIN_TABLE_CHARS) {
-                            buffer.append(el.text()).append('\n');   // 小表格退化纯文本
-                        } else {
-                            flushBuffer(buffer, doc, result, headingPathOf(headings));
-                            result.add(protectedChunk(doc, el.outerHtml(), ChunkType.TABLE, headingPathOf(headings)));
-                        }
-                    }
-                    case "img" -> {
-                        flushBuffer(buffer, doc, result, headingPathOf(headings));
-                        result.add(protectedChunk(doc, el.outerHtml(), ChunkType.IMAGE, headingPathOf(headings)));
-                    }
-                    case "pre", "code" -> buffer.append(el.wholeText()).append('\n');   // 字面内容（含围栏载体）
-                    default -> buffer.append(el.text()).append('\n');
-                }
-            }
+            walk(node, doc, result, headings, buffer);
         }
         flushBuffer(buffer, doc, result, headingPathOf(headings));
         return result;
+    }
+
+    /**
+     * 递归遍历（9.2 v2.23 修复批2）：嵌套层级内的标题与 table/img 同样识别——原实现只看
+     * body 直接子节点，`<div><h1>…</h1><table>…</table></div>` 的标题与表格一并退化纯文本、
+     * `<p><img/></p>` 与深层 `div&gt;section&gt;figure&gt;img` 的图片零 chunk 丢失。
+     *
+     * <p>五类分派：文本节点逐行扫描；h1~h6 空标题守卫后冲刷入栈；table/img 保护块独立成 chunk
+     * （小表格退化文本）；`<br>` 补换行；其余元素在块级前后补行边界后递归子节点——其中
+     * {@code pre}/{@code code} 为字面内容（原样入缓冲、不做标题扫描，否则代码里的 `# 注释`
+     * 会成为假标题），{@code script}/{@code style} 等不入正文。
+     */
+    private void walk(Node node, Document doc, List<Document> result, String[] headings, StringBuilder buffer) {
+        if (node instanceof TextNode textNode) {
+            appendTextLines(buffer, doc, result, headings, textNode.getWholeText());
+            return;
+        }
+        if (!(node instanceof Element el)) {
+            return;                                   // Comment / DataNode：不入正文
+        }
+        String tag = el.tagName().toLowerCase();
+        if (SKIP_TAGS.contains(tag)) {
+            return;
+        }
+        int level = headingLevelOf(tag);
+        if (level > 0) {
+            onHtmlHeading(el, level, doc, result, headings, buffer);
+            return;                                   // 标题内部不再下探
+        }
+        switch (tag) {
+            case "table" -> {
+                if (el.text().length() < MIN_TABLE_CHARS) {
+                    buffer.append(el.text()).append('\n');   // 小表格退化纯文本
+                } else {
+                    flushBuffer(buffer, doc, result, headingPathOf(headings));
+                    result.add(protectedChunk(doc, el.outerHtml(), ChunkType.TABLE, headingPathOf(headings)));
+                }
+            }
+            case "img" -> {
+                flushBuffer(buffer, doc, result, headingPathOf(headings));
+                result.add(protectedChunk(doc, el.outerHtml(), ChunkType.IMAGE, headingPathOf(headings)));
+            }
+            case "br" -> lineBreak(buffer);
+            default -> {
+                if (LITERAL_TAGS.contains(tag)) {          // pre / code：字面内容，不判标题
+                    boolean literalBlock = el.tag().isBlock();
+                    if (literalBlock) {
+                        lineBreak(buffer);
+                    }
+                    buffer.append(el.wholeText());
+                    if (literalBlock) {
+                        buffer.append('\n');
+                    }
+                    return;
+                }
+                boolean block = el.tag().isBlock();
+                if (block) {
+                    lineBreak(buffer);
+                }
+                for (Node child : el.childNodes()) {
+                    walk(child, doc, result, headings, buffer);
+                }
+                if (block) {
+                    lineBreak(buffer);
+                }
+            }
+        }
     }
 
     /** HTML 标题：空标题（含 NBSP 伪标题）不冲刷、不入栈——避免无意义章节边界（9.2 v2.22） */
@@ -297,21 +353,60 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         buffer.append(title).append('\n');   // 标题文字保留正文（BM25/向量化可检索）
     }
 
-    /** 文本逐行扫描：Markdown 标题行触发冲刷 + 标题栈更新，其余行入缓冲 */
+    /**
+     * AST 文本节点逐行扫描（9.2 v2.23）：行间换行原样保留、行尾不补换行（块级元素的行边界
+     * 由 {@link #lineBreak} 负责）——避免行内元素（`<b>`/`<code>`/`<span>`）处凭空断行。
+     * 标题仅在行首成立：节点内非首行，或缓冲处于行边界。
+     */
     private void appendTextLines(StringBuilder buffer, Document doc, List<Document> result,
                                  String[] headings, String text) {
-        for (String line : text.split("\n", -1)) {
+        String[] lines = text.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                buffer.append('\n');
+            }
+            appendLine(buffer, doc, result, headings, lines[i], i > 0 || bufferAtLineStart(buffer), false);
+        }
+    }
+
+    /**
+     * 单行处理：允许判标题时按 ATX 规则识别（冲刷 + 入栈 + 标题文字留正文），否则原文入缓冲。
+     *
+     * @param trailingNewline 整篇 Markdown 行扫描逐行补换行（与初版行为逐字一致）；
+     *                        AST 文本节点不补（行间换行由 {@link #appendTextLines} 补）
+     */
+    private void appendLine(StringBuilder buffer, Document doc, List<Document> result, String[] headings,
+                            String line, boolean mayBeHeading, boolean trailingNewline) {
+        if (mayBeHeading && bufferAtLineStart(buffer)) {
             Matcher m = MARKDOWN_HEADING.matcher(line.stripTrailing());
             if (m.matches()) {
                 String title = normalizeTitle(m.group(2));
                 if (!title.isEmpty()) {
                     flushBuffer(buffer, doc, result, headingPathOf(headings));
                     setHeading(headings, m.group(1).length(), title);
-                    buffer.append(title).append('\n');   // 标题文字保留正文首部
-                    continue;
+                    buffer.append(title);
+                    if (trailingNewline) {
+                        buffer.append('\n');
+                    }
+                    return;
                 }
             }
-            buffer.append(line).append('\n');
+        }
+        buffer.append(line);
+        if (trailingNewline) {
+            buffer.append('\n');
+        }
+    }
+
+    /** 缓冲是否处于行边界（空缓冲或末尾为换行）——Markdown 标题只能在行首成立 */
+    private static boolean bufferAtLineStart(StringBuilder buffer) {
+        return buffer.isEmpty() || buffer.charAt(buffer.length() - 1) == '\n';
+    }
+
+    /** 补行边界（块级元素与 `<br>` 前后）：已在行首则不重复补 */
+    private static void lineBreak(StringBuilder buffer) {
+        if (!bufferAtLineStart(buffer)) {
+            buffer.append('\n');
         }
     }
 
