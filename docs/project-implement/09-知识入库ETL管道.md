@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-01（v2.28 语境增强挂辅助族）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-04（v2.29 HtmlProtectingSplitter 修复批1：结构判据精确化 + 代码围栏屏蔽；详 9.2 v2.22）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -271,6 +271,14 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 > 1. **标题变更即冲刷缓冲**：chunk 边界与章节边界对齐（topic-aligned），标题文字保留在新 chunk 正文首部（BM25/向量化可检索）；
 > 2. **三路分发**：无保护标签且无标题 → 原快速路径零变化；仅标题无保护标签 → 纯行扫描（**不经 JSoup**——代码片段尖括号 `List<String>` 会被 JSoup 解析为未知标签丢文本）；有保护标签 → JSoup AST 路径（尖括号风险为 v2 既有边界，不扩大）；
 > 3. **三存储面落地**：`kb_chunk.metadata` JSONB 的 heading_path 键 + 向量库元数据（缺省不写键，元数据禁 null）+ ES `heading_path` 字段（新建索引走 mapping ik 分词，存量索引 dynamic mapping 自动映射，完全对齐随 Phase 4.6 索引重建窗口）。载体经 `KbChunk.headingPath` @Transient 字段流转（免 ECS ALTER）。展示与检索两用；BM25 查询侧消费（multi_match 纳入 heading_path）待 contextual A/B 决策后评估，避免双重变量污染基线。
+
+> **v2.22 修正（2026-10-04，HtmlProtectingSplitter 修复批1：结构判据精确化 + 代码围栏屏蔽）**：源码复核 + 实测（jsoup 1.23.1 / spring-ai 2.0.1）发现并修复四类缺陷；**真实语料（`docs/corpus` 6 篇）修复前后逐 chunk 字节一致——确定性 chunk ID 零漂移，Golden 锚点无需重锚**。
+> 1. **统一入口判据**：结构标签判据由草图与初版的 `contains("<table")` / `contains("<img")` 改为严格边界正则 `<(table|img|h[1-6])(?=[\s/>])`（大小写不敏感）。原判据把 `<tableau>` / `<image>` 误判入 AST 路径（标签被剥、行结构被合并）；**且实测可致数据丢失**——`<imgs 伪标签`（未闭合）被 JSoup 吞掉其后全文，整篇产出 **0 chunk 静默丢库**。含 HTML 标题标签的文档一并纳入 AST 路径：原实现下「有 `<h1>`~`<h6>`、无 table/img」的文档走快速路径，heading_path 全丢且 `<h1>`/`<p>` 标签原样进 chunk 正文（参与 embedding 与提示词）。
+> 2. **代码围栏屏蔽**：新增一次行扫描得出围栏区间（``` / ~~~ / 4+ 反引号 / 未闭合延伸至文末 / ≤3 空格缩进），围栏内既不参与结构判据、也不参与 Markdown 标题判定；AST 路径把围栏区间改写为 `<pre>HTML 转义原文</pre>`（**转义而非哨兵占位**——控制字符会被 HTML 解析器丢弃，哨兵方案实测污染真实语料正文），由 `pre` 字面分支原样回到 chunk 正文。原实现下围栏内 `# 注释` 被当真标题（多切一个 chunk + 污染 heading_path、影响 BM25 与向量语义）、围栏内 `<h1>` 污染标题栈、围栏内 `<table>` 代码样例被提升为真 TABLE chunk。
+> 3. **判据细节**：ATX 标题按 CommonMark 收紧为 `^[ \t]{0,3}(#{1,6})[ \t]+(.+?)[ \t]*$`——支持 ≤3 空格缩进（原 `^#{1,6}` 漏识合法标题）、`[ \t]` 替换 `\s`（原整篇 `find()` 预检可跨行误匹配 `#\n正文`）、去 MULTILINE 改逐行 `matches()`；结构判据剔除 HTML 注释（`<!-- <table> -->` 不再触发 AST 路径）。**行为变化**：此类文档改走行扫描后注释文本保留在正文（原实现被 JSoup 丢弃）。
+> 4. **空标题守卫**：`<h2></h2>` / `<h2>&nbsp;</h2>` / `<h2> </h2>` 不再触发冲刷——原实现先冲刷后判空，章节被劈成两个 chunk；NBSP 因 `String.isBlank()` 不覆盖，还可能作为标题进 heading_path。标题文字统一经 NBSP 归一后判空。
+>
+> **本批边界（批 2 承接）**：AST 路径仍只遍历 body 直接子节点——嵌套（`<div>`/`<section>`）内的标题与 table/img 不识别（`<p><img/></p>`、深层 `div>section>figure>img` 的图片**零 chunk 丢失**）、块级边界（`<br>` / `<li>` / `<p>`）合并为空格、`<style>/<script>` 与 `<pre>`/`<code>` 字面语义仅因「整段 `el.text()`」而恰好不出错（改递归时须显式保留）。快速路径边界不变：仅含 `<p>`/`<div>` 等非结构标签的文档仍原文直通（标签留在正文）。
 
 ---
 
