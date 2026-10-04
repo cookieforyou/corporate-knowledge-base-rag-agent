@@ -78,9 +78,10 @@ class ContextualEnrichmentTransformerTest {
             chunk("<img src=\"arch.png\">", Map.of(Constants.Retrieval.META_CHUNK_TYPE, "IMAGE"))));
 
         assertThat(out.get(0).getText()).isEqualTo("<img src=\"arch.png\">");
+        // 未增强路径同样标记原文（9.5 v2.29）：original_content 与 content 对齐，不再落 NULL
         assertThat(out.get(0).getMetadata())
             .doesNotContainKey(ContextualEnrichmentTransformer.DOC_EXCERPT_KEY)
-            .doesNotContainKey(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+            .containsEntry(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY, "<img src=\"arch.png\">");
     }
 
     @Test
@@ -91,7 +92,7 @@ class ContextualEnrichmentTransformerTest {
 
         assertThat(out.get(0).getText()).isEqualTo("太短了");
         assertThat(out.get(0).getMetadata())
-            .doesNotContainKey(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+            .containsEntry(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY, "太短了");
     }
 
     @Test
@@ -119,7 +120,7 @@ class ContextualEnrichmentTransformerTest {
 
         assertThat(out.get(0).getText()).isEqualTo(original);
         assertThat(out.get(0).getMetadata())
-            .doesNotContainKey(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY);
+            .containsEntry(ContextualEnrichmentTransformer.ORIGINAL_TEXT_KEY, original);
     }
 
     /**

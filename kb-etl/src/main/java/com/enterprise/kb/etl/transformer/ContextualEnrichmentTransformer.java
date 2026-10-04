@@ -45,7 +45,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>数据流：{@code content} 存增强文本（「【上下文】」前缀 + 原文，参与
  * embedding/BM25），{@code original_content} 经 {@link #ORIGINAL_TEXT_KEY}
- * 元数据存原文（前端展示/结构保真）——9.5 数据模型契合。
+ * 元数据存原文（前端展示/结构保真）——9.5 数据模型契合。**未增强路径（IMAGE/超短/空语境/
+ * 异常）同样标记原文**（9.5 v2.29）→ {@code original_content} 与 {@code content} 对齐，
+ * 全库该列不再出现 NULL（IMAGE/TABLE 仍以保护块 HTML 为准）。
  *
  * <p>位置在 {@link SanitizingTransformer} 之后的纪律：LLM 只看到脱敏态文本，
  * 原文 PII 不出库（与冲刺簇② B1 纵深一致）。
@@ -158,7 +160,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
             String text = chunk.getText();
             boolean image = ChunkType.IMAGE.name().equals(String.valueOf(chunk.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE)));
             if (image || text == null || text.strip().length() < MIN_ENRICH_CHARS) {
-                slots[slot] = stripExcerpt(chunk);
+                slots[slot] = passthrough(chunk);
                 skipped.incrementAndGet();
                 continue;
             }
@@ -168,7 +170,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
                     concurrencyGate.acquire();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    slots[slot] = stripExcerpt(chunk);
+                    slots[slot] = passthrough(chunk);
                     failed.incrementAndGet();
                     return;
                 }
@@ -194,7 +196,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
             String context = generateContext(excerpt, text);
             if (context == null || context.isBlank()) {
                 skipped.incrementAndGet();
-                return stripExcerpt(chunk);
+                return passthrough(chunk);
             }
             Map<String, Object> meta = new HashMap<>(chunk.getMetadata());
             meta.remove(DOC_EXCERPT_KEY);
@@ -207,7 +209,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
         } catch (Exception e) {
             log.warn("语境增强失败（原样放行不阻断 ETL）: {}", e.getMessage());
             failed.incrementAndGet();
-            return stripExcerpt(chunk);
+            return passthrough(chunk);
         }
     }
 
@@ -221,14 +223,20 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
         return response.getResult().getOutput().getText();
     }
 
-    /** 移除文档概要键（未增强路径同样不得把大段概要带入下游元数据面） */
-    private static Document stripExcerpt(Document chunk) {
-        if (!chunk.getMetadata().containsKey(DOC_EXCERPT_KEY)) {
-            return chunk;
-        }
+    /**
+     * 未增强路径原样放行（IMAGE / 超短 / 空语境 / 异常）：移除文档概要键（不得把大段概要带入
+     * 下游元数据面），并**标记原文** —— 未增强 chunk 的原文即正文，落库后
+     * {@code original_content} 与 {@code content} 对齐（9.5 v2.29：不再落 NULL，Chunk 观测台/
+     * 运维编辑面无需再解释「NULL = 未增强」这一隐含语义）。
+     */
+    private static Document passthrough(Document chunk) {
         Map<String, Object> meta = new HashMap<>(chunk.getMetadata());
         meta.remove(DOC_EXCERPT_KEY);
-        return Document.builder().text(chunk.getText()).metadata(meta).build();
+        String text = chunk.getText();
+        if (text != null && !text.isBlank() && !meta.containsKey(ORIGINAL_TEXT_KEY)) {
+            meta.put(ORIGINAL_TEXT_KEY, text);
+        }
+        return Document.builder().text(text).metadata(meta).build();
     }
 
     private static String truncate(String s, int max) {
