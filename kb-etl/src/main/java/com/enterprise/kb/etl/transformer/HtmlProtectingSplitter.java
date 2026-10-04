@@ -99,6 +99,11 @@ import java.util.regex.Pattern;
  * 保护块正文（{@code original_html} 保持纯 HTML）、文末无后继则兜底自成 chunk。
  * 实测：6 篇语料 chunk 数全部不变（无索引位移），仅 2 篇受影响文档的 5 个 chunk 正文变化。
  *
+ * <p><b>修复批 5（2026-10-04，9.2 v2.26，布局保真微调）</b>：容器标题归位（批4）时该标题与其后子标题/
+ * 保护块之间的**空行被 {@code strip()} 吃掉**，chunk 正文与源文档布局不一致——治法 = 残余文本
+ * **原样衔接**（{@link #carryInto} 不 strip，仅补行边界；{@link #protectedChunk} 前缀仅去前导空白、
+ * 保留其后空行）。正文变化仅限受影响的 5 个 chunk（无 chunk 数变化）。
+ *
  * <p><b>围栏规则声明（有意简化）</b>：围栏按「≤3 空格缩进 + 3 个以上同字符（``` / ~~~）」识别，
  * 不校验 CommonMark 的 info string 约束（如反引号围栏的 info string 不得含反引号）——
  * 该差异仅影响病态输入（{@code ``` a`b} 一行），不引入结构或内容丢失。
@@ -530,12 +535,14 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     }
 
     /**
-     * 残余文本随其后继内容落位（9.2 v2.25）：后继是标题（容器标题，章节本身无正文）→ 回填缓冲，
-     * 标题文字进入子章节 chunk 正文；后继是保护块 → 前置到该保护块正文（见 {@link #protectedChunk}）。
+     * 残余文本随其后继内容落位（9.2 v2.25；v2.26 布局保真）：后继是标题（容器标题，章节无正文）
+     * → **原样**回填缓冲，标题文字与其后的空行（原文档「容器标题/空行/子标题」三段布局）一并保留，
+     * 再进入子章节 chunk 正文；后继是保护块 → 前置到该保护块正文（见 {@link #protectedChunk}）。
      */
     private static void carryInto(StringBuilder buffer, String leftover) {
         if (leftover != null) {
-            buffer.append(leftover.strip()).append('\n');
+            buffer.append(leftover);        // 原样衔接：不 strip——容器标题与子标题间的空行不得丢
+            lineBreak(buffer);              // 残余无尾换行时补行边界，保证与后继标题分行
         }
     }
 
@@ -551,7 +558,8 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     /**
      * 保护块独立成 Chunk：chunk_type + original_html + heading_path 元数据。
      * {@code prefix}（当前章节的残余标题文字，可为 null）只进 chunk 正文（BM25/向量化可检索），
-     * {@code original_html} 恒为纯 HTML——结构保真与前端回显不受影响（9.2 v2.25）。
+     * 且**原样保留其后的空行**（与源文档「标题/空行/表格」布局一致，9.2 v2.26）；
+     * {@code original_html} 恒为纯 HTML——结构保真与前端回显不受影响。
      */
     private static Document protectedChunk(Document doc, String prefix, String html, ChunkType type, String headingPath) {
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
@@ -560,7 +568,11 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         if (headingPath != null && !headingPath.isBlank()) {
             meta.put(HEADING_PATH_KEY, headingPath);
         }
-        String text = (prefix == null || prefix.isBlank()) ? html : prefix.strip() + "\n" + html;
+        String text = html;
+        if (prefix != null && !prefix.isBlank()) {
+            String head = prefix.stripLeading();     // 去前导空白（与前一块的间隔），保留标题与其后内容的原始空行
+            text = head.endsWith("\n") ? head + html : head + "\n" + html;
+        }
         return Document.builder().text(text).metadata(meta).build();
     }
 

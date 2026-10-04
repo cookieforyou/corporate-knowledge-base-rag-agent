@@ -498,13 +498,14 @@ class HtmlProtectingSplitterTest {
     void containerHeadingTitle_carriedIntoChildChunk() {
         // 容器标题（章节无正文）≤10 字符：修复前被 TokenTextSplitter 静默丢弃，标题文字从索引消失
         String text = "# 总纲\n" + "总纲正文内容说明。".repeat(30)
-            + "\n## 一、总则\n### 1.1 目的与依据\n" + "目的与依据正文内容说明。".repeat(30);
+            + "\n## 一、总则\n\n### 1.1 目的与依据\n" + "目的与依据正文内容说明。".repeat(30);
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
         assertThat(chunks).anySatisfy(c -> {
             assertThat(headingPathOf(c)).isEqualTo("总纲 > 一、总则 > 1.1 目的与依据");
-            assertThat(c.getText()).startsWith("一、总则");     // 父标题文字随子章节 chunk 落位
+            // 父标题文字随子章节 chunk 落位，且「标题/空行/子标题」布局与源文档一致（v2.26）
+            assertThat(c.getText()).startsWith("一、总则\n\n1.1 目的与依据");
         });
         assertThat(chunks.stream().anyMatch(c -> c.getText().contains("总纲正文内容"))).isTrue();
     }
@@ -512,16 +513,28 @@ class HtmlProtectingSplitterTest {
     @Test
     void shortHeadingBeforeTable_prefixedIntoTableChunk_withPureOriginalHtml() {
         // 表格前的短标题（≤10 字符）：修复前标题文字丢失；修复后前置到该 TABLE chunk 正文
-        String text = "### 6.1 事件分级\n" + LONG_TABLE + "\n" + "后续正文内容说明。".repeat(30);
+        String text = "### 6.1 事件分级\n\n" + LONG_TABLE + "\n" + "后续正文内容说明。".repeat(30);
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
         Document tableChunk = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk).findFirst().orElseThrow();
         assertThat(headingPathOf(tableChunk)).isEqualTo("6.1 事件分级");
-        assertThat(tableChunk.getText()).startsWith("6.1 事件分级\n<table>");
+        assertThat(tableChunk.getText()).startsWith("6.1 事件分级\n\n<table>");   // 标题与表格间空行保留（与源文档一致）
         // 结构保真：original_html 仍是纯 HTML（不含标题前缀）
         assertThat(tableChunk.getMetadata().get("original_html").toString())
             .startsWith("<table").doesNotContain("6.1 事件分级");
+    }
+
+    @Test
+    void containerHeadingLayout_matchesSourceBlankLines() {
+        // 布局保真（v2.26）：源文档「## 容器标题 / 空行 / ### 子标题」两段空行结构在 chunk 正文中保留
+        String text = "# 总纲\n" + "总纲正文内容说明。".repeat(30)
+            + "\n## 一、总则\n\n### 1.1 目的与依据\n" + "目的与依据正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).anySatisfy(c -> assertThat(c.getText())
+            .startsWith("一、总则\n\n1.1 目的与依据").doesNotContain("一、总则\n1.1"));
     }
 
     @Test

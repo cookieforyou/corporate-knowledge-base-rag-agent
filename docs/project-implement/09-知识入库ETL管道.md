@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-04（v2.32 HtmlProtectingSplitter 修复批4：短文本静默丢弃根治——容器标题/表格前短标题归位；详 9.2 v2.25）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-04（v2.33 修复批5：容器标题归位的布局保真 + 未增强 chunk 原文对齐；详 9.2 v2.26 / 9.5 v2.29）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -305,6 +305,10 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 > 4. **回归资产**：语料漂移守卫新增第三条不变量——**每个 Markdown 标题文字必须至少出现在一个 chunk 正文中**（本缺陷的直接指纹，修复前必挂）；切分器单测 36 → 40 例（容器标题归位 / 表格前短标题前置且 original_html 纯净 / 文末兜底 / 短标题后有正文时行为不变）。
 > 5. **定位方法留档**：确定性 chunk ID 可在本地逐条复现（`UUID.nameUUIDFromBytes(name#index#text)`，Tika 文本 → 切分器 → 同一算式），本次以用户导出 CSV **71/71 逐条对齐**后据此测算影响面——后续评审/热修可复用该手法先算影响再改码。
 
+> **v2.26 修正（2026-10-04，HtmlProtectingSplitter 修复批5：容器标题归位的布局保真）**：批4 归位容器标题时对残余文本做了 {@code strip()}，把源文档「容器标题 / 空行 / 子标题（或表格）」三段布局里的**空行吃掉了**——chunk 正文与原文不一致（用户侧复入库观测发现）。治法 = **残余文本原样衔接**：{@code carryInto} 不再 strip（仅补行边界），{@code protectedChunk} 的前缀只去前导空白、保留其后空行。实测：受影响 chunk 正文由「{@code 一、DDD 概述\n1.1 起源与背景}」变为「{@code 一、DDD 概述\n\n1.1 起源与背景}」（表格场景同理：{@code 6.1 事件分级\n\n<table>}），**chunk 数全部不变**（6 篇语料仍 8/28/7/8/19/71），仅 2 篇受影响文档的 5 个 chunk 正文与 ID 变化——需再重入库一次。
+>
+> **口径**：chunk 正文的换行结构以源文档为准（标题与其后内容的空行属原文布局，不再由切分器改写）；chunk 边界的 trim 仍由 {@code TokenTextSplitter} 负责（首尾空白不入 chunk）。
+
 > **两条路径的边界（修复后最终口径）**：快速路径 = 无结构标签且无标题的纯文本（原文直通，行为与 Phase 1 一致）；行扫描路径 = 仅 Markdown 标题（不经 JSoup，代码尖括号安全）；AST 路径 = 含 `table`/`img`/`h1`~`h6`（围栏外）的文档，正文去标签、保护块成 chunk、块级边界保留。`<p>`/`<div>` 等非结构标签单独出现时仍走快速路径（标签留在正文）——这是「不引入 JSoup 全量解析」纪律的代价，属既定边界。
 
 ---
@@ -581,6 +585,16 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 > temperature 0 / maxTokens 300 / 并发闸门不变。**注**：增强模型变更即
 > chunk `content` 增强前缀形态变更——存量语料经重入库窗口复现后 chain 探针基线
 > 需复测对档（与 v2.23 A/B 同法）。
+
+> **v2.29 未增强 chunk 原文对齐（2026-10-04，用户侧复入库观测微调）**：此前
+> **未增强路径**（IMAGE / 超短 < `MIN_ENRICH_CHARS`(20) / 空语境 / 异常原样放行）不打
+> `original_text` 标记 → 落库 `original_content` 为 **NULL**，而 `content` 有值——同一份文本
+> 在两列间"半空"，运维/观测面每次都要解释「NULL = 未增强」这一隐含语义。治法 =
+> `stripExcerpt` 更名 `passthrough` 并在放行时**标记原文**（{@code text} 非空白且未标记时写入
+> `ORIGINAL_TEXT_KEY`）→ 未增强 chunk 的 `original_content` 与 `content` **对齐同值**；
+> IMAGE/TABLE 仍以保护块 HTML 为准（ETL 侧 `originalHtml` 优先且不覆盖，语义不变）。
+> **无 ID 影响**：确定性 ID 的 `baseText` 取「增强前原文」，标记与否取值相同（该键值即正文），
+> 故本次改动不引起重锚；存量行随重入库窗口自然对齐（不单独回填）。
 
 ---
 
