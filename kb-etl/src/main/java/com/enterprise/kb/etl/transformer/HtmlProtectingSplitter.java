@@ -76,6 +76,24 @@ import java.util.regex.Pattern;
  *       （同理，原实现靠不递归才没有噪声）；文本节点换行语义改为「行间补换行、行尾不补」，
  *       避免行内元素处凭空断行。</li>
  * </ol>
+ *
+ * <p><b>修复批 3（2026-10-04，9.2 v2.24，评审热修）</b>：
+ * <ol>
+ *   <li><b>注释区间同口径</b>：Markdown 标题判据与路径 1 行扫描一并排除 HTML 注释区间
+ *       （原实现只对「结构标签」判据剥注释，多行注释内的 {@code # 行} 会被当真标题冲刷并进
+ *       heading_path——与「判据只看围栏与注释之外」的声明矛盾）；未闭合注释延伸至文末，
+ *       围栏行不参与注释状态机（围栏内的 {@code <!--} 不会把其后的真实标题屏蔽）；</li>
+ *   <li><b>小表格行边界</b>：小表格退化分支补 {@link #lineBreak}——行内上下文
+ *       （{@code <span>a</span><table>…</table>}）不再与表格文本粘连；</li>
+ *   <li><b>行内上下文不判标题</b>：{@code walk} 传播块级上下文标志，行内元素
+ *       （{@code <b>}/{@code <span>} 等）内的多行文本不再把行首 {@code # } 当 Markdown 标题；
+ *       块级元素与顶层文本节点行为不变（DocMind 正文为顶层 Markdown 文本，不受影响）；</li>
+ *   <li><b>微整理</b>：{@code flushBuffer} 单次 {@code toString()}（去重复副本）；
+ *       行首判据统一由 {@link #appendLine} 内部执行（去调用侧重复表达式）。</li>
+ * </ol>
+ * <b>围栏规则声明（有意简化）</b>：围栏按「≤3 空格缩进 + 3 个以上同字符（``` / ~~~）」识别，
+ * 不校验 CommonMark 的 info string 约束（如反引号围栏的 info string 不得含反引号）——
+ * 该差异仅影响病态输入（{@code ``` a`b} 一行），不引入结构或内容丢失。
  */
 @Component
 public class HtmlProtectingSplitter implements DocumentTransformer {
@@ -159,28 +177,28 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         }
         if (!scan.hasProtected && !scan.hasHtmlHeading) {
             // 仅 Markdown 标题：纯行扫描（不经 JSoup——避免代码片段中的尖括号被解析为未知标签丢文本）
-            return splitByMarkdownHeadings(doc, lines, scan.inFence);
+            return splitByMarkdownHeadings(doc, lines, scan.inFence, scan.inComment);
         }
         return splitWithTracking(doc, jsoupText(lines, scan.inFence));
     }
 
     // ── 结构判据：一次行扫描得出围栏区间 + 三判据（9.2 v2.22） ──
 
-    /** 行扫描结果：围栏区间标记 + 保护标签 / HTML 标题 / Markdown 标题三判据 */
-    private record Scan(boolean[] inFence, boolean hasProtected, boolean hasHtmlHeading, boolean hasMarkdownHeading) {}
+    /**
+     * 行扫描结果：围栏与注释区间标记 + 保护标签 / HTML 标题 / Markdown 标题三判据。
+     * 判据口径统一——围栏与注释之外才参与判定（新增结构判据时在此扩展区间标记）。
+     */
+    private record Scan(boolean[] inFence, boolean[] inComment,
+                        boolean hasProtected, boolean hasHtmlHeading, boolean hasMarkdownHeading) {}
 
     private static Scan scan(String[] lines) {
         boolean[] inFence = new boolean[lines.length];
         StringBuilder outside = new StringBuilder();
-        boolean hasMarkdownHeading = false;
         int i = 0;
         while (i < lines.length) {
             Matcher open = FENCE.matcher(lines[i]);
             if (!open.matches()) {
                 outside.append(lines[i]).append('\n');
-                if (!hasMarkdownHeading && MARKDOWN_HEADING.matcher(lines[i].stripTrailing()).matches()) {
-                    hasMarkdownHeading = true;
-                }
                 i++;
                 continue;
             }
@@ -201,10 +219,56 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
             }
             i = end + 1;
         }
+        // 注释区间（与标签判据同口径）：注释内的 Markdown 标题不得冲刷章节、不得污染 heading_path
+        boolean[] inComment = commentLines(lines, inFence);
+        boolean hasMarkdownHeading = false;
+        for (int j = 0; j < lines.length && !hasMarkdownHeading; j++) {
+            hasMarkdownHeading = !inFence[j] && !inComment[j]
+                && MARKDOWN_HEADING.matcher(lines[j].stripTrailing()).matches();
+        }
         // 标签判据：剔除 HTML 注释（注释内的结构标签不触发 AST 路径）
         String probe = HTML_COMMENT.matcher(outside.toString()).replaceAll(" ");
-        return new Scan(inFence, PROTECTED_TAG.matcher(probe).find(),
+        return new Scan(inFence, inComment, PROTECTED_TAG.matcher(probe).find(),
             HTML_HEADING_TAG.matcher(probe).find(), hasMarkdownHeading);
+    }
+
+    /**
+     * 逐行注释屏蔽标记（9.2 v2.24）：**仅标记「行首已处于 `<!-- … -->` 之内」的行**。
+     *
+     * <p>ATX 标题的标记必为行首非空白字符，故「行首在注释内」等价于「标题标记在注释内」；
+     * 行尾注释（如 {@code # 标题 <!-- 注 -->}）不屏蔽——标题语义保留，避免过度屏蔽。
+     * 未闭合注释延伸至文末；围栏行不参与状态机（围栏内的 {@code <!--} 不改变状态，
+     * 否则会把围栏之后的真实标题一并屏蔽）。
+     */
+    private static boolean[] commentLines(String[] lines, boolean[] inFence) {
+        boolean[] inComment = new boolean[lines.length];
+        boolean inside = false;
+        for (int i = 0; i < lines.length; i++) {
+            if (inFence[i]) {
+                continue;
+            }
+            inComment[i] = inside;
+            String line = lines[i];
+            int pos = 0;
+            while (pos < line.length()) {
+                if (inside) {
+                    int close = line.indexOf("-->", pos);
+                    if (close < 0) {
+                        break;                       // 注释延续至后续行
+                    }
+                    inside = false;
+                    pos = close + 3;
+                } else {
+                    int start = line.indexOf("<!--", pos);
+                    if (start < 0) {
+                        break;
+                    }
+                    inside = true;
+                    pos = start + 4;
+                }
+            }
+        }
+        return inComment;
     }
 
     /**
@@ -245,13 +309,16 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
     // ── 路径 1：仅 Markdown 标题的文档（逐行扫描，围栏区间不判标题） ──
 
-    /** 路径 1：仅 Markdown 标题的文档逐行扫描（`trailingNewline=true` 与初版逐字一致；围栏区间不判标题） */
-    private List<Document> splitByMarkdownHeadings(Document doc, String[] lines, boolean[] inFence) {
+    /**
+     * 路径 1：仅 Markdown 标题的文档逐行扫描（{@code trailingNewline=true} 与初版逐字一致）。
+     * 围栏与注释区间均不判标题（注释文本仍原样入正文，仅不做标题语义）。
+     */
+    private List<Document> splitByMarkdownHeadings(Document doc, String[] lines, boolean[] inFence, boolean[] inComment) {
         List<Document> result = new ArrayList<>();
         StringBuilder buffer = new StringBuilder();
         String[] headings = new String[7];
         for (int i = 0; i < lines.length; i++) {
-            appendLine(buffer, doc, result, headings, lines[i], !inFence[i], true);
+            appendLine(buffer, doc, result, headings, lines[i], !inFence[i] && !inComment[i], true);
         }
         flushBuffer(buffer, doc, result, headingPathOf(headings));
         return result;
@@ -268,7 +335,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         String[] headings = new String[7];   // 下标 1..6 = h1..h6 当前标题
 
         for (Node node : Jsoup.parseBodyFragment(text).body().childNodes()) {
-            walk(node, doc, result, headings, buffer);
+            walk(node, doc, result, headings, buffer, true);
         }
         flushBuffer(buffer, doc, result, headingPathOf(headings));
         return result;
@@ -284,9 +351,10 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
      * {@code pre}/{@code code} 为字面内容（原样入缓冲、不做标题扫描，否则代码里的 `# 注释`
      * 会成为假标题），{@code script}/{@code style} 等不入正文。
      */
-    private void walk(Node node, Document doc, List<Document> result, String[] headings, StringBuilder buffer) {
+    private void walk(Node node, Document doc, List<Document> result, String[] headings, StringBuilder buffer,
+                      boolean allowHeading) {
         if (node instanceof TextNode textNode) {
-            appendTextLines(buffer, doc, result, headings, textNode.getWholeText());
+            appendTextLines(buffer, doc, result, headings, textNode.getWholeText(), allowHeading);
             return;
         }
         if (!(node instanceof Element el)) {
@@ -304,6 +372,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         switch (tag) {
             case "table" -> {
                 if (el.text().length() < MIN_TABLE_CHARS) {
+                    lineBreak(buffer);                        // 行内上下文（如 <span>a</span><table>）不得与表格文本粘连
                     buffer.append(el.text()).append('\n');   // 小表格退化纯文本
                 } else {
                     flushBuffer(buffer, doc, result, headingPathOf(headings));
@@ -332,7 +401,8 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
                     lineBreak(buffer);
                 }
                 for (Node child : el.childNodes()) {
-                    walk(child, doc, result, headings, buffer);
+                    // 行内元素内的多行文本不判 Markdown 标题（`<b>前缀\n# 行</b>` 不产生标题语义）
+                    walk(child, doc, result, headings, buffer, block && allowHeading);
                 }
                 if (block) {
                     lineBreak(buffer);
@@ -359,13 +429,13 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
      * 标题仅在行首成立：节点内非首行，或缓冲处于行边界。
      */
     private void appendTextLines(StringBuilder buffer, Document doc, List<Document> result,
-                                 String[] headings, String text) {
+                                 String[] headings, String text, boolean allowHeading) {
         String[] lines = text.split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
             if (i > 0) {
                 buffer.append('\n');
             }
-            appendLine(buffer, doc, result, headings, lines[i], i > 0 || bufferAtLineStart(buffer), false);
+            appendLine(buffer, doc, result, headings, lines[i], allowHeading, false);   // 行首判据在 appendLine 内统一执行
         }
     }
 
@@ -410,17 +480,22 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         }
     }
 
-    /** 标题文字归一：NBSP 等不可见字符视为空白（{@code String.isBlank()} 不覆盖 NBSP），空白标题返回空串 */
+    /**
+     * 标题文字归一（9.2 v2.24）：剔除行内 HTML 注释（与判据同口径——注释不是标题语义的一部分）、
+     * NBSP 等不可见字符按空白处理（{@code String.isBlank()} 不覆盖 NBSP），空白标题返回空串。
+     * 归一只作用于标题文字；正文中的注释文本仍原样保留。
+     */
     private static String normalizeTitle(String raw) {
         if (raw == null) {
             return "";
         }
-        return raw.replace('\u00a0', ' ').strip();
+        return HTML_COMMENT.matcher(raw).replaceAll(" ").replace('\u00a0', ' ').strip();
     }
 
     /** 冲刷累积文本：携带当前 heading_path 经 TokenTextSplitter 常规切分后追加 */
     private void flushBuffer(StringBuilder buffer, Document doc, List<Document> result, String headingPath) {
-        if (buffer.isEmpty() || buffer.toString().isBlank()) {
+        String text = buffer.toString();
+        if (text.isBlank()) {
             buffer.setLength(0);
             return;
         }
@@ -429,7 +504,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
             meta.put(HEADING_PATH_KEY, headingPath);
         }
         Document textDoc = Document.builder()
-            .text(buffer.toString())
+            .text(text)
             .metadata(meta)
             .build();
         result.addAll(textSplitter.apply(List.of(textDoc)));

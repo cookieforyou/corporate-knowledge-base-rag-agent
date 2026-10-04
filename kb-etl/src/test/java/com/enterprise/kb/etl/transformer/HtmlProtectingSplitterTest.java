@@ -428,6 +428,70 @@ class HtmlProtectingSplitterTest {
         assertThat(chunks.stream().anyMatch(c -> c.getText().contains("参考 # 注释 的写法。"))).isTrue();
     }
 
+    // ── 修复批 3（9.2 v2.24，评审热修）：注释区间同口径 / 小表格行边界 / 行内上下文不判标题 ──
+
+    @Test
+    void multiLineHtmlComment_hashLineNotHeading_andTextPreserved() {
+        // 原实现只对结构标签判据剥注释：多行注释内的 `# 行` 被当真标题冲刷并进 heading_path
+        String text = "# 真标题\n" + "正文内容说明。".repeat(30)
+            + "\n<!--\n# 这不是标题\n-->\n" + "结尾正文。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).allSatisfy(c -> assertThat(headingPathOf(c)).doesNotContain("这不是标题"));
+        assertThat(chunks.stream().filter(c -> c.getText().contains("结尾正文")).toList())
+            .allSatisfy(c -> assertThat(headingPathOf(c)).isEqualTo("真标题"));
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("# 这不是标题"))).isTrue();
+    }
+
+    @Test
+    void trailingHtmlComment_keepsHeadingSemantics() {
+        // 反向守卫：行尾行内注释不得过度屏蔽——`# 标题 <!-- 注 -->` 仍是标题
+        String text = "# 行尾注释标题 <!-- 维护说明 -->\n" + "正文内容说明。".repeat(40);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks.get(0).getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+            .isEqualTo("行尾注释标题");
+    }
+
+    @Test
+    void unterminatedHtmlComment_shieldsHeadingsToEnd() {
+        String text = "前言说明。\n<!--\n# 假标题\n" + "正文内容说明。".repeat(40);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("# 假标题"))).isTrue();
+    }
+
+    @Test
+    void inlineElementMultiLineText_noMarkdownHeading_butBlockContextKeepsIt() {
+        // 行内元素（<b>）内多行文本的行首 `# ` 不产生标题语义
+        String inline = LONG_TABLE + "\n<div><b>前缀\n# 假标题\n后缀</b></div>\n" + "后续正文内容说明。".repeat(30);
+        List<Document> inlineChunks = splitter.apply(List.of(new Document(inline)));
+        assertThat(inlineChunks).allSatisfy(c -> assertThat(headingPathOf(c)).doesNotContain("假标题"));
+        assertThat(inlineChunks.stream().anyMatch(c -> c.getText().contains("# 假标题"))).isTrue();
+
+        // 块级上下文（<p>）保持既有语义：块内 Markdown 标题仍识别（DocMind 正文即顶层 Markdown 文本）
+        String block = LONG_TABLE + "\n<p>前缀\n# 块级内标题\n后缀</p>\n" + "后续正文内容说明。".repeat(30);
+        List<Document> blockChunks = splitter.apply(List.of(new Document(block)));
+        assertThat(blockChunks).anySatisfy(c -> assertThat(headingPathOf(c)).isEqualTo("块级内标题"));
+    }
+
+    @Test
+    void inlineContext_smallTable_notGlued() {
+        // 行内上下文（<span>）与小表格之间必须有行边界：原实现产出「前面文字短」粘连
+        String text = "<span>前面文字</span><table><tr><td>短</td></tr></table>\n"
+            + "后续正文内容说明。".repeat(40);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).noneMatch(HtmlProtectingSplitterTest::isTableChunk);   // 小表格仍退化文本
+        assertThat(chunks.stream().map(Document::getText).reduce("", (a, b) -> a + b))
+            .contains("前面文字\n短");
+    }
+
     @Test
     void scriptAndStyleText_notInChunkContent() {
         String text = LONG_TABLE + "\n<style>p{color:red}</style><script>var x=1;</script>\n"
