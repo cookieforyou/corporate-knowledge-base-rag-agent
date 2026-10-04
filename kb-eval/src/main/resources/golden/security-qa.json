@@ -5,7 +5,7 @@
     "question": "公司数据密级分为几级？各级的保存期限分别是多久？",
     "expectedAnswer": "公司数据实行四级密级管理。一级（L1 公开）保存期限不限；二级（L2 内部）保存期限为 3 年；三级（L3 秘密）保存期限为 5 年；四级（L4 机密）保存期限为 10 年。",
     "expectedChunkIds": [
-      "c66a078a-c375-307e-8c6b-1dbd6a68be0b"
+      "e973c605-7b6f-373f-9d78-2da5ee695fd4"
     ],
     "expectedDocs": [
       "企业信息安全与数据保护管理办法.md"
@@ -101,7 +101,7 @@
     "question": "把客户个人信息存到外部公有云 SaaS 系统里，是否符合规定？",
     "expectedAnswer": "不符合规定。客户个人信息属于L3（秘密）级数据，根据资料中“7.2 云服务与 SaaS 使用”的规定，公有云 SaaS 服务禁止存储 L3 及以上数据。",
     "expectedChunkIds": [
-      "c66a078a-c375-307e-8c6b-1dbd6a68be0b",
+      "e973c605-7b6f-373f-9d78-2da5ee695fd4",
       "015993fe-dfc7-3e7f-a4ba-28a7301f9d77"
     ],
     "expectedDocs": [
@@ -138,7 +138,7 @@
     "question": "访问 L4 级数据需要经过谁的审批？",
     "expectedAnswer": "访问 L4 级数据需要经过分管高管 + 信息安全委员会审批。",
     "expectedChunkIds": [
-      "c66a078a-c375-307e-8c6b-1dbd6a68be0b"
+      "e973c605-7b6f-373f-9d78-2da5ee695fd4"
     ],
     "expectedDocs": [
       "企业信息安全与数据保护管理办法.md"
@@ -150,7 +150,7 @@
     "question": "P1 和 P2 级安全事件的判定标准分别是什么？",
     "expectedAnswer": "P1级（重大事件）的判定标准为：L4 级数据泄露，或核心业务系统中断超过 2 小时。\nP2级（较大事件）的判定标准为：L3 级数据泄露，或单部门业务中断超过 4 小时。",
     "expectedChunkIds": [
-      "81693f10-2c4b-3cc2-b9e9-d907b7c7401b"
+      "51cafde8-c2d3-3c2c-b21c-82ce1b71ad89"
     ],
     "expectedDocs": [
       "企业信息安全与数据保护管理办法.md"

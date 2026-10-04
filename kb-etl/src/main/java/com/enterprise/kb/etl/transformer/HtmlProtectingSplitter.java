@@ -25,7 +25,8 @@ import java.util.regex.Pattern;
  * <p>表格/图片作为一等公民保护：
  * <ul>
  *   <li>{@code <table>} 块 → 独立 Chunk（chunk_type=TABLE），原文 HTML 存
- *       original_html（落库 kb_chunk.original_content），供前端回显与结构保真；</li>
+ *       original_html（落库 kb_chunk.original_content；为「保护块原文」——含前置标题行，
+ *       与 chunk 正文对齐，9.2 v2.27），供前端回显与结构保真；</li>
  *   <li>{@code <img>} 块 → 独立 Chunk（chunk_type=IMAGE），original_html 存标签；
  *       vision 摘要（2.4 可选）将描述写入 content 参与检索；</li>
  *   <li>纯文本段 → TokenTextSplitter 常规切分（800/200，与 Phase 1 参数一致）；</li>
@@ -96,13 +97,19 @@ import java.util.regex.Pattern;
  * （标题后紧跟更深标题、章节无正文）≤10 字符时整个标题文字消失（仅存于后续 chunk 的
  * heading_path，BM25/向量化均检索不到）。治法：{@link #flushBuffer} 返回未成 chunk 的残余文本，
  * 「残余随其后继内容落位」——后继为标题则回填缓冲进入子章节 chunk、后继为保护块则前置到该
- * 保护块正文（{@code original_html} 保持纯 HTML）、文末无后继则兜底自成 chunk。
+ * 保护块正文（{@code original_html} 同记该原文）、文末无后继则兜底自成 chunk。
  * 实测：6 篇语料 chunk 数全部不变（无索引位移），仅 2 篇受影响文档的 5 个 chunk 正文变化。
  *
  * <p><b>修复批 5（2026-10-04，9.2 v2.26，布局保真微调）</b>：容器标题归位（批4）时该标题与其后子标题/
  * 保护块之间的**空行被 {@code strip()} 吃掉**，chunk 正文与源文档布局不一致——治法 = 残余文本
  * **原样衔接**（{@link #carryInto} 不 strip，仅补行边界；{@link #protectedChunk} 前缀仅去前导空白、
  * 保留其后空行）。正文变化仅限受影响的 5 个 chunk（无 chunk 数变化）。
+ *
+ * <p><b>修复批 6（2026-10-04，9.2 v2.27，保护块原文对齐）</b>：批4/批5 让无正文短标题以
+ * 前缀形式进入保护块 chunk 正文（可检索），但 {@code original_html} 仍只记纯 HTML，落库后
+ * {@code content} 有标题而 {@code original_content} 没有（用户侧复入库观测发现）——治法 =
+ * {@code original_html} 同记「前缀 + HTML」原文：全类型 chunk 的 {@code original_content}
+ * 与 {@code content} 只差语境增强前缀（未增强时同值），语义单一。
  *
  * <p><b>围栏规则声明（有意简化）</b>：围栏按「≤3 空格缩进 + 3 个以上同字符（``` / ~~~）」识别，
  * 不校验 CommonMark 的 info string 约束（如反引号围栏的 info string 不得含反引号）——
@@ -557,14 +564,14 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
     /**
      * 保护块独立成 Chunk：chunk_type + original_html + heading_path 元数据。
-     * {@code prefix}（当前章节的残余标题文字，可为 null）只进 chunk 正文（BM25/向量化可检索），
+     * {@code prefix}（当前章节的残余标题文字，可为 null）与保护块 HTML 共同构成 chunk 正文，
      * 且**原样保留其后的空行**（与源文档「标题/空行/表格」布局一致，9.2 v2.26）；
-     * {@code original_html} 恒为纯 HTML——结构保真与前端回显不受影响。
+     * {@code original_html} 记同一份原文（含前置标题行）——落库 {@code original_content} 与
+     * {@code content} 对齐（9.2 v2.27），保护块 HTML 原样保留在其中，结构保真不受影响。
      */
     private static Document protectedChunk(Document doc, String prefix, String html, ChunkType type, String headingPath) {
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
         meta.put(Constants.Retrieval.META_CHUNK_TYPE, type.name());
-        meta.put(ORIGINAL_HTML_KEY, html);
         if (headingPath != null && !headingPath.isBlank()) {
             meta.put(HEADING_PATH_KEY, headingPath);
         }
@@ -573,6 +580,10 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
             String head = prefix.stripLeading();     // 去前导空白（与前一块的间隔），保留标题与其后内容的原始空行
             text = head.endsWith("\n") ? head + html : head + "\n" + html;
         }
+        // 原文与正文对齐（9.2 v2.27）：original_html 记「保护块原文」——含前置标题行（若该章节为无正文
+        // 短标题形态），落库 kb_chunk.original_content 后与 content 只差语境增强前缀，不再出现
+        // 「content 有标题而 original_content 没有」的错位；保护块 HTML 原样保留在其中。
+        meta.put(ORIGINAL_HTML_KEY, text);
         return Document.builder().text(text).metadata(meta).build();
     }
 

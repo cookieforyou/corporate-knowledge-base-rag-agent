@@ -28,6 +28,21 @@ class HtmlProtectingSplitterTest {
     }
 
     @Test
+    void plainTableChunk_originalHtmlEqualsPureHtml() {
+        // 无前置标题的常规保护块：original_html 与正文同值且即纯 HTML（对齐不引入额外内容）
+        String table = "<table><tr><th>项目</th><th>金额</th></tr>"
+            + "<tr><td>基础服务费</td><td>1000 元</td></tr>"
+            + "<tr><td>增值服务费</td><td>2000 元</td></tr></table>";
+
+        List<Document> chunks = splitter.apply(List.of(new Document(table)));
+
+        Document tableChunk = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk).findFirst().orElseThrow();
+        assertThat(tableChunk.getMetadata().get("original_html").toString())
+            .isEqualTo(tableChunk.getText())
+            .startsWith("<table>");
+    }
+
+    @Test
     void tableBlock_becomesIndependentTableChunk_withOriginalHtml() {
         String table = """
             <table><tr><th>发票类型</th><th>税率</th></tr>
@@ -520,9 +535,10 @@ class HtmlProtectingSplitterTest {
         Document tableChunk = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk).findFirst().orElseThrow();
         assertThat(headingPathOf(tableChunk)).isEqualTo("6.1 事件分级");
         assertThat(tableChunk.getText()).startsWith("6.1 事件分级\n\n<table>");   // 标题与表格间空行保留（与源文档一致）
-        // 结构保真：original_html 仍是纯 HTML（不含标题前缀）
+        // 原文对齐（9.2 v2.27）：original_html 记同一份原文（含前置标题行），保护块 HTML 原样保留
         assertThat(tableChunk.getMetadata().get("original_html").toString())
-            .startsWith("<table").doesNotContain("6.1 事件分级");
+            .isEqualTo(tableChunk.getText())
+            .contains("<table>");
     }
 
     @Test

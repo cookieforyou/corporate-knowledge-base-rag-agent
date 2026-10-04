@@ -100,8 +100,9 @@ public class ChunkOpsService {
      * 编辑 chunk 文本：与 ETL 同源消毒（PII 掩码 + 注入打标）→ 同步写 PG →
      * 异步重嵌入（向量 delete→add + ES 覆写）。
      *
-     * <p>original_content 不动——其语义为「保护块原始 HTML / 语境增强前原文」
-     * （确定性 ID 散列源与溯源载体），非编辑备份（14.1 草图语义实证修正）。
+     * <p>original_content 不动——其语义为「语境增强前原文 / 保护块原文（含前置标题行）」
+     * （确定性 ID 散列源与溯源载体），非编辑备份（14.1 草图语义实证修正；9.2 v2.27 对齐后
+     * 与 content 只差语境增强前缀）。
      */
     public ChunkOpsResult edit(String chunkId, String tenantId, String newContent) {
         OwnedChunk owned = loadOwned(chunkId, tenantId);
