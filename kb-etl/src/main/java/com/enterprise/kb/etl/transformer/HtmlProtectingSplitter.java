@@ -91,7 +91,15 @@ import java.util.regex.Pattern;
  *   <li><b>微整理</b>：{@code flushBuffer} 单次 {@code toString()}（去重复副本）；
  *       行首判据统一由 {@link #appendLine} 内部执行（去调用侧重复表达式）。</li>
  * </ol>
- * <b>围栏规则声明（有意简化）</b>：围栏按「≤3 空格缩进 + 3 个以上同字符（``` / ~~~）」识别，
+ * <p><b>修复批 4（2026-10-04，9.2 v2.25，短文本静默丢弃根治）</b>：{@code TokenTextSplitter}
+ * 按 {@code length() > minChunkLengthToEmbed(10)} <b>严格判据静默丢弃</b>过短文本——容器标题
+ * （标题后紧跟更深标题、章节无正文）≤10 字符时整个标题文字消失（仅存于后续 chunk 的
+ * heading_path，BM25/向量化均检索不到）。治法：{@link #flushBuffer} 返回未成 chunk 的残余文本，
+ * 「残余随其后继内容落位」——后继为标题则回填缓冲进入子章节 chunk、后继为保护块则前置到该
+ * 保护块正文（{@code original_html} 保持纯 HTML）、文末无后继则兜底自成 chunk。
+ * 实测：6 篇语料 chunk 数全部不变（无索引位移），仅 2 篇受影响文档的 5 个 chunk 正文变化。
+ *
+ * <p><b>围栏规则声明（有意简化）</b>：围栏按「≤3 空格缩进 + 3 个以上同字符（``` / ~~~）」识别，
  * 不校验 CommonMark 的 info string 约束（如反引号围栏的 info string 不得含反引号）——
  * 该差异仅影响病态输入（{@code ``` a`b} 一行），不引入结构或内容丢失。
  */
@@ -320,7 +328,10 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         for (int i = 0; i < lines.length; i++) {
             appendLine(buffer, doc, result, headings, lines[i], !inFence[i] && !inComment[i], true);
         }
-        flushBuffer(buffer, doc, result, headingPathOf(headings));
+        String tail = flushBuffer(buffer, doc, result, headingPathOf(headings));
+        if (tail != null) {
+            result.add(leftoverChunk(doc, tail, headingPathOf(headings)));
+        }
         return result;
     }
 
@@ -337,7 +348,10 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         for (Node node : Jsoup.parseBodyFragment(text).body().childNodes()) {
             walk(node, doc, result, headings, buffer, true);
         }
-        flushBuffer(buffer, doc, result, headingPathOf(headings));
+        String tail = flushBuffer(buffer, doc, result, headingPathOf(headings));
+        if (tail != null) {
+            result.add(leftoverChunk(doc, tail, headingPathOf(headings)));
+        }
         return result;
     }
 
@@ -375,13 +389,13 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
                     lineBreak(buffer);                        // 行内上下文（如 <span>a</span><table>）不得与表格文本粘连
                     buffer.append(el.text()).append('\n');   // 小表格退化纯文本
                 } else {
-                    flushBuffer(buffer, doc, result, headingPathOf(headings));
-                    result.add(protectedChunk(doc, el.outerHtml(), ChunkType.TABLE, headingPathOf(headings)));
+                    result.add(protectedChunk(doc, flushBuffer(buffer, doc, result, headingPathOf(headings)),
+                        el.outerHtml(), ChunkType.TABLE, headingPathOf(headings)));
                 }
             }
             case "img" -> {
-                flushBuffer(buffer, doc, result, headingPathOf(headings));
-                result.add(protectedChunk(doc, el.outerHtml(), ChunkType.IMAGE, headingPathOf(headings)));
+                result.add(protectedChunk(doc, flushBuffer(buffer, doc, result, headingPathOf(headings)),
+                    el.outerHtml(), ChunkType.IMAGE, headingPathOf(headings)));
             }
             case "br" -> lineBreak(buffer);
             default -> {
@@ -418,7 +432,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         if (title.isEmpty()) {
             return;
         }
-        flushBuffer(buffer, doc, result, headingPathOf(headings));
+        carryInto(buffer, flushBuffer(buffer, doc, result, headingPathOf(headings)));
         setHeading(headings, level, title);
         buffer.append(title).append('\n');   // 标题文字保留正文（BM25/向量化可检索）
     }
@@ -452,7 +466,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
             if (m.matches()) {
                 String title = normalizeTitle(m.group(2));
                 if (!title.isEmpty()) {
-                    flushBuffer(buffer, doc, result, headingPathOf(headings));
+                    carryInto(buffer, flushBuffer(buffer, doc, result, headingPathOf(headings)));
                     setHeading(headings, m.group(1).length(), title);
                     buffer.append(title);
                     if (trailingNewline) {
@@ -493,11 +507,11 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     }
 
     /** 冲刷累积文本：携带当前 heading_path 经 TokenTextSplitter 常规切分后追加 */
-    private void flushBuffer(StringBuilder buffer, Document doc, List<Document> result, String headingPath) {
+    private String flushBuffer(StringBuilder buffer, Document doc, List<Document> result, String headingPath) {
         String text = buffer.toString();
+        buffer.setLength(0);
         if (text.isBlank()) {
-            buffer.setLength(0);
-            return;
+            return null;
         }
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
         if (headingPath != null && !headingPath.isBlank()) {
@@ -507,19 +521,47 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
             .text(text)
             .metadata(meta)
             .build();
-        result.addAll(textSplitter.apply(List.of(textDoc)));
-        buffer.setLength(0);
+        List<Document> chunks = textSplitter.apply(List.of(textDoc));
+        if (chunks.isEmpty()) {
+            return text;                 // 过短（≤minChunkLengthToEmbed）未成 chunk：交调用方随后继内容落位
+        }
+        result.addAll(chunks);
+        return null;
     }
 
-    /** 保护块独立成 Chunk：chunk_type + original_html + heading_path 元数据 */
-    private static Document protectedChunk(Document doc, String html, ChunkType type, String headingPath) {
+    /**
+     * 残余文本随其后继内容落位（9.2 v2.25）：后继是标题（容器标题，章节本身无正文）→ 回填缓冲，
+     * 标题文字进入子章节 chunk 正文；后继是保护块 → 前置到该保护块正文（见 {@link #protectedChunk}）。
+     */
+    private static void carryInto(StringBuilder buffer, String leftover) {
+        if (leftover != null) {
+            buffer.append(leftover.strip()).append('\n');
+        }
+    }
+
+    /** 文末兜底：残余文本已无后继内容可落位，直接成 chunk（保内容不丢，chunk_type 缺省 TEXT） */
+    private static Document leftoverChunk(Document doc, String text, String headingPath) {
+        Map<String, Object> meta = new HashMap<>(doc.getMetadata());
+        if (headingPath != null && !headingPath.isBlank()) {
+            meta.put(HEADING_PATH_KEY, headingPath);
+        }
+        return Document.builder().text(text.strip()).metadata(meta).build();
+    }
+
+    /**
+     * 保护块独立成 Chunk：chunk_type + original_html + heading_path 元数据。
+     * {@code prefix}（当前章节的残余标题文字，可为 null）只进 chunk 正文（BM25/向量化可检索），
+     * {@code original_html} 恒为纯 HTML——结构保真与前端回显不受影响（9.2 v2.25）。
+     */
+    private static Document protectedChunk(Document doc, String prefix, String html, ChunkType type, String headingPath) {
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
         meta.put(Constants.Retrieval.META_CHUNK_TYPE, type.name());
         meta.put(ORIGINAL_HTML_KEY, html);
         if (headingPath != null && !headingPath.isBlank()) {
             meta.put(HEADING_PATH_KEY, headingPath);
         }
-        return Document.builder().text(html).metadata(meta).build();
+        String text = (prefix == null || prefix.isBlank()) ? html : prefix.strip() + "\n" + html;
+        return Document.builder().text(text).metadata(meta).build();
     }
 
     /** h1..h6 → 1..6，其余标签 0 */

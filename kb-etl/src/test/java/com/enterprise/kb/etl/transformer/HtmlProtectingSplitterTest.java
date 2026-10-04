@@ -492,6 +492,65 @@ class HtmlProtectingSplitterTest {
             .contains("前面文字\n短");
     }
 
+    // ── 修复批 4（9.2 v2.25）：短文本静默丢弃根治（残余随其后继内容落位） ──
+
+    @Test
+    void containerHeadingTitle_carriedIntoChildChunk() {
+        // 容器标题（章节无正文）≤10 字符：修复前被 TokenTextSplitter 静默丢弃，标题文字从索引消失
+        String text = "# 总纲\n" + "总纲正文内容说明。".repeat(30)
+            + "\n## 一、总则\n### 1.1 目的与依据\n" + "目的与依据正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).anySatisfy(c -> {
+            assertThat(headingPathOf(c)).isEqualTo("总纲 > 一、总则 > 1.1 目的与依据");
+            assertThat(c.getText()).startsWith("一、总则");     // 父标题文字随子章节 chunk 落位
+        });
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("总纲正文内容"))).isTrue();
+    }
+
+    @Test
+    void shortHeadingBeforeTable_prefixedIntoTableChunk_withPureOriginalHtml() {
+        // 表格前的短标题（≤10 字符）：修复前标题文字丢失；修复后前置到该 TABLE chunk 正文
+        String text = "### 6.1 事件分级\n" + LONG_TABLE + "\n" + "后续正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        Document tableChunk = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk).findFirst().orElseThrow();
+        assertThat(headingPathOf(tableChunk)).isEqualTo("6.1 事件分级");
+        assertThat(tableChunk.getText()).startsWith("6.1 事件分级\n<table>");
+        // 结构保真：original_html 仍是纯 HTML（不含标题前缀）
+        assertThat(tableChunk.getMetadata().get("original_html").toString())
+            .startsWith("<table").doesNotContain("6.1 事件分级");
+    }
+
+    @Test
+    void shortHeadingAtDocumentEnd_keptAsChunk() {
+        // 文末无后继内容可落位：兜底自成 chunk（修复前整段丢弃）
+        String text = "# 主体章节\n" + "主体正文内容说明。".repeat(40) + "\n## 附则";
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).anySatisfy(c -> {
+            assertThat(headingPathOf(c)).isEqualTo("主体章节 > 附则");
+            assertThat(c.getText()).contains("附则");
+        });
+    }
+
+    @Test
+    void shortHeadingFollowedByBody_notAffected() {
+        // 反向守卫：短标题后有正文时（缓冲 >10 字符）行为不变——不引入额外 chunk、前缀不重复
+        String text = "# 概述\n" + "概述正文内容说明。".repeat(40) + "\n# 结论\n" + "结论正文内容说明。".repeat(40);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).hasSize(2);
+        assertThat(chunks.stream().filter(c -> headingPathOf(c).equals("概述")).toList())
+            .allSatisfy(c -> assertThat(c.getText().split("\n")[0]).isEqualTo("概述"));   // 标题行不重复
+        assertThat(chunks.stream().filter(c -> headingPathOf(c).equals("结论")).toList())
+            .allSatisfy(c -> assertThat(c.getText().split("\n")[0]).isEqualTo("结论"));
+    }
+
     @Test
     void scriptAndStyleText_notInChunkContent() {
         String text = LONG_TABLE + "\n<style>p{color:red}</style><script>var x=1;</script>\n"

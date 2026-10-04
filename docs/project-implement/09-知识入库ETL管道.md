@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-04（v2.31 HtmlProtectingSplitter 修复批3：评审热修——注释同口径 + 行内上下文；详 9.2 v2.24）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-04（v2.32 HtmlProtectingSplitter 修复批4：短文本静默丢弃根治——容器标题/表格前短标题归位；详 9.2 v2.25）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -296,6 +296,14 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 > 4. **微整理**（评审问题 5）：`flushBuffer` 单次 `toString()`（原判空分支与正文构造各复制一次缓冲副本）；`Scan` 记录注释为「新增结构判据时的区间标记扩展点」（评审建议 3 的区间查询 API 属推测性抽象，本轮不引入）。
 > 5. **围栏规则声明（有意简化，不改行为）**（评审问题 4）：围栏按「≤3 空格缩进 + 3 个以上同字符」识别，**不校验 CommonMark 的 info string 约束**（反引号围栏的 info string 不得含反引号）——该差异仅影响病态输入（``` a`b 一行），实证「修正」反而会抑制其后的真实标题（闭合标记被当作新的开启标记），故明确声明而不引入半个 CommonMark 解析器。
 > 6. **回归资产沉淀**（评审建议 2）：语料漂移守卫单测 `HtmlProtectingSplitterCorpusDriftTest`——逐篇校验 ①chunk 总数与 TABLE chunk 数基线 ②每个 chunk 的 heading_path 逐段必须能在文档真实 Markdown 标题行中找到（围栏/注释内伪标题泄漏会立刻暴露）；语料目录不在相对位置时整类跳过。切分器单测 31 → 36 例（新增多行注释/行尾注释反向守卫/未闭合注释/行内元素多行文本与块级对照/行内小表格边界）。
+
+> **v2.25 修正（2026-10-04，HtmlProtectingSplitter 修复批4：短文本静默丢弃根治）**：用户侧对语料复入库后的 chunk 导出复核发现「章节标题在正文中缺失」，逐条实证定位到 **Spring AI `TokenTextSplitter` 的静默丢弃路径**——`doSplit` 的入库判据是 **严格大于** `minChunkLengthToEmbed`（{@code chunkTextToAppend.length() > this.minChunkLengthToEmbed}，本切分器取默认 10），≤10 字符的 flush 文本直接丢弃，而 {@code flushBuffer} 原样忽略返回值 → **文本静默消失**。
+> 1. **触发条件**：容器标题（标题行后紧跟更深标题、该章节本身无正文）或表格/图片前的短标题，且标题 ≤10 字符——此时该标题单独成一次 flush，整段被丢。实测：DDD 文档「一、DDD 概述」(8)、「八、系统演进模式」(8)；企业信息安全文档「一、总则」(4)、「二、数据分级分类」(8)、「6.1 事件分级」(8，其后直接是表格）。同文档 >10 字符的容器标题（「六、CQRS（命令查询职责分离）」16、「二、通用语言（Ubiquitous Language）」27）均正常成 chunk——阈值行为完全吻合。危害：标题文字**在任何 chunk 正文中都不存在**（仅存于后续 chunk 的 heading_path），BM25 与向量化都检索不到该章节名，且违反 v2.21 纪律 1「标题文字保留在新 chunk 正文首部」。
+> 2. **治法（方案 B：残余随其后继内容落位）**：{@code flushBuffer} 返回未成 chunk 的残余文本；后继为标题（容器标题）→ 回填缓冲，父标题文字进入子章节 chunk 正文（heading_path 本就是其前缀链，语义自洽）；后继为保护块 → 前置到该保护块 chunk 正文（`6.1 事件分级
+<table>…`），**{@code original_html} 恒为纯 HTML**——结构保真与前端回显不受影响；文末无后继 → 兜底自成 chunk（不再有丢内容的出口）。另：该丢弃路径对「文末极短残余」同样生效，同一治法一并覆盖。
+> 3. **实测读数**：6 篇语料 chunk 数**全部不变**（无索引位移）；仅 2 篇受影响文档的 5 个 chunk 正文变化——DDD{1,55}、企业信息安全{1,4,18}；另 4 篇（K8s/发票/产品/阿里云 MD）**逐 chunk 字节一致**（无需重入库）。Golden 锚点影响：{@code security-qa} 2 个 ID（sec-01/09/12 的「2.1 密级定义」+ sec-13 的 TABLE chunk）需重锚；{@code multihop-qa} 30 个 DDD 锚点与 cross-02/sec-06 不受影响。
+> 4. **回归资产**：语料漂移守卫新增第三条不变量——**每个 Markdown 标题文字必须至少出现在一个 chunk 正文中**（本缺陷的直接指纹，修复前必挂）；切分器单测 36 → 40 例（容器标题归位 / 表格前短标题前置且 original_html 纯净 / 文末兜底 / 短标题后有正文时行为不变）。
+> 5. **定位方法留档**：确定性 chunk ID 可在本地逐条复现（`UUID.nameUUIDFromBytes(name#index#text)`，Tika 文本 → 切分器 → 同一算式），本次以用户导出 CSV **71/71 逐条对齐**后据此测算影响面——后续评审/热修可复用该手法先算影响再改码。
 
 > **两条路径的边界（修复后最终口径）**：快速路径 = 无结构标签且无标题的纯文本（原文直通，行为与 Phase 1 一致）；行扫描路径 = 仅 Markdown 标题（不经 JSoup，代码尖括号安全）；AST 路径 = 含 `table`/`img`/`h1`~`h6`（围栏外）的文档，正文去标签、保护块成 chunk、块级边界保留。`<p>`/`<div>` 等非结构标签单独出现时仍走快速路径（标签留在正文）——这是「不引入 JSoup 全量解析」纪律的代价，属既定边界。
 

@@ -69,6 +69,13 @@ class HtmlProtectingSplitterCorpusDriftTest {
                 .isEqualTo(entry.getValue()[1]);
 
             Set<String> realHeadings = markdownHeadings(text);
+            // ③ 每个 Markdown 标题文字必须至少出现在一个 chunk 正文里——短标题被 TokenTextSplitter
+            //    静默丢弃（≤minChunkLengthToEmbed）时此处立刻暴露（修复批4 的回归守卫）
+            for (String title : realHeadings) {
+                assertThat(chunks)
+                    .as("%s：标题「%s」在任何 chunk 正文中都不存在（短标题被静默丢弃？）", entry.getKey(), title)
+                    .anySatisfy(c -> assertThat(c.getText()).contains(title));
+            }
             for (Document chunk : chunks) {
                 Object headingPath = chunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY);
                 if (!(headingPath instanceof String path) || path.isBlank()) {
