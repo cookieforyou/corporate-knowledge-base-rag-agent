@@ -416,7 +416,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         boolean[] shielded = new boolean[line.length()];
         for (int r = 0; r < runs.size(); r++) {
             int length = runs.get(r)[1];
-            Deque<Integer> bucket = pending.computeIfAbsent(length, key -> new ArrayDeque<>());
+            Deque<Integer> bucket = pending.computeIfAbsent(length, _ -> new ArrayDeque<>());
             if (bucket.isEmpty()) {
                 bucket.addLast(r);
             } else {
@@ -526,7 +526,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         for (String tag : TABLE_STRUCTURE_TAGS) {
             int gap = missing.getOrDefault(tag, 0);
             if (gap > 0) {
-                closers.append(("</" + tag + ">").repeat(gap));
+                closers.repeat("</" + tag + ">", gap);
             }
         }
         if (boundary < 0) {
@@ -540,7 +540,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
 
     /** 单行 HTML 注释剥离（计数口径与结构判据一致：注释内的标签不算标签） */
     private static String stripInlineComments(String line) {
-        return line.indexOf("<!--") < 0 ? line : HTML_COMMENT.matcher(line).replaceAll(" ");
+        return !line.contains("<!--") ? line : HTML_COMMENT.matcher(line).replaceAll(" ");
     }
 
     /**
@@ -652,10 +652,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
                         el.outerHtml(), ChunkType.TABLE, headingPathOf(headings)));
                 }
             }
-            case "img" -> {
-                result.add(protectedChunk(doc, flushBuffer(buffer, doc, result, headingPathOf(headings)),
-                    el.outerHtml(), ChunkType.IMAGE, headingPathOf(headings)));
-            }
+            case "img" -> result.add(protectedChunk(doc, flushBuffer(buffer, doc, result, headingPathOf(headings)), el.outerHtml(), ChunkType.IMAGE, headingPathOf(headings)));
             case "br" -> lineBreak(buffer);
             default -> {
                 if (LITERAL_TAGS.contains(tag)) {          // pre / code：字面内容，不判标题
