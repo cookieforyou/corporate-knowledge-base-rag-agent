@@ -590,4 +590,136 @@ class HtmlProtectingSplitterTest {
         assertThat(chunks).allSatisfy(c -> assertThat(c.getText())
             .doesNotContain("color:red").doesNotContain("var x=1"));
     }
+
+    // ── 修复批 7（9.2 v2.30）：AST 视图预处理——结构标签配平 + 行内 code 屏蔽 ──
+
+    /** 「表格 + 其后的 Markdown 章节」样本：尾部章节是「表格是否吞并后文」的探针 */
+    private static String tableThenSection() {
+        return "# 管理办法\n\n## 六、安全事件响应与报告\n\n### 6.1 事件分级\n\n" + LONG_TABLE
+            + "\n\n### 6.2 报告时限\n\n" + "重大事件 1 小时内报告。".repeat(20);
+    }
+
+    @Test
+    void unclosedTableStructureTags_doNotSwallowFollowingSections() {
+        // 未闭合 </table> 等：HTML 解析器把元素延伸到文末，其后全文落入一个 TABLE chunk
+        // （实测 28 → 19 chunk、单块 1871 字符 ≈ 2.3× chunkSize、尾部标题失去语义）——配平后须与完好文档同形
+        String intact = tableThenSection();
+        List<Document> expected = splitter.apply(List.of(new Document(intact)));
+
+        for (String broken : List.of(
+            intact.replace("</table>", ""),
+            intact.replace("</tbody>", "").replace("</table>", ""),
+            intact.replace("</tr>", "").replace("</table>", ""))) {
+
+            List<Document> chunks = splitter.apply(List.of(new Document(broken)));
+
+            assertThat(chunks).hasSameSizeAs(expected);
+            Document tableChunk = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk)
+                .findFirst().orElseThrow();
+            // 表格块只含自己的结构：既不吞尾部正文，也不把 Markdown 标记带进正文
+            assertThat(tableChunk.getText()).doesNotContain("6.2 报告时限").doesNotContain("### ");
+            assertThat(chunks).anySatisfy(c -> {
+                assertThat(headingPathOf(c)).isEqualTo("管理办法 > 六、安全事件响应与报告 > 6.2 报告时限");
+                assertThat(c.getText()).startsWith("6.2 报告时限");
+            });
+        }
+    }
+
+    @Test
+    void unclosedHeadingTag_doesNotPoisonHeadingPath() {
+        // 未闭合 <h2>：其后全文成为该标题的文字（heading_path 污染成含正文的长串、章节不再分块）
+        String text = "<h1>管理办法</h1>\n\n" + "总则正文内容说明。".repeat(20)
+            + "\n<h2>六、安全事件响应与报告\n\n### 6.1 事件分级\n\n" + "分级正文内容说明。".repeat(20)
+            + "\n### 6.2 报告时限\n\n" + "时限正文内容说明。".repeat(20);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).allSatisfy(c -> assertThat(headingPathOf(c)).doesNotContain("正文"));
+        assertThat(chunks).anySatisfy(c -> assertThat(headingPathOf(c)).isEqualTo("管理办法 > 六、安全事件响应与报告"));
+        assertThat(chunks).anySatisfy(c -> assertThat(headingPathOf(c))
+            .isEqualTo("管理办法 > 六、安全事件响应与报告 > 6.2 报告时限"));
+        assertThat(chunks).allSatisfy(c -> assertThat(c.getText()).doesNotContain("### "));
+    }
+
+    @Test
+    void multiLineHeadingTag_balancedPair_notTouched() {
+        // 反向守卫：跨行书写的合法标题配对完整，不做行内闭合（否则标题文字会退化成正文）
+        String text = "<h2>\n六、安全事件响应与报告\n</h2>\n\n" + "分级正文内容说明。".repeat(20);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks).anySatisfy(c -> assertThat(headingPathOf(c)).isEqualTo("六、安全事件响应与报告"));
+    }
+
+    @Test
+    void inlineCodeLiteralAngleBrackets_preservedOnAstPath() {
+        // 行内 code 内的字面尖括号：AST 路径原样保留（原实现被解析为未知标签，标签名连同字符消失）
+        String text = "### 6.1 事件分级\n\n" + LONG_TABLE + "\n\n"
+            + "- **ClusterIP**：通过 kube-dns 提供 `<svc>.<ns>.svc.cluster.local` 域名解析。\n"
+            + "- 签名：`Optional<List<String>> query(String name)`，比较 `a < b` 与 `<v1.2>`。\n"
+            + "后续正文内容说明。".repeat(20);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("<svc>.<ns>.svc.cluster.local"))).isTrue();
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("Optional<List<String>> query(String name)"))).isTrue();
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("`a < b`") && c.getText().contains("`<v1.2>`"))).isTrue();
+        // 表格单元格内的行内 code 同样保真
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("<table>"))).isTrue();
+    }
+
+    @Test
+    void inlineCodeInsideTableCell_preservedWithHtmlStructure() {
+        // 保护块是 HTML 原文：字面尖括号在其内以**实体形态**呈现（`List&lt;String&gt;`）——
+        // 这正是该字面量在 HTML 中的唯一合法写法，语义与源文档一致；文本型 chunk 则是解码后的字面量
+        String text = "### 6.1 事件分级\n\n"
+            + "<table><tr><th>接口</th><th>说明</th></tr>"
+            + "<tr><td>`List<String>`</td><td>泛型写法</td></tr>"
+            + "<tr><td>`a < b`</td><td>比较写法</td></tr></table>\n\n"
+            + "后续正文内容说明。".repeat(20);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        Document tableChunk = chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk).findFirst().orElseThrow();
+        assertThat(tableChunk.getText())
+            .contains("`List&lt;String&gt;`").contains("`a &lt; b`")
+            .doesNotContain("<String>");      // 未转义的字面尖括号不得作为标签残留（原实现连标签名一并吞掉）
+    }
+
+    @Test
+    void unpairedBacktick_doesNotDisableTableProtection() {
+        // 反向守卫：落单反引号整行不屏蔽——否则会把同一行的真标签一并转义、表格保护失效
+        String text = "### 6.1 事件分级\n\n示例值 `v1.2 见下表："
+            + "<table><tr><th>级别</th><th>名称</th><th>判定标准</th></tr>"
+            + "<tr><td>P1</td><td>重大事件</td><td>核心系统中断超过 2 小时</td></tr></table>\n\n"
+            + "后续正文内容说明。".repeat(20);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk)).hasSize(1);
+    }
+
+    @Test
+    void fencedCodeWithBackticks_notDoubleEscaped() {
+        // 围栏不受行内屏蔽影响：围栏内尖括号由围栏屏蔽负责，不得二次转义
+        String text = "# 标题\n\n```java\nList<String> x = a < b ? c : d;\n```\n\n" + LONG_TABLE + "\n\n"
+            + "正文内容说明。".repeat(30);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks.stream().anyMatch(c -> c.getText().contains("List<String> x = a < b ? c : d;"))).isTrue();
+        assertThat(chunks).allSatisfy(c -> assertThat(c.getText()).doesNotContain("&lt;").doesNotContain("&gt;"));
+    }
+
+    @Test
+    void tableTagInsideHtmlComment_doesNotTriggerBalancing() {
+        // 注释内的伪表格不参与配平（否则会把真表格的闭合标签补错位置）；注释文本不入正文
+        String text = "<!-- 示例：<table><tr><td>伪表格</td></tr> -->\n\n### 6.1 事件分级\n\n" + LONG_TABLE
+            + "\n\n后续正文内容说明。".repeat(20);
+
+        List<Document> chunks = splitter.apply(List.of(new Document(text)));
+
+        assertThat(chunks.stream().filter(HtmlProtectingSplitterTest::isTableChunk)).hasSize(1);
+        assertThat(chunks).allSatisfy(c -> assertThat(c.getText()).doesNotContain("伪表格"));
+    }
 }

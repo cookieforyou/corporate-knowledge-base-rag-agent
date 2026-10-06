@@ -11,8 +11,12 @@ import org.springframework.ai.document.DocumentTransformer;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,6 +96,7 @@ import java.util.regex.Pattern;
  *   <li><b>微整理</b>：{@code flushBuffer} 单次 {@code toString()}（去重复副本）；
  *       行首判据统一由 {@link #appendLine} 内部执行（去调用侧重复表达式）。</li>
  * </ol>
+ *
  * <p><b>修复批 4（2026-10-04，9.2 v2.25，短文本静默丢弃根治）</b>：{@code TokenTextSplitter}
  * 按 {@code length() > minChunkLengthToEmbed(10)} <b>严格判据静默丢弃</b>过短文本——容器标题
  * （标题后紧跟更深标题、章节无正文）≤10 字符时整个标题文字消失（仅存于后续 chunk 的
@@ -111,9 +116,30 @@ import java.util.regex.Pattern;
  * {@code original_html} 同记「前缀 + HTML」原文：全类型 chunk 的 {@code original_content}
  * 与 {@code content} 只差语境增强前缀（未增强时同值），语义单一。
  *
+ * <p><b>修复批 7（2026-10-04，9.2 v2.30，AST 视图预处理）</b>：用户侧提问「含 {@code <table>} 的
+ * Markdown 为何能走 JSoup、JSoup 不转换能处理 Markdown 吗」复核时发现——JSoup 只作结构解析器
+ * （Markdown 标记对它是惰性文本），但**凡是交给它的文本就受 HTML 词法约束**，由此暴露两类真实缺陷：
+ * <ol>
+ *   <li><b>未闭合结构标签吞并后文</b>：{@code <table>} 缺闭合 ⇒ 其后全文落入表格元素，产出**一个**
+ *       1871 字符的 TABLE chunk（实测 28 → 19 chunk，尾部章节标题失去语义）；{@code <h2>} 缺闭合
+ *       ⇒ 其后正文变成标题文字，heading_path 污染成含正文的长串。治法 = {@link #balanceStructure}
+ *       在解析前补足落单的标题标签与表格结构标签；</li>
+ *   <li><b>字面尖括号被当标签吞掉</b>：行内 code 内的 {@code <svc>}/{@code List<String>}/{@code <v1.2>}
+ *       标签名消失（实测 {@code Optional<List<String>>} → {@code Optional> }）。治法 =
+ *       {@link #shieldInlineCode} 按长度配对反引号并转义区间内的 HTML 元字符（与围栏屏蔽同一机制）。</li>
+ * </ol>
+ * 三项变换（含 v2.22 围栏屏蔽）统一收在 {@link #astView}，均只作用于围栏与注释之外；无变换命中时
+ * 输出与原实现逐字节一致——**真实语料 6 篇 chunk 计数与 ID 零漂移**。
+ *
  * <p><b>围栏规则声明（有意简化）</b>：围栏按「≤3 空格缩进 + 3 个以上同字符（``` / ~~~）」识别，
  * 不校验 CommonMark 的 info string 约束（如反引号围栏的 info string 不得含反引号）——
  * 该差异仅影响病态输入（{@code ``` a`b} 一行），不引入结构或内容丢失。
+ *
+ * <p><b>配平规则声明（有意简化，9.2 v2.30）</b>：表格结构标签按「整篇计数缺口 + 最后一个结构闭合行」
+ * 定位补足点，不重建完整标签栈——覆盖「单表缺一个闭合标签」（LLM 产出的表格 HTML 与手写 Markdown
+ * 嵌 HTML 的常见形态）；多表且**非末表**未闭合、或表格 HTML 被截断在行中的病态输入不在此列
+ * （补在此处会张冠李戴，故两条不猜原则直接原样返回）。结构标签之外的未闭合元素
+ * （{@code <div>}/{@code <p>}）无需处理：递归遍历照常取其文本，只有行边界差异。
  */
 @Component
 public class HtmlProtectingSplitter implements DocumentTransformer {
@@ -138,6 +164,20 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     /** HTML 标题标签判据（同严格边界）：纯 HTML 标题文档也须走 AST 路径取 heading_path */
     private static final Pattern HTML_HEADING_TAG =
         Pattern.compile("<h[1-6](?=[\\s/>])", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 表格结构标签 token（9.2 v2.30 配平用）：开/闭标记 + 标签名，严格边界
+     * （{@code <tableau>} / {@code </tableau>} 不计入）。
+     */
+    private static final Pattern TABLE_STRUCTURE_TOKEN =
+        Pattern.compile("<(/?)(tfoot|tbody|thead|table)(?=[\\s/>])", Pattern.CASE_INSENSITIVE);
+
+    /** 表格结构的「闭合边界行」判据：行内含任一结构闭合标签（单元格/行闭合同样是结构边界） */
+    private static final Pattern TABLE_STRUCTURE_CLOSE =
+        Pattern.compile("</(tbody|thead|tfoot|tr|td|th|table)>", Pattern.CASE_INSENSITIVE);
+
+    /** 表格结构标签配平顺序（内层 → 外层）：缺口补在当前表最后一个结构闭合行之后 */
+    private static final List<String> TABLE_STRUCTURE_TAGS = List.of("tfoot", "tbody", "thead", "table");
 
     /**
      * Markdown ATX 标题（9.2 v2.22 收紧）：CommonMark 口径——最多 3 个空格/制表符缩进、
@@ -199,7 +239,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
             // 仅 Markdown 标题：纯行扫描（不经 JSoup——避免代码片段中的尖括号被解析为未知标签丢文本）
             return splitByMarkdownHeadings(doc, lines, scan.inFence, scan.inComment);
         }
-        return splitWithTracking(doc, jsoupText(lines, scan.inFence));
+        return splitWithTracking(doc, astView(lines, scan.inFence));
     }
 
     // ── 结构判据：一次行扫描得出围栏区间 + 三判据（9.2 v2.22） ──
@@ -291,17 +331,34 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         return inComment;
     }
 
+    // ── AST 解析视图（9.2 v2.22 围栏屏蔽；v2.30 追加行内 code 屏蔽 + 结构标签配平） ──
+
     /**
-     * AST 解析视图：围栏区间改写为 {@code <pre>转义原文</pre>}——围栏内容对 JSoup 不可见
-     * （不会变成真标题/真表格），由 {@code pre} 字面分支原样回到 chunk。
-     * 用 HTML 转义而非哨兵占位：控制字符会被 HTML 解析器丢弃，哨兵方案实测污染语料正文。
+     * AST 解析视图：把源文本改写成「JSoup 只看见该看见的东西」的形态，三步逐行变换：
+     * <ol>
+     *   <li><b>围栏屏蔽（v2.22）</b>：围栏区间改写为 {@code <pre>转义原文</pre>}——围栏内容对 JSoup
+     *       不可见（不会变成真标题/真表格），由 {@code pre} 字面分支原样回到 chunk。
+     *       用 HTML 转义而非哨兵占位：控制字符会被 HTML 解析器丢弃，哨兵方案实测污染语料正文；</li>
+     *   <li><b>行内 code 屏蔽（v2.30）</b>：成对反引号内的 HTML 元字符转义——{@code `<svc>.<ns>`}、
+     *       {@code `List<String>`} 这类字面尖括号不再被当作未知标签吞掉（详见
+     *       {@link #shieldInlineCode}）；</li>
+     *   <li><b>结构标签配平（v2.30）</b>：未闭合的 {@code <h1>..<h6>} / 表格结构标签补上闭合标签
+     *       ——否则 HTML 解析器按「元素延伸到父级结束」把它们之后的全文吞进标题或表格元素
+     *       （详见 {@link #balanceStructure}）。</li>
+     * </ol>
+     * 三步均只作用于围栏与注释之外的文本；无变换命中时输出与原实现逐字节一致
+     * （真实语料 6 篇零漂移）。
      */
-    private static String jsoupText(String[] lines, boolean[] inFence) {
-        StringBuilder out = new StringBuilder();
+    private static String astView(String[] lines, boolean[] inFence) {
+        String[] view = new String[lines.length];
+        boolean[] viewFence = new boolean[lines.length];
+        int n = 0;
         int i = 0;
         while (i < lines.length) {
             if (!inFence[i]) {
-                out.append(lines[i]).append('\n');
+                view[n] = shieldInlineCode(lines[i]);
+                viewFence[n] = false;
+                n++;
                 i++;
                 continue;
             }
@@ -316,10 +373,200 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
                     fenceText.append('\n');
                 }
             }
-            out.append("<pre>").append(escapeHtml(fenceText.toString())).append("</pre>\n");
+            view[n] = "<pre>" + escapeHtml(fenceText.toString()) + "</pre>";
+            viewFence[n] = true;
+            n++;
             i = end + 1;
         }
+        String[] viewLines = Arrays.copyOf(view, n);
+        boolean[] fenceLines = Arrays.copyOf(viewFence, n);
+        balanceStructure(viewLines, fenceLines);
+        return String.join("\n", viewLines) + "\n";
+    }
+
+    /**
+     * 行内 code 屏蔽（9.2 v2.30）：成对反引号区间内的 {@code &} {@code <} {@code >} 转义为实体
+     * （JSoup 解析时还原为原文）——AST 路径下字面尖括号（{@code `<svc>.<ns>.svc.cluster.local`}、
+     * {@code `Optional<List<String>>`}、{@code `<v1.2>`}）原为 HTML 解析器的未知标签，
+     * 标签名连同紧随的字符一并消失（实测 {@code List<String>} → {@code >}）。
+     *
+     * <p><b>配对纪律</b>：按反引号「长度」两两配对（`` ``a`b`` `` 这类含反引号的行内 code 也能正确
+     * 闭合）；**同长度出现落单反引号时整行不屏蔽**——否则落单标记会把其后的真标签
+     * （如行内的 {@code <table>}）一并转义，保护反而失效。行级状态，不跨行延续。
+     */
+    private static String shieldInlineCode(String line) {
+        if (line.indexOf('`') < 0) {
+            return line;
+        }
+        List<int[]> runs = new ArrayList<>();                 // {起始下标, 长度}
+        int i = 0;
+        while (i < line.length()) {
+            if (line.charAt(i) == '`') {
+                int run = 1;
+                while (i + run < line.length() && line.charAt(i + run) == '`') {
+                    run++;
+                }
+                runs.add(new int[] {i, run});
+                i += run;
+            } else {
+                i++;
+            }
+        }
+        Map<Integer, Deque<Integer>> pending = new HashMap<>();
+        boolean[] shielded = new boolean[line.length()];
+        for (int r = 0; r < runs.size(); r++) {
+            int length = runs.get(r)[1];
+            Deque<Integer> bucket = pending.computeIfAbsent(length, key -> new ArrayDeque<>());
+            if (bucket.isEmpty()) {
+                bucket.addLast(r);
+            } else {
+                Arrays.fill(shielded, runs.get(bucket.removeLast())[0], runs.get(r)[0] + length, true);
+            }
+        }
+        if (pending.values().stream().anyMatch(bucket -> !bucket.isEmpty())) {
+            return line;                                      // 落单反引号：保守起见整行不屏蔽
+        }
+        StringBuilder out = new StringBuilder(line.length() + 16);
+        int pos = 0;
+        while (pos < line.length()) {
+            if (!shielded[pos]) {
+                out.append(line.charAt(pos));
+                pos++;
+                continue;
+            }
+            int end = pos;
+            while (end < line.length() && shielded[end]) {
+                end++;
+            }
+            out.append(escapeHtml(line.substring(pos, end)));
+            pos = end;
+        }
         return out.toString();
+    }
+
+    /**
+     * 结构标签配平（9.2 v2.30）：HTML 解析器对未闭合元素按「延伸到父级结束」处理，把其后全文
+     * 塞进该元素——{@code <h2>标题} 缺闭合 ⇒ 其后正文变成**标题文字**（heading_path 被污染成
+     * 含正文的长串、章节不再分块）；{@code <table>} 缺闭合 ⇒ 其后全文被吞进**一个** TABLE chunk
+     * （实测 28 → 19 chunk、单块 1871 字符 ≈ 2.3× chunkSize，尾部 Markdown 标题一并失去语义）。
+     * 治法 = 交给 JSoup 之前把缺口补上（围栏行与注释行不参与；单行注释内容先剥离）。
+     */
+    private static void balanceStructure(String[] view, boolean[] viewFence) {
+        boolean[] viewComment = commentLines(view, viewFence);
+        balanceHeadings(view, viewFence, viewComment);
+        balanceTableStructure(view, viewFence, viewComment);
+    }
+
+    /**
+     * 标题标签配平：整篇按出现顺序 LIFO 配对后**仍落单的 `<hN>`**，在其所在行行尾补 `</hN>`
+     * ——HTML 标题的文字天然在同一行，落单即为「吞掉后文」的病态形态。
+     * 跨行书写的合法标题（{@code <h2>\n标题\n</h2>}）配对完整，不受影响。
+     */
+    private static void balanceHeadings(String[] view, boolean[] viewFence, boolean[] viewComment) {
+        for (int level = 1; level <= 6; level++) {
+            Pattern token = Pattern.compile("</?h" + level + "(?=[\\s/>])", Pattern.CASE_INSENSITIVE);
+            String closer = "</h" + level + ">";
+            Deque<Integer> unmatched = new ArrayDeque<>();
+            for (int i = 0; i < view.length; i++) {
+                if (viewFence[i] || viewComment[i]) {
+                    continue;
+                }
+                Matcher m = token.matcher(stripInlineComments(view[i]));
+                while (m.find()) {
+                    if (m.group().startsWith("</")) {
+                        unmatched.pollLast();                 // 有配对：出栈（落单闭合标签忽略）
+                    } else {
+                        unmatched.addLast(i);
+                    }
+                }
+            }
+            for (int line : unmatched) {
+                view[line] = appendAtLineEnd(view[line], closer);
+            }
+        }
+    }
+
+    /**
+     * 表格结构标签配平：整篇计数有缺口（{@code <table>} 多于 {@code </table>} 等）时，把缺的闭合
+     * 标签按**内层→外层**（tfoot/tbody/thead/table）补在「最后一个结构闭合行」之后——即当前表
+     * 最后一个 {@code </td>}/{@code </th>}/{@code </tr>}/{@code </tbody>} 行处，表格之后的内容
+     * 随即回到正常文本流（重新参与标题识别与分块）。无任何结构闭合行可定位时（单行表整行缺闭合）
+     * 退回该表起始行行尾——仍好于让它吞掉全文。
+     *
+     * <p>两条不猜原则：最后一个 {@code <table>} 出现在边界行之后（缺口在末表之前，补在此处会
+     * 张冠李戴）、无缺口——任一成立即原样返回。{@code </tr>}/{@code </td>} 缺失不必补足计数：
+     * 解析器遇 {@code </tbody>}/{@code </table>} 自动闭合单元格与行，实测无吞并。
+     */
+    private static void balanceTableStructure(String[] view, boolean[] viewFence, boolean[] viewComment) {
+        Map<String, Integer> missing = new LinkedHashMap<>();
+        int boundary = -1;
+        int lastTableOpen = -1;
+        for (int i = 0; i < view.length; i++) {
+            if (viewFence[i] || viewComment[i]) {
+                continue;
+            }
+            String line = stripInlineComments(view[i]);
+            if (TABLE_STRUCTURE_CLOSE.matcher(line).find()) {
+                boundary = i;
+            }
+            Matcher m = TABLE_STRUCTURE_TOKEN.matcher(line);
+            while (m.find()) {
+                String tag = m.group(2).toLowerCase();
+                if (m.group(1).isEmpty()) {
+                    missing.merge(tag, 1, Integer::sum);
+                    if (tag.equals("table")) {
+                        lastTableOpen = i;
+                    }
+                } else {
+                    missing.merge(tag, -1, Integer::sum);
+                }
+            }
+        }
+        StringBuilder closers = new StringBuilder();
+        for (String tag : TABLE_STRUCTURE_TAGS) {
+            int gap = missing.getOrDefault(tag, 0);
+            if (gap > 0) {
+                closers.append(("</" + tag + ">").repeat(gap));
+            }
+        }
+        if (boundary < 0) {
+            boundary = lastTableOpen;                 // 无任何结构闭合行（单行表整行缺闭合）：退回表起始行行尾
+        }
+        if (closers.isEmpty() || boundary < 0 || lastTableOpen > boundary) {
+            return;
+        }
+        view[boundary] = appendAtLineEnd(view[boundary], closers.toString());
+    }
+
+    /** 单行 HTML 注释剥离（计数口径与结构判据一致：注释内的标签不算标签） */
+    private static String stripInlineComments(String line) {
+        return line.indexOf("<!--") < 0 ? line : HTML_COMMENT.matcher(line).replaceAll(" ");
+    }
+
+    /**
+     * 行尾补标签；行内存在**未闭合注释起始**时插在其之前——插进注释里的标签解析器看不见，
+     * 补了等于没补（{@code <h2>标题 <!-- 说明} 跨行注释形态）。
+     */
+    private static String appendAtLineEnd(String line, String tags) {
+        int cut = unterminatedCommentStart(line);
+        return cut < 0 ? line + tags : line.substring(0, cut) + tags + line.substring(cut);
+    }
+
+    /** 行内第一个未闭合 {@code <!--} 的下标（无则 -1），与 {@link #commentLines} 同口径扫描 */
+    private static int unterminatedCommentStart(String line) {
+        int pos = 0;
+        while (pos < line.length()) {
+            int start = line.indexOf("<!--", pos);
+            if (start < 0) {
+                return -1;
+            }
+            int close = line.indexOf("-->", start + 4);
+            if (close < 0) {
+                return start;
+            }
+            pos = close + 3;
+        }
+        return -1;
     }
 
     /** 仅转义 HTML 元字符（JSoup 解析时还原为原文） */

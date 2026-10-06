@@ -20,7 +20,7 @@
 
 ```
 kb-rag-agent/
-├── kb-commons/        # ApiResponse/BusinessException/TextSanitizer/Constants（全局常量收敛十一分区，kb-eval 值域落模块本地 EvalConstants）
+├── kb-commons/        # ApiResponse/BusinessException/TextSanitizer/Constants（常量收敛十一分区；kb-eval 值域落本地 EvalConstants）
 ├── kb-domain/         # 8 Entity + 8 Repository + 6 枚举 + schema.sql + db/migration/（Flyway V1 基线）
 ├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
 ├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写
@@ -93,7 +93,7 @@ kb-rag-agent/
 
 **压测资产（kb-loadtest）**：Gatling Java DSL（gatling:test 显式触发）；五场景 = 检索真压 / 生成桩压（纯 JDK StubChatServer）/ 真实 LLM TTFT·TPOT（缺省关）/ SSE 多轮 / hub 图路（v3.04）；语料 = Golden 干净集；§15.4/§18.4
 
-**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；失败回落）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img（**递归 DOM + 围栏屏蔽**，9.2 v2.22-23）+ heading_path（Markdown/HTML 双形态）；**Contextual 增强默认开**；chunk 确定性 ID；向量化 10 条/批
+**解析支线**：SmartParsingRouter 三路由（非 PDF→NATIVE Tika / 默认或 `parseRoute`→DEEP DocMind / 密度<50 字符/页→OCR；失败回落）；DocMind 表格 HTML 在 `llmResult`；HtmlProtectingSplitter 保护 table/img（**递归 DOM + 围栏/行内 code 屏蔽 + 结构标签配平**，9.2 v2.22-30）+ heading_path（Markdown/HTML 双形态）；**Contextual 增强默认开**；chunk 确定性 ID；向量化 10 条/批
 
 **基础设施**
 
@@ -121,7 +121,7 @@ kb-rag-agent/
 
 1. **设计回写**：实证性设计修正回写 `docs/project-implement/` 对应章节（版本号递增 + 修订注记）
 2. **进度更新**：`docs/project-progress/项目阶段推进任务清单完成记录.md` 对应任务行 + 顶部日期状态行
-3. **CLAUDE.md 同步**：受影响的架构事实（只记架构事实，过程细节入进度文档，控制体积 ≤24KB）
+3. **CLAUDE.md 同步**：受影响的架构事实（过程细节入进度文档，控制体积 ≤24KB）
 4. **git 提交**：一功能一提交（代码 + 文档同批），提交信息沿用既有风格（`feat/fix/docs/refactor(scope): 中文摘要` + 正文要点）
 5. **落码约束**：写代码前源码级核验（API 形态/契约/默认行为），不确定搜索官方文档，先核验再落码
 6. **通盘思考优先**：实现前先审视设计合理性与可维护性，有更优方案先与用户定案，再实现并回写设计
