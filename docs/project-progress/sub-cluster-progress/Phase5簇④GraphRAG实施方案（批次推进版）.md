@@ -403,8 +403,8 @@ public record RelationExtraction(
 - 已有 `@ConditionalOnProperty("rag.routing.fallback.enabled", matchIfMissing=true)` 条件装配
 - qwen3.7-plus 支持 `.entity(Class)` 结构化输出（四处先例）
 - 低温度（`temperature: 0.0`）+ `enable_thinking: false`（坑位⑮）
-- 与主模型 DeepSeek V4 跨厂商隔离（抽取不影响对话链）
-- 成本控制：qwen3.7-plus 百炼端点价格远低于 DeepSeek V4
+- 与主模型 DeepSeek V4.1 跨厂商隔离（抽取不影响对话链）
+- 成本控制：qwen3.7-plus 百炼端点价格远低于 DeepSeek V4.1
 
 **备选**：独立装配 `graphExtractionChatModel` Bean（同 baseUrl/apiKey，独立 options）——`fallbackChatModel` 关闭时仍可用
 
@@ -821,7 +821,7 @@ double entityChainCoverage = avg(entityHits / expectedChainLength);
 
 | 坑位 | 风险 | 规避 |
 |------|------|------|
-| ⑭ 跨厂商 Prompt 屏障 | 抽取走 qwen3.7-plus（百炼），与主模型 DeepSeek V4 异构 | 抽取独立 ChatModel Bean，不经 SmartRoutingChatModel |
+| ⑭ 跨厂商 Prompt 屏障 | 抽取走 qwen3.7-plus（百炼），与主模型 DeepSeek V4.1 异构 | 抽取独立 ChatModel Bean，不经 SmartRoutingChatModel |
 | ⑮ qwen 商业版默认开思考 | 抽取调用 20-60s/次 | `enable_thinking: false` 显式钉死 |
 | ㉘ spring-boot:run 静默跑旧 jar | kb-infrastructure 改动未 install | 开发期 `mvn install -pl kb-infrastructure -am` |
 | ⑬ Jackson 3 命名空间 | `ExtractionResult` record 的 `@JsonProperty` 须 `tools.jackson` | 落码时核验 import |

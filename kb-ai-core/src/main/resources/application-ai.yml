@@ -131,14 +131,14 @@ rag:
         temperature: ${ZHIPU_TEMPERATURE:0.2}
         max-tokens: ${ZHIPU_MAX_TOKENS:4096}
         reasoning-effort: ${ZHIPU_REASONING_EFFORT:low}
-      # DeepSeek V4 Flash（回落形态）：官方实证「思考模式默认开 + effort 默认
+      # DeepSeek-V4.1-Flash（回落形态）：官方实证「思考模式默认开 + effort 默认
       # high」「思考模式下 temperature 等采样参数静默忽略」——历史形态主路一直
       # 思考开 high 运行（temperature 0.1 从未生效）。回落缺省显式关思考（快答
       # 定位，关思考后采样参数恢复支持）；如需保留思考置 enabled + effort 调档
       deepseek:
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
         api-key: ${DEEPSEEK_API_KEY:}
-        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        model: ${DEEPSEEK_MODEL:deepseek-flash}
         temperature: ${DEEPSEEK_TEMPERATURE:0.1}
         max-tokens: ${DEEPSEEK_MAX_TOKENS:4096}
         thinking-type: ${DEEPSEEK_THINKING_TYPE:disabled}    # enabled | disabled

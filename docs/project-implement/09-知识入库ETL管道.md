@@ -524,7 +524,7 @@ package com.enterprise.kb.etl.transformer;
  * <p>成本控制：
  * - 默认关闭（kb.etl.contextual.enabled=false），按知识库/文档类型选择性开启；
  * - Prompt Caching 摊薄文档概要部分的 token 成本（同一文档的所有 Chunk 共享缓存前缀）；
- * - 使用经济模型（deepseek-v4-flash）生成上下文。</p>
+ * - 使用经济模型（deepseek-flash）生成上下文。</p>
  */
 @Component
 @ConditionalOnProperty(prefix = "kb.etl.contextual", name = "enabled", havingValue = "true")
@@ -552,7 +552,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 
 > **v2.21 落地（2026-08-12，冲刺簇④ A4，任务 2.4 复活）**：`ContextualEnrichmentTransformer` 按本节设计落地（`kb.etl.contextual.enabled` 默认关），实现要点：
 > 1. **管道位置**：切分 → **入库消毒之后**、落库之前——LLM 只见脱敏态文本，原文 PII 不出库（与冲刺簇② B1 纵深一致）；
-> 2. **装配形态**：kb-etl 不依赖 kb-ai-core（避免拖入对话链路 Advisor 栈），引 `spring-ai-openai` 实现模块（非 starter，免自动装配面——坑位⑲教训），经济模型 deepseek-v4-flash 手工装配 OpenAI 兼容形态（消费 `spring.ai.deepseek.*` @Value，temperature 0 / maxTokens 300 封顶成本），同 SmartRoutingConfig 形态；
+> 2. **装配形态**：kb-etl 不依赖 kb-ai-core（避免拖入对话链路 Advisor 栈），引 `spring-ai-openai` 实现模块（非 starter，免自动装配面——坑位⑲教训），经济模型 deepseek-flash 手工装配 OpenAI 兼容形态（消费 `spring.ai.deepseek.*` @Value，temperature 0 / maxTokens 300 封顶成本），同 SmartRoutingConfig 形态；
 > 3. **文档概要流转**：ETL 侧取首段非空解析文本前 N 字符（`kb.etl.contextual.excerpt-chars` 默认 2000，含文档标题行）写入 chunk 元数据 `doc_excerpt`，同一文档全部 chunk 共享（Prompt Caching 摊薄的形态基础），增强完成后移除该键不落任何存储面；原文经 `original_text` 元数据键流转落 `original_content`；
 > 4. **跳过与容错**：IMAGE chunk（正文为 img 标签无语义）与 <20 字符短 chunk 跳过；单 chunk 生成失败 WARN 原样放行（质量项不阻断入库）；
 > 5. **A/B 决策未定**：启用与否须经 kb-eval 双探针快照对比（全量重入库窗口：off 基线 vs on 对比，靶点 dm-13 纯表格 chunk），数据说话后定默认值并回写本节与 10 章检索形态。
@@ -590,7 +590,7 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 > **v2.28 语境增强挂辅助族（2026-09-01，批B 追随修复）**：主模型双形态批B 退役
 > `spring.ai.deepseek.*` 配置族后，v2.21 装配的 `spring.ai.deepseek.*` @Value 取值
 > 落空 → 空密钥快失败（启动报 `DEEPSEEK_API_KEY 未配置`）。定案迁辅助族：模型
-> **deepseek-v4-flash → qwen3.8-flash**（与备用/路由改写/图抽取同族，DashScope
+> **deepseek-flash → qwen3.8-flash**（与备用/路由改写/图抽取同族，DashScope
 > compatible-mode），配置改自持三键 `kb.etl.contextual.{api-key,base-url,model}`
 > （key 缺省回落 `DASHSCOPE_API_KEY`——项目必有 key，不再依赖可选 DEEPSEEK key），
 > 并按坑位⑮显式 `enable_thinking=false`（摘要类轻任务防每 chunk 思维链税）。

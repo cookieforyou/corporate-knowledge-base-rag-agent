@@ -20,7 +20,7 @@
 | **对象存储** | MinIO | 最新稳定版 | S3 兼容，文档 OSS 存储 |
 | **可观测性** | OpenTelemetry + Micrometer + Prometheus + Grafana | - | 全链路 Trace + 业务指标 |
 | **前端** | Vue3 + TypeScript | - | 工作台 UI |
-| **LLM** | DeepSeek V4 | deepseek-v4-flash | `spring-ai-starter-model-deepseek` 原生集成，性价比最高 |
+| **LLM** | DeepSeek V4.1 | deepseek-flash | `spring-ai-starter-model-deepseek` 原生集成，性价比最高 |
 | **Embedding** | 阿里云百炼 DashScope | qwen3.7-text-embedding | OpenAI 兼容 API，通过 `spring-ai-starter-model-openai` 对接 |
 
 ### 2.2 Spring AI 2.0 核心能力矩阵
@@ -177,7 +177,7 @@ public class VectorStoreConfig {
 - 事务一致性由 PG 保证
 - 支持 Chunk 级局部向量更新（delete + add），无需重建整个文档
 
-#### 决策 3：国产模型选型 — DeepSeek V4（LLM）+ 阿里云百炼（Embedding）
+#### 决策 3：国产模型选型 — DeepSeek V4.1（LLM）+ 阿里云百炼（Embedding）
 
 项目采用 **国产模型 API**，不依赖本地 GPU 部署：
 
@@ -219,7 +219,7 @@ spring:
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
-        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        model: ${DEEPSEEK_MODEL:deepseek-flash}
         temperature: 0.1
         max-tokens: 4096
 
@@ -234,7 +234,7 @@ spring:
 
 | 决策点 | 选择 | 理由 |
 |--------|------|------|
-| LLM | DeepSeek V4 (`deepseek-v4-flash`) | 国产开源标杆，RAG 场景得分 9.8/10；Spring AI 2.0 原生集成；API 价格约为 GPT-4o-mini 的 1/10 |
+| LLM | DeepSeek V4.1 (`deepseek-flash`) | 国产开源标杆，RAG 场景得分 9.8/10；Spring AI 2.0 原生集成；API 价格约为 GPT-4o-mini 的 1/10 |
 | Embedding | 阿里云百炼 (`qwen3.7-text-embedding`) | 1024 维，中文语义理解出色；OpenAI 兼容 API 零额外适配成本；与 DeepSeek API 环境变量隔离 |
 
 > **v2 注**：OpenAI 兼容模式对接百炼是非官方做法；Spring AI 2.0 已提供官方 `spring-ai-starter-model-alibaba`（DashScope 原生）。当前实现沿用 OpenAI 兼容模式（已验证可用），列为技术债务，择机切换。

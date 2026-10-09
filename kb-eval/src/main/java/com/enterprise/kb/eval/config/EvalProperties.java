@@ -166,7 +166,7 @@ public class EvalProperties {
         /** Judge 模型端点（默认百炼 OpenAI 兼容端点，与被测 DeepSeek 形成跨厂商评判） */
         private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
         private String apiKey;
-        /** 16.3：Judge 模型须与被测模型隔离（被测 DeepSeek V4，Judge 默认 qwen3.8-flash） */
+        /** 16.3：Judge 模型须与被测模型隔离（被测 DeepSeek V4.1，Judge 默认 qwen3.8-flash） */
         private String model = "qwen3.8-flash";
         private Double temperature = 0.0;
         /**

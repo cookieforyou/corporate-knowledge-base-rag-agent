@@ -84,12 +84,12 @@ class SmartRoutingConfigTest {
     @Test
     void primaryDeepSeekThinkingDisabledByDefault() {
         ChatModel model = config.deepSeekChatModel(registryProvider(), noConventionProvider(),
-            "https://api.deepseek.com", "sk-test", "deepseek-v4-flash", 0.1, 4096, "disabled", "");
+            "https://api.deepseek.com", "sk-test", "deepseek-flash", 0.1, 4096, "disabled", "");
 
         OpenAiChatOptions options = optionsOf(model);
         assertThat(options.getStreamOptions()).isNotNull();
         assertThat(options.getStreamOptions().includeUsage()).isTrue();
-        assertThat(options.getModel()).isEqualTo("deepseek-v4-flash");
+        assertThat(options.getModel()).isEqualTo("deepseek-flash");
         assertThat(options.getMaxTokens()).isEqualTo(4096);
         assertThat(options.getTemperature()).isEqualTo(0.1);
         assertThat(options.getBaseUrl()).isEqualTo("https://api.deepseek.com");
@@ -104,7 +104,7 @@ class SmartRoutingConfigTest {
     @Test
     void primaryDeepSeekThinkingEnabledWithEffort() {
         ChatModel model = config.deepSeekChatModel(registryProvider(), noConventionProvider(),
-            "https://api.deepseek.com", "sk-test", "deepseek-v4-flash", 0.1, 4096, "enabled", "low");
+            "https://api.deepseek.com", "sk-test", "deepseek-flash", 0.1, 4096, "enabled", "low");
 
         OpenAiChatOptions options = optionsOf(model);
         assertThat(options.getExtraBody())
@@ -140,7 +140,7 @@ class SmartRoutingConfigTest {
     @Test
     void primaryChatModelBridgeSelectsNonNullable() {
         ChatModel ds = config.deepSeekChatModel(registryProvider(), noConventionProvider(),
-            "https://api.deepseek.com", "sk-test", "deepseek-v4-flash", 0.1, 4096, "disabled", "");
+            "https://api.deepseek.com", "sk-test", "deepseek-flash", 0.1, 4096, "disabled", "");
         ChatModel glm = config.glmChatModel(registryProvider(), noConventionProvider(),
             "https://open.bigmodel.cn/api/paas/v4", "sk-test", "glm-5.3-flash", 1.0, 4096, "");
 
@@ -155,7 +155,7 @@ class SmartRoutingConfigTest {
     @Test
     void primaryModelsFailFastOnMissingApiKey() {
         assertThatThrownBy(() -> config.deepSeekChatModel(registryProvider(), noConventionProvider(),
-            "https://api.deepseek.com", "", "deepseek-v4-flash", 0.1, 4096, "disabled", ""))
+            "https://api.deepseek.com", "", "deepseek-flash", 0.1, 4096, "disabled", ""))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("DEEPSEEK_API_KEY");
         assertThatThrownBy(() -> config.glmChatModel(registryProvider(), noConventionProvider(),

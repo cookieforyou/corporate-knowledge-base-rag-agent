@@ -65,7 +65,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * base-url,model}} 自持三键，key 缺省回落 DASHSCOPE_API_KEY；kb-etl 不依赖
  * kb-ai-core，避免拖入对话链路 Advisor 栈——引 spring-ai-openai 实现模块
  * 而非 starter，免自动装配面。v2.78：deepseek 配置族随主模型双形态批B 退役，
- * 语境增强自 deepseek-v4-flash 迁至辅助族，显式关思考防 ETL 侧思维链税）。
+ * 语境增强自 deepseek-flash 迁至辅助族，显式关思考防 ETL 侧思维链税）。
  */
 @Slf4j
 @Component

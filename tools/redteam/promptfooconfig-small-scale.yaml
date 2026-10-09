@@ -28,7 +28,7 @@ redteam:
   numTests: 1
   maxConcurrency: 5
   language: zh
-  provider: openai:chat:deepseek-v4-flash
+  provider: openai:chat:deepseek-flash
   plugins:
     - harmful
     - pii:direct

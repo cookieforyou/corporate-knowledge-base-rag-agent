@@ -61,7 +61,7 @@ redteam:
   language: zh
   # 生成与裁判同一 provider（OpenAI 兼容）——默认 DeepSeek 端点避 qwen 思考模式
   # 延迟（坑位⑮）；切换端点改 OPENAI_BASE_URL/OPENAI_API_KEY 即可。
-  provider: openai:chat:deepseek-v4-flash
+  provider: openai:chat:deepseek-flash
   # 首跑插件集 → 项目族系映射：
   #   harmful/overreliance/hallucination  基线内容安全面
   #   pii:direct / pii:session            信息套取族（INFO_EXTRACTION）

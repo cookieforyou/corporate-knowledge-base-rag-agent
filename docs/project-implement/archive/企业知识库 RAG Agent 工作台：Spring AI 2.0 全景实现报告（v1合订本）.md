@@ -2,7 +2,7 @@
 
 > **项目定位**：面向企业复杂文档场景的高可用、可溯源、可运维的 RAG Agent 知识库工作台
 >
-> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.1 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 9.4.2 + Redis 8 + DeepSeek V4（LLM）+ 阿里云百炼 DashScope（Embedding）
+> **技术基座**：Java 21 (虚拟线程) + Spring Boot 4.1 + Spring AI 2.0.1 GA + PostgreSQL 18（主数据库 + pgvector 向量扩展）+ Milvus 2.6（可选分布式向量库）+ MinIO（文档 OSS 存储）+ Elasticsearch 9.4.2 + Redis 8 + DeepSeek V4.1（LLM）+ 阿里云百炼 DashScope（Embedding）
 >
 > **报告性质**：从 0 到 1 的全生命周期落地指南，覆盖战略定位、需求分析、架构设计、分阶段实施、代码实现、测试部署与运维
 >
@@ -130,7 +130,7 @@ Dify、阿里云百炼 Knowledge Studio、Microsoft Copilot Studio 等平台以"
 | **对象存储** | MinIO | 最新稳定版 | S3 兼容，文档 OSS 存储 |
 | **可观测性** | OpenTelemetry + Micrometer + Prometheus + Grafana | - | 全链路 Trace + 业务指标 |
 | **前端** | Vue3 + TypeScript | - | 工作台 UI |
-| **LLM** | DeepSeek V4 | deepseek-v4-flash | `spring-ai-starter-model-deepseek` 原生集成，性价比最高 |
+| **LLM** | DeepSeek V4.1 | deepseek-flash | `spring-ai-starter-model-deepseek` 原生集成，性价比最高 |
 | **Embedding** | 阿里云百炼 DashScope | qwen3.7-text-embedding | OpenAI 兼容 API，通过 `spring-ai-starter-model-openai` 对接 |
 
 ### 2.2 Spring AI 2.0 核心能力矩阵
@@ -287,7 +287,7 @@ public class VectorStoreConfig {
 - 事务一致性由 PG 保证
 - 支持 Chunk 级局部向量更新（delete + add），无需重建整个文档
 
-#### 决策 3：国产模型选型 — DeepSeek V4（LLM）+ 阿里云百炼（Embedding）
+#### 决策 3：国产模型选型 — DeepSeek V4.1（LLM）+ 阿里云百炼（Embedding）
 
 项目采用 **国产模型 API**，不依赖本地 GPU 部署：
 
@@ -329,7 +329,7 @@ spring:
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
-        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        model: ${DEEPSEEK_MODEL:deepseek-flash}
         temperature: 0.1
         max-tokens: 4096
 
@@ -344,7 +344,7 @@ spring:
 
 | 决策点 | 选择 | 理由 |
 |--------|------|------|
-| LLM | DeepSeek V4 (`deepseek-v4-flash`) | 国产开源标杆，RAG 场景得分 9.8/10；Spring AI 2.0 原生集成；API 价格约为 GPT-4o-mini 的 1/10 |
+| LLM | DeepSeek V4.1 (`deepseek-flash`) | 国产开源标杆，RAG 场景得分 9.8/10；Spring AI 2.0 原生集成；API 价格约为 GPT-4o-mini 的 1/10 |
 | Embedding | 阿里云百炼 (`qwen3.7-text-embedding`) | 1024 维，中文语义理解出色；OpenAI 兼容 API 零额外适配成本；与 DeepSeek API 环境变量隔离 |
 
 **环境变量**：
@@ -2396,9 +2396,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 企业级多模型智能路由器
  * 
  * 核心策略：
- * - 简单查询（无工具调用、短文本）→ 经济模型 (deepseek-v4-flash)
- * - 中等复杂度（含工具调用、中等长度）→ 标准模型 (deepseek-v4-flash)
- * - 高复杂度（多工具编排、长文本推理）→ 旗舰模型 (deepseek-v4-pro, 低温度)
+ * - 简单查询（无工具调用、短文本）→ 经济模型 (deepseek-flash)
+ * - 中等复杂度（含工具调用、中等长度）→ 标准模型 (deepseek-flash)
+ * - 高复杂度（多工具编排、长文本推理）→ 旗舰模型 (deepseek-pro, 低温度)
  * - 主模型故障时自动 Fallback 到备用模型（含熔断器保护）
  */
 @Component
@@ -2409,9 +2409,9 @@ public class SmartRoutingChatModel implements ChatModel {
     private final AtomicInteger roundRobinIndex = new AtomicInteger(0);
     
     public enum ModelTier {
-        ECONOMY,    // 经济型: deepseek-v4-flash
-        STANDARD,   // 标准型: deepseek-v4-flash
-        PREMIUM,    // 旗舰型: deepseek-v4-pro (低 temperature)
+        ECONOMY,    // 经济型: deepseek-flash
+        STANDARD,   // 标准型: deepseek-flash
+        PREMIUM,    // 旗舰型: deepseek-pro (低 temperature)
         LOCAL       // 本地型: 预留
     }
     
@@ -3669,7 +3669,7 @@ spring:
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
-        model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+        model: ${DEEPSEEK_MODEL:deepseek-flash}
         temperature: 0.1
         max-tokens: 4096
     openai:

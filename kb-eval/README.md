@@ -90,7 +90,7 @@ mvn spring-boot:run -pl kb-eval                                                 
 
 ### 2.3 LLM-as-Judge —— 跨厂商隔离
 
-- **被测**：DeepSeek V4（kb-ai-core 链路）
+- **被测**：DeepSeek V4.1（kb-ai-core 链路）
 - **Judge**：默认百炼 **qwen3.8-flash**（经 `DASHSCOPE_API_KEY` 复用现有密钥，无需新增）
 
 跨厂商评判规避 self-preference 偏差（设计文档 16.3）。Judge Prompt 采用 G-Eval 式 CoT（先推理后打分，缓解长度偏差），结构化输出经 `ChatClient.entity()` 映射为 `JudgeScore(score, reason, verdict)`。

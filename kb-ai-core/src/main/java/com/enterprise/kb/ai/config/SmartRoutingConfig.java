@@ -32,7 +32,7 @@ import org.springframework.context.annotation.Primary;
  *       enabled，传 disabled 直接报错）；{@code reasoning_effort} 支持 low/high/max
  *       （缺省 max，其余值报错）——经 OpenAiChatOptions 原生字段透传，空=不传=服务端
  *       默认 max，生产档位经冒烟定档。采样参数缺省按官方推荐 temperature 1.0。</li>
- *   <li><b>DeepSeek V4 Flash</b>：官方文档实证「思考模式默认打开且 effort 默认 high」
+ *   <li><b>DeepSeek-V4.1-Flash</b>：官方文档实证「思考模式默认打开且 effort 默认 high」
  *       「思考模式静默忽略 temperature/top_p 等采样参数（设值不报错不生效）」——
  *       历史形态（v2.76 前）主路一直以思考开 high 运行，temperature 0.1 从未生效。
  *       回落形态缺省显式关思考（{@code thinking-type: disabled}）：回落定位 = 快答
@@ -74,7 +74,7 @@ public class SmartRoutingConfig {
             ObjectProvider<ChatModelObservationConvention> observationConventionProvider,
             @Value("${rag.routing.primary.deepseek.base-url:https://api.deepseek.com}") String baseUrl,
             @Value("${rag.routing.primary.deepseek.api-key:}") String apiKey,
-            @Value("${rag.routing.primary.deepseek.model:deepseek-v4-flash}") String model,
+            @Value("${rag.routing.primary.deepseek.model:deepseek-flash}") String model,
             @Value("${rag.routing.primary.deepseek.temperature:0.1}") Double temperature,
             @Value("${rag.routing.primary.deepseek.max-tokens:4096}") Integer maxTokens,
             @Value("${rag.routing.primary.deepseek.thinking-type:disabled}") String thinkingType,

@@ -1349,7 +1349,7 @@ v2.74）沉淀：RediSearch 查询面仅参数化查询（KNN `$BLOB` 经 PARAMS
 prompt_cache_miss_tokens`。前缀匹配为**从首 token 起连续精确匹配**——前部任何
 字节变动即从变动点起失效。最小前缀门槛：官方 64 tokens（2024 公告）；
 **V4-Flash 社区实测 256 门槛（2026-05，未获官方确认）**——本链主模型
-`deepseek-v4-flash` 按双门槛保守评估，精确判定经用户侧 E2E 实测。
+`deepseek-flash` 按双门槛保守评估，精确判定经用户侧 E2E 实测。
 
 **主链固定前缀体量实测**：单轮请求固定前缀 = `RAG_SYSTEM_PROMPT`（73 字符，
 + 系统提示金丝雀随机 token）+ `GROUNDING_PROMPT` 静态头（426 字符，`{context}`

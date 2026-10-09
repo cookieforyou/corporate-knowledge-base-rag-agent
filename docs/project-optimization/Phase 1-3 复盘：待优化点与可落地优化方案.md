@@ -18,7 +18,7 @@ Phase 1-3 已实质收尾：基础设施与 ETL（Phase 1）、混合检索引�
 | 约束 | 现状 | 对优化方案的含义 |
 |---|---|---|
 | 算力 | ECS 2 核，**无 GPU** | 本地模型类方案（护栏分类器/本地 embedding/GraphRAG 构建加速）一律否决 |
-| 模型供给 | 全 SaaS API（DeepSeek V4 主 + 百炼系 embedding/rerank/judge/备用） | 优化成本按 API 调用计费；供应商能力边界即方案边界（如 Late Chunking） |
+| 模型供给 | 全 SaaS API（DeepSeek V4.1 主 + 百炼系 embedding/rerank/judge/备用） | 优化成本按 API 调用计费；供应商能力边界即方案边界（如 Late Chunking） |
 | 基础设施 | PG/ES/Milvus/Redis/MinIO 单机部署于同一 ECS | 分布式方案（Kafka/CDC/Milvus 集群）当前规模不成立 |
 | 语料规模 | 4 份文档 / 44 chunk；Golden 74 条 | 全量重入库成本可控（分钟级），但统计显著性受限（小样本） |
 | 技术栈 | Spring AI 2.0.1 GA + Boot 4.1 + Java 21 虚拟线程 | 优先复用框架内置组件（MultiQueryExpander/CompressionQueryTransformer 等），少自研 |
@@ -278,7 +278,7 @@ Phase 1-3 已实质收尾：基础设施与 ETL（Phase 1）、混合检索引�
 - **现状**：chunk 无 heading 路径（3.3 缺口①）；2.4 `ContextualEnrichmentTransformer` 设计完备未落地（缺口②）。业界证据：Anthropic Contextual Retrieval 报告检索失败率降 35-67%，2026 年已列企业标配；arXiv 2026 两篇后续工作（topic-aligned chunking / topic-enriched embeddings）继续佐证
 - **方案**：
   1. HtmlProtectingSplitter 解析时维护 heading 栈，chunk 注入 `heading_path` 元数据（展示与检索两用）
-  2. 按第九章原设计落地 ContextualEnrichmentTransformer（deepseek-v4-flash 生成 50-100 字文档级语境前缀，`content` 存增强文本、`original_content` 存原文），默认关
+  2. 按第九章原设计落地 ContextualEnrichmentTransformer（deepseek-flash 生成 50-100 字文档级语境前缀，`content` 存增强文本、`original_content` 存原文），默认关
   3. **决策流程**：全量重入库（44 chunk，成本分钟级）→ eval 双探针 A/B（contextual on/off 基线快照）→ 数据说话决定是否默认开。规避基线冲突的方式：重入库前先冻结当前基线快照存档
   4. 与 dm-02（页级碎片 R=0.50）直接对靶
 - **工作量**：2-3d + 重入库窗口 · **验证**：kb-eval A/B 快照对比报告

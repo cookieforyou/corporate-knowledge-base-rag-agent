@@ -33,7 +33,7 @@
 
 > **v2.6 实现期修正（2026-08-05，3.7/3.8 落地）**：配额护栏实现期实证回写第十一/十二章：① 租户身份经 RetrievalContext 参数链（草稿 AuthAdvisor 上下文写入前提不成立）；② Redis 故障 fail-open（可用性管控不是安全边界，不击穿问答）；③ 令牌桶 setRate 覆盖式首触写入；④ 配额码 RATE_LIMITED/TOKEN_BUDGET_EXCEEDED 统一 429（流式 SSE ERROR）；⑤ Usage.getTotalTokens() 返回 Integer 可空、流式消耗未开 include_usage 暂不计账（已知限制）；⑥ TokenBudgetExceededException 拆分独立公开文件；⑦ 11 章装配草图同步为当前真实链形（7 Advisor）。
 
-> **v2.7 实现期定稿（2026-08-05，3.2 落地）**：SmartRoutingChatModel 实用形态定稿——三级复杂度路由移交 Phase 5.4，本期落地主（DeepSeek V4）+ 备（qwen3.7-plus 百炼）熔断切换：熔断三态无锁原子实现、失败即切不丢请求、流式 onErrorResume 接管（部分 token 后中断重复为已知取舍）、chatClient/agentChatClient 统一改注路由模型（评估链同获容灾）、`rag.routing.*` 配置与单模型降级形态，详见第十一章 11.2.2。
+> **v2.7 实现期定稿（2026-08-05，3.2 落地）**：SmartRoutingChatModel 实用形态定稿——三级复杂度路由移交 Phase 5.4，本期落地主（DeepSeek V4.1）+ 备（qwen3.7-plus 百炼）熔断切换：熔断三态无锁原子实现、失败即切不丢请求、流式 onErrorResume 接管（部分 token 后中断重复为已知取舍）、chatClient/agentChatClient 统一改注路由模型（评估链同获容灾）、`rag.routing.*` 配置与单模型降级形态，详见第十一章 11.2.2。
 
 > **v2.8 实现期定稿（2026-08-05，3.3/3.4 落地）**：Mock 工具层先行（契约对齐真实系统，读工具自动执行 + 写工具 HITL）+ ToolCallingAdvisor 自建 advisorOrder(1000)（自动注册默认序最外层致工具循环重复穿越内层链，源码实证）；HITL 复审四要素落地：approvalId Redis 账本（TTL + 一次性消费 + tenant/user 绑定防重放）、确认态经 toolContext 通道、SSE TOOL_CALL 命名事件、写操作 fail-closed（APPROVAL_STORE_UNAVAILABLE），详见第十一章 11.2.1。
 
