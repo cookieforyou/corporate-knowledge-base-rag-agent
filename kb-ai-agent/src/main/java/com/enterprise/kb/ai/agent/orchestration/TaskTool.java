@@ -69,8 +69,7 @@ public class TaskTool {
             return "⚠️ 未知的子代理: " + subagent + "（可用: " + registry.renderNames() + "）";
         }
         Map<String, Object> ctx = toolContext == null ? Map.of() : toolContext.getContext();
-        RetrievalContext retrievalContext =
-            ctx.get(ToolContextKeys.RETRIEVAL_CONTEXT) instanceof RetrievalContext rc ? rc : null;
+        RetrievalContext retrievalContext = RetrievalContext.from(ctx.get(ToolContextKeys.RETRIEVAL_CONTEXT));
 
         // 委派预算硬闸（E2E 热修四）：已达上限不再执行，文本要求主 Agent 立即综合作答
         if (retrievalContext != null && countDelegations(retrievalContext) >= maxDelegations) {

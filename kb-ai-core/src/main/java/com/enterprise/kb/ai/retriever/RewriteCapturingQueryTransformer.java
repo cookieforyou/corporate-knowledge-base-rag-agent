@@ -35,14 +35,13 @@ public class RewriteCapturingQueryTransformer implements QueryTransformer {
     public Query transform(Query query) {
         // 5.4 收窄版：QueryRoutingAdvisor(440) 已把分类+消解合并产出的改写文本预写入
         // ctx——直接复用，跳过 delegate 的 LLM 调用（知识问零新增延迟的关键）
-        if (query.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx
-            && ctx.getRewrittenQuery() != null && !ctx.getRewrittenQuery().isBlank()) {
+        RetrievalContext ctx = RetrievalContext.from(query);
+        if (ctx != null && ctx.getRewrittenQuery() != null && !ctx.getRewrittenQuery().isBlank()) {
             // Query 构造必须透传 context：下游检索器经 Query.context 读 RetrievalContext
             return new Query(ctx.getRewrittenQuery(), query.history(), query.context());
         }
         Query rewritten = delegate.transform(query);
-        if (query.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx
-            && rewritten != null) {
+        if (ctx != null && rewritten != null) {
             ctx.setRewrittenQuery(rewritten.text());
         }
         return rewritten;

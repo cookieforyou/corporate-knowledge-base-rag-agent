@@ -327,8 +327,7 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
      */
     private void recordSuspectObservation(ChatClientRequest request, String family) {
         String canonical = canonicalFamily(family);
-        RetrievalContext ctx = request.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
-            ? rc : null;
+        RetrievalContext ctx = RetrievalContext.from(request);
         metrics.recordFlagged(AiBusinessMetrics.SIDE_INPUT, canonical);
         if (ctx != null) {
             ctx.addGuardrailFlag(new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_INPUT, canonical));

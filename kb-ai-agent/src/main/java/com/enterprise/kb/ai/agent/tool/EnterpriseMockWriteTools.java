@@ -43,8 +43,7 @@ public class EnterpriseMockWriteTools {
         String tenantId = asString(ctx.get(ToolContextKeys.TENANT_ID));
         String userId = asString(ctx.get(ToolContextKeys.USER_ID));
         String approvedId = asString(ctx.get(ToolContextKeys.APPROVED_TOOL_CALL_ID));
-        RetrievalContext retrievalContext =
-            ctx.get(ToolContextKeys.RETRIEVAL_CONTEXT) instanceof RetrievalContext rc ? rc : null;
+        RetrievalContext retrievalContext = RetrievalContext.from(ctx.get(ToolContextKeys.RETRIEVAL_CONTEXT));
         String summary = "为员工 " + employeeId + " 提交 " + leaveType
             + " 请假（" + startDate + " 至 " + endDate + "）";
 

@@ -82,7 +82,8 @@ public class QueryRoutingAdvisor implements BaseAdvisor {
         if (!enabled) {
             return request;
         }
-        if (!(request.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx)) {
+        RetrievalContext ctx = RetrievalContext.from(request);
+        if (ctx == null) {
             return request; // 防御：非 Web 入口无检索上下文，透传
         }
         String userText = request.prompt().getUserMessage().getText();

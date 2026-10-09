@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：**项目全阶段收官（2026-09-16，批3 文档评审通过）**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并经用户侧验收；收官总账本 = 18 章 §18.6 验收复盘矩阵。Phase 5 基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）；Phase5簇⑥ = 体验批/钉钉批1/A2A 批2/文档收口批3 全收官（基线 = sub-cluster-progress/Phase5簇⑥实施方案）。**后续演进**：`docs/project-future/`（扩展规划分册——真实工具链/协议互通/模型层/检索演进/规模化）。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：**项目全阶段收官（2026-09-16，批3 文档评审通过）**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并经用户侧验收；收官总账本 = 18 章 §18.6 验收复盘矩阵。Phase 5 基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）；Phase5簇⑥ = 体验批/钉钉批1/A2A 批2/文档收口批3 全收官（基线 = Phase5簇⑥实施方案）。**后续演进**：`docs/project-future/`（扩展规划分册——真实工具链/协议互通/模型层/检索演进/规模化）。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -81,7 +81,7 @@ kb-rag-agent/
 **检索与对话链路**
 
 - 主链路：`RetrievalAugmentationAdvisor`(500) = CompressionQueryTransformer（默认开）→ `HybridDocumentRetriever` 多路并行（向量+BM25[+Graph 条件在场]，租户/软删过滤，5s 单路降级）→ `RrfFusion`(K=60) → `RerankDocumentPostProcessor`（故障降级截断）→ `ContextualQueryAugmenter`（编号化 formatter 锚定 [ref-N] + 空证据拒答）；参数 `rag.retrieval.*`
-- **RetrievalContext 参数链（核心模式）**：每请求纯实例，Controller 创建并填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 检索器/重排器经 `RetrievalContext.from(query)` 消费 → 流末直读推 TRACE
+- **RetrievalContext 参数链**：每请求纯实例，Controller 创建填 tenantId/userId → advisor 参数 `CONTEXT_KEY` → 消费方经 `from(Query|Request|Response|Map|Object)` 读入口族读取（全仓 instanceof 唯一归属）→ 流末直读推 TRACE
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE JSON 载荷）+ 命名 TRACE（rag 链溯源 [ref-N]）/TOOL_CALL（tool/agent 委派，实时+流末兜底）/REPLACE（护栏追回）/PROGRESS（三链路进度+心跳）
 - 前端对话窗：sessionId 多轮 + rag/tool/agent 三模式切换 + TOOL_CALL 审批/委派卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达

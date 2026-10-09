@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-16 · v2.116（Phase5簇⑥ 批3：5.4 剩余两项与 5.5 设计稿归档登记——跨链 mode=auto/复杂度三级路由/多知识库路由，触发条件与复活路径入档 §11.4.1）· v2.115（Phase5簇⑥ 体验补强四：kb_session.mode 会话链路归属——历史会话恢复对应链路 tab，§11.7）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-04 · v2.117（ctx 读取统一入口族：Advisor/检索/工具侧 instanceof 判据归一到 10 章 §10.2.1 v3.06，语义零变化，§11.2）· v2.116（Phase5簇⑥ 批3：5.4 剩余两项与 5.5 设计稿归档登记——跨链 mode=auto/复杂度三级路由/多知识库路由，触发条件与复活路径入档 §11.4.1）
 >
 > **v2.108（2026-09-07，Phase5簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
@@ -359,6 +359,17 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > 变更，列为后续增强项；
 > ⑦ **指标形态**——`rag.token.total` / `rag.token.budget.rejected` 不带租户标签（避免指标基数
 > 膨胀），租户级观测经 Redis 账本键；3.13 AiBusinessMetrics 落地后可迁移。
+
+> **v2.117 ctx 读取统一入口族（2026-10-04，§11.2 涉及的全部 Advisor 读取侧归一）**：
+> 承接上条 ① ——「从请求/响应上下文读取 `RetrievalContext.CONTEXT_KEY`」的写法原先在各 Advisor /
+> 检索组件 / 工具类各自复刻 `instanceof` 判据（**10 类 14 处** + 2 个类内私有 `ctxOf(...)` 小助手 +
+> toolContext 取值 3 处），形态漂移只会以「静默无租户过滤 / 无 trace」显现。定稿 = 读入口族
+> `RetrievalContext.from(Query|ChatClientRequest|ChatClientResponse|Map|Object)`，**全仓 `instanceof`
+> 判据自此只存在于 `RetrievalContext` 一处**；三条链的 Advisor（护栏/配额/路由/缓存/审计/溯源）、
+> 检索组件与编排工具同改，**语义零变化**（kb-ai-core 334 + kb-ai-agent 122 单测改前改后同为绿；全仓 10 模块 1141 例 BUILD SUCCESS），
+> 唯一差异是 Map 形态对 `context() == null` 的容错（原 `ctxOf(request)` 会 NPE，现返回 null 走降级）。
+> 契约细节（缺失/类型不符 → null、宽口径入口与 `from(null)` 编译歧义）见 10 章 §10.2.1 v3.06；
+> 回归资产 `RetrievalContextTest` 七例。
 
 ```java
 package com.enterprise.kb.ai.config;

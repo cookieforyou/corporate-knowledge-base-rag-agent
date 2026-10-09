@@ -4,6 +4,8 @@ import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.ai.chat.client.ChatClientRequest;
+import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.vectorstore.filter.Filter;
@@ -11,6 +13,7 @@ import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.lang.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -37,18 +40,60 @@ import java.util.function.Consumer;
  *       双检索路径并行写入，容器取 CopyOnWriteArrayList 保证线程安全</li>
  * </ul>
  *
- * <p>非 Web 入口（kb-eval 评估）不创建实例，{@link #from(Query)} 返回 null，
- * 各组件降级：无租户过滤、无 trace（评估期可接受）。
+ * <p>非 Web 入口（kb-eval 评估）不创建实例，读入口族（{@code from(Query|Request|Response|Map|Object)}，
+ * 见下）返回 null，各组件降级：无租户过滤、无 trace（评估期可接受）。
  */
 public class RetrievalContext {
 
     /** Advisor 参数键：Controller 经 spec.param 传入，随 Query.context 流至检索组件 */
     public static final String CONTEXT_KEY = "kb.retrieval_context";
 
+    // ── 读入口族（2026-10-04 收敛）：全仓 instanceof 判据的唯一归属 ──
+
+    /*
+     * 全仓「从框架对象 / 上下文 Map / 参数值取 RetrievalContext」一律经本族方法——原各 Advisor /
+     * 检索器 / 工具类各自复刻 `context().get(CONTEXT_KEY) instanceof RetrievalContext`，形态漂移
+     * （漏判 null、漏判类型）只会以「静默无租户过滤 / 无 trace」的形式显现。四条入参形态：
+     *   ① from(Query)                        检索组件（向量/ES/图路检索器、重排器、改写器）；
+     *   ② from(ChatClientRequest/Response)   Advisor 链 before/after 两侧（护栏、配额、路由、缓存、
+     *                                        审计、溯源）——请求与响应 context 同源透传；
+     *   ③ from(Map)                          直接持有 advisor 参数 Map 的场合（复用同一 Map 读多键）；
+     *   ④ from(Object)                       直接持有参数**值**的场合（toolContext 取值等）。
+     *
+     * 容错契约（刻意静默降级）：上下文缺失（Map 为 null / 键不存在）、值类型不符、入参为 null
+     * 一律返回 null，调用方据此走「非 Web 入口」降级路径（kb-eval 评估期）。from(Object) 是宽口径
+     * 入口——任何非 RetrievalContext 类型都编译通过并返回 null，故新调用点优先选 ①②③；
+     * 另 from(null) 字面量因四个引用型重载并列而编译歧义（需显式转型），这是刻意的：避免
+     * 「忘传上下文」被静默吞掉。
+     */
+
     /** 从 Query 上下文提取检索上下文；无则 null（非 Web 入口降级路径） */
     @Nullable
     public static RetrievalContext from(Query query) {
-        Object value = query.context().get(CONTEXT_KEY);
+        return from(query.context());
+    }
+
+    /** 从 Advisor 请求上下文提取检索上下文；无则 null（非 Web 入口降级路径） */
+    @Nullable
+    public static RetrievalContext from(ChatClientRequest request) {
+        return from(request.context());
+    }
+
+    /** 从 Advisor 响应上下文提取检索上下文（请求/响应 context 同源透传）；无则 null */
+    @Nullable
+    public static RetrievalContext from(ChatClientResponse response) {
+        return from(response.context());
+    }
+
+    /** 从参数上下文 Map 提取检索上下文；Map 为 null 或键缺失则 null */
+    @Nullable
+    public static RetrievalContext from(Map<String, Object> context) {
+        return context == null ? null : from(context.get(CONTEXT_KEY));
+    }
+
+    /** 从参数**值**提取检索上下文（toolContext 取值等）；非 RetrievalContext 类型一律 null */
+    @Nullable
+    public static RetrievalContext from(Object value) {
         return value instanceof RetrievalContext ctx ? ctx : null;
     }
 

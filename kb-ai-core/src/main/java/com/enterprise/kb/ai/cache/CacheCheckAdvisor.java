@@ -102,7 +102,7 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
 
     @Override
     public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
-        RetrievalContext ctx = ctxOf(request);
+        RetrievalContext ctx = RetrievalContext.from(request);
         if (!eligible(request, ctx)) {
             return chain.nextCall(request);
         }
@@ -121,7 +121,7 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
 
     @Override
     public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
-        RetrievalContext ctx = ctxOf(request);
+        RetrievalContext ctx = RetrievalContext.from(request);
         if (!eligible(request, ctx)) {
             return chain.nextStream(request);
         }
@@ -165,11 +165,6 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
             return false;
         }
         return questionOf(request) != null;
-    }
-
-    private static RetrievalContext ctxOf(ChatClientRequest request) {
-        return request.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx
-            ? ctx : null;
     }
 
     private static long countUserMessages(ChatClientRequest request) {

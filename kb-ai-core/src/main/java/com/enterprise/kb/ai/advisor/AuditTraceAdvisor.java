@@ -159,8 +159,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
                         String answer, Throwable error, long startMs) {
         try {
             Map<String, Object> context = request.context();
-            RetrievalContext ctx = context.get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
-                ? rc : null;
+            RetrievalContext ctx = RetrievalContext.from(context);
             // 输出护栏替换轮（v2.109）：流式增量形态 doOnNext 累积的是已放行前缀，
             // final_answer 以 ctx 携带的安全话术为准（v2.24「SUCCESS + 话术」语义保持）
             String finalAnswer = ctx != null && ctx.isOutputReplaced() && answer != null

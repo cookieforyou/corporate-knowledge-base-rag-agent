@@ -209,7 +209,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
             return response;
         }
         // ctx 经响应 context 取（实证：终端 ChatModelCallAdvisor 以 Map.copyOf 写入请求 advisor 参数）
-        RetrievalContext ctx = ctxOf(response.context());
+        RetrievalContext ctx = RetrievalContext.from(response);
         if (canary.leakedIn(output)) {
             metrics.recordOutputCanary();
             log.warn("系统提示金丝雀在输出中回显——确证提示泄露，整段替换");
@@ -255,7 +255,7 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
      */
     @Override
     public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
-        RetrievalContext ctx = ctxOf(request.context());
+        RetrievalContext ctx = RetrievalContext.from(request);
         if (ctx == null) {
             return aggregateAndVerify(request, chain, ctx);
         }
@@ -434,12 +434,6 @@ public class OutputGuardrailAdvisor implements BaseAdvisor, GuardrailRulesListen
             log.info("输出词表 FLAG 观察档命中 {} 条，放行（族系 {}）", matched.size(), families);
         }
         return block;
-    }
-
-    /** 从 advisor 参数 context 提取检索上下文（无则 null——非 Web 入口只计数不写审计标记） */
-    private static RetrievalContext ctxOf(Map<String, Object> context) {
-        return context != null && context.get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
-            ? rc : null;
     }
 
     /** PII 回显探测（安全簇① T5 钩子，安全簇③ C2 接入）：识别器注册表检测视图探测

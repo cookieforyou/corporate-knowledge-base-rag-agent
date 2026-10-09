@@ -205,7 +205,7 @@ public class KnowledgeSearchTools {
     /** 身份提取（TaskTool 下传链）：缺 ctx 或缺租户 fail-closed 拒绝 */
     private static RetrievalContext requireContext(ToolContext toolContext) {
         Object value = toolContext == null ? null : toolContext.getContext().get(ToolContextKeys.RETRIEVAL_CONTEXT);
-        RetrievalContext ctx = value instanceof RetrievalContext rc ? rc : null;
+        RetrievalContext ctx = RetrievalContext.from(value);
         if (ctx == null || ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
             throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：子代理工具无法执行租户过滤");
         }

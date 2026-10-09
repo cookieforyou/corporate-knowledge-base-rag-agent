@@ -41,7 +41,8 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 
     @Override
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
-        if (!(response.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx)) {
+        RetrievalContext ctx = RetrievalContext.from(response);
+        if (ctx == null) {
             return response;
         }
         Map<String, Object> context = new HashMap<>(response.context());

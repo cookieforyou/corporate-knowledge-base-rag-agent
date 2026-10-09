@@ -168,8 +168,7 @@ public class InputSanitizeAdvisor implements BaseAdvisor, GuardrailRulesListener
      * 只记事实（族系名 + 计数），不回显命中词值。
      */
     private void recordFlagObservation(ChatClientRequest request, List<GuardrailRule> matched) {
-        RetrievalContext ctx = request.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext rc
-            ? rc : null;
+        RetrievalContext ctx = RetrievalContext.from(request);
         List<String> families = matched.stream()
             .map(r -> new RetrievalContext.FlagMark(AiBusinessMetrics.SIDE_INPUT, r.family()).family())
             .distinct()

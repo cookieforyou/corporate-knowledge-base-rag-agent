@@ -125,8 +125,8 @@ public class RateLimitAdvisor implements BaseAdvisor {
 
     /** 经 RetrievalContext 参数链提取租户；缺失返回 null */
     private static String tenantOf(ChatClientRequest request) {
-        Object value = request.context().get(RetrievalContext.CONTEXT_KEY);
-        if (value instanceof RetrievalContext ctx) {
+        RetrievalContext ctx = RetrievalContext.from(request);
+        if (ctx != null) {
             String tenantId = ctx.getTenantId();
             if (tenantId != null && !tenantId.isBlank()) {
                 return tenantId;

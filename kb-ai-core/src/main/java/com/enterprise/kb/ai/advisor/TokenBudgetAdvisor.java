@@ -137,13 +137,13 @@ public class TokenBudgetAdvisor implements BaseAdvisor {
 
     /** 经 RetrievalContext 参数链提取租户；缺失返回 null（请求/响应两侧上下文同源透传） */
     private static String tenantOf(ChatClientRequest request) {
-        Object value = request.context().get(RetrievalContext.CONTEXT_KEY);
-        return value instanceof RetrievalContext ctx ? validTenant(ctx) : null;
+        RetrievalContext ctx = RetrievalContext.from(request);
+        return ctx != null ? validTenant(ctx) : null;
     }
 
     private static String tenantOf(ChatClientResponse response) {
-        Object value = response.context().get(RetrievalContext.CONTEXT_KEY);
-        return value instanceof RetrievalContext ctx ? validTenant(ctx) : null;
+        RetrievalContext ctx = RetrievalContext.from(response);
+        return ctx != null ? validTenant(ctx) : null;
     }
 
     private static String validTenant(RetrievalContext ctx) {

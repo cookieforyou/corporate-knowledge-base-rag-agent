@@ -54,8 +54,8 @@ public class RetrievalGateAdvisor implements CallAdvisor, StreamAdvisor {
     }
 
     private static boolean shouldSkip(ChatClientRequest request) {
-        return request.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx
-            && ctx.isSkipRetrieval();
+        RetrievalContext ctx = RetrievalContext.from(request);
+        return ctx != null && ctx.isSkipRetrieval();
     }
 
     @Override
