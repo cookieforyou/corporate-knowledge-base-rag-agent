@@ -2,6 +2,7 @@ package com.enterprise.kb.ai.cache;
 
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RMap;
 import org.redisson.api.RSearch;
@@ -23,7 +24,6 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -82,6 +82,10 @@ public class SemanticCacheService {
     private final AiBusinessMetrics metrics;
     private final RSearch search;
     private final Set<String> ensuredIndexes = ConcurrentHashMap.newKeySet();
+    /**
+     * 能力态（探测失败或 Redis 运行期故障降级后为 false，消费方直通）
+     */
+    @Getter
     private volatile boolean available;
 
     public SemanticCacheService(RedissonClient redisson, SemanticCacheProperties properties,
@@ -104,11 +108,6 @@ public class SemanticCacheService {
             this.available = false;
             log.warn("Redis 搜索引擎不可用，语义缓存整体自关（fail-open 直通）：{}", e.getMessage());
         }
-    }
-
-    /** 能力态（探测失败或 Redis 运行期故障降级后为 false，消费方直通） */
-    public boolean isAvailable() {
-        return available;
     }
 
     /**
