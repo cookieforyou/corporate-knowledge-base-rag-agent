@@ -12,7 +12,6 @@ import com.enterprise.kb.etl.pipeline.graph.GraphExtractionPublisher;
 import com.enterprise.kb.etl.service.ChunkCleanupService;
 import com.enterprise.kb.etl.service.DocumentEtlService;
 import com.enterprise.kb.infrastructure.graph.GraphGateway;
-import com.enterprise.kb.etl.transformer.HtmlProtectingSplitter;
 import com.enterprise.kb.etl.transformer.SanitizingTransformer;
 import com.enterprise.kb.etl.writer.EsIndexWriter;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +22,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +115,7 @@ public class ChunkOpsService {
             .apply(List.of(new Document(newContent))).get(0);
         String content = sanitized.getText();
         boolean injectionHit = Boolean.TRUE.equals(
-            sanitized.getMetadata().get(SanitizingTransformer.INJECTION_HIT_KEY));
+            sanitized.getMetadata().get(Constants.Retrieval.INJECTION_HIT));
 
         chunk.setContent(content);
         chunk.setTokenCount((int) (content.length() / 2.5));
@@ -244,9 +242,9 @@ public class ChunkOpsService {
     private String mergeInjectionHit(String metadataJson, boolean injectionHit) {
         Map<String, Object> meta = parseMetadata(metadataJson);
         if (injectionHit) {
-            meta.put(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            meta.put(Constants.Retrieval.INJECTION_HIT, true);
         } else {
-            meta.remove(SanitizingTransformer.INJECTION_HIT_KEY);
+            meta.remove(Constants.Retrieval.INJECTION_HIT);
         }
         try {
             return jsonMapper.writeValueAsString(meta);
@@ -258,7 +256,7 @@ public class ChunkOpsService {
 
     /** metadata JSONB 解析 heading_path（@Transient 载体回填，供向量元数据/ES 消费） */
     private String headingPathFromMetadata(String metadataJson) {
-        Object value = parseMetadata(metadataJson).get(HtmlProtectingSplitter.HEADING_PATH_KEY);
+        Object value = parseMetadata(metadataJson).get(Constants.Retrieval.META_HEADING_PATH);
         return value instanceof String hp && !hp.isBlank() ? hp : null;
     }
 

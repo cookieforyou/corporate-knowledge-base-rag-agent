@@ -110,12 +110,12 @@ class HtmlProtectingSplitterTest {
         assertThat(chunks).isNotEmpty();
         // 各 chunk 按所属章节携带 heading_path（「L1 > L2」层级拼接）
         assertThat(chunks).allSatisfy(c ->
-            assertThat(c.getMetadata()).containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+            assertThat(c.getMetadata()).containsKey(Constants.Retrieval.META_HEADING_PATH));
         assertThat(chunks.stream().filter(c -> c.getText().contains("产品概述章节")).toList())
-            .allSatisfy(c -> assertThat(c.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+            .allSatisfy(c -> assertThat(c.getMetadata().get(Constants.Retrieval.META_HEADING_PATH))
                 .isEqualTo("产品概述"));
         assertThat(chunks.stream().filter(c -> c.getText().contains("定价章节")).toList())
-            .allSatisfy(c -> assertThat(c.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+            .allSatisfy(c -> assertThat(c.getMetadata().get(Constants.Retrieval.META_HEADING_PATH))
                 .isEqualTo("产品概述 > 定价"));
     }
 
@@ -141,7 +141,7 @@ class HtmlProtectingSplitterTest {
         Document tableChunk = chunks.stream()
             .filter(c -> "TABLE".equals(c.getMetadata().get(Constants.Retrieval.META_CHUNK_TYPE)))
             .findFirst().orElseThrow();
-        assertThat(tableChunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+        assertThat(tableChunk.getMetadata().get(Constants.Retrieval.META_HEADING_PATH))
             .isEqualTo("合同条款 > 费用明细");
     }
 
@@ -153,7 +153,7 @@ class HtmlProtectingSplitterTest {
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
         assertThat(chunks).noneMatch(c ->
-            c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+            c.getMetadata().containsKey(Constants.Retrieval.META_HEADING_PATH));
     }
 
     @Test
@@ -190,7 +190,7 @@ class HtmlProtectingSplitterTest {
     }
 
     private static String headingPathOf(Document c) {
-        return String.valueOf(c.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        return String.valueOf(c.getMetadata().get(Constants.Retrieval.META_HEADING_PATH));
     }
 
     @Test
@@ -228,7 +228,7 @@ class HtmlProtectingSplitterTest {
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
-        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(Constants.Retrieval.META_HEADING_PATH));
     }
 
     @Test
@@ -293,7 +293,7 @@ class HtmlProtectingSplitterTest {
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
-        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(Constants.Retrieval.META_HEADING_PATH));
     }
 
     @Test
@@ -350,7 +350,7 @@ class HtmlProtectingSplitterTest {
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
-        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(Constants.Retrieval.META_HEADING_PATH));
         assertThat(chunks).noneMatch(HtmlProtectingSplitterTest::isTableChunk);
     }
 
@@ -466,7 +466,7 @@ class HtmlProtectingSplitterTest {
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
-        assertThat(chunks.get(0).getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY))
+        assertThat(chunks.get(0).getMetadata().get(Constants.Retrieval.META_HEADING_PATH))
             .isEqualTo("行尾注释标题");
     }
 
@@ -476,7 +476,7 @@ class HtmlProtectingSplitterTest {
 
         List<Document> chunks = splitter.apply(List.of(new Document(text)));
 
-        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(HtmlProtectingSplitter.HEADING_PATH_KEY));
+        assertThat(chunks).noneMatch(c -> c.getMetadata().containsKey(Constants.Retrieval.META_HEADING_PATH));
         assertThat(chunks.stream().anyMatch(c -> c.getText().contains("# 假标题"))).isTrue();
     }
 

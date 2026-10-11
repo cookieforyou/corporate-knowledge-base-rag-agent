@@ -72,12 +72,6 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
     /** 观测 span 名（Phase4簇①观测地基族；对齐 {@code kb.rerank} 命名） */
     static final String OBSERVATION_NAME = "kb.cache.semantic";
 
-    /** 重排后最终序列 trace 源标识（与检索/重排链路写入侧同值） */
-    private static final String SOURCE_FINAL = Constants.Retrieval.TRACE_SOURCE_FINAL;
-
-    /** 证据文档的文档标识元数据键（失效反查依赖，与 ETL vectorMetadata 契约同源） */
-    private static final String META_DOC_ID = Constants.Retrieval.META_DOC_ID;
-
     private final SemanticCacheService cacheService;
     private final EmbeddingModel embeddingModel;
     private final JsonMapper jsonMapper;
@@ -261,7 +255,7 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
             }
             List<RetrievalContext.TraceEntry> entries = ctx.getTraceSummary();
             boolean hasEvidence = entries.stream()
-                .anyMatch(e -> SOURCE_FINAL.equals(e.source()) && !e.documents().isEmpty());
+                .anyMatch(e -> Constants.Retrieval.TRACE_SOURCE_FINAL.equals(e.source()) && !e.documents().isEmpty());
             if (!hasEvidence) {
                 return;
             }
@@ -270,9 +264,9 @@ public class CacheCheckAdvisor implements CallAdvisor, StreamAdvisor {
                 return;
             }
             List<String> docIds = entries.stream()
-                .filter(e -> SOURCE_FINAL.equals(e.source()))
+                .filter(e -> Constants.Retrieval.TRACE_SOURCE_FINAL.equals(e.source()))
                 .flatMap(e -> e.documents().stream())
-                .map(d -> asString(d.getMetadata().get(META_DOC_ID)))
+                .map(d -> asString(d.getMetadata().get(Constants.Retrieval.META_DOC_ID)))
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .toList();

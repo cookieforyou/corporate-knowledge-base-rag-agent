@@ -274,7 +274,7 @@ public class DocumentEtlService {
                 entity.setOriginalContent(originalHtml.toString());
             }
             // heading 路径（冲刺簇④ A4）：载体字段供向量化/ES 消费，持久化入 metadata JSONB
-            Object headingPath = chunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY);
+            Object headingPath = chunk.getMetadata().get(Constants.Retrieval.META_HEADING_PATH);
             if (headingPath instanceof String hp && !hp.isBlank()) {
                 entity.setHeadingPath(hp);
             }
@@ -292,11 +292,11 @@ public class DocumentEtlService {
             }
             // metadata JSONB：注入命中标记（冲刺簇② B1 S4）+ heading 路径（冲刺簇④ A4）
             Map<String, Object> metaJson = new LinkedHashMap<>();
-            if (Boolean.TRUE.equals(chunk.getMetadata().get(SanitizingTransformer.INJECTION_HIT_KEY))) {
-                metaJson.put(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            if (Boolean.TRUE.equals(chunk.getMetadata().get(Constants.Retrieval.INJECTION_HIT))) {
+                metaJson.put(Constants.Retrieval.INJECTION_HIT, true);
             }
             if (entity.getHeadingPath() != null) {
-                metaJson.put(HtmlProtectingSplitter.HEADING_PATH_KEY, entity.getHeadingPath());
+                metaJson.put(Constants.Retrieval.META_HEADING_PATH, entity.getHeadingPath());
             }
             if (!metaJson.isEmpty()) {
                 entity.setMetadata(toMetadataJson(metaJson));
@@ -361,12 +361,12 @@ public class DocumentEtlService {
         meta.put(Constants.Retrieval.META_IS_DELETED, Objects.requireNonNullElse(chunk.getIsDeleted(), false));
         // heading 路径（冲刺簇④ A4）：调试台/溯源展示与后续检索消费；缺省不写键
         if (chunk.getHeadingPath() != null) {
-            meta.put(HtmlProtectingSplitter.HEADING_PATH_KEY, chunk.getHeadingPath());
+            meta.put(Constants.Retrieval.META_HEADING_PATH, chunk.getHeadingPath());
         }
         // 注入打标（安全簇④ D2）：PG 事实源 JSONB 标记传播至向量元数据，
         // 供检索侧降权消费（默认关，度量后定案）；缺省（未命中）不写键
         if (injectionHitOf(chunk.getMetadata())) {
-            meta.put(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            meta.put(Constants.Retrieval.INJECTION_HIT, true);
         }
         return meta;
     }
@@ -378,7 +378,7 @@ public class DocumentEtlService {
 
     /**
      * 从 kb_chunk.metadata JSONB 解析注入命中标记（安全簇④ D2，契约源
-     * {@link SanitizingTransformer#INJECTION_HIT_KEY}）——解析失败 fail-safe
+     * {@link Constants.Retrieval#INJECTION_HIT}）——解析失败 fail-safe
      * 返回 false（降权不生效，最坏 = 默认关现状）。
      */
     public static boolean injectionHitOf(String chunkMetadataJson) {
@@ -387,7 +387,7 @@ public class DocumentEtlService {
         }
         try {
             Map<String, Object> meta = METADATA_JSON_MAPPER.readValue(chunkMetadataJson, METADATA_MAP_TYPE);
-            return Boolean.TRUE.equals(meta.get(SanitizingTransformer.INJECTION_HIT_KEY));
+            return Boolean.TRUE.equals(meta.get(Constants.Retrieval.INJECTION_HIT));
         } catch (Exception e) {
             return false;
         }

@@ -42,9 +42,6 @@ import java.util.List;
 @Component
 public class SanitizingTransformer implements DocumentTransformer, GuardrailRulesListener {
 
-    /** 注入命中标记键：Document 元数据 → kb_chunk.metadata JSONB */
-    public static final String INJECTION_HIT_KEY = Constants.Retrieval.INJECTION_HIT;
-
     private volatile List<GuardrailRule> injectionRules;
     private final PiiRecognizerRegistry piiRegistry;
     private final boolean piiEnabled;
@@ -122,7 +119,7 @@ public class SanitizingTransformer implements DocumentTransformer, GuardrailRule
             // 2. 注入扫描：归一化检测视图命中结构化词表 → 打标不阻断（扫描存储态文本）
             if (injectionScanEnabled
                     && !TextSanitizer.matchRules(TextSanitizer.normalize(text), injectionRules).isEmpty()) {
-                current = current.mutate().metadata(INJECTION_HIT_KEY, true).build();
+                current = current.mutate().metadata(Constants.Retrieval.INJECTION_HIT, true).build();
                 injectionHits++;
                 log.warn("ETL 注入扫描命中: 第 {} 个 chunk 打标 injection_hit（不阻断入库，S2 模板标记兜底）", i);
             }

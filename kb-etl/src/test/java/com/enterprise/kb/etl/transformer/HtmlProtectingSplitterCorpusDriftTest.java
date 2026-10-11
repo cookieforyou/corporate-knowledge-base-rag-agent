@@ -1,5 +1,6 @@
 package com.enterprise.kb.etl.transformer;
 
+import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -77,7 +78,7 @@ class HtmlProtectingSplitterCorpusDriftTest {
                     .anySatisfy(c -> assertThat(c.getText()).contains(title));
             }
             for (Document chunk : chunks) {
-                Object headingPath = chunk.getMetadata().get(HtmlProtectingSplitter.HEADING_PATH_KEY);
+                Object headingPath = chunk.getMetadata().get(Constants.Retrieval.META_HEADING_PATH);
                 if (!(headingPath instanceof String path) || path.isBlank()) {
                     continue;
                 }

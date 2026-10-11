@@ -74,7 +74,7 @@ class SanitizingTransformerTest {
 
         assertThat(result.getMetadata())
             .as("词项 %s 构造的载荷应打标", rule.id())
-            .containsEntry(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            .containsEntry(Constants.Retrieval.INJECTION_HIT, true);
         assertThat(result.getText()).contains(rule.value());
     }
 
@@ -90,7 +90,7 @@ class SanitizingTransformerTest {
 
         assertThat(result.getMetadata())
             .as("词项 %s 的全角变体应打标", rule.id())
-            .containsEntry(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            .containsEntry(Constants.Retrieval.INJECTION_HIT, true);
     }
 
     @Test
@@ -120,7 +120,7 @@ class SanitizingTransformerTest {
 
         Document result = off.apply(List.of(chunk)).get(0);
 
-        assertThat(result.getMetadata()).doesNotContainKey(SanitizingTransformer.INJECTION_HIT_KEY);
+        assertThat(result.getMetadata()).doesNotContainKey(Constants.Retrieval.INJECTION_HIT);
     }
 
     @Test
@@ -132,10 +132,10 @@ class SanitizingTransformerTest {
 
         // 配置词命中；v2.40 双源合并——bundled 基线词并入后仍参与扫描（不再被整体替换）
         assertThat(custom.apply(List.of(hit)).get(0).getMetadata())
-            .containsEntry(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            .containsEntry(Constants.Retrieval.INJECTION_HIT, true);
         assertThat(custom.apply(List.of(builtinHit)).get(0).getMetadata())
             .as("词项 %s 基线词应仍参与扫描", builtin.id())
-            .containsEntry(SanitizingTransformer.INJECTION_HIT_KEY, true);
+            .containsEntry(Constants.Retrieval.INJECTION_HIT, true);
     }
 
     @Test
@@ -154,14 +154,14 @@ class SanitizingTransformerTest {
             .text("文本含 reload-probe-sanitize 占位词")
             .metadata(Constants.Retrieval.META_CHUNK_TYPE, "TEXT").build();
         assertThat(transformer.apply(List.of(chunk)).get(0).getMetadata())
-            .doesNotContainKey(SanitizingTransformer.INJECTION_HIT_KEY);
+            .doesNotContainKey(Constants.Retrieval.INJECTION_HIT);
 
         // 热重载回调换入占位词项 → 同文本即打标（不阻断语义不变）
         transformer.onInjectionRulesUpdated(List.of(new GuardrailRule("reload-probe-01",
             "UNCLASSIFIED", "", RuleType.KEYWORD, "reload-probe-sanitize", RuleAction.BLOCK, true, null)));
 
         Document sanitized = transformer.apply(List.of(chunk)).get(0);
-        assertThat(sanitized.getMetadata()).containsKey(SanitizingTransformer.INJECTION_HIT_KEY);
+        assertThat(sanitized.getMetadata()).containsKey(Constants.Retrieval.INJECTION_HIT);
         assertThat(sanitized.getText()).contains("reload-probe-sanitize");   // 打标不阻断不改文本
     }
 }

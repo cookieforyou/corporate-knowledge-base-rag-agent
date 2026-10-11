@@ -55,7 +55,7 @@ public class EsChunkDoc {
     private Boolean isDeleted;
 
     /**
-     * 注入命中标记（安全簇④ D2，契约源 kb-etl SanitizingTransformer.INJECTION_HIT_KEY）：
+     * 注入命中标记（安全簇④ D2，契约源 Constants.Retrieval.INJECTION_HIT）：
      * S4 ETL 入库扫描打标经 kb_chunk.metadata JSONB 传播至 ES，供 BM25 路检索侧
      * 降权消费（默认关，度量后定案）。仅命中时写 true，未命中缺省不写键（索引瘦身）。
      */

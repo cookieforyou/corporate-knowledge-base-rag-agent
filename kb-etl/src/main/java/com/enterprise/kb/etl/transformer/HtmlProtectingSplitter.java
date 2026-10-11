@@ -147,9 +147,6 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     /** 小表格退化阈值（字符数）：低于此值的表格视为噪声，并入文本流 */
     private static final int MIN_TABLE_CHARS = 30;
 
-    /** chunk 元数据键：标题路径（「L1 &gt; L2 &gt; …」，缺省不写键——元数据禁 null） */
-    public static final String HEADING_PATH_KEY = Constants.Retrieval.META_HEADING_PATH;
-
     /** 保护块原文 HTML（保护式切分写 ↔ DocumentEtlService 落 kb_chunk.original_content） */
     public static final String ORIGINAL_HTML_KEY = "original_html";
 
@@ -771,7 +768,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         }
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
         if (headingPath != null && !headingPath.isBlank()) {
-            meta.put(HEADING_PATH_KEY, headingPath);
+            meta.put(Constants.Retrieval.META_HEADING_PATH, headingPath);
         }
         Document textDoc = Document.builder()
             .text(text)
@@ -801,7 +798,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
     private static Document leftoverChunk(Document doc, String text, String headingPath) {
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
         if (headingPath != null && !headingPath.isBlank()) {
-            meta.put(HEADING_PATH_KEY, headingPath);
+            meta.put(Constants.Retrieval.META_HEADING_PATH, headingPath);
         }
         return Document.builder().text(text.strip()).metadata(meta).build();
     }
@@ -817,7 +814,7 @@ public class HtmlProtectingSplitter implements DocumentTransformer {
         Map<String, Object> meta = new HashMap<>(doc.getMetadata());
         meta.put(Constants.Retrieval.META_CHUNK_TYPE, type.name());
         if (headingPath != null && !headingPath.isBlank()) {
-            meta.put(HEADING_PATH_KEY, headingPath);
+            meta.put(Constants.Retrieval.META_HEADING_PATH, headingPath);
         }
         String text = html;
         if (prefix != null && !prefix.isBlank()) {
