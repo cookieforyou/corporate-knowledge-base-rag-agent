@@ -56,7 +56,7 @@ public class ChatSessionService {
 
     /** 会话标题取首轮问题前 N 字符（历史列表可读性） */
     private static final int TITLE_MAX_LENGTH = 50;
-    /** 回填窗口与 rag.chat.memory.max-messages 默认值同规（≈10 轮） */
+    /** 回填窗口与 spring.ai.chat.memory.max-messages 默认值同规（≈10 轮） */
     private static final int RESEED_WINDOW = 20;
     /** 回填单发守卫键前缀与 TTL：只覆盖 check-then-act 竞态窗口，过期后允许再次回填 */
     private static final String RESEED_GUARD_PREFIX = "rag:session-reseed:";

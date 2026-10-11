@@ -56,6 +56,7 @@ spring:
       # 前缀 2.0.1 迁移：chat.memory.redis → chat.memory.repository.redis（旧前缀
       # 仅自动配置过渡回落，勿再使用）
       memory:
+        max-messages: ${CHAT_MEMORY_MAX_MESSAGES:20}
         repository:
           redis:
             host: ${spring.data.redis.host}

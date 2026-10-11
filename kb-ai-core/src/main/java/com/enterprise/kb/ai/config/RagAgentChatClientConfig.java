@@ -71,7 +71,7 @@ public class RagAgentChatClientConfig {
     @Bean(name = Constants.BeanNames.AGENT_CHAT_MEMORY)
     public ChatMemory agentChatMemory(
             ChatMemoryRepository chatMemoryRepository,
-            @Value("${rag.chat.memory.max-messages:20}") int maxMessages) {
+            @Value("${spring.ai.chat.memory.max-messages:20}") int maxMessages) {
         return new FaultTolerantChatMemory(
             MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
