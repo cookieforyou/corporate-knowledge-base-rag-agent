@@ -282,11 +282,15 @@ rag:
       scan:
         enabled: ${RAG_GUARDRAIL_INDIRECT_SCAN_ENABLED:true}
       strategy: ${RAG_GUARDRAIL_INDIRECT_STRATEGY:warn}   # warn | exclude
-    # L2 语义判定层（安全簇⑤ E1，设计 §12.1.1/12.4 S5）：REGEX 结构模式可疑且
-    # 干词未命中的输入经备用模型 qwen3.8-flash 结构化二判（PASS/SUSPECT/BLOCK），
-    # order 320 挂双链（L1 300 之后、记忆 400 之前）；超时/失败 fail-open 回落
-    # L1 结论。指标 rag.guardrail.l2.triggered/blocked/suspect/error（触发率
-    # = triggered/request.total）；跨轮信号读近 history-size 条记忆拼接视图。
+    # L2 语义判定层（安全簇⑤ E1，设计 §12.1.1/12.4 S5）：REGEX 结构模式可疑、且无
+    # 「干词」（术语：KEYWORD 轨**字面短语型**词项，非停用/干扰词）命中的输入，经备用模型
+    # qwen3.8-flash 结构化二判（PASS/SUSPECT/BLOCK）；order 320 挂双链（L1 300 之后、
+    # 记忆 400 之前）；超时/失败 fail-open 回落 L1 结论。
+    # 指标 rag.guardrail.l2.triggered/blocked/suspect/error（触发率 = triggered/request.total）
+    # + v2.110 观测族 suppressed.regex_keyword/keyword_only（触发条件的排除项显式成账：
+    # 已观察 ≠ 已裁决，压制量是词表升格 FLAG→BLOCK 的运营靶子）；跨轮信号读近 history-size 条记忆。
+    # 装配契约（v2.110）：L2 的前提是同链存在 L1——「BLOCK 档命中不可达」与「命中干词即压制触发」
+    # 两条推论均依赖 L1 先执行；孤立装配会使 BLOCK 档载荷静默通过，由 GuardrailChainAssemblyTest 钉死。
     l2:
       enabled: ${RAG_GUARDRAIL_L2_ENABLED:true}                    # 总开关（运维回退阀门）
       timeout-seconds: ${RAG_GUARDRAIL_L2_TIMEOUT_SECONDS:3}       # 二判超时（秒），超时 fail-open

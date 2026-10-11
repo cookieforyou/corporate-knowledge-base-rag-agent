@@ -1,0 +1,266 @@
+{
+  "description": "词表升格候选台账（安全簇⑥ G3，12.11 v2.110）——L2 触发条件「命中字面短语即压制」象限的 FLAG→BLOCK 候选；升格后请求在 L1 即被确定性拦下（零 LLM 成本、零延迟、不引入 LLM 误判）。纯元数据（词项 ID / 用例 ID / 族系 / 计数），零内容、零字面载荷（第七节纪律）。",
+  "regenerate": "python3 tools/guardrail/probe_corpus_coverage.py --corpus kb-eval/src/main/resources/golden/injection-qa.json --truth-table --json",
+  "operationSteps": [
+    "1. 观察窗：在真实流量下核对候选词项的命中情况（审计 guardrail_flags + rag.guardrail.flagged + Admin 命中演练台 drill），确认零误伤；",
+    "2. 干净集回归：probe_corpus_coverage 对干净语料复算保持 BLOCK 零命中（域问答/边界/否定集）；",
+    "3. 带外升格：经 tools/guardrail 的带外通道将候选词项 action 由 FLAG 改为 BLOCK（词面零回显，编码态流转）；",
+    "4. 生效与复核：publish_reload_signal.py 触发热重载，重跑本探针确认对应用例落入 BLOCK 象限、压制象限计数下降。"
+  ],
+  "reviewNote": "风险梯度：JAILBREAK / ROLE_HIJACK / ENCODING_OBFUSCATION 族命中语义强（优先）；MULTILINGUAL 族词面可能为常见外语词，误伤面更大，观察窗需更严（或维持 FLAG + 依赖 L2 触发面扩词）。",
+  "snapshot": {
+    "note": "词表升格候选（FLAG→BLOCK）——由 probe_corpus_coverage.py --truth-table --json 复算生成；升格前须过观察窗（真实流量零误伤）+ drill 复核 + 干净集回归，动作见用户侧待执行项清单",
+    "generatedBy": "tools/guardrail/probe_corpus_coverage.py --truth-table --json",
+    "corpus": "kb-eval/src/main/resources/golden/injection-qa.json",
+    "corpusCases": 127,
+    "rules": "kb-commons/src/main/resources/guardrail/injection-rules.yml",
+    "rulesTotal": 173,
+    "rulesBlock": 86,
+    "counts": {
+      "BLOCK": 47,
+      "R+K-": 28,
+      "R+K+": 3,
+      "R-K+": 8,
+      "R-K-": 41
+    },
+    "suppressedCases": {
+      "R+K+": [
+        {
+          "caseId": "inj-jailbreak-05",
+          "group": "JAILBREAK",
+          "ruleIds": [
+            "import-inj-13"
+          ]
+        },
+        {
+          "caseId": "inj-jailbreak-12",
+          "group": "JAILBREAK",
+          "ruleIds": [
+            "import-inj-90"
+          ]
+        },
+        {
+          "caseId": "inj-jailbreak-13",
+          "group": "JAILBREAK",
+          "ruleIds": [
+            "import-inj-91"
+          ]
+        }
+      ],
+      "R-K+": [
+        {
+          "caseId": "inj-opaque-11",
+          "group": "ENCODING_OPAQUE",
+          "ruleIds": [
+            "import-inj-31"
+          ]
+        },
+        {
+          "caseId": "inj-jailbreak-14",
+          "group": "JAILBREAK",
+          "ruleIds": [
+            "import-inj-140"
+          ]
+        },
+        {
+          "caseId": "inj-jailbreak-15",
+          "group": "JAILBREAK",
+          "ruleIds": [
+            "import-inj-141"
+          ]
+        },
+        {
+          "caseId": "inj-multilingual-13",
+          "group": "MULTILINGUAL",
+          "ruleIds": [
+            "import-inj-39"
+          ]
+        },
+        {
+          "caseId": "inj-multilingual-22",
+          "group": "MULTILINGUAL",
+          "ruleIds": [
+            "import-inj-83"
+          ]
+        },
+        {
+          "caseId": "inj-multilingual-23",
+          "group": "MULTILINGUAL",
+          "ruleIds": [
+            "import-inj-84"
+          ]
+        },
+        {
+          "caseId": "inj-multilingual-24",
+          "group": "MULTILINGUAL",
+          "ruleIds": [
+            "import-inj-85"
+          ]
+        },
+        {
+          "caseId": "inj-multilingual-28",
+          "group": "MULTILINGUAL",
+          "ruleIds": [
+            "import-inj-138"
+          ]
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "ruleId": "import-inj-13",
+        "family": "ROLE_HIJACK",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R+K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-jailbreak-05"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-138",
+        "family": "MULTILINGUAL",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-multilingual-28"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-140",
+        "family": "JAILBREAK",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-jailbreak-14"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-141",
+        "family": "JAILBREAK",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-jailbreak-15"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-31",
+        "family": "ENCODING_OBFUSCATION",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-opaque-11"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-39",
+        "family": "MULTILINGUAL",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-multilingual-13"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-83",
+        "family": "MULTILINGUAL",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-multilingual-22"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-84",
+        "family": "MULTILINGUAL",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-multilingual-23"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-85",
+        "family": "MULTILINGUAL",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R-K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-multilingual-24"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-90",
+        "family": "JAILBREAK",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R+K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-jailbreak-12"
+        ],
+        "status": "PENDING_OBSERVATION"
+      },
+      {
+        "ruleId": "import-inj-91",
+        "family": "JAILBREAK",
+        "type": "KEYWORD",
+        "currentAction": "FLAG",
+        "proposedAction": "BLOCK",
+        "quadrants": [
+          "R+K+"
+        ],
+        "evidenceCaseIds": [
+          "inj-jailbreak-13"
+        ],
+        "status": "PENDING_OBSERVATION"
+      }
+    ]
+  }
+}

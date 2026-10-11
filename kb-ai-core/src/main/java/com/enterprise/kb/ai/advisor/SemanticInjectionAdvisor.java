@@ -48,17 +48,30 @@ import java.util.concurrent.atomic.AtomicReference;
  * 端点）做结构化二判（PASS/SUSPECT/BLOCK），非全量（成本口径：预计触发
  * &lt;5% 请求，指标跟踪）；被拒内容不入多轮记忆仓储（位序语义）。
  *
+ * <p><b>术语</b>：下文「干词」= <b>KEYWORD 轨的字面短语型词项</b>（{@link RuleType#KEYWORD}，
+ * 归一化检测视图上的大小写不敏感子串匹配）——<b>与停用词/干扰词无关</b>，勿按「过滤词」理解；
+ * 与之并列的是 REGEX 轨（动词×宾语组合句式等结构模式）。
+ *
  * <p><b>触发条件</b>（归一化检测视图词表匹配，毫秒级）：
  * <ul>
  *   <li>任一 REGEX 结构模式词项命中 ∧ 无任何 KEYWORD 干词命中——REGEX 轨
  *       （冲刺簇① A2 动词×宾语组合句式）是结构可疑信号，干词未命中留给 L2 语义裁决；
- *       FLAG 干词命中视为 L1 已观察，不重复触发</li>
+ *       FLAG 干词命中视为 L1 已观察，不重复触发（**已观察 ≠ 已裁决**：该象限既不拒答也不二判，
+ *       仅 FLAG 计数 + 审计标记，故 v2.110 起以 {@code rag.guardrail.l2.suppressed.*}
+ *       二态计数显式成账，供词表升格 FLAG→BLOCK 决策）</li>
  *   <li>跨轮扩展信号（多阶段注入简单规则，专项方案 §4.5 E1 末段）：当前消息
  *       未触发时，近 N 条记忆拼接视图跑 REGEX 轨命中即触发——单轮无害、跨轮
- *       组合成链的结构模式共现</li>
+ *       组合成链的结构模式共现（当前消息命中干词时同样被压制，计入同族计数）</li>
  *   <li>力判直通（{@link #FORCE_JUDGE_KEY} context 键）：kb-eval 联合读数链专用
  *       （门禁治 L2 判别力，用户定案 2026-08-18），生产链不携带本键</li>
  * </ul>
+ *
+ * <p><b>装配契约（L2 的前提是 L1 同链，不可孤立存在）</b>：触发判定把「命中 KEYWORD 干词」
+ * 当作「L1 已观察」处理，且假定 BLOCK 档命中不可达——两条推论都以 <b>L1（order 300）
+ * 在同一条链上先执行</b>为前提。若 L2 孤立装配：BLOCK 档词项命中将既不拒答（无 L1）、
+ * 又压制 L2 触发（命中干词）⇒ <b>BLOCK 档载荷静默通过</b>。故该前提为显式契约，
+ * 由装配断言测试钉死（`GuardrailChainAssemblyTest`：任一带 L2 的链必须同时带 L1，
+ * 且 L1 order &lt; L2 order）。
  *
  * <p><b>裁决语义</b>：BLOCK → {@code PROMPT_INJECTION} 同语义拒答
  * （审计 REJECTED 经 AuditTraceAdvisor(10) 既有通道）；SUSPECT → FLAG 计数放行
@@ -204,8 +217,10 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
             return request;
         }
 
-        // 1. 触发判定（毫秒级）：归一化检测视图词表匹配——REGEX 命中 ∧ 无干词命中；
-        //    BLOCK 干词命中不可达（L1 300 已拒），FLAG 干词命中视为 L1 已观察不触发
+        // 1. 触发判定（毫秒级）：归一化检测视图词表匹配——REGEX 命中 ∧ 无 KEYWORD 干词命中
+        //    （干词 = KEYWORD 轨字面短语词项，见类注「术语」）；BLOCK 档命中不可达（L1 300 已拒，
+        //    装配契约见类注），FLAG 干词命中视为 L1 已观察不触发——已观察 ≠ 已裁决，
+        //    该象限以 suppressed 二态计数显式成账（v2.110），供词表升格决策
         String detectionView = TextSanitizer.normalize(userText);
         List<GuardrailRule> matched = TextSanitizer.matchRules(detectionView, injectionRules);
         boolean keywordHit = matched.stream().anyMatch(r -> r.type() == RuleType.KEYWORD);
@@ -213,6 +228,11 @@ public class SemanticInjectionAdvisor implements BaseAdvisor, GuardrailRulesList
         boolean forced = request.context().containsKey(FORCE_JUDGE_KEY);
         boolean crossTurnSignal = !forced && !regexHit && !keywordHit && crossTurnRegexHit(request);
         if (!forced && !crossTurnSignal && !(regexHit && !keywordHit)) {
+            if (keywordHit && regexHit) {
+                metrics.recordL2SuppressedRegexKeyword();    // 结构可疑 ∧ 字面命中：最高价值象限，被排除
+            } else if (keywordHit) {
+                metrics.recordL2SuppressedKeywordOnly();     // 仅字面命中（含跨轮信号被压制）
+            }
             writeVerdictSink(request, RAW_NOT_JUDGED);
             return request;
         }

@@ -29,7 +29,7 @@ kb-rag-agent/
 ├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
 ├── kb-eval/           # EvalRunner + 探针 + Golden Dataset + CI 门禁
-├── kb-loadtest/       # Gatling 压测五场景（Phase4簇⑥ 批5）
+├── kb-loadtest/       # Gatling 压测五场景
 ├── frontend/          # Vue3（Login/Chat 溯源对话/Documents/Debug 检索台/Chunks 观测台/Admin 运维中心五 Tab）
 └── docs/              # 设计章 + 进度
 ```
@@ -49,7 +49,7 @@ kb-rag-agent/
 
 **全链路审计**：`AuditTraceAdvisor`(order 10)挂双链，异步落 kb_audit_log（旁路容错）；三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏、改写经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
-**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（request.* 与审计三态同语义）+ 双供应商 SLA 族（熔断/接管计数）；不带租户标签（防基数）
+**业务指标**：`metrics/AiBusinessMetrics` 注册中心——rag.feedback/retrieval/tool.call/token/routing/guardrail/request/rerank/chunk.*/badcase.* 计数（与审计三态同语义）+ 双供应商 SLA 族（熔断/接管计数）；不带租户标签（防基数）
 
 **观测地基（Phase4簇①）**：Observation → otel bridge → OTLP Langfuse；总开关默认关；内容捕获单源开关；trace 合树 = 双链装配 + contextWrite 桥接 + 执行器传播
 
@@ -61,14 +61,14 @@ kb-rag-agent/
 
 **Chunk 运维与重建（Phase4簇③）**：kb-admin 首建（kb-api 聚合禁反向依赖；Jwt 直消费防成环）。Chunk CRUD：编辑 = 同源消毒→PG→异步重嵌入（**delete→add 两步**，Milvus 非 upsert）+ ES 覆写（联动图重抽取/锚点翻转）；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
-**Bad Case 运营闭环（Phase4簇④）**：kb-admin 四端点——审计多条件查询 / 根因四分类标注 / Golden 回灌 Git Ops（bc-{auditLogId} upsert 幂等）/ 反馈处理态；跨租户/不存在一律 AUDIT_LOG_NOT_FOUND。前端 /admin 五 Tab（Tab 懒加载，§12.12）
+**Bad Case 运营闭环（Phase4簇④）**：kb-admin 四端点——审计多条件查询 / 根因四分类标注 / Golden 回灌 Git Ops（bc-{auditLogId} upsert 幂等）/ 反馈处理态；跨租户/不存在一律 AUDIT_LOG_NOT_FOUND。前端 /admin 五 Tab（§12.12）
 
 **MCP Server（Phase4簇⑤ 4.10）**：starter-webmvc 落 kb-api（Streamable HTTP `/mcp` authenticated）；`McpKnowledgeTools` 三件套落 kb-ai-agent（search/get_document 直调，ask 全链复用，`mcp-` 会话）；`McpIdentityGuard` 物化 RetrievalContext（IDENTITY_INCOMPLETE/MCP_SCOPE_DENIED）；容器无 ToolCallback Bean（HITL 不漏 MCP）；独立限流桶 fail-open + 轻量审计；§11.8
 
-**钉钉群机器人（Phase5簇⑥ 5.12）**：`rag.dingtalk.enabled` 缺省关（服务域恒装配 + Stream 客户端 SmartLifecycle 条件装配）；**WebSocket 出站长连接（无入站端点，SecurityConfig/安全组零改动）**；开启态三要素 fail-closed（服务账号单租户）；复用 `chatRag` 同步链零减配，回复 markdown 含 [ref-N] 溯源附录（final trace 与 formatter 编号对齐）；监听器须匿名类（坑㊾）；会话域 `dingtalk-{conversationId}`；独立限流桶 + 轻审计 mode=dingtalk + 指标 `rag.dingtalk.*`；非打断式超时；SDK shaded jar 零传递
+**钉钉群机器人（Phase5簇⑥ 5.12）**：`rag.dingtalk.enabled` 缺省关（服务域恒装配 + Stream 客户端 SmartLifecycle 条件装配）；**WebSocket 出站长连接（无入站端点，SecurityConfig/安全组零改动）**；开启态三要素 fail-closed（服务账号单租户）；复用 `chatRag` 同步链零减配，回复 markdown 含 [ref-N] 溯源附录；监听器须匿名类（坑㊾）；会话域 `dingtalk-{conversationId}`；独立限流桶 + 轻审计 mode=dingtalk + 指标 `rag.dingtalk.*`；非打断式超时；SDK shaded jar 零传递
 **A2A 协议端点（Phase5簇⑥ 批2）**：`rag.a2a.enabled` 缺省关（Controller 条件装配 404 缺位）；a2a-java SDK Quarkus/CDI 绑定判负 → **自研协议层（零新增依赖）**：v1.0 JSON-RPC `SendMessage` 同步应答 + Agent Card 发现（`/.well-known/agent-card.json`）；JWT 认证（/mcp 同款 matcher）+ 身份守卫 fail-closed；复用 `chatRag`（会话域 `a2a-{去横线 contextId}` 钉 36 字符，坑㊿）；错误码 -32009/-32601/-32602/-32603；指标 `rag.a2a.*`
 
-**平台层加固（安全簇②）**：CORS 白名单（allowCredentials 显式 false）；上传 50/60MB + chat body 1MB 超限 413；CSP/frameOptions/HSTS 显式钉；actuator include 白名单钉死；dependency-check+CycloneDX（**NVD API key 强制**）；台账 12 §12.9 / 17 §17.3
+**平台层加固（安全簇②）**：CORS 白名单（allowCredentials=false）；上传 50/60MB + chat body 1MB 超限 413；CSP/frameOptions/HSTS 显式钉；actuator include 白名单钉死；dependency-check+CycloneDX（**NVD API key 强制**）；台账 12 §12.9 / 17 §17.3
 
 **PII 识别器注册表（安全簇③）**：kb-commons `security/pii`——每类型独立识别器，七类（手机/身份证/邮箱/银行卡 Luhn/座机/车牌/IPv4）；**TextSanitizer.maskPii 退役**——单一实现源迁 Spring 单 Bean，对话链/ETL/审计/MCP/入口日志同实例；配置族 `rag.guardrail.pii.{type}.enabled` 缺省全开；NAME/ADDRESS 默认关；输出回显只计数不替换；kb-eval 干净集零命中门禁；§12.10
 
@@ -85,7 +85,7 @@ kb-rag-agent/
 - SSE 协议：`/chat/stream` 无名 TOKEN/ERROR/DONE（DONE JSON 载荷）+ 命名 TRACE（rag 链溯源 [ref-N]）/TOOL_CALL（tool/agent 委派，实时+流末兜底）/REPLACE（护栏追回）/PROGRESS（三链路进度+心跳）
 - 前端对话窗：sessionId 多轮 + rag/tool/agent 三模式切换 + TOOL_CALL 审批/委派卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达
-- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open，剥壳判据）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8
+- 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open，剥壳判据；触发=REGEX∧无干词，压制面 `suppressed.*`；**装配前提=L1 同链**）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8
 - **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1）**：双 volatile 快照原子替换 + pub/sub/mtime 双触发；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload）；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（坑位⑦，显式装配必须保留）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；续聊回填；kb-eval 零 Redis 依赖

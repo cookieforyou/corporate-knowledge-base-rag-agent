@@ -89,6 +89,7 @@ class SemanticInjectionAdvisorTest {
     }
 
     // ── 触发真值表（REGEX 命中 × 干词命中组合）──
+    // 术语：干词 = KEYWORD 轨字面短语词项（非停用/干扰词）
 
     @Test
     void regexHitWithoutKeywordTriggersL2() {
@@ -98,17 +99,23 @@ class SemanticInjectionAdvisorTest {
 
         assertThat(result).isNotNull();
         assertThat(counter("rag.guardrail.l2.triggered")).isEqualTo(1.0);
+        // 触发与压制二态互斥
+        assertThat(counter("rag.guardrail.l2.suppressed.regex_keyword")).isZero();
+        assertThat(counter("rag.guardrail.l2.suppressed.keyword_only")).isZero();
     }
 
     @Test
     void keywordHitSuppressesTriggerEvenWithRegexHit() {
-        // FLAG 干词命中视为 L1 已观察，不触发 L2（对齐设计「干词未命中」）
+        // FLAG 干词命中视为 L1 已观察，不触发 L2（对齐设计「干词未命中」）；
+        // 已观察 ≠ 已裁决——该组合象限自 v2.110 起计入 suppressed.regex_keyword（词表升格靶子）
         ChatClientRequest original = request(REGEX_HIT_TEXT + " " + KEYWORD_HIT_TEXT);
 
         ChatClientRequest result = advisor(true).before(original, chain);
 
         assertThat(result).isSameAs(original);
         assertThat(counter("rag.guardrail.l2.triggered")).isZero();
+        assertThat(counter("rag.guardrail.l2.suppressed.regex_keyword")).isEqualTo(1.0);
+        assertThat(counter("rag.guardrail.l2.suppressed.keyword_only")).isZero();
         verifyNoInteractions(chatClient);
     }
 
@@ -119,6 +126,8 @@ class SemanticInjectionAdvisorTest {
         ChatClientRequest result = advisor(true).before(original, chain);
 
         assertThat(result).isSameAs(original);
+        assertThat(counter("rag.guardrail.l2.suppressed.keyword_only")).isEqualTo(1.0);
+        assertThat(counter("rag.guardrail.l2.suppressed.regex_keyword")).isZero();
         verifyNoInteractions(chatClient);
     }
 

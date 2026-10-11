@@ -51,7 +51,9 @@ import java.util.Map;
  *       （有界枚举，无租户/用户维度，Prometheus 侧 sum/group by 聚合）。
  *       安全簇⑤ E1 扩充：{@code rag.guardrail.l2.triggered / blocked / suspect /
  *       error} L2 语义判定四态分列（SemanticInjectionAdvisor 触发/拦截/观察/故障，
- *       触发率 = triggered/request.total）。安全簇⑥ F1 扩充：
+ *       触发率 = triggered/request.total）。安全簇⑥ G3 扩充：{@code rag.guardrail.l2.
+ *       suppressed.regex_keyword / keyword_only} 触发条件「排除项」二态分列（结构可疑∧
+ *       字面命中 / 仅字面命中，均为已观察未裁决——词表升格的运营靶子）。安全簇⑥ F1 扩充：
  *       {@code rag.guardrail.reload.succeeded / failed} 词表热重载成败二态
  *       （协调器触发，fail-keep 保旧快照语义）</li>
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
@@ -182,6 +184,13 @@ public class AiBusinessMetrics {
     private final Counter guardrailL2Suspect;
     /** L2 语义判定故障计数（安全簇⑤ E1）：超时/失败/解析错误 fail-open 回落 L1 结论 */
     private final Counter guardrailL2Error;
+    /**
+     * L2 触发压制计数·组合型：正则结构可疑 ∧ 字面短语词项命中（安全簇⑥ G3 观测面）——
+     * 现触发条件（REGEX 命中 ∧ 无 KEYWORD 命中）把该组合排除在二判之外，本计数使其从静默变可观测。
+     */
+    private final Counter guardrailL2SuppressedRegexKeyword;
+    /** L2 触发压制计数·纯字面型：仅字面短语词项命中、无结构信号（同批观测面；跨轮信号同被压制） */
+    private final Counter guardrailL2SuppressedKeywordOnly;
     /** 词表热重载成功计数（安全簇⑥ F1）：信号/轮询触发，双侧快照原子替换 + 监听器推送 */
     private final Counter guardrailReloadSucceeded;
     /** 词表热重载失败计数（安全簇⑥ F1）：装载失败 fail-keep 保旧快照（防线不因运营故障降级） */
@@ -363,13 +372,21 @@ public class AiBusinessMetrics {
         // L2 语义判定计数族（安全簇⑤ E1，12.4 S5）：触发/拦截/观察/故障四态分列，
         // 零标签纪律；触发率 = triggered/request.total 经 Prometheus 表达式求
         this.guardrailL2Triggered = Counter.builder("rag.guardrail.l2.triggered")
-            .description("L2 语义判定触发次数——REGEX 可疑且干词未命中进入二判（安全簇⑤ E1）").register(registry);
+            .description("L2 语义判定触发次数——REGEX 结构可疑且无字面短语词项（KEYWORD 干词）命中进入二判（安全簇⑤ E1）").register(registry);
         this.guardrailL2Blocked = Counter.builder("rag.guardrail.l2.blocked")
             .description("L2 语义判定拦截次数——BLOCK 裁决 PROMPT_INJECTION 同语义拒答（安全簇⑤ E1）").register(registry);
         this.guardrailL2Suspect = Counter.builder("rag.guardrail.l2.suspect")
             .description("L2 语义判定观察次数——SUSPECT 裁决 FLAG 计数放行（安全簇⑤ E1）").register(registry);
         this.guardrailL2Error = Counter.builder("rag.guardrail.l2.error")
             .description("L2 语义判定故障次数——超时/失败/解析错误 fail-open 回落 L1 结论（安全簇⑤ E1）").register(registry);
+        // L2 触发压制观测族（安全簇⑥ G3，12.11 v2.110）：触发条件的「排除项」显式成账——
+        // 已观察 ≠ 已裁决；压制量 + 压制内可拦比例是词表升格（FLAG→BLOCK）的运营靶子，零标签纪律
+        this.guardrailL2SuppressedRegexKeyword = Counter.builder("rag.guardrail.l2.suppressed.regex_keyword")
+            .description("L2 触发压制·组合型次数——结构可疑（REGEX）∧ 字面短语词项命中，被触发条件排除未进二判（安全簇⑥ G3）")
+            .register(registry);
+        this.guardrailL2SuppressedKeywordOnly = Counter.builder("rag.guardrail.l2.suppressed.keyword_only")
+            .description("L2 触发压制·纯字面型次数——仅字面短语词项命中、无结构信号（跨轮信号同被压制），未进二判（安全簇⑥ G3）")
+            .register(registry);
         // 词表热重载计数族（安全簇⑥ F1，12.4 S8）：成败二态分列，零标签纪律
         this.guardrailReloadSucceeded = Counter.builder("rag.guardrail.reload.succeeded")
             .description("护栏词表热重载成功次数——快照原子替换 + 监听器推送（安全簇⑥ F1）").register(registry);
@@ -531,6 +548,16 @@ public class AiBusinessMetrics {
     /** L2 语义判定故障计数（安全簇⑤ E1）：超时/失败/解析错误 fail-open 回落 L1 结论 */
     public void recordL2Error() {
         guardrailL2Error.increment();
+    }
+
+    /** L2 触发压制·组合型计数（安全簇⑥ G3）：结构可疑 ∧ 字面短语词项命中 → 被触发条件排除 */
+    public void recordL2SuppressedRegexKeyword() {
+        guardrailL2SuppressedRegexKeyword.increment();
+    }
+
+    /** L2 触发压制·纯字面型计数（安全簇⑥ G3）：仅字面短语词项命中、无结构信号 → 被触发条件排除 */
+    public void recordL2SuppressedKeywordOnly() {
+        guardrailL2SuppressedKeywordOnly.increment();
     }
 
     /** 词表热重载成败计数（安全簇⑥ F1）：协调器按 reload 返回值落账 */
