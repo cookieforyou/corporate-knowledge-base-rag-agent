@@ -361,9 +361,60 @@
       "note": "压制象限 11 → 2（R+K+ 3→1、R−K+ 8→1），L1 直拦 47 → 56"
     },
     "pending": {
-      "reload": "运行时快照刷新未完成——DB 单轨无 mtime 轮询，需 Redis pub/sub 信号（publish_reload_signal.py，缺 REDIS_* 凭据）或应用重启，或授权调用 POST /api/v1/admin/guardrail/rules/reload",
-      "archive": "ECS /rules 导出归档未随直写刷新（CRUD 写路径才触发导出）——下次前端/API 写入自动重导出，或人工导出后 git commit",
-      "rollback": "回滚 SQL：UPDATE kb_guardrail_rule SET action='FLAG' WHERE id IN (上述 escalated.ids)；文件轨道 git revert 对应提交"
+      "done": [
+        "运行时快照刷新（reload reloaded=true + 演练动作翻转 + chat 400 端到端实证）",
+        "Redis pub/sub 通道烟测（订阅者 1）",
+        "ECS /rules 归档导出触发（标准写路径 no-op 更新）"
+      ],
+      "remaining": [
+        "import-inj-31 改写为 REGEX 结构模式（抓混淆载荷形态而非方案名）"
+      ],
+      "rollback": "UPDATE kb_guardrail_rule SET action='FLAG' WHERE id IN (escalated.ids) + git revert 对应提交"
+    },
+    "runtimeVerification": {
+      "date": "2026-10-11",
+      "drillBefore": {
+        "rule": "import-inj-90",
+        "action": "FLAG"
+      },
+      "reload": {
+        "source": "db",
+        "reloaded": true,
+        "injectionCount": 174,
+        "outputCount": 65
+      },
+      "drillAfter": {
+        "rule": "import-inj-90",
+        "action": "BLOCK"
+      },
+      "falsePositiveRegression": {
+        "text": "如何开启开发者模式",
+        "hits": [
+          [
+            "builtin-inj-24",
+            "FLAG"
+          ],
+          [
+            "import-inj-13",
+            "FLAG"
+          ]
+        ],
+        "blockHits": 0
+      },
+      "endToEnd": {
+        "endpoint": "POST /api/v1/chat",
+        "httpStatus": 400,
+        "message": "检测到 Prompt 注入攻击，请求已被拦截"
+      },
+      "redisChannel": {
+        "channel": "rag:guardrail:reload",
+        "subscribers": 1
+      },
+      "archiveSync": {
+        "method": "no-op PUT /api/v1/admin/guardrail/rules/import-inj-90（触发 postWrite 链含 exportArchive）",
+        "reloaded": true,
+        "dbUpdatedBy": "built-in"
+      }
     }
   }
 }
