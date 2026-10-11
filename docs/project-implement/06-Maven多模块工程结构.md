@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第 三 卷「技术架构设计（架构层）」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-09-13 · v2.11（§6.3 批5-8 续收：新增 MessageRole/JwtClaims/McpTool/ChainOrder/Ws/BeanNames 六分区 + Retrieval 五键扩充 + kb-eval EvalConstants 模块本地）· 此前：2026-09-12 v2.10（新增 §6.3 全局常量收敛规约）+ 2026-07-31 v1 原文迁移 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-11 · v2.12（§6.3 批9 收口：纯别名桥接常量退役 8 个 + rank 键裸串收敛——规则 5 生命周期化）· 此前：2026-09-13 v2.11（§6.3 批5-8 续收：新增 MessageRole/JwtClaims/McpTool/ChainOrder/Ws/BeanNames 六分区 + Retrieval 五键扩充 + kb-eval EvalConstants 模块本地）+ 2026-09-12 v2.10（新增 §6.3 全局常量收敛规约）+ 2026-07-31 v1 原文迁移 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块）
 
 
 ## 6.1 模块划分
@@ -94,7 +94,7 @@ kb-etl     kb-ai-core ← 依赖 kb-infrastructure（kb-domain + kb-commons 传�
        kb-api         ← 依赖 kb-etl + kb-ai-core + kb-ai-agent
 ```
 
-## 6.3 全局常量收敛规约（v2.11，2026-09-13；v2.10 2026-09-12 初立四批）
+## 6.3 全局常量收敛规约（v2.12，2026-10-11 批9 收口；v2.11 2026-09-13 批5-8 续收；v2.10 2026-09-12 初立四批）
 
 **背景**：kb-commons `constant/Constants` 长期空置（仅两个分页常量），全仓协议性字面量以裸串散落或各类内同名常量重复定义——常量改动需多点同步，易漏改。经全仓扫描定案（2026-09-12 用户定案：字符串常量形态、四批推进），收敛至 `Constants` 嵌套分区。
 
@@ -123,9 +123,9 @@ kb-etl     kb-ai-core ← 依赖 kb-infrastructure（kb-domain + kb-commons 传�
 2. **不收敛——有枚举归属的值域**：DocumentStatus / GraphStatus / AttackType / FeedbackRating 等 19 枚举即各自单一事实源（测试对枚举序列化值的断言字面保留）；
 3. **不收敛——同字面不同契约**：PG 列名（@Column "doc_id"）、ES 文档字段名（@JsonProperty "chunk_id"，**含查询 DSL `field(...)` 与部分更新 doc 键**——批5 定案，与向量 metadata 键同字面但分属 ES schema/Document metadata Map 两契约，改动双侧同步核验）、Cypher 参数名（"vector"）属 schema/存储契约；RetrievalContext.ToolCall 的 STATUS_REJECTED（HITL 审批域）与审计三态同字面不同域；
 4. **不收敛——单类私有语义**：Mock 测试语料（E1001 工号）、loadtest 协议桩前缀串、日志/描述/提示语、配置键（归 @ConfigurationProperties / @Value）、模型名（@ConfigurationProperties 缺省值域，坑位㊸ 双源）、Micrometer 指标名（AiBusinessMetrics 类内聚即单点，测试 214 处断言字面保留——引用被测方常量会同错同盲）；
-5. **既有公开常量桥接**：外部有引用者的类内常量（HEADING_PATH_KEY / INJECTION_HIT_KEY / MODE_RAG / STATUS_SUCCESS / SIDE_INJECTION / ToolContextKeys 族等）保留定义、值改引单一来源（Constants 或域内公共常量）——引用点零波及；批6 追加：`"kb.retrieval_context"` 双定义收敛（ToolContextKeys 值引 RetrievalContext.CONTEXT_KEY）、UNCLASSIFIED 兜底引 GuardrailFamily.UNCLASSIFIED.name()（枚举即源）；
+5. **既有公开常量桥接与退役（v2.12 批9 生命周期化）**：外部有引用者的类内常量（MODE_RAG / STATUS_SUCCESS / SIDE_INJECTION / ToolContextKeys 族等）保留定义、值改引单一来源（Constants 或域内公共常量）——引用点零波及；**但「值即单一来源常量、类内无自有语义」的纯别名桥接属过渡形态，全仓引用点迁移完毕后即退役**（不留空壳别名，防后人误当契约源）——批9 退役 8 个符号：`HEADING_PATH_KEY`（HtmlProtectingSplitter）、`INJECTION_HIT_KEY`（SanitizingTransformer / RrfFusion / IndirectInjectionRunner 三处）、`INDIRECT_HIT_KEY`（IndirectInjectionScanPostProcessor / IndirectInjectionRunner 两处）、`SOURCE_FINAL` 与 `META_DOC_ID`（CacheCheckAdvisor，原 private 别名），消费点直引 `Constants.Retrieval`；**退役判据双条**：①全仓零残留引用（java 主/测 + 文档 + 前端 + 工具脚本扫描，跨模块间接依赖随之消除——kb-admin/kb-eval 不再为取键而 import kb-etl 转换器类）；②契约锁定测试仍在**消费侧以字面独立持值**（VectorMetadataContractTest 的 `heading_path`/`injection_hit`、GraphDocumentRetrieverTest 的 `"graph_rank"`、EsChunkDoc `@JsonProperty`），防常量引用同错同盲。批9 附带 rank 键裸串收敛：RrfFusion 动态拼接的 `"_rank"` → `RANK_KEY_SUFFIX`（规则 6 单源闭合）；批6 追加：`"kb.retrieval_context"` 双定义收敛（ToolContextKeys 值引 RetrievalContext.CONTEXT_KEY）、UNCLASSIFIED 兜底引 GuardrailFamily.UNCLASSIFIED.name()（枚举即源）；
 6. **rank 键族单一来源**：`ROUTE_X + RANK_KEY_SUFFIX` 拼接形态（RrfFusion 动态循环写入与读出清单同构），不另立完整键常量防双源漂移；
 7. **契约锁定测试保留字面**（批5 定案）：VectorMetadataContractTest 全字面断言——其职责即独立锁定契约值防常量漂移，与引用常量的常规测试相反相成；
 8. **模块内协议落模块本地**（批7 定案）：kb-eval judge 裁决/维度名/探针名等模块内跨类字面量入模块本地常量类（EvalConstants），不稀释全局 Constants 语义；ETL 解析中转键（page_count/table_count/image_count/page_number/original_html）同例落 SmartParsingRouter/HtmlProtectingSplitter 类内 public 常量。
 
-**验收**：纯字面量→常量引用机械替换，零契约变化零行为变化；全仓 test-compile 零 ERROR + 全模块单测绿（-DskipITs；IT 编译面已覆盖，运行面随下轮 kb-eval 门禁）。批5-8 续收（2026-09-13）合计约 80 文件 260+ 处（批5 metadata 五键 ~40 文件 / 批6 三分区+去重 ~35 文件 / 批7 kb-eval 本地 ~8 文件 / 批8 SHA-256+链序+Bean 名+WS+ETL 中转键 ~35 文件），同口径回归；Bean 名定义点显式 name 值=原方法名，装配行为零变化（@Primary/@ConditionalOnProperty 组合原样保留）。
+**验收**：纯字面量→常量引用机械替换，零契约变化零行为变化；全仓 test-compile 零 ERROR + 全模块单测绿（-DskipITs；IT 编译面已覆盖，运行面随下轮 kb-eval 门禁）。批5-8 续收（2026-09-13）合计约 80 文件 260+ 处（批5 metadata 五键 ~40 文件 / 批6 三分区+去重 ~35 文件 / 批7 kb-eval 本地 ~8 文件 / 批8 SHA-256+链序+Bean 名+WS+ETL 中转键 ~35 文件），同口径回归；Bean 名定义点显式 name 值=原方法名，装配行为零变化（@Primary/@ConditionalOnProperty 组合原样保留）。**批9 别名退役批（2026-10-11）**：16 源文件（5 模块 kb-ai-core / kb-etl / kb-admin / kb-eval / kb-infrastructure）纯引用替换——删除项全为「已指向 Constants 的纯别名」而非自有定义，故零值漂移零行为变化；收口扫描三读数：跨模块同值残留 0、同值常量重定义仅余登记在案的 RetrievalContext.ToolCall.STATUS_REJECTED（规则 3 例外）、裸串余项全落 schema/DSL 边界（PG @Column / ES @JsonProperty / 查询 DSL / 部分更新 doc 键）；全模块 1143 用例绿（与收敛前逐模块逐位一致，纯重构无用例数增减）。
