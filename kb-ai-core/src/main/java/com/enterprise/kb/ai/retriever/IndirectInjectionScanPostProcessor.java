@@ -4,6 +4,7 @@ import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesListener;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesLoader;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.security.TextSanitizer;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,7 @@ import java.util.Map;
  * SanitizingTransformer 同词面不漂移）——S2 是 grounding 模板统一声明，本组件是
  * <b>逐条定位强化</b>：命中的证据在模板渲染时追加逐条警示注记
  * （{@code RetrievalConfig#formatNumberedContext} 元数据感知消费
- * {@link #INDIRECT_HIT_KEY} 标记）。
+ * {@link Constants.Retrieval#INDIRECT_INJECTION_HIT} 标记）。
  *
  * <p><b>检测视图口径</b>：归一化（{@link TextSanitizer#normalize}）后 BLOCK+FLAG
  * 全档命中即判中——间接面不拒绝请求（载荷在检索文档而非用户输入），命中只触发
@@ -59,12 +60,6 @@ import java.util.Map;
 @Slf4j
 @Component
 public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor, GuardrailRulesListener {
-
-    /**
-     * 命中文档元数据标记键（warn 档）：编号格式器据此渲染逐条警示注记。
-     * 值恒为 {@link Boolean#TRUE}（元数据禁 null，坑位④）。
-     */
-    public static final String INDIRECT_HIT_KEY = Constants.Retrieval.INDIRECT_INJECTION_HIT;
 
     /** exclude 策略配置值（warn 为缺省策略，非法值回落 warn 并启动 warn） */
     private static final String STRATEGY_EXCLUDE = "exclude";
@@ -136,7 +131,7 @@ public class IndirectInjectionScanPostProcessor implements DocumentPostProcessor
             }
             // warn 档：打标保留（新 map 拷贝防共享元数据污染，坑位④ null 禁令）
             Map<String, Object> meta = new HashMap<>(doc.getMetadata());
-            meta.put(INDIRECT_HIT_KEY, Boolean.TRUE);
+            meta.put(Constants.Retrieval.INDIRECT_INJECTION_HIT, Boolean.TRUE);
             result.add(Document.builder()
                 .id(doc.getId())
                 .text(doc.getText())

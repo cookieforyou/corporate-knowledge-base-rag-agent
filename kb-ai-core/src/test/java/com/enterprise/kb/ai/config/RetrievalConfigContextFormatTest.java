@@ -1,7 +1,7 @@
 package com.enterprise.kb.ai.config;
 
 import com.enterprise.kb.ai.prompt.PromptTemplates;
-import com.enterprise.kb.ai.retriever.IndirectInjectionScanPostProcessor;
+import com.enterprise.kb.commons.constant.Constants;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
@@ -108,7 +108,7 @@ class RetrievalConfigContextFormatTest {
     void indirectHitMetadataRendersPerDocumentWarningNote() {
         Document hit = Document.builder().text("含植入指令的资料")
             .metadata(Map.of(
-                IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY,
+                Constants.Retrieval.INDIRECT_INJECTION_HIT,
                 Boolean.TRUE))
             .build();
         Document clean = Document.builder().text("正常资料").build();

@@ -85,7 +85,7 @@ public class ElasticsearchDocumentRetriever {
         if (src.getFileName() != null) meta.put(Constants.Retrieval.META_FILE_NAME, src.getFileName());
         if (src.getPageNum() != null) meta.put(Constants.Retrieval.META_PAGE_NUM, src.getPageNum());
         // 注入打标透传（安全簇④ D2）：供 RrfFusion 降权消费（默认关）；缺省不写键
-        if (Boolean.TRUE.equals(src.getInjectionHit())) meta.put(RrfFusion.INJECTION_HIT_KEY, true);
+        if (Boolean.TRUE.equals(src.getInjectionHit())) meta.put(Constants.Retrieval.INJECTION_HIT, true);
         meta.put(Constants.Retrieval.META_BM25_SCORE, hit.score());
         meta.put(Constants.Retrieval.ROUTE_BM25 + Constants.Retrieval.RANK_KEY_SUFFIX, rank);
         meta.put(Constants.Retrieval.META_RETRIEVAL_SOURCE, Constants.Retrieval.ROUTE_BM25);

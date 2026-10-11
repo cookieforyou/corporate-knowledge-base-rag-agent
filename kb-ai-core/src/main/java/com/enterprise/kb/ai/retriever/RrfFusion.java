@@ -36,12 +36,6 @@ import java.util.Map;
 @Component
 public class RrfFusion {
 
-    /**
-     * 注入命中标记键（与 kb-etl SanitizingTransformer.INJECTION_HIT_KEY 同值——
-     * kb-ai-core 不依赖 kb-etl，字面须同步；契约源在 kb-etl 侧）。
-     */
-    static final String INJECTION_HIT_KEY = Constants.Retrieval.INJECTION_HIT;
-
     private final RetrievalProperties properties;
     private final AiBusinessMetrics metrics;
 
@@ -145,7 +139,7 @@ public class RrfFusion {
 
         /** 入库打标判定（安全簇④ D2）：各路元数据并集携带 injection_hit=true 即判中 */
         boolean isInjectionHit() {
-            return Boolean.TRUE.equals(metadata.get(INJECTION_HIT_KEY));
+            return Boolean.TRUE.equals(metadata.get(Constants.Retrieval.INJECTION_HIT));
         }
 
         /** 融合分衰减（安全簇④ D2）：降权只改融合分，排名元数据保持原值可溯 */
@@ -160,7 +154,7 @@ public class RrfFusion {
         Document toDocument() {
             // Spring AI metadata 禁止 null：缺位路径的排名键不写入
             Map<String, Object> meta = new HashMap<>(this.metadata);
-            routeRanks.forEach((routeName, rank) -> meta.put(routeName + "_rank", rank));
+            routeRanks.forEach((routeName, rank) -> meta.put(routeName + Constants.Retrieval.RANK_KEY_SUFFIX, rank));
             meta.put(Constants.Retrieval.META_FUSION_SCORE, fusionScore);
             return Document.builder()
                 .id(chunkId)

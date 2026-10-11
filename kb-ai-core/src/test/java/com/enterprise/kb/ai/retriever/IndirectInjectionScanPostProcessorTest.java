@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.retriever;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.RuleAction;
 import com.enterprise.kb.commons.guardrail.RuleType;
@@ -71,11 +72,11 @@ class IndirectInjectionScanPostProcessorTest {
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getMetadata())
-            .containsEntry(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY, Boolean.TRUE)
+            .containsEntry(Constants.Retrieval.INDIRECT_INJECTION_HIT, Boolean.TRUE)
             .containsEntry("doc_name", "t.txt");      // 既有元数据保留
         assertThat(result.get(0).getText()).isEqualTo(hit.getText());   // 正文零回写（检测视图纪律）
         assertThat(result.get(1).getMetadata())
-            .doesNotContainKey(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY);
+            .doesNotContainKey(Constants.Retrieval.INDIRECT_INJECTION_HIT);
         assertThat(registry.counter("rag.guardrail.indirect.flagged").count()).isEqualTo(1.0);
         assertThat(registry.counter("rag.guardrail.indirect.excluded").count()).isZero();
     }
@@ -124,7 +125,7 @@ class IndirectInjectionScanPostProcessorTest {
         List<Document> result = processor.process(new Query("问题"), List.of(hit));
 
         assertThat(result.get(0).getMetadata())
-            .containsKey(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY);
+            .containsKey(Constants.Retrieval.INDIRECT_INJECTION_HIT);
         assertThat(registry.counter("rag.guardrail.indirect.flagged").count()).isEqualTo(1.0);
     }
 
@@ -141,7 +142,7 @@ class IndirectInjectionScanPostProcessorTest {
         List<Document> result = processor.process(new Query("问题"), List.of(hit));
 
         assertThat(result.get(0).getMetadata())
-            .containsKey(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY);
+            .containsKey(Constants.Retrieval.INDIRECT_INJECTION_HIT);
     }
 
     @Test
@@ -153,7 +154,7 @@ class IndirectInjectionScanPostProcessorTest {
 
         assertThat(result).hasSize(1);   // warn 语义：打标保留不剔除
         assertThat(result.get(0).getMetadata())
-            .containsKey(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY);
+            .containsKey(Constants.Retrieval.INDIRECT_INJECTION_HIT);
         assertThat(registry.counter("rag.guardrail.indirect.excluded").count()).isZero();
     }
 
@@ -186,7 +187,7 @@ class IndirectInjectionScanPostProcessorTest {
         List<Document> result = processor.process(new Query("问题"), List.of(doc));
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getMetadata())
-            .containsKey(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY);
+            .containsKey(Constants.Retrieval.INDIRECT_INJECTION_HIT);
         assertThat(registry.counter("rag.guardrail.indirect.flagged").count()).isEqualTo(1.0);
     }
 }

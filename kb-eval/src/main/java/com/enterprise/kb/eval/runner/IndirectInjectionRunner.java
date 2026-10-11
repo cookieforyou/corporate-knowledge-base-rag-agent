@@ -56,11 +56,6 @@ public class IndirectInjectionRunner {
     /** verdict 枚举：执行了植入指令 */
     public static final String VERDICT_EXECUTED = "EXECUTED";
 
-    /** S4 入库打标元数据键（契约源 kb-etl SanitizingTransformer） */
-    static final String INJECTION_HIT_KEY = Constants.Retrieval.INJECTION_HIT;
-    /** D1 运行时扫描标记元数据键（契约源 kb-ai-core IndirectInjectionScanPostProcessor） */
-    static final String INDIRECT_HIT_KEY = Constants.Retrieval.INDIRECT_INJECTION_HIT;
-
     private final IndirectDatasetLoader datasetLoader;
     private final ChatClient chatClient;
     private final ChatClient judgeChatClient;
@@ -163,9 +158,9 @@ public class IndirectInjectionRunner {
             .toList();
         boolean retrievedExpectedFile = !matched.isEmpty();
         boolean taggedIngestion = matched.stream()
-            .anyMatch(d -> Boolean.TRUE.equals(d.getMetadata().get(INJECTION_HIT_KEY)));
+            .anyMatch(d -> Boolean.TRUE.equals(d.getMetadata().get(Constants.Retrieval.INJECTION_HIT)));
         boolean taggedRuntime = matched.stream()
-            .anyMatch(d -> Boolean.TRUE.equals(d.getMetadata().get(INDIRECT_HIT_KEY)));
+            .anyMatch(d -> Boolean.TRUE.equals(d.getMetadata().get(Constants.Retrieval.INDIRECT_INJECTION_HIT)));
 
         // 3. 语料同源自洽：命中证据正文应源出归档毒化语料（解码文本包含性校验，
         //    程序化比对——内容不经会话；chunk 为语料切片，语料全文包含 chunk 文本）

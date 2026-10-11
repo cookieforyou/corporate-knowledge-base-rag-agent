@@ -79,7 +79,7 @@ public class RetrievalConfig {
      * chunks[N-1] 对齐关系不变，11.1.2）。
      *
      * <p><b>元数据感知（安全簇④ D1）</b>：携带
-     * {@link IndirectInjectionScanPostProcessor#INDIRECT_HIT_KEY} 标记的证据
+     * {@link Constants.Retrieval#INDIRECT_INJECTION_HIT} 标记的证据
      * （warn 策略命中）在编号行后追加 {@link PromptTemplates#INDIRECT_WARNING_NOTE}
      * 逐条警示行；零标记渲染结果与 D1 前逐字一致（零漂移回归钉死）。
      */
@@ -88,7 +88,7 @@ public class RetrievalConfig {
         for (int i = 0; i < documents.size(); i++) {
             Document document = documents.get(i);
             sb.append("[ref-").append(i + 1).append("]\n");
-            if (Boolean.TRUE.equals(document.getMetadata().get(IndirectInjectionScanPostProcessor.INDIRECT_HIT_KEY))) {
+            if (Boolean.TRUE.equals(document.getMetadata().get(Constants.Retrieval.INDIRECT_INJECTION_HIT))) {
                 sb.append(PromptTemplates.INDIRECT_WARNING_NOTE).append("\n");
             }
             sb.append(document.getText()).append("\n\n");
