@@ -1,6 +1,6 @@
 {
   "description": "词表升格候选台账（安全簇⑥ G3，12.11 v2.110）——L2 触发条件「命中字面短语即压制」象限的 FLAG→BLOCK 候选；升格后请求在 L1 即被确定性拦下（零 LLM 成本、零延迟、不引入 LLM 误判）。纯元数据（词项 ID / 用例 ID / 族系 / 计数），零内容、零字面载荷（第七节纪律）。",
-  "regenerate": "python3 tools/guardrail/probe_corpus_coverage.py --corpus kb-eval/src/main/resources/golden/injection-qa.json --truth-table --json",
+  "regenerate": "python3 tools/guardrail/probe_corpus_coverage.py --corpus kb-eval/src/main/resources/golden/injection-qa.json --truth-table --json > tools/guardrail/word-escalation-candidates.json（只重算 snapshot 段；execution 段为人工维护，重算时请保留）",
   "operationSteps": [
     "1. 观察窗：在真实流量下核对候选词项的命中情况（审计 guardrail_flags + rag.guardrail.flagged + Admin 命中演练台 drill），确认零误伤；",
     "2. 干净集回归：probe_corpus_coverage 对干净语料复算保持 BLOCK 零命中（域问答/边界/否定集）；",
@@ -262,5 +262,108 @@
         "status": "PENDING_OBSERVATION"
       }
     ]
+  },
+  "execution": {
+    "date": "2026-10-10",
+    "operator": "ops-escalation-g3（经 DSH 会话执行：文件轨道 git 提交 + DB 轨道直写，updated_by=ops-escalation-g3）",
+    "escalated": {
+      "ids": [
+        "import-inj-39",
+        "import-inj-83",
+        "import-inj-84",
+        "import-inj-85",
+        "import-inj-90",
+        "import-inj-91",
+        "import-inj-138",
+        "import-inj-140",
+        "import-inj-141"
+      ],
+      "target": "BLOCK",
+      "tracks": [
+        "kb-commons/src/main/resources/guardrail/injection-rules.yml（git 审计 + 回滚阀门 + kb-eval 源）",
+        "kb_guardrail_rule（生产 source=db 事实源，10→9 行：另一条见 held）"
+      ]
+    },
+    "held": [
+      {
+        "ruleId": "import-inj-13",
+        "family": "ROLE_HIJACK",
+        "reason": "词面为通用设备模式名（5 字短词，substring 匹配）——升 BLOCK 后「如何开启开发者模式」类正常提问被打成 400；由 GuardrailRegexRulesTest 可疑组合 #3 实测拦下，已双轨回滚（db updated_by=ops-escalation-g3-rollback）"
+      },
+      {
+        "ruleId": "import-inj-31",
+        "family": "ENCODING_OBFUSCATION",
+        "reason": "词面为编码方案名形态（3 字母+2 数字），命中 12 章正文枚举混淆策略名处 → 正常问编码方案会被拒；且其证据例在 ENCODING_OPAQUE 观察集（最弱类别，不入 L2 门禁子集）。治法建议：改写为 REGEX 结构模式（抓混淆载荷形态而非方案名）"
+      }
+    ],
+    "observationWindow": {
+      "realTraffic": "不可得——kb_audit_log 仅 1 行、guardrail_flags 零标记（环境无真实流量）",
+      "substitutes": [
+        "库内良性文本扫描（168 chunk 企业语料 + 对话历史 + 文档名）：11 条候选全零命中",
+        "仓内良性文档扫描（docs/corpus + 设计/交付/规划文档 40 文件）：仅 import-inj-31 命中（见 held）",
+        "干净回归集 9 语料 140 例：BLOCK 零命中",
+        "项目自带单测语料（含显式良性查询清单与可疑组合清单）：拦下 import-inj-13（见 held）"
+      ]
+    },
+    "partitionRelabel": {
+      "reason": "三分区互斥契约（GoldenDatasetLoaderTest）：命中 BLOCK 档即不再是 L1 盲区，按契约文档路径重归门禁子集（attackType 改 DIRECT）",
+      "samples": [
+        "inj-jailbreak-12",
+        "inj-jailbreak-13",
+        "inj-jailbreak-14",
+        "inj-jailbreak-15",
+        "inj-multilingual-13",
+        "inj-multilingual-22",
+        "inj-multilingual-23",
+        "inj-multilingual-24",
+        "inj-multilingual-28"
+      ],
+      "distributionBefore": {
+        "DIRECT": 35,
+        "ENCODING_BYPASS": 12,
+        "JAILBREAK": 30,
+        "MULTILINGUAL": 31,
+        "ENCODING_OPAQUE": 19
+      },
+      "distributionAfter": {
+        "DIRECT": 44,
+        "ENCODING_BYPASS": 12,
+        "JAILBREAK": 26,
+        "MULTILINGUAL": 26,
+        "ENCODING_OPAQUE": 19
+      }
+    },
+    "verification": {
+      "fileTrackQuadrants": {
+        "BLOCK": 56,
+        "R+K-": 28,
+        "R+K+": 1,
+        "R-K+": 1,
+        "R-K-": 41
+      },
+      "dbTrackQuadrants": {
+        "BLOCK": 56,
+        "R+K-": 28,
+        "R+K+": 1,
+        "R-K+": 1,
+        "R-K-": 41,
+        "rulesTotal": 174,
+        "rulesBlock": 96
+      },
+      "beforeQuadrants": {
+        "BLOCK": 47,
+        "R+K-": 28,
+        "R+K+": 3,
+        "R-K+": 8,
+        "R-K-": 41
+      },
+      "cleanSetBlockHits": 0,
+      "note": "压制象限 11 → 2（R+K+ 3→1、R−K+ 8→1），L1 直拦 47 → 56"
+    },
+    "pending": {
+      "reload": "运行时快照刷新未完成——DB 单轨无 mtime 轮询，需 Redis pub/sub 信号（publish_reload_signal.py，缺 REDIS_* 凭据）或应用重启，或授权调用 POST /api/v1/admin/guardrail/rules/reload",
+      "archive": "ECS /rules 导出归档未随直写刷新（CRUD 写路径才触发导出）——下次前端/API 写入自动重导出，或人工导出后 git commit",
+      "rollback": "回滚 SQL：UPDATE kb_guardrail_rule SET action='FLAG' WHERE id IN (上述 escalated.ids)；文件轨道 git revert 对应提交"
+    }
   }
 }
