@@ -67,10 +67,9 @@ public class DbGuardrailRulesSource implements GuardrailRulesSource {
      */
     @Override
     public String revision() {
-        Object[] row = repository.revision();
-        Object count = row != null && row.length > 0 ? row[0] : null;
-        Object maxUpdatedAt = row != null && row.length > 1 ? row[1] : null;
-        return count + ":" + maxUpdatedAt;
+        // 两次廉价查询（内建 count + 单列聚合）；并发写入落在两查之间只会造成一次
+        // 无害的冗余装载（复合值前进 ⇒ 下轮再比对即稳定），不会漏更
+        return repository.count() + ":" + repository.maxUpdatedAt();
     }
 
     private List<GuardrailRule> load(String side) {

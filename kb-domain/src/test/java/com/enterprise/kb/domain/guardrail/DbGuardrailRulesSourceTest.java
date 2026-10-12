@@ -49,19 +49,18 @@ class DbGuardrailRulesSourceTest {
 
     @Test
     void revisionIsCountColonMaxUpdatedAt() {
-        when(repository.revision()).thenReturn(new Object[]{239L,
-            java.time.LocalDateTime.of(2026, 10, 12, 9, 30, 15)});
+        when(repository.count()).thenReturn(239L);
+        when(repository.maxUpdatedAt()).thenReturn(java.time.LocalDateTime.of(2026, 10, 12, 9, 30, 15));
 
         assertThat(source.revision()).isEqualTo("239:2026-10-12T09:30:15");
     }
 
     @Test
-    void revisionToleratesEmptyOrNullRow() {
-        when(repository.revision()).thenReturn(new Object[]{0L, null});
-        assertThat(source.revision()).isEqualTo("0:null");
+    void revisionToleratesEmptyTable() {
+        when(repository.count()).thenReturn(0L);
+        when(repository.maxUpdatedAt()).thenReturn(null);
 
-        when(repository.revision()).thenReturn(null);
-        assertThat(source.revision()).isEqualTo("null:null");
+        assertThat(source.revision()).isEqualTo("0:null");
     }
 
     @Test

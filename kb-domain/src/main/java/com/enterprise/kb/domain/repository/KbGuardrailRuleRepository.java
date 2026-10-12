@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,10 +22,11 @@ public interface KbGuardrailRuleRepository extends JpaRepository<KbGuardrailRule
     Optional<KbGuardrailRule> findBySideAndTypeAndFingerprint(String side, String type, String fingerprint);
 
     /**
-     * 词表修订号（v2.113 丢信号兜底轮询）：{@code [count(*), max(updated_at)]} 单行聚合
-     * ——count 捕增删、max 捕修改（{@code @PreUpdate} 恒刷新时间戳）。廉价单查询，
-     * 供重载协调器低频轮询判定「是否有人改了库」。
+     * 词表最新修改时间（v2.113 丢信号兜底轮询的一半）：与内建 {@code count()} 组合成
+     * 修订号——count 捕增删、max 捕修改（{@code @PreUpdate} 恒刷新时间戳）。
+     * 单列聚合（标量返回）是 Spring Data JPA 最保守形态：本机无 Docker 无法在
+     * 构建期跑 JPA 上下文，一律避开启动期才校验的多列 {@code Object[]} 聚合。
      */
-    @Query("select count(r), max(r.updatedAt) from KbGuardrailRule r")
-    Object[] revision();
+    @Query("select max(r.updatedAt) from KbGuardrailRule r")
+    LocalDateTime maxUpdatedAt();
 }
