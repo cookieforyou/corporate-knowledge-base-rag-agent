@@ -13,8 +13,11 @@
   步骤 2  判别点：写路径单次 PUT/POST/DELETE 后**日志只应出现一行**「护栏词表热重载成功」
          （旧形态两行：本地一次 + 自身回环一次；指标 +1 两种形态相同，日志才是判别点）
   步骤 4  DB 源丢信号兜底：直接改库不发信号 → ≤轮询间隔（缺省 60s）内 drill 应看到新动作
-  步骤 5  file 回退态写路径 fail-loud：以 RAG_GUARDRAIL_RULES_SOURCE=file 重启 → POST /rules 应 400
-         GUARDRAIL_RULE_SOURCE_READONLY（核验后改回 db 重启）
+         （修订号取内容指纹 ⇒ 不改 updated_at 的直改 SQL 同样被捕获，G5 本地 E2E 已实证；
+          旧的时间戳型形态对该路径无感，勿回退）
+  步骤 5  file 回退态写路径 fail-loud：以 RAG_GUARDRAIL_RULES_SOURCE=file 重启 → POST/PUT/DELETE /rules 应 400
+         （错误码 GUARDRAIL_RULE_SOURCE_READONLY 按全仓异常约定只落服务日志，响应体只有 code=400 + message）
+         （核验后改回 db 重启）
 
 用法：python3 tools/guardrail/g5_e2e_check.py [--env-file ~/.kb-e2e.env]
 环境变量：APP_API_DOMAIN、ADMIN_JWT（步骤 3 另需 REDIS_HOST/REDIS_PORT/REDIS_PASSWORD）

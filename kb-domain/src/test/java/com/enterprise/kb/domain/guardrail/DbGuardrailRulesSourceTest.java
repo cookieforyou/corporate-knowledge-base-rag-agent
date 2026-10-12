@@ -48,19 +48,18 @@ class DbGuardrailRulesSourceTest {
     }
 
     @Test
-    void revisionIsCountColonMaxUpdatedAt() {
-        when(repository.count()).thenReturn(239L);
-        when(repository.maxUpdatedAt()).thenReturn(java.time.LocalDateTime.of(2026, 10, 12, 9, 30, 15));
+    void revisionDelegatesToContentFingerprintQuery() {
+        when(repository.revision()).thenReturn("239:1f168fed54d6262fed53c2b164230941");
 
-        assertThat(source.revision()).isEqualTo("239:2026-10-12T09:30:15");
+        assertThat(source.revision()).isEqualTo("239:1f168fed54d6262fed53c2b164230941");
     }
 
+    /** 空表形态（coalesce 兜底 '-'）：修订号仍可比对（0:- → 插入后 1:hash 即判变更） */
     @Test
     void revisionToleratesEmptyTable() {
-        when(repository.count()).thenReturn(0L);
-        when(repository.maxUpdatedAt()).thenReturn(null);
+        when(repository.revision()).thenReturn("0:-");
 
-        assertThat(source.revision()).isEqualTo("0:null");
+        assertThat(source.revision()).isEqualTo("0:-");
     }
 
     @Test

@@ -5,7 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,11 +21,22 @@ public interface KbGuardrailRuleRepository extends JpaRepository<KbGuardrailRule
     Optional<KbGuardrailRule> findBySideAndTypeAndFingerprint(String side, String type, String fingerprint);
 
     /**
-     * 词表最新修改时间（v2.113 丢信号兜底轮询的一半）：与内建 {@code count()} 组合成
-     * 修订号——count 捕增删、max 捕修改（{@code @PreUpdate} 恒刷新时间戳）。
-     * 单列聚合（标量返回）是 Spring Data JPA 最保守形态：本机无 Docker 无法在
-     * 构建期跑 JPA 上下文，一律避开启动期才校验的多列 {@code Object[]} 聚合。
+     * 词表修订号（v2.113 丢信号兜底轮询）：{@code 行数:内容指纹} 单查询原子快照——
+     * 指纹覆盖全部语义列（id/side/family/lang/type/action/enabled/value_b64/fingerprint），
+     * <b>不含审计列</b>（origin/created_by/updated_by/时间戳：纯审计触碰不改运行时行为，
+     * 不应触发装载）。
+     *
+     * <p><b>为何用内容指纹而非 {@code max(updated_at)}</b>（本地 E2E 实证修正）：
+     * 直接改库的运维 SQL（如 G4 口径回滚 {@code UPDATE ... SET action='FLAG' WHERE id IN (...)}）
+     * <b>不会触碰 {@code updated_at}</b>（{@code @PreUpdate} 只在 Hibernate 写路径生效）
+     * ⇒ 时间戳型修订号对这条真实路径完全无感、兜底失效。指纹型对任何写路径都敏感。
+     *
+     * <p>原生 SQL 说明：PG 侧 {@code string_agg + md5}（本仓 PG 单栈）；词表量级为数百行，
+     * 单查询开销亚毫秒；返回的是哈希串，词值明文不出库。
      */
-    @Query("select max(r.updatedAt) from KbGuardrailRule r")
-    LocalDateTime maxUpdatedAt();
+    @Query(value = "SELECT count(*) || ':' || coalesce(md5(string_agg("
+        + "id || '|' || side || '|' || family || '|' || lang || '|' || type || '|' || action || '|' "
+        + "|| enabled::text || '|' || value_b64 || '|' || fingerprint, ',' ORDER BY id)), '-') "
+        + "FROM kb_guardrail_rule", nativeQuery = true)
+    String revision();
 }

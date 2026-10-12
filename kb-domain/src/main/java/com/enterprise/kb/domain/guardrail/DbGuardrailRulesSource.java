@@ -61,15 +61,14 @@ public class DbGuardrailRulesSource implements GuardrailRulesSource {
     }
 
     /**
-     * 修订号 = {@code count(*):max(updated_at)}（12.7 v2.113）：pub/sub 为
-     * fire-and-forget 无 backlog，DB 源无 mtime 可轮询 ⇒ 丢信号即长期陈旧；
-     * 本方法给协调器一个廉价变更判据（单行聚合，239 行表实测亚毫秒）。
+     * 修订号 = {@code 行数:内容指纹}（12.7 v2.113）：pub/sub 为 fire-and-forget 无 backlog，
+     * DB 源无 mtime 可轮询 ⇒ 丢信号即长期陈旧；本方法给协调器一个廉价且**对任何写路径
+     * 都敏感**的变更判据（见 {@link KbGuardrailRuleRepository#revision()} 的形态说明：
+     * 时间戳型对直改库 SQL 无感，故取内容指纹）。单查询原子快照，239 行表实测亚毫秒。
      */
     @Override
     public String revision() {
-        // 两次廉价查询（内建 count + 单列聚合）；并发写入落在两查之间只会造成一次
-        // 无害的冗余装载（复合值前进 ⇒ 下轮再比对即稳定），不会漏更
-        return repository.count() + ":" + repository.maxUpdatedAt();
+        return repository.revision();
     }
 
     private List<GuardrailRule> load(String side) {
