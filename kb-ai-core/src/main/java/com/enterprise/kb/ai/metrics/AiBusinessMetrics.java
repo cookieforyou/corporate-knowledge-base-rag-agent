@@ -393,7 +393,10 @@ public class AiBusinessMetrics {
         this.guardrailReloadFailed = Counter.builder("rag.guardrail.reload.failed")
             .description("护栏词表热重载失败次数——装载失败 fail-keep 保旧快照（安全簇⑥ F1）").register(registry);
         // 词表运营 CRUD 计数族（v2.53 词表 DB 单轨）：create/update/delete 三态分列，零标签纪律
-        this.guardrailRuleCreated = Counter.builder("rag.guardrail.rule.created")
+        // 命名纪律（v2.114 实证）：末段不得用 Prometheus 保留后缀——`rule.created` 会被
+        // 客户端命名约定剥成 `rag_guardrail_rule`（导出 rag_guardrail_rule_total），
+        // 与「规则总数」语义撞名；改 `rule.create` → 导出 rag_guardrail_rule_create_total
+        this.guardrailRuleCreated = Counter.builder("rag.guardrail.rule.create")
             .description("护栏词表运营新建词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
         this.guardrailRuleUpdated = Counter.builder("rag.guardrail.rule.updated")
             .description("护栏词表运营更新词项次数——CRUD API 写路径（v2.53 DB 单轨）").register(registry);
