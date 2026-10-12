@@ -60,6 +60,19 @@ public class DbGuardrailRulesSource implements GuardrailRulesSource {
         return "db";
     }
 
+    /**
+     * 修订号 = {@code count(*):max(updated_at)}（12.7 v2.113）：pub/sub 为
+     * fire-and-forget 无 backlog，DB 源无 mtime 可轮询 ⇒ 丢信号即长期陈旧；
+     * 本方法给协调器一个廉价变更判据（单行聚合，239 行表实测亚毫秒）。
+     */
+    @Override
+    public String revision() {
+        Object[] row = repository.revision();
+        Object count = row != null && row.length > 0 ? row[0] : null;
+        Object maxUpdatedAt = row != null && row.length > 1 ? row[1] : null;
+        return count + ":" + maxUpdatedAt;
+    }
+
     private List<GuardrailRule> load(String side) {
         return repository.findBySideOrderByIdAsc(side).stream()
             .map(DbGuardrailRulesSource::toRule)

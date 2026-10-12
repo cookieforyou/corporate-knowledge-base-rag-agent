@@ -53,7 +53,7 @@ kb-rag-agent/
 
 **观测地基（Phase4簇①）**：Observation → otel bridge → OTLP Langfuse；总开关默认关；内容捕获单源开关；trace 合树 = 双链装配 + contextWrite 桥接 + 执行器传播
 
-**面板与统计（Phase4簇②）**：Grafana 五面板（含 supplier-sla）+ 监控 compose 生产形态 + 告警 14 条自检矩阵；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）
+**面板与统计（Phase4簇②）**：Grafana 五面板（含 supplier-sla）+ 告警 14 条自检矩阵；统计 API GET /api/v1/stats/overview|documents/processing（租户守卫）
 
 **语义缓存（Phase5簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索经 Redisson RSearch 零新增依赖（租户隔离 + KNN 0.95 + docIds TAG 失效反查接四处写路径）；指标 `rag.retrieval.cache.*`；§11.9/11.10
 
@@ -86,7 +86,7 @@ kb-rag-agent/
 - 前端对话窗：sessionId 多轮 + rag/tool/agent 三模式切换 + TOOL_CALL 审批/委派卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open，剥壳判据；触发=REGEX∧无干词，压制面 `suppressed.*`；**装配前提=L1 同链**）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8
-- **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1）**：双 volatile 快照原子替换 + pub/sub/mtime 双触发（v2.112 自跳板+记账归位）；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload）；前端第五 Tab 写路径；§12.7
+- **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1）**：双 volatile 快照原子替换 + pub/sub/mtime 双触发（v2.112/113 自跳板+记账归位+修订号兜底）；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload；写路径仅 db 态，file 态 400）；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（坑位⑦，显式装配必须保留）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；续聊回填；kb-eval 零 Redis 依赖
 - 评估（kb-eval）：探针 `eval.probe`；Golden 267（干净110+注入127+多跳30）；门禁三分区契约 16 章（L1 ≥95% / L2 ≥90% / 观察集只报告）+ Phase 5 指标线 AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3 重锚）；judge 剥壳容错；干净集 BLOCK+FLAG 零命中；间接注入默认关；A/B 快照 eval-diff；图路方向 A/B 扫描 `--eval.graph-direction-ab`；导出 JSONL SFT/DPO

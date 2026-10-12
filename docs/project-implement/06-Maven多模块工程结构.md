@@ -102,7 +102,7 @@ kb-etl     kb-ai-core ← 依赖 kb-infrastructure（kb-domain + kb-commons 传�
 
 | 分区 | 内容 | 规模与说明 |
 |---|---|---|
-| `ErrorCodes` | 业务错误码 42 个（按域分组：身份/配额/护栏/文档 ETL/会话反馈/上传/编排 MCP/admin 运维/HITL/Golden） | 值即 API 契约（HTTP 响应 errorCode 字段 + 前端映射 + kb-eval 断言按字面消费），**只增不改**；批1 收敛 69 文件 223 处（BusinessException 抛点 / 异常类自带码 / 测试断言含 IT） |
+| `ErrorCodes` | 业务错误码 43 个（按域分组：身份/配额/护栏/文档 ETL/会话反馈/上传/编排 MCP/admin 运维/HITL/Golden） | 值即 API 契约（HTTP 响应 errorCode 字段 + 前端映射 + kb-eval 断言按字面消费），**只增不改**；批1 收敛 69 文件 223 处（BusinessException 抛点 / 异常类自带码 / 测试断言含 IT） |
 | `Retrieval` | 检索路名（vector/bm25/graph）+ metadata 契约键（retrieval_source / fusion_score / rerank_score / bm25_score / graph_score / graph_entity_hits / doc_id / chunk_id / heading_path）+ 安全打标键（injection_hit / indirect_injection_hit）+ TRACE 终结名（final） | 写入侧（retriever / RrfFusion / Rerank / ETL）↔ 读出侧（Controller 溯源 / 审计 / MCP / 编排工具 / 调试台 / eval 探针）共享键面；批2 收敛 30 文件 180 处 |
 | `ChatMode` | mode 三值 rag / tool / agent | AgentController 分流（类内常量桥接上收）+ 三 ChatService 审计参数 + admin 过滤值 |
 | `SseEvent` | 命名事件 TRACE / TOOL_CALL / REPLACE / PROGRESS + PROGRESS 类型标签 stage | 无名 TOKEN/ERROR/DONE 帧不经事件名不列；**前端 TS 侧同值契约各自持有**（跨语言无法共享，改动须双侧同步） |

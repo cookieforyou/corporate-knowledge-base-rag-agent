@@ -42,4 +42,13 @@ public interface GuardrailRulesSource {
     default String outputLocation() {
         return "";
     }
+
+    /**
+     * 词表修订号（v2.113 丢信号兜底轮询）：内容变更即应变化的廉价标识
+     * （db 源 = {@code count(*):max(updated_at)}）。<b>缺省 null = 该源不支持修订号</b>
+     * ——file 源由 mtime 轮询覆盖，不重复实现；null 时协调器不启用修订轮询。
+     */
+    default String revision() {
+        return null;
+    }
 }

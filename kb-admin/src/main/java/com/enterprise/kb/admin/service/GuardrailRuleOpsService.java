@@ -53,6 +53,11 @@ import java.util.regex.PatternSyntaxException;
  *
  * <p><b>fail-keep 语义</b>：写后本地热重载失败（词表装载异常）不阻断写操作
  * 受理——DB 已提交为事实，响应 {@code reloaded=false} 提示经手动重载重试。
+ *
+ * <p><b>源守卫（v2.113）</b>：写路径仅在 {@code rag.guardrail.rules.source=db}
+ * 可用——{@code file} 回退态下写库对运行时词表零影响（词表自文件装载），
+ * 故 fail-loud 拒收（{@code GUARDRAIL_RULE_SOURCE_READONLY}），不再回
+ * 误导性的 {@code reloaded=true}；只读列表/演练与 {@code POST /reload} 不受限。
  */
 @Slf4j
 @Service
@@ -60,6 +65,8 @@ public class GuardrailRuleOpsService {
 
     private static final String SIDE_INJECTION = DbGuardrailRulesSource.SIDE_INJECTION;
     private static final String SIDE_OUTPUT = "output";
+    /** 写路径唯一可用源（v2.113）：词表 DB 单轨——其余源态下写库对运行时词表无效 */
+    private static final String SOURCE_DB = "db";
     private static final int MAX_VALUE_CHARS = 500;
     private static final String ORIGIN_API = "API";
     private static final String API_INJ_PREFIX = "api-inj-";
@@ -85,8 +92,9 @@ public class GuardrailRuleOpsService {
 
     // ── CRUD ──
 
-    /** 新建词项：校验 → 生成 id → 写库 → 生效闭环（reload + 广播 + 存档 + 指标）。 */
+    /** 新建词项：源守卫 → 校验 → 生成 id → 写库 → 生效闭环（reload + 广播 + 存档 + 指标）。 */
     public GuardrailRuleMutationResult create(GuardrailRuleCreateRequest req, String operator) {
+        requireDbSource();
         String side = normalizeSide(req.side());
         RuleType type = parseType(req.type());
         RuleAction action = parseAction(req.action());
@@ -118,8 +126,9 @@ public class GuardrailRuleOpsService {
         return toEditView(findOrThrow(id));
     }
 
-    /** 更新词项：null 字段保持原值；valueB64/type 变化重算指纹与去重。 */
+    /** 更新词项：源守卫 → null 字段保持原值；valueB64/type 变化重算指纹与去重。 */
     public GuardrailRuleMutationResult update(String id, GuardrailRuleUpdateRequest req, String operator) {
+        requireDbSource();
         KbGuardrailRule entity = findOrThrow(id);
         RuleType type = req.type() != null ? parseType(req.type()) : RuleType.valueOf(entity.getType());
         RuleAction action = req.action() != null ? parseAction(req.action()) : RuleAction.valueOf(entity.getAction());
@@ -150,12 +159,27 @@ public class GuardrailRuleOpsService {
         return new GuardrailRuleMutationResult(toEditView(saved), reloaded);
     }
 
-    /** 删除词项（物理删；git 存档留有历史，运营面主推停用）。 */
+    /** 删除词项（源守卫 → 物理删；git 存档留有历史，运营面主推停用）。 */
     public GuardrailRuleMutationResult delete(String id) {
+        requireDbSource();
         KbGuardrailRule entity = findOrThrow(id);
         repository.delete(entity);
         boolean reloaded = postWrite("delete");
         return new GuardrailRuleMutationResult(toEditView(entity), reloaded);
+    }
+
+    /**
+     * 写路径源守卫（v2.113）：{@code source=file}（Git Ops 回滚阀门）下 CRUD 直写
+     * kb_guardrail_rule，而运行时词表自文件装载 ⇒ 写库「成功」却对防线零影响，
+     * 旧形态还回 {@code reloaded=true} 误导运营。改为 fail-loud 拒收（写前拦截，无副作用）。
+     */
+    private void requireDbSource() {
+        String source = registry.sourceName();
+        if (!SOURCE_DB.equals(source)) {
+            throw new BusinessException(Constants.ErrorCodes.GUARDRAIL_RULE_SOURCE_READONLY,
+                "当前词表源为 " + source + "（回退态）——写路径仅在 source=db 可用；"
+                    + "请走 Git Ops 通道改词表，或切回 db 源重启后再运营");
+        }
     }
 
     // ── 热更新触发 ──

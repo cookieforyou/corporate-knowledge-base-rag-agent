@@ -36,7 +36,12 @@ import java.util.concurrent.TimeUnit;
  *       不再二次装载；外部/未知载荷恒触发（判定失败的安全默认是重载）；</li>
  *   <li><b>mtime 轮询回落</b>：仅对 {@code file:} 前缀外部词表源启用（jar 内
  *       classpath 资源 mtime 为构建时刻不可靠，且重部署必经进程重启自然重装载），
- *       覆盖信号丢失/Redis 不可达窗口（pub/sub fire-and-forget 无 backlog）。</li>
+ *       覆盖信号丢失/Redis 不可达窗口（pub/sub fire-and-forget 无 backlog）；</li>
+ *   <li><b>修订号轮询兜底（v2.113）</b>：{@code db} 源 location 为空串 ⇒ mtime 通道
+ *       不适用，丢信号即长期陈旧（直到下次信号或重启）。改用
+ *       {@link GuardrailRulesRegistry#revisionChanged()}（db 源 =
+ *       {@code count(*):max(updated_at)} 单行聚合）低频比对，变更才全量装载
+ *       ——兜底通道与「无冗余装载」两者兼得（本实例自己写库也已刷新标记）。</li>
  * </ul>
  *
  * <p><b>装配边界（三层防护，kb-eval 测量一致性）</b>：
@@ -68,6 +73,8 @@ public class GuardrailReloadCoordinator {
     private final long pollIntervalSeconds;
 
     private final List<WatchedSource> watched = new ArrayList<>();
+    /** 修订号兜底通道是否可用（源支持修订号，如 db 源）——启动期判定一次 */
+    private boolean revisionWatch;
     private ScheduledExecutorService poller;
     private RTopic topic;
     private int topicListenerId;
@@ -102,7 +109,14 @@ public class GuardrailReloadCoordinator {
         // 2. file: 源 mtime 轮询回落（classpath 源不轮询——jar 内资源 mtime 不可靠）
         watch(registry.injectionLocation());
         watch(registry.outputLocation());
-        if (!watched.isEmpty()) {
+        // 3. 修订号兜底通道（v2.113：db 源 location 空 ⇒ mtime 不适用，须靠修订号轮询）
+        try {
+            revisionWatch = registry.currentRevision() != null;
+        } catch (RuntimeException e) {
+            revisionWatch = false;
+            log.warn("护栏词表修订号通道探测失败，降级纯信号/轮询形态: {}", e.getMessage());
+        }
+        if (!watched.isEmpty() || revisionWatch) {
             poller = Executors.newSingleThreadScheduledExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "guardrail-reload-poller");
                 thread.setDaemon(true);
@@ -111,8 +125,8 @@ public class GuardrailReloadCoordinator {
             poller.scheduleWithFixedDelay(this::pollOnce,
                 pollIntervalSeconds, pollIntervalSeconds, TimeUnit.SECONDS);
         }
-        log.info("护栏词表热重载协调器就绪: 频道={} / 轮询={}s / file 源 {} 处",
-            RELOAD_CHANNEL, pollIntervalSeconds, watched.size());
+        log.info("护栏词表热重载协调器就绪: 频道={} / 轮询={}s / file 源 {} 处 / 修订号兜底={}",
+            RELOAD_CHANNEL, pollIntervalSeconds, watched.size(), revisionWatch);
     }
 
     @PreDestroy
@@ -144,7 +158,10 @@ public class GuardrailReloadCoordinator {
         watched.add(new WatchedSource(location, resource, mtime));
     }
 
-    /** 轮询单趟：任一 file 源 mtime 变化即触发重载（先更新标记防信号/轮询重复触发）；包内可见供单测直驱 */
+    /**
+     * 轮询单趟：任一 file 源 mtime 变化或词表修订号前进即触发重载（先更新标记防
+     * 信号/轮询重复触发）；包内可见供单测直驱。
+     */
     void pollOnce() {
         for (WatchedSource source : watched) {
             long current;
@@ -156,6 +173,12 @@ public class GuardrailReloadCoordinator {
             if (current != source.lastModified) {
                 source.lastModified = current;
                 reload("mtime 轮询检测到变更: " + source.location);
+            }
+        }
+        if (revisionWatch) {
+            // 修订号读取异常已在注册表侧降级为「未变更」（保旧快照，下轮再试）
+            if (registry.revisionChanged()) {
+                reload("修订号变更（丢信号兜底）");
             }
         }
     }

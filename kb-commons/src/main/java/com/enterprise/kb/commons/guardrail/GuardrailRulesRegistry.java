@@ -37,12 +37,20 @@ public class GuardrailRulesRegistry {
     private volatile List<GuardrailRule> injectionRules;
     private volatile List<GuardrailRule> outputRules;
 
+    /**
+     * 上次成功装载时的词表修订号（v2.113 兜底轮询；源不支持修订号时为 null）。
+     * <b>装载前读取</b>——落在装载窗口内的写入会使修订号前进，从而被下一轮轮询捕获
+     * （最多一次无害的冗余重载，不会漏更）。
+     */
+    private volatile String loadedRevision;
+
     private final List<GuardrailRulesListener> listeners = new CopyOnWriteArrayList<>();
 
     /** 装配构造器：源由 {@code rag.guardrail.rules.source} 条件装配择一注入。 */
     @Autowired
     public GuardrailRulesRegistry(GuardrailRulesSource source) {
         this.source = source;
+        this.loadedRevision = revisionQuietly();
         this.injectionRules = source.loadInjectionRules();
         this.outputRules = source.loadOutputRules();
         log.info("护栏词表注册表装载（源 {}）: 注入侧 {} 条 / 输出侧 {} 条（热重载就绪）",
@@ -83,6 +91,33 @@ public class GuardrailRulesRegistry {
         return source.sourceName();
     }
 
+    /**
+     * 当前词表修订号（源不支持返回 null）——协调器启动期据此决定是否启用修订轮询。
+     * 读取失败按 null 降级（保持旧快照语义，不击穿启动）。
+     */
+    public String currentRevision() {
+        return revisionQuietly();
+    }
+
+    /**
+     * 修订号是否较本实例上次成功装载前进（v2.113 丢信号兜底）：用于低频轮询判定
+     * 「是否有人改了库」。源不支持修订号（null）恒 false。
+     */
+    public boolean revisionChanged() {
+        String fresh = revisionQuietly();
+        return fresh != null && !fresh.equals(loadedRevision);
+    }
+
+    /** 修订号读取（异常降级 null，不击穿调用方——轮询/启动路径均容忍未知） */
+    private String revisionQuietly() {
+        try {
+            return source.revision();
+        } catch (RuntimeException e) {
+            log.warn("护栏词表修订号读取失败（按未知处理，快照语义不变）: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public void subscribe(GuardrailRulesListener listener) {
         listeners.add(listener);
     }
@@ -98,6 +133,8 @@ public class GuardrailRulesRegistry {
      * @return 替换成功 true；装载失败保旧 false
      */
     public synchronized boolean reload() {
+        // 装载前取修订号（v2.113）：确保「装载窗口内提交的写入」不被标记为已装载
+        String revisionBefore = revisionQuietly();
         List<GuardrailRule> freshInjection;
         List<GuardrailRule> freshOutput;
         try {
@@ -110,6 +147,9 @@ public class GuardrailRulesRegistry {
         }
         this.injectionRules = freshInjection;
         this.outputRules = freshOutput;
+        if (revisionBefore != null) {
+            this.loadedRevision = revisionBefore;
+        }
         log.info("护栏词表热重载成功: 注入侧 {} 条 / 输出侧 {} 条", freshInjection.size(), freshOutput.size());
         for (GuardrailRulesListener listener : listeners) {
             try {

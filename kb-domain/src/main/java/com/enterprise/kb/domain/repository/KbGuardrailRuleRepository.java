@@ -2,6 +2,7 @@ package com.enterprise.kb.domain.repository;
 
 import com.enterprise.kb.domain.model.KbGuardrailRule;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,4 +19,12 @@ public interface KbGuardrailRuleRepository extends JpaRepository<KbGuardrailRule
 
     /** 去重键查询：(side, type, fingerprint) 唯一约束的预检通道 */
     Optional<KbGuardrailRule> findBySideAndTypeAndFingerprint(String side, String type, String fingerprint);
+
+    /**
+     * 词表修订号（v2.113 丢信号兜底轮询）：{@code [count(*), max(updated_at)]} 单行聚合
+     * ——count 捕增删、max 捕修改（{@code @PreUpdate} 恒刷新时间戳）。廉价单查询，
+     * 供重载协调器低频轮询判定「是否有人改了库」。
+     */
+    @Query("select count(r), max(r.updatedAt) from KbGuardrailRule r")
+    Object[] revision();
 }

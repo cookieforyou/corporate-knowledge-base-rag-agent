@@ -7,8 +7,11 @@ import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.guardrail.FileGuardrailRulesSource;
 import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
+import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
+import com.enterprise.kb.commons.guardrail.GuardrailRulesSource;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesSupport;
 import com.enterprise.kb.domain.model.KbGuardrailRule;
 import com.enterprise.kb.domain.repository.KbGuardrailRuleRepository;
@@ -32,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,9 +59,7 @@ class GuardrailRuleOpsServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(KbGuardrailRuleRepository.class);
-        registry = new GuardrailRulesRegistry(
-            "classpath:guardrail-test/admin-injection-rules.yml", "",
-            "classpath:guardrail-test/admin-output-rules.yml", "");
+        registry = new GuardrailRulesRegistry(dbReportingSource());
         redissonClient = mock(RedissonClient.class);
         topic = mock(RTopic.class);
         metrics = mock(AiBusinessMetrics.class);
@@ -70,6 +72,29 @@ class GuardrailRuleOpsServiceTest {
             .thenAnswer(inv -> inv.getArgument(0));
         service = new GuardrailRuleOpsService(repository, registry, redissonClient, metrics,
             exportDir.toString());
+    }
+
+    /** 测试用 db 态源（v2.113 写路径源守卫要求 source=db）：词项仍取占位 yml，零字面攻击词 */
+    private static GuardrailRulesSource dbReportingSource() {
+        FileGuardrailRulesSource files = new FileGuardrailRulesSource(
+            "classpath:guardrail-test/admin-injection-rules.yml", "",
+            "classpath:guardrail-test/admin-output-rules.yml", "");
+        return new GuardrailRulesSource() {
+            @Override
+            public List<GuardrailRule> loadInjectionRules() {
+                return files.loadInjectionRules();
+            }
+
+            @Override
+            public List<GuardrailRule> loadOutputRules() {
+                return files.loadOutputRules();
+            }
+
+            @Override
+            public String sourceName() {
+                return "db";
+            }
+        };
     }
 
     private static GuardrailRuleCreateRequest create(String side, String family, String decoded) {
@@ -218,7 +243,7 @@ class GuardrailRuleOpsServiceTest {
     void reloadReturnsSourceAndSnapshotCounts() {
         ReloadResult result = service.reload();
 
-        assertThat(result.source()).isEqualTo("file");
+        assertThat(result.source()).isEqualTo("db");
         assertThat(result.reloaded()).isTrue();
         // 占位词表：注入侧 3 条 / 输出侧 1 条
         assertThat(result.injectionCount()).isEqualTo(3);
@@ -244,6 +269,31 @@ class GuardrailRuleOpsServiceTest {
         verify(metrics).recordGuardrailReload(false);
         verify(repository).save(any(KbGuardrailRule.class));   // DB 事实源照常受理
         verify(topic).publish(anyString());                    // 集群广播照常
+    }
+
+    /** v2.113 源守卫：file 回退态写路径 fail-loud（旧形态写库成功却回 reloaded=true，运行时零影响） */
+    @Test
+    void writesRejectedWhenWordListSourceIsFile() {
+        GuardrailRulesRegistry fileRegistry = new GuardrailRulesRegistry(
+            "classpath:guardrail-test/admin-injection-rules.yml", "",
+            "classpath:guardrail-test/admin-output-rules.yml", "");
+        GuardrailRuleOpsService fileMode = new GuardrailRuleOpsService(repository, fileRegistry,
+            redissonClient, metrics, exportDir.toString());
+
+        assertThatThrownBy(() -> fileMode.create(create("injection", "UNCLASSIFIED", "probe"), "t-1"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode")
+            .isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_SOURCE_READONLY);
+        assertThatThrownBy(() -> fileMode.delete("api-inj-1"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode")
+            .isEqualTo(Constants.ErrorCodes.GUARDRAIL_RULE_SOURCE_READONLY);
+        // 写前拦截：零副作用（不落库、不广播、不计运营指标）
+        verify(repository, never()).save(any(KbGuardrailRule.class));
+        verify(repository, never()).delete(any(KbGuardrailRule.class));
+        verify(metrics, never()).recordGuardrailOps(anyString());
+        // 只读面不受限：手动重载在 file 态仍可用
+        assertThat(fileMode.reload().source()).isEqualTo("file");
     }
 
     @Test

@@ -48,6 +48,23 @@ class DbGuardrailRulesSourceTest {
     }
 
     @Test
+    void revisionIsCountColonMaxUpdatedAt() {
+        when(repository.revision()).thenReturn(new Object[]{239L,
+            java.time.LocalDateTime.of(2026, 10, 12, 9, 30, 15)});
+
+        assertThat(source.revision()).isEqualTo("239:2026-10-12T09:30:15");
+    }
+
+    @Test
+    void revisionToleratesEmptyOrNullRow() {
+        when(repository.revision()).thenReturn(new Object[]{0L, null});
+        assertThat(source.revision()).isEqualTo("0:null");
+
+        when(repository.revision()).thenReturn(null);
+        assertThat(source.revision()).isEqualTo("null:null");
+    }
+
+    @Test
     void keywordIsLowercasedAndRegexCompiled() {
         when(repository.findBySideOrderByIdAsc("injection")).thenReturn(List.of(
             entity("db-probe-1", "injection", "KEYWORD", "PROBE Word", "FLAG"),

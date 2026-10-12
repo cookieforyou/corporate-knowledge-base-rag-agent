@@ -156,6 +156,39 @@ class GuardrailReloadCoordinatorTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void revisionAdvanceTriggersReloadOnPoll() {
+        when(registry.currentRevision()).thenReturn("239:2026-10-12T09:00");
+        stubTopicSubscription();
+        when(registry.reload()).thenReturn(true);
+        GuardrailReloadCoordinator coordinator = coordinator();
+        coordinator.start();
+
+        coordinator.pollOnce();                       // 修订号未变：零装载
+        verify(registry, never()).reload();
+
+        when(registry.revisionChanged()).thenReturn(true);
+        coordinator.pollOnce();                       // 变更（丢信号兜底）：装载 + 落账
+        verify(registry).reload();
+        assertThat(counter("rag.guardrail.reload.succeeded")).isEqualTo(1.0);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void revisionUnsupportedSourceStaysSignalOnly() {
+        // 缺省 mock currentRevision()=null ⇒ 不启用修订通道：连判据都不问（零额外开销）
+        stubTopicSubscription();
+        GuardrailReloadCoordinator coordinator = coordinator();
+        coordinator.start();
+        when(registry.revisionChanged()).thenReturn(true);
+
+        coordinator.pollOnce();
+
+        verify(registry, never()).revisionChanged();
+        verify(registry, never()).reload();
+    }
+
+    @Test
     void unchangedFileSourceDoesNotTriggerReload() throws IOException {
         Path rulesFile = tempDir.resolve("rules.yml");
         Files.writeString(rulesFile, "rules: []\n");

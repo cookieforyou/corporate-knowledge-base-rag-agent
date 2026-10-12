@@ -87,6 +87,8 @@ public final class Constants {
         public static final String GUARDRAIL_RULE_NOT_FOUND = "GUARDRAIL_RULE_NOT_FOUND";
         public static final String GUARDRAIL_RULE_INVALID = "GUARDRAIL_RULE_INVALID";
         public static final String GUARDRAIL_RULE_DUPLICATE = "GUARDRAIL_RULE_DUPLICATE";
+        /** v2.113：词表源非 db（file 回退态）——CRUD 写路径对运行时词表无效，fail-loud 拒收 */
+        public static final String GUARDRAIL_RULE_SOURCE_READONLY = "GUARDRAIL_RULE_SOURCE_READONLY";
         public static final String REBUILD_TASK_NOT_FOUND = "REBUILD_TASK_NOT_FOUND";
         public static final String REBUILD_STORE_UNAVAILABLE = "REBUILD_STORE_UNAVAILABLE";
         public static final String GRAPH_DISABLED = "GRAPH_DISABLED";

@@ -188,10 +188,10 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 | `POST /rules` | `{side, family, valueB64(必填), lang, type, action, enabled}`（缺省 type=KEYWORD, action=**FLAG**, enabled=true） | 新增（新建默认 FLAG 观察） |
 | `PUT /rules/{id}` | 全可选（null = 保持原值） | 修改 |
 | `DELETE /rules/{id}` | path | 物理删除 |
-| `POST /reload` | — | 手动重载：`{source, reloaded, injectionCount, outputCount}`（本地同步 + pub/sub 广播） |
+| `POST /reload` | — | 手动重载：`{source, reloaded, injectionCount, outputCount}`（本地同步 + 就地落账 + pub/sub 广播；file 态亦可用） |
 | `POST /drill` | `{text}`（@NotBlank） | 命中演练：`{injectionMatches[], outputMatches[]}`（同运行时口径，不计指标不落审计） |
 
-写路径闭环：校验（Base64 → 解码非空 ≤500 字符 → family 枚举 → REGEX 预编译）→ 保存 → 自动重载（fail-keep 不阻断）→ 广播 → 编码 YAML 存档导出。错误：`GUARDRAIL_RULE_NOT_FOUND` / `GUARDRAIL_RULE_INVALID` / `GUARDRAIL_RULE_DUPLICATE`。
+写路径闭环：**源守卫**（v2.113：仅 `RAG_GUARDRAIL_RULES_SOURCE=db` 可用——`source=file` 回退态下写库对运行时词表无效，故写前 fail-loud 拒收，不再回误导性的 `reloaded=true`；只读列表/演练与 `POST /reload` 不受限）→ 校验（Base64 → 解码非空 ≤500 字符 → family 枚举 → REGEX 预编译）→ 保存 → 自动重载（fail-keep 不阻断；**就地落 `rag.guardrail.reload.*` 账**，v2.112）→ 广播（载荷带实例标识，自身回环跳过，v2.112）→ 编码 YAML 存档导出。错误：`GUARDRAIL_RULE_NOT_FOUND` / `GUARDRAIL_RULE_INVALID` / `GUARDRAIL_RULE_DUPLICATE` / `GUARDRAIL_RULE_SOURCE_READONLY`（非 db 源拒写）。
 
 ---
 
