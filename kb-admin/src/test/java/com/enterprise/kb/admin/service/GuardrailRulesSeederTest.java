@@ -1,5 +1,7 @@
 package com.enterprise.kb.admin.service;
 
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.domain.model.KbGuardrailRule;
 import com.enterprise.kb.domain.repository.KbGuardrailRuleRepository;
@@ -34,6 +36,8 @@ class GuardrailRulesSeederTest {
     private KbGuardrailRuleRepository repository;
     private GuardrailRulesRegistry registry;
     private RedissonClient redissonClient;
+    private RTopic topic;
+    private AiBusinessMetrics metrics;
     private GuardrailRulesSeeder seeder;
 
     @BeforeEach
@@ -41,11 +45,13 @@ class GuardrailRulesSeederTest {
         repository = mock(KbGuardrailRuleRepository.class);
         registry = mock(GuardrailRulesRegistry.class);
         redissonClient = mock(RedissonClient.class);
+        topic = mock(RTopic.class);
+        metrics = mock(AiBusinessMetrics.class);
         when(registry.reload()).thenReturn(true);
         when(registry.currentInjectionRules()).thenReturn(List.of());
         when(registry.currentOutputRules()).thenReturn(List.of());
-        when(redissonClient.getTopic(anyString(), any(Codec.class))).thenReturn(mock(RTopic.class));
-        seeder = new GuardrailRulesSeeder(repository, registry, redissonClient,
+        when(redissonClient.getTopic(anyString(), any(Codec.class))).thenReturn(topic);
+        seeder = new GuardrailRulesSeeder(repository, registry, redissonClient, metrics,
             INJECTION_LOC, "", OUTPUT_LOC, "");
     }
 
@@ -81,7 +87,13 @@ class GuardrailRulesSeederTest {
         seeder.run(null);
 
         verify(registry).reload();
+        verify(metrics).recordGuardrailReload(true);   // v2.112：本地重载就地落账
         verify(redissonClient).getTopic(anyString(), any(Codec.class));
+        // v2.112 自跳板：迁移广播同样带本实例标识（发布实例不二次装载）
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(topic).publish(payload.capture());
+        assertThat(payload.getValue()).startsWith("migration|");
+        assertThat(GuardrailReloadSignal.isSelf(payload.getValue())).isTrue();
     }
 
     @Test

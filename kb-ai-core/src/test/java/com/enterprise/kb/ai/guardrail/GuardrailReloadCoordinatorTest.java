@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.guardrail;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,6 +94,39 @@ class GuardrailReloadCoordinatorTest {
 
         assertThat(counter("rag.guardrail.reload.failed")).isEqualTo(1.0);
         assertThat(counter("rag.guardrail.reload.succeeded")).isZero();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void selfPublishedSignalIsSkippedWithoutReload() {
+        ArgumentCaptor<MessageListener<String>> captor = stubTopicSubscription();
+        when(registry.reload()).thenReturn(true);
+        GuardrailReloadCoordinator coordinator = coordinator();
+
+        coordinator.start();
+        // 应用内触发方载荷（带本实例标识）：本地已同步重载并自行落账 → 回环跳过
+        captor.getValue().onMessage(GuardrailReloadCoordinator.RELOAD_CHANNEL,
+            GuardrailReloadSignal.payload("crud-update"));
+
+        verify(registry, never()).reload();
+        assertThat(counter("rag.guardrail.reload.succeeded")).isZero();
+        assertThat(counter("rag.guardrail.reload.failed")).isZero();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void foreignPayloadStillTriggersReload() {
+        ArgumentCaptor<MessageListener<String>> captor = stubTopicSubscription();
+        when(registry.reload()).thenReturn(true);
+        GuardrailReloadCoordinator coordinator = coordinator();
+
+        coordinator.start();
+        // 外部通道裸载荷（publish_reload_signal.py / redis-cli）与畸形载荷恒触发
+        captor.getValue().onMessage(GuardrailReloadCoordinator.RELOAD_CHANNEL, "reload");
+        captor.getValue().onMessage(GuardrailReloadCoordinator.RELOAD_CHANNEL, null);
+
+        verify(registry, org.mockito.Mockito.times(2)).reload();
+        assertThat(counter("rag.guardrail.reload.succeeded")).isEqualTo(2.0);
     }
 
     @Test

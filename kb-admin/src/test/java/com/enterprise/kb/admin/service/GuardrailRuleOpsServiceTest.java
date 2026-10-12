@@ -7,6 +7,7 @@ import com.enterprise.kb.admin.dto.ReloadResult;
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
+import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesSupport;
 import com.enterprise.kb.domain.model.KbGuardrailRule;
@@ -44,6 +45,7 @@ class GuardrailRuleOpsServiceTest {
     private KbGuardrailRuleRepository repository;
     private GuardrailRulesRegistry registry;
     private RedissonClient redissonClient;
+    private RTopic topic;
     private AiBusinessMetrics metrics;
     private GuardrailRuleOpsService service;
 
@@ -57,8 +59,9 @@ class GuardrailRuleOpsServiceTest {
             "classpath:guardrail-test/admin-injection-rules.yml", "",
             "classpath:guardrail-test/admin-output-rules.yml", "");
         redissonClient = mock(RedissonClient.class);
+        topic = mock(RTopic.class);
         metrics = mock(AiBusinessMetrics.class);
-        when(redissonClient.getTopic(anyString(), any(Codec.class))).thenReturn(mock(RTopic.class));
+        when(redissonClient.getTopic(anyString(), any(Codec.class))).thenReturn(topic);
         when(repository.findAll()).thenReturn(List.of());
         when(repository.findBySideAndTypeAndFingerprint(anyString(), anyString(), anyString()))
             .thenReturn(Optional.empty());
@@ -95,7 +98,14 @@ class GuardrailRuleOpsServiceTest {
         assertThat(result.reloaded()).isTrue();
         assertThat(result.rule().id()).isEqualTo("api-inj-1");
         verify(metrics).recordGuardrailOps("create");
+        // v2.112 记账归位：本地重载就地落账（不再依赖自身回环那次计账）
+        verify(metrics).recordGuardrailReload(true);
         verify(redissonClient).getTopic(anyString(), any(Codec.class));
+        // v2.112 自跳板：载荷带本实例标识，发布实例自身订阅回环由协调器跳过
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+        verify(topic).publish(payload.capture());
+        assertThat(GuardrailReloadSignal.isSelf(payload.getValue())).isTrue();
+        assertThat(payload.getValue()).startsWith("crud-create|");
     }
 
     @Test
@@ -213,6 +223,27 @@ class GuardrailRuleOpsServiceTest {
         // 占位词表：注入侧 3 条 / 输出侧 1 条
         assertThat(result.injectionCount()).isEqualTo(3);
         assertThat(result.outputCount()).isEqualTo(1);
+        verify(metrics).recordGuardrailReload(true);
+    }
+
+    /** v2.112 记账归位 + fail-keep：本地重载失败就地落 failed 账，且不阻断写受理与广播 */
+    @Test
+    void failedLocalReloadIsAccountedWithoutBlockingWrite() {
+        GuardrailRulesRegistry failing = mock(GuardrailRulesRegistry.class);
+        when(failing.reload()).thenReturn(false);
+        when(failing.sourceName()).thenReturn("db");
+        when(failing.currentInjectionRules()).thenReturn(List.of());
+        when(failing.currentOutputRules()).thenReturn(List.of());
+        GuardrailRuleOpsService failKeep = new GuardrailRuleOpsService(repository, failing,
+            redissonClient, metrics, exportDir.toString());
+
+        GuardrailRuleMutationResult result = failKeep.create(
+            create("injection", "UNCLASSIFIED", "probe-failkeep"), "t-1");
+
+        assertThat(result.reloaded()).isFalse();
+        verify(metrics).recordGuardrailReload(false);
+        verify(repository).save(any(KbGuardrailRule.class));   // DB 事实源照常受理
+        verify(topic).publish(anyString());                    // 集群广播照常
     }
 
     @Test

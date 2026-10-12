@@ -3,6 +3,8 @@ package com.enterprise.kb.admin.service;
 import com.enterprise.kb.domain.guardrail.DbGuardrailRulesSource;
 import com.enterprise.kb.ai.guardrail.GuardrailReloadCoordinator;
 import com.enterprise.kb.commons.guardrail.FileGuardrailRulesSource;
+import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
 import com.enterprise.kb.commons.guardrail.GuardrailRule;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesSupport;
@@ -55,6 +57,7 @@ public class GuardrailRulesSeeder implements ApplicationRunner {
     private final KbGuardrailRuleRepository repository;
     private final GuardrailRulesRegistry registry;
     private final RedissonClient redissonClient;
+    private final AiBusinessMetrics metrics;
     private final FileGuardrailRulesSource fileSource;
     private final String injectionCsv;
     private final String outputCsv;
@@ -62,6 +65,7 @@ public class GuardrailRulesSeeder implements ApplicationRunner {
     public GuardrailRulesSeeder(KbGuardrailRuleRepository repository,
                                 GuardrailRulesRegistry registry,
                                 RedissonClient redissonClient,
+                                AiBusinessMetrics metrics,
                                 @Value("${rag.guardrail.rules.injection-location:}") String injectionLocation,
                                 @Value("${rag.guardrail.input.injection-keywords:}") String injectionCsv,
                                 @Value("${rag.guardrail.rules.output-location:}") String outputLocation,
@@ -69,6 +73,7 @@ public class GuardrailRulesSeeder implements ApplicationRunner {
         this.repository = repository;
         this.registry = registry;
         this.redissonClient = redissonClient;
+        this.metrics = metrics;
         this.fileSource = new FileGuardrailRulesSource(injectionLocation, injectionCsv, outputLocation, outputCsv);
         this.injectionCsv = injectionCsv;
         this.outputCsv = outputCsv;
@@ -98,10 +103,12 @@ public class GuardrailRulesSeeder implements ApplicationRunner {
     /**
      * 灌库后主动刷新运行时快照（v2.53.1）：Registry 构造早于本 Runner，
      * 首启空表装载 0 条——不重载则防线空转直至人工手动重载。
-     * fail-keep 时 warn 提示经手动重载端点重试；pub/sub 广播刷新多实例他实例空快照。
+     * fail-keep 时 warn 提示经手动重载端点重试；pub/sub 广播刷新多实例他实例空快照
+     * （v2.112：本地重载就地落账，载荷带本实例标识，自身回环由协调器跳过）。
      */
     private void reloadAfterMigration() {
         boolean reloaded = registry.reload();
+        metrics.recordGuardrailReload(reloaded);
         if (reloaded) {
             log.info("护栏词表迁移后热重载成功：注入侧 {} 条 / 输出侧 {} 条",
                 registry.currentInjectionRules().size(), registry.currentOutputRules().size());
@@ -110,7 +117,7 @@ public class GuardrailRulesSeeder implements ApplicationRunner {
         }
         try {
             redissonClient.getTopic(GuardrailReloadCoordinator.RELOAD_CHANNEL, StringCodec.INSTANCE)
-                .publish("migration");
+                .publish(GuardrailReloadSignal.payload("migration"));
         } catch (RuntimeException e) {
             log.warn("迁移后重载信号发布失败（本地已生效，集群同步降级）: {}", e.getMessage());
         }

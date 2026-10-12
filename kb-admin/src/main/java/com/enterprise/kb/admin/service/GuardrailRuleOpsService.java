@@ -10,6 +10,7 @@ import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.commons.exception.BusinessException;
 import com.enterprise.kb.commons.guardrail.GuardrailFamily;
+import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesExporter;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesSupport;
@@ -39,7 +40,8 @@ import java.util.regex.PatternSyntaxException;
  * 护栏词表运营服务（v2.53 词表 DB 单轨，设计 12.7 词表工程 / Plan C 修订形态）
  * ——CRUD 写路径 + 热更新触发。与只读 {@link GuardrailAdminService}（F2 列表/演练，
  * 指纹契约）分治：本服务直写 kb_guardrail_rule（唯一事实源），写后
- * 本地 {@code registry.reload()} 同步生效 + pub/sub 集群广播 + 编码 YAML
+ * 本地 {@code registry.reload()} 同步生效（就地落 reload 指标）+ pub/sub 集群广播
+ * （载荷带本实例标识，自身回环由协调器跳过，v2.112）+ 编码 YAML
  * 存档导出（git 归档 / eval 引用 / 回滚指回）。
  *
  * <p><b>载荷纪律</b>（第七节）：API 契约只收 valueB64 编码态（前端编码后上送），
@@ -160,11 +162,12 @@ public class GuardrailRuleOpsService {
 
     /**
      * 手动热更新：本地 {@code registry.reload()} 同步执行 + pub/sub 广播
-     * （发布实例自身订阅会再触发一次 synchronized 幂等重载，无害；
-     * 协调器按返回值落 rag.guardrail.reload.succeeded/failed 账）。
+     * （v2.112：本地重载就地落账；广播载荷带本实例标识，发布实例自身订阅的回环
+     * 由协调器跳过——不再二次装载、不重复计账；他实例照旧重载）。
      */
     public ReloadResult reload() {
         boolean reloaded = registry.reload();
+        metrics.recordGuardrailReload(reloaded);
         publishSignal("manual");
         return new ReloadResult(registry.sourceName(), reloaded,
             registry.currentInjectionRules().size(), registry.currentOutputRules().size());
@@ -174,19 +177,23 @@ public class GuardrailRuleOpsService {
 
     private boolean postWrite(String operation) {
         boolean reloaded = registry.reload();
+        // 记账归位（v2.112）：本地重载在「实际发生处」落账——自消息回环已被协调器跳过，
+        // 一次触发恰好一次装载一次计账（旧形态本地不计账、回环计账 ⇒ 指标与真实重载脱钩）
+        metrics.recordGuardrailReload(reloaded);
         if (!reloaded) {
             log.warn("词表写操作已受理（op={}）但本地热重载 fail-keep 保旧快照——经手动重载端点重试", operation);
         }
-        publishSignal(operation);
+        publishSignal("crud-" + operation);
         exportArchive();
         metrics.recordGuardrailOps(operation);
         return reloaded;
     }
 
+    /** 广播集群信号（带本实例标识——发布实例自身订阅回环由协调器跳过，v2.112） */
     private void publishSignal(String reason) {
         try {
             redissonClient.getTopic(GuardrailReloadCoordinator.RELOAD_CHANNEL, StringCodec.INSTANCE)
-                .publish("crud-" + reason);
+                .publish(GuardrailReloadSignal.payload(reason));
         } catch (RuntimeException e) {
             log.warn("词表重载信号发布失败（本地已生效，集群同步降级）: {}", e.getMessage());
         }

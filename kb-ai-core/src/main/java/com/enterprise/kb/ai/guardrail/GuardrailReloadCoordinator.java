@@ -1,6 +1,7 @@
 package com.enterprise.kb.ai.guardrail;
 
 import com.enterprise.kb.ai.metrics.AiBusinessMetrics;
+import com.enterprise.kb.commons.guardrail.GuardrailReloadSignal;
 import com.enterprise.kb.commons.guardrail.GuardrailRulesRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -27,9 +28,12 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>双触发通道驱动 {@link GuardrailRulesRegistry#reload()}：
  * <ul>
- *   <li><b>pub/sub 即时信号</b>：Redis 频道 {@value #RELOAD_CHANNEL}（运营侧
- *       {@code tools/guardrail/publish_reload_signal.py} 或 redis-cli PUBLISH 发布）
- *       ——攻击情报响应免重启主通道；Redisson 传输内建断线自动重订阅；</li>
+ *   <li><b>pub/sub 即时信号</b>：Redis 频道 {@value #RELOAD_CHANNEL}（应用内触发方
+ *       = CRUD 写后闭环 / 迁移灌库，运营侧 = {@code tools/guardrail/publish_reload_signal.py}
+ *       或 redis-cli PUBLISH）——攻击情报响应免重启主通道；Redisson 传输内建断线自动重订阅；
+ *       <b>自消息跳板（v2.112）</b>：应用内载荷形如 {@code reason|instanceId}
+ *       （{@link GuardrailReloadSignal}），发布实例本地已同步重载 ⇒ 自身订阅回环跳过、
+ *       不再二次装载；外部/未知载荷恒触发（判定失败的安全默认是重载）；</li>
  *   <li><b>mtime 轮询回落</b>：仅对 {@code file:} 前缀外部词表源启用（jar 内
  *       classpath 资源 mtime 为构建时刻不可靠，且重部署必经进程重启自然重装载），
  *       覆盖信号丢失/Redis 不可达窗口（pub/sub fire-and-forget 无 backlog）。</li>
@@ -51,7 +55,11 @@ import java.util.concurrent.TimeUnit;
 @ConditionalOnProperty(name = "rag.guardrail.reload.enabled", havingValue = "true", matchIfMissing = true)
 public class GuardrailReloadCoordinator {
 
-    /** 热重载信号频道（运营侧经 publish_reload_signal.py / redis-cli PUBLISH 发布，消息体不解析） */
+    /**
+     * 热重载信号频道（应用内经 {@link GuardrailReloadSignal#payload} 带实例标识发布；
+     * 运营侧经 publish_reload_signal.py / redis-cli PUBLISH 发布裸载荷——载荷仅用于
+     * 自消息判定，不承载其他语义）
+     */
     public static final String RELOAD_CHANNEL = "rag:guardrail:reload";
 
     private final GuardrailRulesRegistry registry;
@@ -80,7 +88,14 @@ public class GuardrailReloadCoordinator {
         // 1. pub/sub 即时信号通道（启动 fail-open：Redis 不可达降级纯轮询，不击穿启动）
         try {
             topic = redissonClient.getTopic(RELOAD_CHANNEL, StringCodec.INSTANCE);
-            topicListenerId = topic.addListener(String.class, (channel, message) -> reload("pub/sub 信号"));
+            topicListenerId = topic.addListener(String.class, (channel, message) -> {
+                if (GuardrailReloadSignal.isSelf(message)) {
+                    // 自消息回环（v2.112）：本实例已在触发点完成同步重载并自行落账，跳过重复装载
+                    log.debug("护栏词表重载信号出自本实例（本地已同步生效），跳过重复装载: {}", message);
+                    return;
+                }
+                reload("pub/sub 信号");
+            });
         } catch (RuntimeException e) {
             log.warn("护栏词表热重载信号频道订阅失败，降级 mtime 轮询单通道: {}", e.getMessage());
         }
