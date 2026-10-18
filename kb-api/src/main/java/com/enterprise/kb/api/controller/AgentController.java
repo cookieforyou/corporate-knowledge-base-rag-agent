@@ -116,7 +116,6 @@ public class AgentController {
         chatSessionService.reseedMemoryIfAbsent(sessionId);
         // 本轮句柄（3.17）：messageId 定位归档消息（反馈外键），traceId 关联审计行（反馈回填）
         String assistantMessageId = UUID.randomUUID().toString();
-        ctx.setTraceId(UUID.randomUUID().toString());
 
         boolean toolMode = MODE_TOOL.equals(mode);
         boolean agentMode = MODE_AGENT.equals(mode);
@@ -165,7 +164,6 @@ public class AgentController {
         // 本轮句柄（3.17）：messageId 经 DONE 帧送达前端作反馈定位键，归档复用同一 ID；
         // traceId 经 RetrievalContext 透传 AuditTraceAdvisor 落库，反馈回填凭此关联审计行
         String assistantMessageId = UUID.randomUUID().toString();
-        traceCtx.setTraceId(UUID.randomUUID().toString());
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
         // TTFT 计量（rag.ttft，Phase4簇② 4.3）：请求进入 → 首个非空 token，双链共记；
@@ -375,6 +373,7 @@ public class AgentController {
         if (ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
             throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
         }
+        ctx.setTraceId(UUID.randomUUID().toString());
         return ctx;
     }
 
