@@ -116,7 +116,6 @@ public class AgentController {
         chatSessionService.reseedMemoryIfAbsent(sessionId);
         // 本轮句柄（3.17）：messageId 定位归档消息（反馈外键），traceId 关联审计行（反馈回填）
         String assistantMessageId = UUID.randomUUID().toString();
-
         boolean toolMode = MODE_TOOL.equals(mode);
         boolean agentMode = MODE_AGENT.equals(mode);
         if (!toolMode) {
@@ -128,7 +127,6 @@ public class AgentController {
                 : agentMode
                     ? orchestrator.chatOrchestrator(query, sessionId, ctx)
                     : ragChatService.chatRag(query, sessionId, ctx);
-
         chatSessionService.archiveTurn(sessionId, ctx.getTenantId(), ctx.getUserId(), mode,
             safeQuery, answer, assistantMessageId,
             // 溯源载荷（v2.17）：tool/agent 链零检索、闲聊免检索直答无溯源 → null
@@ -170,7 +168,6 @@ public class AgentController {
         // 计时起点取 Controller 入口（含 Advisor 链前置开销，端到端口径）
         long requestStartNanos = System.nanoTime();
         AtomicBoolean ttftRecorded = new AtomicBoolean();
-
         boolean toolMode = MODE_TOOL.equals(mode);
         boolean agentMode = MODE_AGENT.equals(mode);
         if (!toolMode) {
@@ -185,17 +182,23 @@ public class AgentController {
         traceCtx.setProgressListener(evt -> {
             if (evt.toolCalls() != null) {
                 synchronized (progressSink) {
-                    progressSink.tryEmitNext(ServerSentEvent.<Object>builder(
-                            new ToolCallEvent(evt.toolCalls().stream()
-                                .map(tc -> new ToolCallInfo(tc.toolName(), tc.status(),
-                                    tc.approvalId(), tc.summary())).toList()))
-                        .event(Constants.SseEvent.TOOL_CALL).build());
+                    progressSink.tryEmitNext(
+                        ServerSentEvent.<Object>builder(
+                            new ToolCallEvent(
+                                evt.toolCalls().stream()
+                                .map(tc -> new ToolCallInfo(tc.toolName(), tc.status(), tc.approvalId(), tc.summary()))
+                                .toList()
+                            )
+                        ).event(Constants.SseEvent.TOOL_CALL).build()
+                    );
                 }
             } else {
                 synchronized (progressSink) {
-                    progressSink.tryEmitNext(ServerSentEvent.<Object>builder(
-                            new ProgressFrame(evt.kind(), evt.text()))
-                        .event(Constants.SseEvent.PROGRESS).build());
+                    progressSink.tryEmitNext(
+                        ServerSentEvent.<Object>builder(
+                            new ProgressFrame(evt.kind(), evt.text())
+                        ).event(Constants.SseEvent.PROGRESS).build()
+                    );
                 }
             }
         });
@@ -206,7 +209,6 @@ public class AgentController {
             : agentMode
                 ? orchestrator.chatStreamOrchestrator(query, sessionId, traceCtx)
                 : ragChatService.chatStreamRag(query, sessionId, traceCtx);
-
         // token 主链（唯一订阅源——merge 消费一次，绝不重复订阅触发二次 LLM 调用）：
         // 完成/错误时关闭进度通道与心跳（merge 全源 completion 语义——interval 无限流
         // 若不显式终止将致主流完成后 merge 永不 complete，SSE 连接悬挂）
@@ -240,8 +242,7 @@ public class AgentController {
         // 此帧（ctx 参数链信号，位于 TOOL_CALL/TRACE 之前）要求前端整段替换为安全
         // 话术；聚合形态话术即唯一输出，此帧缺席
         sseFlux = sseFlux.concatWith(Mono.defer(() -> traceCtx.isOutputReplaced()
-            ? Mono.just(ServerSentEvent.<Object>builder(
-                new ReplaceEvent(traceCtx.getOutputReplacement())).event(Constants.SseEvent.REPLACE).build())
+            ? Mono.just(ServerSentEvent.<Object>builder(new ReplaceEvent(traceCtx.getOutputReplacement())).event(Constants.SseEvent.REPLACE).build())
             : Mono.empty()));
         // SSE 事件按链路精简（11.5）：tool/agent 链只可能产生 TOOL_CALL（无溯源数据不推空
         // TRACE）——agent 链的委派即工具调用（task），协议零变更（Phase5簇⑤ 5.3）；
@@ -250,17 +251,14 @@ public class AgentController {
         if (toolMode || agentMode) {
             sseFlux = sseFlux.concatWith(Flux.defer(() -> traceCtx.getToolCalls().isEmpty()
                 ? Flux.empty()
-                : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx))
-                    .event(Constants.SseEvent.TOOL_CALL).build())));
+                : Flux.just(ServerSentEvent.<Object>builder(toToolCallEvent(traceCtx)).event(Constants.SseEvent.TOOL_CALL).build())));
         } else {
             sseFlux = sseFlux.concatWith(Mono.defer(() -> traceCtx.isSkipRetrieval()
                 ? Mono.empty()
-                : Mono.fromSupplier(() ->
-                    ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event(Constants.SseEvent.TRACE).build())));
+                : Mono.fromSupplier(() -> ServerSentEvent.<Object>builder(safeBuildTrace(traceCtx)).event(Constants.SseEvent.TRACE).build())));
         }
         Flux<ServerSentEvent<Object>> result = sseFlux
-            .concatWith(Mono.just(ServerSentEvent.<Object>builder(
-                new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
+            .concatWith(Mono.just(ServerSentEvent.<Object>builder(new DoneEvent(assistantMessageId, traceCtx.getTraceId())).build()))
             .doOnComplete(() -> chatSessionService.archiveTurn(
                 sessionId, traceCtx.getTenantId(), traceCtx.getUserId(), mode,
                 safeQuery,
@@ -272,8 +270,7 @@ public class AgentController {
                 toToolCallInfos(traceCtx)))
             .onErrorResume(e -> {
                 log.error("流式问答失败", e);
-                return Flux.just(ServerSentEvent.<Object>builder(
-                    new ErrorEvent(String.valueOf(e.getMessage()))).build());
+                return Flux.just(ServerSentEvent.<Object>builder(new ErrorEvent(String.valueOf(e.getMessage()))).build());
             });
         return bridgeTraceContext(result);
     }
@@ -389,10 +386,11 @@ public class AgentController {
 
     private static TraceEvent buildTraceEvent(RetrievalContext ctx) {
         return new TraceEvent(ctx.getTraceSummary().stream()
-            .map(entry -> new SourceTrace(entry.source(), entry.documents().stream()
-                .map(doc -> toChunkTrace(doc, entry.source()))
-                .toList(), entry.latencyMs()))
-            .toList());
+            .map(entry -> new SourceTrace(
+                    entry.source(),
+                    entry.documents().stream().map(doc -> toChunkTrace(doc, entry.source())).toList(),
+                    entry.latencyMs())
+            ).toList());
     }
 
     /** Phase5簇④：追加 graph 路得分/排名键（图路缺位时元数据无键，帧形态不变） */
