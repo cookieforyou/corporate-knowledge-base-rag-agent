@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第一卷「项目全景蓝图（战略层）」第二章）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.1 现状对齐**（模型双形态 / 三链 13 Advisor / Neo4j 图库 / 辅助模型族 / 版本基线）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.2 代码块治理（2026-10-20）**：删除实现代码/配置类代码，回链源码；保留配置键族与选型表。此前 v2.1 现状对齐（模型双形态 / 三链 13 Advisor / Neo4j 图库 / 辅助模型族 / 版本基线）
 >
 > **v2 修订**：决策 2 中删除了关于 `spring.ai.vectorstore.type=custom` 的无效配置说明；决策 3 追加了关于百炼 DashScope 官方 starter 的技术债务注记；2.1 技术选型表修正 Spring Boot 版本描述；决策 4 Advisor 链表中 `PrefetchRagAdvisor` 已按模块化 RAG 规范更名为 `RetrievalAugmentationAdvisor`。
 >
@@ -115,29 +115,7 @@ kb.vector-store.provider = pgvector | milvus
 
 **实现方式**：
 
-```java
-// kb-infrastructure/vectorstore/VectorStoreConfig.java
-@Configuration
-@EnableConfigurationProperties(KbVectorStoreProperties.class)
-public class VectorStoreConfig {
-
-    @Bean
-    @ConditionalOnProperty(prefix = "kb.vector-store", name = "provider",
-        havingValue = "pgvector", matchIfMissing = false)
-    public VectorStore pgvectorVectorStore(
-        JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel, ...) {
-        return PgVectorStore.builder(jdbcTemplate, embeddingModel).build();
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "kb.vector-store", name = "provider",
-        havingValue = "milvus", matchIfMissing = true)
-    public VectorStore milvusVectorStore(
-        MilvusServiceClient milvusClient, EmbeddingModel embeddingModel, ...) {
-        return MilvusVectorStore.builder(milvusClient, embeddingModel).build();
-    }
-}
-```
+> **实现位置（源码为准）**：双后端条件装配见 [`VectorStoreConfig.java`](../../kb-infrastructure/src/main/java/com/enterprise/kb/infrastructure/vectorstore/VectorStoreConfig.java)；pgvector 另钉 `idType(TEXT)`（默认 UUID 会导致 delete 静默失效，7.2）。本节不复制装配代码。
 
 **关键设计**：
 - 上层模块（kb-ai-core、kb-etl）注入 `VectorStore` 接口，完全不感知底层实现
@@ -199,6 +177,8 @@ Embedding / Rerank                         →  百炼 qwen3.7-text-embedding / 
 ```
 
 **配置示例**（`kb-ai-core/src/main/resources/application-ai.yml`，经 `spring.config.import` 导入）：
+
+> 以下为**配置键族示意**；权威源 = `application-ai.yml`。
 
 ```yaml
 spring:

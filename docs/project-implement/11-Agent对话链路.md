@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.118 增 §11.11 外部通道**（钉钉 Stream 群机器人 + A2A v1.0 端点；此前交付但未入设计章，本次补齐）· v2.117（ctx 读取统一入口族归一到 10 章 v3.06，§11.2）· v2.116（Phase5簇⑥ 批3 归档登记，§11.4.1）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.119 代码块治理（2026-10-20）**：删除 Advisor/Controller/工具类实现代码，改职责/顺序 + 源码回链。此前 v2.118 增 §11.11 外部通道（钉钉 Stream 群机器人 + A2A v1.0 端点；此前交付但未入设计章，本次补齐）· v2.117（ctx 读取统一入口族归一到 10 章 v3.06，§11.2）· v2.116（Phase5簇⑥ 批3 归档登记，§11.4.1）
 >
 > **v2.108（2026-09-07，Phase5簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
@@ -209,51 +209,7 @@ RAG 检索与证据注入的完整实现见**第十章**（`RetrievalAugmentatio
 
 定稿职责：① before 打检索起始时刻戳（调试 API 10.7 / 时延观测）；② after 将 trace 快照写入响应上下文（供**同步**链路调试 API 消费；流式 TRACE 走 Controller 直读同一实例的旁路，见 11.3）。
 
-```java
-package com.enterprise.kb.ai.advisor;
-
-import com.enterprise.kb.ai.retriever.RetrievalContext;
-import org.springframework.ai.chat.client.ChatClientRequest;      // record，位于 chat.client 包（非 advisor.api）
-import org.springframework.ai.chat.client.ChatClientResponse;
-import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
-import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
-import org.springframework.stereotype.Component;
-
-import java.util.HashMap;
-import java.util.Map;
-
-/** 检索溯源 Advisor —— Order 450（先于 RetrievalAugmentationAdvisor 的 500） */
-@Component
-public class RetrievalTraceAdvisor implements BaseAdvisor {
-
-    @Override
-    public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
-        Map<String, Object> context = new HashMap<>(request.context());
-        context.put("trace_start_ms", System.currentTimeMillis());
-        // record 重建：new ChatClientRequest(prompt, context)，无 from()
-        return new ChatClientRequest(request.prompt(), context);
-    }
-
-    @Override
-    public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
-        // advisor 参数随链路透传于响应上下文；无则原样返回（kb-eval 等非 Web 入口）
-        if (!(response.context().get(RetrievalContext.CONTEXT_KEY) instanceof RetrievalContext ctx)) {
-            return response;
-        }
-        Map<String, Object> context = new HashMap<>(response.context());
-        context.put("rag_trace", ctx.getTraceSummary());       // List<TraceEntry>：双路原始命中 + final 最终序列
-        context.put("retrieval_count", ctx.getTraceSummary().size());
-        context.put("top_fusion_score", ctx.getTopFusionScore());
-        return ChatClientResponse.builder()
-            .chatResponse(response.chatResponse())             // v1 误写为 response.response()
-            .context(context)
-            .build();
-    }
-
-    @Override
-    public int getOrder() { return 450; }
-}
-```
+> **实现位置（源码为准）**：`RetrievalTraceAdvisor`（order 450）见 [`RetrievalTraceAdvisor.java`](../../kb-ai-core/src/main/java/com/enterprise/kb/ai/advisor/RetrievalTraceAdvisor.java)。关键契约：纯上下文 Map 操作；before 打检索起始时刻；after 写 trace 快照；身份填充在 Controller 请求线程完成。
 
 > **v1 → v2/v2.1 API 修正汇总**：
 > - `ChatClientRequest.from(request).systemText(...).context(...).build()` → **不存在**。`ChatClientRequest` 是 record，仅有 `new ChatClientRequest(Prompt, Map)` 构造器与 `prompt()`/`context()` 访问器；Prompt 级变换用 `Prompt.builder()` / `Prompt.mutate()`。
@@ -371,66 +327,13 @@ public class RetrievalTraceAdvisor implements BaseAdvisor {
 > 契约细节（缺失/类型不符 → null、宽口径入口与 `from(null)` 编译歧义）见 10 章 §10.2.1 v3.06；
 > 回归资产 `RetrievalContextTest` 七例。
 
-```java
-package com.enterprise.kb.ai.config;
-
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.ChatMemoryRepository;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-@Configuration
-public class AgentChatClientConfig {
-
-    /**
-     * 会话记忆（v2.3 定稿）：Redis 仓储（starter 自动配置注入 ChatMemoryRepository）
-     * + 滑动窗口 + 容错装饰。显式构建令自动配置的默认 ChatMemory Bean 让位。
-     */
-    @Bean
-    public ChatMemory agentChatMemory(ChatMemoryRepository chatMemoryRepository) {
-        return new FaultTolerantChatMemory(
-            MessageWindowChatMemory.builder()
-                .chatMemoryRepository(chatMemoryRepository)
-                .maxMessages(20)
-                .build());
-    }
-
-    @Bean
-    public ChatClient agentChatClient(
-            ChatModel chatModel,                       // @Qualifier("deepSeekChatModel")
-            ChatMemory agentChatMemory,
-            TokenBudgetAdvisor tokenBudgetAdvisor,     // 3.8（30）
-            RateLimitAdvisor rateLimitAdvisor,         // 3.7（100）
-            OutputGuardrailAdvisor outputGuardrailAdvisor,   // 3.6（110）
-            InputSanitizeAdvisor inputSanitizeAdvisor,       // 3.5（300）
-            RetrievalTraceAdvisor retrievalTraceAdvisor,
-            RetrievalAugmentationAdvisor retrievalAugmentationAdvisor
-            /* Phase 3 待挂：auditTraceAdvisor(10), authAdvisor(20), toolCallingAdvisor(1000) */) {
-
-        return ChatClient.builder(chatModel)
-            .defaultSystem("你是企业知识库 RAG Agent 助手。")
-            .defaultAdvisors(
-                tokenBudgetAdvisor,                    // 30
-                rateLimitAdvisor,                      // 100
-                outputGuardrailAdvisor,                // 110
-                inputSanitizeAdvisor,                  // 300
-                MessageChatMemoryAdvisor.builder(agentChatMemory).order(400).build(),
-                retrievalTraceAdvisor,                 // 450
-                retrievalAugmentationAdvisor           // 500
-            )
-            .build();
-    }
-}
-```
+> **实现位置（源码为准）**：三链 ChatClient 装配见 [`RagAgentChatClientConfig.java`](../../kb-ai-core/src/main/java/com/enterprise/kb/ai/config/RagAgentChatClientConfig.java)、[`ToolAgentChatClientConfig.java`](../../kb-ai-agent/src/main/java/com/enterprise/kb/ai/agent/config/ToolAgentChatClientConfig.java)、[`OrchestratorChatClientConfig.java`](../../kb-ai-agent/src/main/java/com/enterprise/kb/ai/agent/config/OrchestratorChatClientConfig.java)。关键契约：rag 链零工具、tool 链零检索、agent 链条件装配；共享 `smartRoutingChatModel` / `agentChatMemory` / 护栏配额 Advisor；`ToolCallingAdvisor(1000)` tool/agent 共享。
 
 > **v2 注（会话 ID）**：多轮对话的会话标识通过 advisor 参数传递，键为 `ChatMemory.CONVERSATION_ID`（值 `"chat_memory_conversation_id"`，经核验 2.0 未变）：`.advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))`。
 >
 > **v2.3 会话协议**：`/chat`、`/chat/stream` 请求体可选 `sessionId`——前端生成并复用即多轮；缺省后端生成一次性 ID（兼容 Phase 1 单轮）。同步响应回传 `sessionId`；流式协议不变（前端自备）。**缺失会话 ID 为硬失败**（Assert 断言），Controller 层必须保证非空。
 >
-> **v2.9 装配形态更新（2026-08-05，任务 3.19）**：上方单 `agentChatClient` 草图已被**双链路拆分**取代——`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索），请求体 `mode: rag|tool` 显式分流；下方草图代码块为历史形态，定稿见 **§11.5**。
+> **v2.9 装配形态更新（2026-08-05，任务 3.19）**：早期单 `agentChatClient` 草案已被**双链路拆分**取代——`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索），请求体 `mode: rag|tool` 显式分流；该实现草图已删除，定稿见 **§11.5**。
 
 ### 11.2.1 @Tool 工具调用与 Human-in-the-Loop（v2 重写）
 
@@ -470,58 +373,11 @@ public class AgentChatClientConfig {
 > 加固：携带 approvedToolCallId 时 ChatService 注入 system 指令提示模型调用写
 > 工具完成执行（指令不落记忆，system 消息不进记忆窗口）。
 
-```java
-package com.enterprise.kb.ai.tool;
-
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
-
-@Component
-public class EnterpriseTools {
-
-    /** 读操作 —— 自动执行，无审批需求 */
-    @Tool(description = "根据员工姓名或工号查询员工基本信息，包括部门、职位、入职日期")
-    public EmployeeInfo queryEmployee(
-            @ToolParam(description = "员工姓名或工号") String keyword) {
-        return erpService.findEmployee(keyword);
-    }
-
-    /**
-     * 写操作 —— HITL 三段式（v2 真实机制）：
-     * 1. 工具自身做「预检 + 挂起」：首次调用不落库，返回待确认摘要 + approvalId
-     * 2. 前端经 SSE TOOL_CALL 事件（status=PENDING_APPROVAL）弹出确认卡片
-     * 3. 用户确认后，前端携带 approvalId 发起二次对话，工具校验通过才执行
-     */
-    @Tool(description = "提交员工请假申请。首次调用返回待确认摘要，用户确认后才会真正提交")
-    public String submitLeaveRequest(
-            @ToolParam(description = "员工工号") String employeeId,
-            @ToolParam(description = "请假开始日期 (yyyy-MM-dd)") String startDate,
-            @ToolParam(description = "请假结束日期 (yyyy-MM-dd)") String endDate,
-            @ToolParam(description = "请假类型: 年假/事假/病假") String leaveType,
-            ToolContext context) {
-
-        // 通过 advisor 参数 → ToolContext 上下文传递确认态（无 isApproved() 方法）
-        Object approval = context.getContext().get("approval:" + employeeId + ":" + leaveType);
-        if (approval == null) {
-            String approvalId = approvalService.createPending(employeeId, startDate, endDate, leaveType);
-            return "⏳ PENDING_APPROVAL:" + approvalId
-                + " 请确认：为员工 " + employeeId + " 提交 " + leaveType
-                + " 请假（" + startDate + " 至 " + endDate + "）";
-        }
-        approvalService.verifyAndConsume(approval.toString());
-        return oaService.submitLeave(employeeId, startDate, endDate, leaveType);
-    }
-}
-```
+> **实现位置（源码为准）**：Mock 工具拆分为 [`EnterpriseMockReadTools.java`](../../kb-ai-agent/src/main/java/com/enterprise/kb/ai/agent/tool/EnterpriseMockReadTools.java) 与 [`EnterpriseMockWriteTools.java`](../../kb-ai-agent/src/main/java/com/enterprise/kb/ai/agent/tool/EnterpriseMockWriteTools.java)。关键契约：读工具自动执行；写工具 HITL 三段式（挂起 approvalId → approve → 二次对话一次性消费）；`toolContext` 仅 tool/agent 链组装。
 
 **可选的框架级增强**：自定义 `ToolExecutionEligibilityChecker` 在工具执行前统一拦截写操作工具（按工具名前缀 `write_` 约定），以及 `ToolMetadata.returnDirect()` 让特定工具结果直达用户不经模型润色。`ToolCallingAdvisor` 装配时设置最大调用次数防循环：
 
-```java
-ToolCallingAdvisor.builder()
-    /* toolCallbacks / toolCallbackProviders 经 ChatClient.defaultTools(...) 注入 */
-    .build();
-```
+> **实现位置（源码为准）**：`ToolCallingAdvisor` 的 order 1000 装配见 [`ToolAgentChatClientConfig.java`](../../kb-ai-agent/src/main/java/com/enterprise/kb/ai/agent/config/ToolAgentChatClientConfig.java)（`advisorOrder(Constants.ChainOrder.TOOL_CALLING)`）。关键契约：tool/orchestrator 两链共享；工具循环最靠近模型（内层）；自动注册默认序会致循环重复穿越内层链，故必须显式 order 1000。
 
 ### 11.2.2 SmartRoutingChatModel 多模型智能路由
 
@@ -667,6 +523,8 @@ ToolCallingAdvisor.builder()
 
 > **v2 修正**：① SSE 传输自 Spring AI 2.0.1 起**已废弃**，新接入使用 **Streamable HTTP**；② `ToolRegistry.merge(...)` 不存在——合并多来源工具经 `ChatClient.Builder.defaultTools(provider1, provider2, ...)`。
 
+> 以下为 **MCP 配置键族示意**；权威源 = `application-ai.yml`（`spring.ai.mcp.*`）与 `McpKnowledgeTools` 注解。
+
 ```yaml
 # application.yml - MCP Client 配置（Spring AI 2.0.1 GA）
 spring:
@@ -719,71 +577,7 @@ spring:
 > 伴生**心跳注释帧**（`: ping` 每 15s，浏览器解析层自动忽略）防中间层 idle 掐断。
 > 流末 TOOL_CALL/TRACE/DONE 投影保留兜底。头部 v2.111 注记详述。
 
-```java
-package com.enterprise.kb.api.controller;
-
-import org.springframework.http.MediaType;
-import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
-@RestController
-@RequestMapping("/api/v1/agent")
-public class AgentStreamController {
-
-    private final ChatClient knowledgeAgent;
-
-    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<AgentStreamEvent>> streamChat(
-            @RequestBody ChatRequest request,
-            @RequestParam String sessionId) {
-
-        // 每请求 trace 实例：请求线程创建并填充身份（v2.1：绝非请求作用域代理，见下方注），
-        // 经 advisor 参数传入检索组件，流末直读同一实例
-        RetrievalContext trace = newRetrievalContext();   // new RetrievalContext() + JwtUtils 填充 tenantId/userId
-
-        return knowledgeAgent.prompt()
-            .user(request.query())
-            .advisors(spec -> spec
-                .param(ChatMemory.CONVERSATION_ID, sessionId)
-                .param(RetrievalContext.CONTEXT_KEY, trace))
-            .stream()
-            .chatResponse()
-            .flatMap(response -> {
-                // TOKEN 事件：v2 修正访问路径 chatResponse()（原误用 response()）
-                if (response.getResult() != null) {
-                    String text = response.getResult().getOutput().getText();
-                    if (text != null && !text.isEmpty()) {
-                        return Mono.just(ServerSentEvent.<AgentStreamEvent>builder()
-                            .event("TOKEN").data(new TokenEvent(text)).build());
-                    }
-                }
-                return Mono.empty();   // v1 的空 HEARTBEAT 刷屏改为静默
-            })
-            .concatWith(Mono.fromSupplier(() -> {
-                // TRACE 事件：流结束时从 RetrievalContext 取完整溯源（10.1 元数据约定）
-                return ServerSentEvent.<AgentStreamEvent>builder()
-                    .event("TRACE")
-                    .data(new TraceEvent(trace.getTraceSummary())).build();
-            }))
-            .concatWith(Mono.just(ServerSentEvent.<AgentStreamEvent>builder()
-                .event("DONE").data(new DoneEvent(sessionId)).build()))
-            .onErrorResume(e -> Flux.just(ServerSentEvent.<AgentStreamEvent>builder()
-                .event("ERROR")
-                .data(new ErrorEvent("CHAT_FAILED", e.getMessage())).build()));
-    }
-}
-
-// 事件类型定义（v1 保持不变）
-sealed interface AgentStreamEvent permits TokenEvent, TraceEvent, ToolCallEvent,
-        ErrorEvent, DoneEvent {}
-record TokenEvent(String token) implements AgentStreamEvent {}
-record TraceEvent(List<TraceEntry> sources) implements AgentStreamEvent {}
-record ToolCallEvent(String toolName, String status, String result) implements AgentStreamEvent {}
-record ErrorEvent(String code, String message) implements AgentStreamEvent {}
-record DoneEvent(String sessionId) implements AgentStreamEvent {}
-```
+> **实现位置（源码为准）**：流式入口与 SSE 帧组装见 [`AgentController.java`](../../kb-api/src/main/java/com/enterprise/kb/api/controller/AgentController.java)。关键契约：token 主链唯一订阅；`Sinks.Many` 进度旁路合流；心跳注释帧；流末 TOOL_CALL/TRACE/DONE 投影兜底。
 
 > **v2 注（流式上下文传递）**：Reactor 流式链路跨线程，Advisor 上下文（`ChatClientResponse.context()`）在流末不易取回，故溯源数据改由 `RetrievalContext` 旁路传递——与检索过滤器共用同一机制（10.2.1），一处设计两处复用。前端对 SSE 的消费协议与 Phase 1 兼容（`data: {"token":"..."}` 追加，新增 `event: TRACE` 命名事件，旧前端忽略即可）。
 >
@@ -1217,18 +1011,7 @@ get_document / ask` 指标面（AiBusinessMetrics recordMcpToolCall 收口，
 不泄露存在性）/ MCP_QUERY_EMPTY / MCP_SCOPE_DENIED / 链路既有码族
 （PROMPT_INJECTION/RATE_LIMITED/TOKEN_BUDGET_EXCEEDED）。
 
-```java
-@Component
-public class McpKnowledgeTools {
-    @McpTool(name = "search", description = "...", annotations = @McpTool.McpAnnotations(readOnlyHint = true))
-    public List<SearchHitView> search(@McpArg(name = "query", required = true) String query) {
-        RetrievalContext ctx = identityGuard.requireIdentity();   // 请求线程 JWT → 纯实例
-        // 改写 → 双路召回 → RRF → 重排（同 RetrievalDebugController 链形）
-    }
-    // get_document：findById 租户守卫 → 存活 chunk 序列（软删过滤 + maxChunks 截断）
-    // ask：ragChatService.chatRag(question, "mcp-" + UUID, ctx) 全链复用
-}
-```
+> **实现位置（源码为准）**：MCP 三件套见 [`McpKnowledgeTools.java`](../../kb-ai-agent/src/main/java/com/enterprise/kb/ai/agent/mcp/McpKnowledgeTools.java)。关键契约：search/get_document 直调检索链（零 LLM），ask 全链复用 RAG；身份经 `McpIdentityGuard` 物化 RetrievalContext；跨租户一律 `MCP_DOC_NOT_FOUND`；独立限流桶 + 轻量审计；容器无 ToolCallback Bean，HITL 不暴露给 MCP。
 
 ## 11.9 语义缓存（v2.71 新增，Phase5簇③ 5.6）
 

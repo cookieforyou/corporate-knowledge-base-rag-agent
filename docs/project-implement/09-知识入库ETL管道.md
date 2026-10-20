@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.36 补记 §9.6 图谱抽取异步旁路**（Phase5簇④；此前仅散见 10/17 章）· v2.35 修复批7：AST 视图预处理（9.2 v2.30）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.37 代码块治理（2026-10-20）**：删除 ETL 实现类代码，改职责/不变量 + 源码回链。此前 v2.36 补记 §9.6 图谱抽取异步旁路（Phase5簇④；此前仅散见 10/17 章）· v2.35 修复批7：AST 视图预处理（9.2 v2.30）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -12,30 +12,7 @@
 
 ## 9.0 ETL 异步执行器配置（Phase 1 已实现）
 
-```java
-package com.enterprise.kb.etl.config;
-
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableAsync;
-
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-
-@Configuration
-@EnableAsync
-public class EtlExecutorConfig {
-
-    /**
-     * ETL 专用虚拟线程执行器 —— 文档解析和向量化是 I/O 密集型任务，
-     * 虚拟线程是最佳选择，避免传统线程池耗尽 Web 线程
-     */
-    @Bean("etlExecutor")
-    public Executor etlExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
-    }
-}
-```
+> **实现位置（源码为准）**：ETL 虚拟线程执行器见 [`EtlExecutorConfig.java`](../../kb-etl/src/main/java/com/enterprise/kb/etl/config/EtlExecutorConfig.java)；共享 Bean `etlExecutor`。设计文档不复制配置类代码。
 
 ---
 
@@ -63,83 +40,7 @@ public class EtlExecutorConfig {
 
 ### 路由决策逻辑
 
-```java
-package com.enterprise.kb.etl.reader;
-
-import org.springframework.ai.document.Document;
-import org.springframework.ai.document.DocumentReader;
-import org.springframework.ai.reader.tika.TikaDocumentReader;
-import org.springframework.core.io.Resource;
-
-import java.util.List;
-
-/**
- * 智能解析路由器：基于文本密度探测动态选择解析链路
- *
- * 决策树：
- * - 文本密度 > 阈值 且 无复杂表格 → NATIVE（Tika）
- * - 文本密度 < 阈值（疑似扫描件） → OCR 兜底链路（云 OCR API）
- * - 密度正常但表格/图片密集     → DEEP（DocMind 解析 API）
- */
-public class SmartParsingRouter implements DocumentReader {
-
-    private static final double TEXT_DENSITY_THRESHOLD = 0.05;  // 字符数/页面面积比
-    private static final int PROBE_PAGES = 3;                   // 探测页数
-    private static final double COMPLEX_TABLE_RATIO = 0.3;      // 表格区域占比阈值
-
-    private final Resource resource;
-    private final TextDensityAnalyzer densityAnalyzer;   // PDFBox 文本提取 + 启发式
-    private final ParsingServiceClient parsingService;   // 解析 API 客户端（可插拔后端：DocMind / qwen3.5-ocr / Docling）
-    private final OcrApiClient ocrApiClient;             // 云 OCR 兜底
-    private final Map<String, Object> customMetadata;
-
-    @Override
-    public List<Document> get() {
-        var probe = densityAnalyzer.analyze(resource, PROBE_PAGES);
-
-        List<Document> docs;
-        if (probe.textDensity() < TEXT_DENSITY_THRESHOLD) {
-            docs = parseViaOcr(resource);            // 扫描件：OCR 兜底
-            mark(docs, ParseRoute.OCR);
-        } else if (probe.tableRatio() > COMPLEX_TABLE_RATIO) {
-            docs = parseViaService(resource);        // 复杂表格：深度解析服务
-            mark(docs, ParseRoute.DEEP);
-        } else {
-            docs = parseViaTika(resource);           // 常规电子文档
-            mark(docs, ParseRoute.NATIVE);
-        }
-        docs.forEach(d -> d.getMetadata().putAll(customMetadata));
-        return docs;
-    }
-
-    private List<Document> parseViaTika(Resource resource) {
-        return new TikaDocumentReader(resource).get();
-    }
-
-    /** 深度链路：DocMind 返回结构化结果（Markdown 正文 + 表格 HTML 块 + 图片描述） */
-    private List<Document> parseViaService(Resource resource) {
-        ParsingResult result = parsingService.parse(resource);
-        Document doc = new Document(result.markdownWithHtmlTables());
-        doc.getMetadata().put("table_count", result.tableCount());
-        doc.getMetadata().put("image_count", result.imageCount());
-        return List.of(doc);
-    }
-
-    private List<Document> parseViaOcr(Resource resource) {
-        OcrResult result = ocrApiClient.parseToHtml(resource);
-        Document doc = new Document(result.getHtmlContent());
-        doc.getMetadata().put("table_count", result.getTableCount());
-        doc.getMetadata().put("image_count", result.getImageCount());
-        return List.of(doc);
-    }
-
-    private void mark(List<Document> docs, ParseRoute route) {
-        docs.forEach(d -> d.getMetadata().put("parse_route", route.name()));
-    }
-
-    // Builder 省略
-}
-```
+> **实现位置（源码为准）**：三路由决策见 [`SmartParsingRouter.java`](../../kb-etl/src/main/java/com/enterprise/kb/etl/reader/SmartParsingRouter.java)。关键契约：仅 `.pdf` 走深度分叉；`parseRoute` 显式指定优先；失败回落 NATIVE；路由判定不读全文件。
 
 `ParseRoute` 枚举（kb-domain，v2 扩充）：`NATIVE` / `DEEP` / `OCR`。`kb_document.parse_route` 落库该值，供运维统计各链路占比与质量回溯。
 
@@ -162,108 +63,7 @@ public class SmartParsingRouter implements DocumentReader {
 - 保护块前后的短文本 → 并入最近文本 Chunk，避免孤立碎片；
 - 小表格（< 30 字符）退化为纯文本，避免噪声 Chunk。
 
-```java
-package com.enterprise.kb.etl.transformer;
-
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.document.DocumentTransformer;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
-
-import java.util.*;
-
-/**
- * HTML 结构保护式切分器
- *
- * <p>无保护标签的文档走快速路径（直接 TokenTextSplitter，Phase 1 行为）；
- * 含 table/img 的文档走 JSoup AST 解析 + 保护块提取。</p>
- */
-public class HtmlProtectingSplitter implements DocumentTransformer {
-
-    private static final List<String> PROTECTED_TAGS = List.of("table", "img");
-    private static final int MIN_TABLE_CHARS = 30;
-
-    private final TokenTextSplitter textSplitter = TokenTextSplitter.builder()
-        .withChunkSize(800)
-        .withMinChunkSizeChars(200)
-        .withMinChunkLengthToEmbed(10)
-        .withMaxNumChunks(10000)   // 切片数上限（官方默认）：非切片大小！超限后尾部剩余并入单个超大块，触发 embedding 输入超长拒绝
-        .withKeepSeparator(true)
-        .build();
-
-    @Override
-    public List<Document> apply(List<Document> documents) {
-        List<Document> result = new ArrayList<>();
-        for (Document doc : documents) {
-            String text = doc.getText();
-            if (!containsProtectedTags(text)) {
-                result.addAll(textSplitter.apply(List.of(doc)));   // 快速路径
-                continue;
-            }
-            result.addAll(splitWithProtection(doc));
-        }
-        return result;
-    }
-
-    private List<Document> splitWithProtection(Document doc) {
-        List<Document> result = new ArrayList<>();
-        List<ContentBlock> blocks = extractBlocks(Jsoup.parse(doc.getText()).body());
-        StringBuilder textBuffer = new StringBuilder();
-
-        for (ContentBlock block : blocks) {
-            switch (block.type()) {
-                case TEXT -> textBuffer.append(block.content()).append("\n");
-                case TABLE, IMAGE -> {
-                    // 先冲刷累积文本
-                    if (!textBuffer.isEmpty()) {
-                        result.addAll(textSplitter.apply(
-                            List.of(doc.mutate().text(textBuffer.toString()).build())));
-                        textBuffer.setLength(0);
-                    }
-                    // 保护块独立成 Chunk
-                    Map<String, Object> meta = new HashMap<>(doc.getMetadata());
-                    meta.put("chunk_type", block.type().name());
-                    meta.put("original_html", block.content());
-                    result.add(new Document(block.content(), meta));
-                }
-            }
-        }
-        if (!textBuffer.isEmpty()) {
-            result.addAll(textSplitter.apply(
-                List.of(doc.mutate().text(textBuffer.toString()).build())));
-        }
-        return result;
-    }
-
-    private List<ContentBlock> extractBlocks(Element body) {
-        List<ContentBlock> blocks = new ArrayList<>();
-        for (Element child : body.children()) {
-            switch (child.tagName()) {
-                case "table" -> {
-                    String html = child.outerHtml();
-                    blocks.add(html.length() >= MIN_TABLE_CHARS
-                        ? new ContentBlock(ContentType.TABLE, html)
-                        : new ContentBlock(ContentType.TEXT, child.text()));
-                }
-                case "img" -> blocks.add(
-                    new ContentBlock(ContentType.IMAGE, child.outerHtml()));
-                default -> blocks.add(
-                    new ContentBlock(ContentType.TEXT, child.text()));
-            }
-        }
-        return blocks;
-    }
-
-    private boolean containsProtectedTags(String html) {
-        String lower = html.toLowerCase();
-        return PROTECTED_TAGS.stream().anyMatch(tag -> lower.contains("<" + tag));
-    }
-
-    private enum ContentType { TEXT, TABLE, IMAGE }
-    private record ContentBlock(ContentType type, String content) {}
-}
-```
+> **实现位置（源码为准）**：保护式切分见 [`HtmlProtectingSplitter.java`](../../kb-etl/src/main/java/com/enterprise/kb/etl/transformer/HtmlProtectingSplitter.java)。关键契约：保护 table/img、递归 DOM、围栏/行内 code/结构标签配平、heading_path、确定性 chunk ID；规则演进见本节 9.2 与 v2.22-v2.30 修订注记。
 
 > **切分策略演进注记**：固定 Token 切分在 2026 年已是基线水平。语义切分（SemanticChunker，基于 embedding 相似度的语义断句）是 Phase 5+ 的演进方向，本阶段以「结构感知保护 + 可选 Contextual Retrieval（9.5）」为边界；本切分器的结构保护能力与后续语义切分不冲突，是其载体。
 
@@ -365,11 +165,7 @@ COMPLETED      kb_document 状态回写（chunk_count / table_count / parse_rout
 > LLM 增强表格 HTML 若跨调用漂移 → chunk 内容变 → ID 变 → Golden 失配，
 > 届时由 16 章文档级兜底指标（file_name 匹配）定位。解析产物漂移治理属 C1 议题。
 
-```java
-// Stage 4 之后插入 Stage 5（DocumentEtlService.process 内）
-progressCallback.accept(new EtlProgress(docId, EtlStage.INDEXING));
-esIndexWriter.indexChunks(doc, entities);   // 9.4
-```
+> **实现位置（源码为准）**：ETL 阶段推进与 ES 双写接线见 [`DocumentEtlService.java`](../../kb-etl/src/main/java/com/enterprise/kb/etl/service/DocumentEtlService.java)；`EtlStage` 枚举见同模块。设计文档不复制流程片段。
 
 `EtlStage` 枚举扩充：`READING, TRANSFORMING, PERSISTING, EMBEDDING, INDEXING, CLEANUP, COMPLETED, FAILED`。
 
@@ -427,68 +223,9 @@ esIndexWriter.indexChunks(doc, entities);   // 9.4
 
 v1 设计了 ES 检索却缺失写入环节——本章补齐。`EsIndexWriter` 将 Chunk 同步写入 `kb_chunks` 索引（mapping 见第十章 10.3）。
 
-> **v2.19 修正（2026-08-11，冲刺簇③ D2）**：批量写入刷新策略 `refresh(true)` → `Refresh.WaitFor`——语义仍为「返回即可检索」（请求挂起至下一次刷新周期完成），但避免大文档 ETL 尾部每批强制全索引刷新的长尾延迟。下方草图 `refresh(true)` 为 v2 原形态记录；级联删除（deleteByDocId）维持 `refresh(true)` 不变（运维路径，删除即时可见性优先）。
+> **v2.19 修正（2026-08-11，冲刺簇③ D2）**：批量写入刷新策略 `refresh(true)` → `Refresh.WaitFor`——语义仍为「返回即可检索」（请求挂起至下一次刷新周期完成），但避免大文档 ETL 尾部每批强制全索引刷新的长尾延迟。v2 原形态为 `refresh(true)`，现实现已改 `Refresh.WaitFor`（源码见 `EsIndexWriter`）；级联删除（deleteByDocId）维持 `refresh(true)` 不变（运维路径，删除即时可见性优先）。
 
-```java
-package com.enterprise.kb.etl.writer;
-
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import org.springframework.stereotype.Component;
-
-import java.util.List;
-
-/**
- * ES 双写器 —— chunk 与向量库同批写入，chunk_id 为文档 _id（幂等）
- */
-@Component
-public class EsIndexWriter {
-
-    private final ElasticsearchClient esClient;
-    private static final String INDEX = "kb_chunks";
-
-    public void indexChunks(KbDocument doc, List<KbChunk> entities) {
-        var ops = entities.stream()
-            .map(e -> EsChunkDoc.builder()
-                .chunkId(e.getId())
-                .docId(doc.getId())
-                .tenantId(doc.getTenantId())
-                .content(e.getContent())
-                .chunkType(e.getChunkType().name())
-                .fileName(doc.getOriginalName())
-                .pageNum(e.getPageNum())
-                .isDeleted(false)
-                .createdAt(e.getCreatedAt())
-                .build())
-            .map(d -> new BulkOperation.Builder()
-                .index(idx -> idx.index(INDEX).id(d.getChunkId()).document(d))
-                .build())
-            .toList();
-
-        var response = esClient.bulk(b -> b.operations(ops).refresh(true));
-        if (response.errors()) {
-            // 部分失败：记录失败 chunk_id 到 kb_document.error_message，不阻断主流程
-            log.error("ES 双写部分失败: docId={}, items={}", doc.getId(),
-                response.items().stream().filter(i -> i.error() != null).count());
-        }
-    }
-
-    /** 软删除同步（Chunk 编辑/删除时，第十四章运维 API 调用） */
-    public void markDeleted(String chunkId) {
-        esClient.update(u -> u.index(INDEX).id(chunkId)
-            .doc(Map.of("is_deleted", true)), EsChunkDoc.class);
-    }
-
-    /** 文档物理删除时级联清理（第十四章） */
-    public void deleteByDocId(String docId) {
-        esClient.deleteByQuery(d -> d.index(INDEX)
-            .query(q -> q.term(t -> t.field("doc_id").value(docId))));
-    }
-
-    /** 按 chunkId 批量物理删除（v2.25 优化冲刺簇⑥ C1，蓝绿 diff 清理专用，bulk + refresh(true)；
-     *  not_found 视为幂等成功——目标本就不在 ES） */
-    public void deleteByChunkIds(List<String> chunkIds) { /* bulk delete ops */ }
-}
-```
+> **实现位置（源码为准）**：ES 双写见 [`EsIndexWriter.java`](../../kb-etl/src/main/java/com/enterprise/kb/etl/writer/EsIndexWriter.java)。关键契约：bulk 写入 `_id=chunk_id` 幂等；正常写入 `Refresh.WaitFor`，级联删除 `refresh(true)`；`not_found` 幂等。
 
 > **v2.25 修正（2026-08-13，优化冲刺簇⑥ C1）**：`markDeleted` 软删写侧接线（此前零调用方）——
 > 读侧管道早已就位（ES 检索 term filter `is_deleted=false` + 向量路 RetrievalContext
@@ -504,41 +241,7 @@ public class EsIndexWriter {
 
 Anthropic Contextual Retrieval（2024 提出，2026 已被 AWS Bedrock 等原生集成）：embedding 前为每个 Chunk 生成一段"文档级上下文摘要"前缀，将 Chunk 放回文档语境，显著提升检索准确率（官方报告检索失败率降 67%）。
 
-```java
-package com.enterprise.kb.etl.transformer;
-
-/**
- * 上下文增强器 —— 可选环节，置于切分之后、向量化之前
- *
- * <p>对每个 Chunk 调用轻量 LLM：输入「文档前 N 字符概要 + Chunk 原文」，
- * 输出 50-100 字上下文说明，拼接到 Chunk 文本前再参与 embedding 与 ES 索引。</p>
- *
- * <p>成本控制：
- * - 默认关闭（kb.etl.contextual.enabled=false），按知识库/文档类型选择性开启；
- * - Prompt Caching 摊薄文档概要部分的 token 成本（同一文档的所有 Chunk 共享缓存前缀）；
- * - 使用经济模型（deepseek-flash）生成上下文。</p>
- */
-@Component
-@ConditionalOnProperty(prefix = "kb.etl.contextual", name = "enabled", havingValue = "true")
-public class ContextualEnrichmentTransformer implements DocumentTransformer {
-
-    private static final String CONTEXT_PROMPT = """
-        <document>
-        %s
-        </document>
-
-        请用 50-100 字说明下面这个片段在文档中的位置与作用（涉及什么主题、与上下文的关系），
-        只输出说明文本：
-        <chunk>
-        %s
-        </chunk>
-        """;
-
-    // apply(): 对每个 chunk 生成 context 前缀
-    // enriched = "【上下文】" + context + "\n" + originalContent
-    // content 字段存 enriched（参与 embedding/检索），original_content 存原文（展示用）
-}
-```
+> **实现位置（源码为准）**：语境增强见 [`ContextualEnrichmentTransformer.java`](../../kb-etl/src/main/java/com/enterprise/kb/etl/transformer/ContextualEnrichmentTransformer.java)。关键契约：默认开、并发 8、保序/失败隔离、`content` 增强文本 + `original_content` 原文。
 
 **与数据模型的契合**：`kb_chunk.original_content` 字段（schema 已预留）存原文，`content` 存增强后文本——前端 Chunk 观测台展示原文，检索走增强文本，两者天然分离。
 
