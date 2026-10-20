@@ -2,6 +2,7 @@ package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
+import com.enterprise.kb.eval.probe.RetrievalProbe;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

@@ -1,4 +1,4 @@
-package com.enterprise.kb.eval.runner;
+package com.enterprise.kb.eval.common;
 
 import com.enterprise.kb.ai.advisor.L2Verdict;
 import com.enterprise.kb.ai.advisor.SemanticInjectionAdvisor;

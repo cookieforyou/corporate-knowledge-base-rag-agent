@@ -1,4 +1,4 @@
-package com.enterprise.kb.eval.runner;
+package com.enterprise.kb.eval.common;
 
 import com.enterprise.kb.commons.constant.Constants;
 import com.enterprise.kb.eval.config.EvalProperties;

@@ -1,4 +1,4 @@
-package com.enterprise.kb.eval.runner;
+package com.enterprise.kb.eval.probe;
 
 import org.springframework.core.Ordered;
 

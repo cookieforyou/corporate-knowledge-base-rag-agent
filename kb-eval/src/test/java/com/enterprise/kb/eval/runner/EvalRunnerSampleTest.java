@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.common.EvalResult;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
 import org.junit.jupiter.api.Test;

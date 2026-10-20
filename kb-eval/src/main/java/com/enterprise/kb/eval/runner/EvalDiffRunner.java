@@ -1,5 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.common.EvalSnapshot;
+import com.enterprise.kb.eval.common.GitAnchor;
 import com.enterprise.kb.eval.config.EvalProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;

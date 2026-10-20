@@ -6,6 +6,7 @@ import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
+import com.enterprise.kb.eval.probe.RetrievalProbe;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;

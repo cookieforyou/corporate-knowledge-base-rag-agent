@@ -1,5 +1,6 @@
 package com.enterprise.kb.eval.runner;
 
+import com.enterprise.kb.eval.common.GitAnchor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

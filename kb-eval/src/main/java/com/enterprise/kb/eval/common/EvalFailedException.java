@@ -1,4 +1,4 @@
-package com.enterprise.kb.eval.runner;
+package com.enterprise.kb.eval.common;
 
 /**
  * 评估门禁失败异常 —— CI 模式下使进程非零退出

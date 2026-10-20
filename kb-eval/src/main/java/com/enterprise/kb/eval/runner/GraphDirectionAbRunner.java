@@ -6,6 +6,7 @@ import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.dataset.QACategory;
 import com.enterprise.kb.eval.metric.RetrievalMetrics;
+import com.enterprise.kb.eval.probe.ChainRetrievalProbe;
 import com.enterprise.kb.infrastructure.graph.GraphGateway;
 import com.enterprise.kb.infrastructure.graph.GraphRecords;
 import lombok.extern.slf4j.Slf4j;

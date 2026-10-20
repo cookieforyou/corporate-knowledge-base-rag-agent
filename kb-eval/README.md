@@ -29,42 +29,45 @@
 
 ```
 kb-eval/src/main/java/com/enterprise/kb/eval/
-├── EvalApplication.java              # 独立启动入口（非 Web，跑完即退，CI 友好）
-├── EvalConstants.java                # 模块本地常量（维度名/裁决/探针名）
+├── EvalApplication.java                  # 独立启动入口（非 Web，跑完即退，CI 友好）
+├── EvalConstants.java                    # 模块本地常量（维度名/裁决/探针名）
 ├── config/
-│   ├── EvalProperties.java           # eval.* 配置绑定（阈值/校准/探针/Phase5）
-│   └── JudgeModelConfig.java         # judgeChatClient（百炼 qwen3.8-flash）
+│   ├── EvalProperties.java               # eval.* 配置绑定（阈值/校准/探针/Phase5）
+│   └── JudgeModelConfig.java             # judgeChatClient（百炼 qwen3.8-flash）
 ├── dataset/
-│   ├── QACategory.java               # FACTOID/REASONING/TABLE/MULTI_DOC/MULTI_HOP/NEGATIVE
-│   ├── AttackType.java               # DIRECT/ENCODING_BYPASS/ENCODING_OPAQUE/JAILBREAK/MULTILINGUAL
-│   ├── GoldenQAPair.java             # 问答对模型（expectedChunks/Docs/Answer/Keywords）
-│   ├── GoldenDatasetLoader.java      # 扫描 classpath:golden/*.json（.example 不加载）
+│   ├── QACategory.java                   # FACTOID/REASONING/TABLE/MULTI_DOC/MULTI_HOP/NEGATIVE
+│   ├── AttackType.java                   # DIRECT/ENCODING_BYPASS/ENCODING_OPAQUE/JAILBREAK/MULTILINGUAL
+│   ├── GoldenQAPair.java                 # 问答对模型（expectedChunks/Docs/Answer/Keywords）
+│   ├── GoldenDatasetLoader.java          # 扫描 classpath:golden/*.json（.example 不加载）
 │   ├── IndirectQAPair.java / IndirectDatasetLoader.java
 ├── metric/
-│   ├── RetrievalMetrics.java         # 检索指标纯函数（单测全覆盖）
-│   ├── CitationMetrics.java          # 引用支撑判定
-│   ├── JudgePrompts.java             # G-Eval 式 CoT Prompt 套件
-│   ├── TolerantJudgeScoreConverter.java # 畸形 JSON 剥壳容错
-│   └── CohensKappa.java              # κ 计算（名义/二次加权）
-├── runner/
-│   ├── EvalRunner.java               # 核心编排 + ci 门禁 + 工具模式豁免
-│   ├── RetrievalProbe.java           # 探针抽象
-│   ├── VectorStoreRetrievalProbe.java# 单路向量基线（order 100）
-│   ├── HybridRetrievalProbe.java     # 双路/三路检索器本体（order 0）
-│   ├── ChainRetrievalProbe.java      # 完整 advisor 链（含改写/门控/图路）
+│   ├── RetrievalMetrics.java             # 检索指标纯函数（单测全覆盖）
+│   ├── CitationMetrics.java              # 引用支撑判定
+│   ├── JudgePrompts.java                 # G-Eval 式 CoT Prompt 套件
+│   ├── TolerantJudgeScoreConverter.java  # 畸形 JSON 剥壳容错
+│   └── CohensKappa.java                  # κ 计算（名义/二次加权）
+├── common/
 │   ├── EvalResult.java / EvalReport.java / EvalFailedException.java
-│   ├── AnnotationRunner.java         # --eval.annotate-query / --eval.annotate-all
-│   ├── AnswerDraftRunner.java        # --eval.draft-answers（AC 草稿）
-│   ├── MultiHopDraftRunner.java      # --eval.draft-multihop（多跳材料）
-│   ├── GraphDirectionAbRunner.java   # --eval.graph-direction-ab（图路方向扫描）
-│   ├── CalibrationReadbackRunner.java# --eval.calibration-readback
-│   ├── EvalSnapshot.java / EvalDiffRunner.java / GitAnchor.java
-│   └── IndirectInjectionRunner.java  # 间接注入抑制率
+│   └── EvalSnapshot.java / GitAnchor.java
+├── probe/
+│   ├── RetrievalProbe.java               # 探针抽象
+│   ├── VectorStoreRetrievalProbe.java    # 单路向量基线（order 100）
+│   ├── HybridRetrievalProbe.java         # 双路/三路检索器本体（order 0）
+│   └── ChainRetrievalProbe.java          # 完整 advisor 链（含改写/门控/图路）
+├── runner/
+│   ├── EvalRunner.java                   # 核心编排 + ci 门禁 + 工具模式豁免
+│   ├── EvalDiffRunner.java               # A/B 双跑差异报表生成器
+│   ├── AnnotationRunner.java             # --eval.annotate-query / --eval.annotate-all
+│   ├── AnswerDraftRunner.java            # --eval.draft-answers（AC 草稿）
+│   ├── MultiHopDraftRunner.java          # --eval.draft-multihop（多跳材料）
+│   ├── GraphDirectionAbRunner.java       # --eval.graph-direction-ab（图路方向扫描）
+│   ├── CalibrationReadbackRunner.java    # --eval.calibration-readback
+│   └── IndirectInjectionRunner.java      # 间接注入抑制率
 └── resources/
-    ├── application.yml               # eval.* 缺省
-    ├── application-eval-tooling.yml  # 工具形态覆盖（末位导入，防被导入源遮蔽）
-    ├── golden/*.json                 # Golden 语料 + 两份 README
-    └── indirect/indirect-qa.json     # 毒化语料（编码引用）
+    ├── application.yml                   # eval.* 缺省
+    ├── application-eval-tooling.yml      # 工具形态覆盖（末位导入，防被导入源遮蔽）
+    ├── golden/*.json                     # Golden 语料 + 两份 README
+    └── indirect/indirect-qa.json         # 毒化语料（编码引用）
 ```
 
 ### 2.1 EvalRunner —— 核心编排

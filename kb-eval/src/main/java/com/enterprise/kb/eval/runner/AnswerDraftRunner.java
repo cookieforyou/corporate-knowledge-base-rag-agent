@@ -6,6 +6,7 @@ import com.enterprise.kb.domain.repository.KbChunkRepository;
 import com.enterprise.kb.eval.dataset.GoldenDatasetLoader;
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
 import com.enterprise.kb.eval.metric.JudgePrompts;
+import com.enterprise.kb.eval.probe.RetrievalProbe;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;

@@ -1,6 +1,7 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.eval.EvalApplication;
+import com.enterprise.kb.eval.common.EvalReport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;

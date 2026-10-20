@@ -1,6 +1,7 @@
-package com.enterprise.kb.eval.runner;
+package com.enterprise.kb.eval.common;
 
 import com.enterprise.kb.eval.dataset.GoldenQAPair;
+import com.enterprise.kb.eval.probe.RetrievalProbe;
 
 import java.util.List;
 

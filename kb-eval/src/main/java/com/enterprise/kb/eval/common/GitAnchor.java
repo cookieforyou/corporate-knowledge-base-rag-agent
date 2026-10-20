@@ -1,4 +1,4 @@
-package com.enterprise.kb.eval.runner;
+package com.enterprise.kb.eval.common;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;

@@ -1,6 +1,9 @@
 package com.enterprise.kb.eval.runner;
 
 import com.enterprise.kb.eval.EvalConstants;
+import com.enterprise.kb.eval.common.EvalReport;
+import com.enterprise.kb.eval.common.EvalSnapshot;
+import com.enterprise.kb.eval.common.GitAnchor;
 import com.enterprise.kb.eval.metric.CitationMetrics;
 import com.enterprise.kb.eval.config.EvalProperties;
 import org.junit.jupiter.api.Test;
