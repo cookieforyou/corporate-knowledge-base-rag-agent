@@ -2,97 +2,110 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第 三 卷「技术架构设计（架构层）」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-11 · v2.12（§6.3 批9 收口：纯别名桥接常量退役 8 个 + rank 键裸串收敛——规则 5 生命周期化）· 此前：2026-09-13 v2.11（§6.3 批5-8 续收：新增 MessageRole/JwtClaims/McpTool/ChainOrder/Ws/BeanNames 六分区 + Retrieval 五键扩充 + kb-eval EvalConstants 模块本地）+ 2026-09-12 v2.10（新增 §6.3 全局常量收敛规约）+ 2026-07-31 v1 原文迁移 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · v2.13（6.1/6.2 现状对齐：10 模块树 + kb-loadtest + 各模块实际包结构）· v2.12（§6.3 批9 收口：纯别名桥接常量退役 8 个 + rank 键裸串收敛——规则 5 生命周期化）· 此前：2026-09-13 v2.11（§6.3 批5-8 续收：新增 MessageRole/JwtClaims/McpTool/ChainOrder/Ws/BeanNames 六分区 + Retrieval 五键扩充 + kb-eval EvalConstants 模块本地）+ 2026-09-12 v2.10（新增 §6.3 全局常量收敛规约）+ 2026-07-31 v1 原文迁移 + v2.9（3.19：新增 kb-ai-agent 模块与依赖链，9 模块）
 
 
-## 6.1 模块划分
+## 6.1 模块划分（2026-10 现状，10 个 Maven 模块）
 
 ```
-kb-rag-agent/                           # 父工程
-├── pom.xml                             # 父 POM（依赖管理 + BOM）
-├── kb-commons/                         # 通用模块
-│   └── src/main/java/com/enterprise/kb/commons/
-│       ├── dto/                        # 通用 DTO（PageResult, ApiResponse）
-│       ├── exception/                  # 业务异常体系
-│       ├── constant/                   # 常量定义
-│       └── util/                       # 工具类
-├── kb-domain/                          # 领域模块
-│   └── src/main/java/com/enterprise/kb/domain/
-│       ├── model/                      # JPA Entity（KbDocument, KbChunk, ...）
-│       ├── repository/                 # Spring Data JPA Repository
-│       ├── vo/                         # VO 对象
-│       └── enums/                      # 枚举（DocumentStatus, ChunkType, ParseRoute）
-├── kb-infrastructure/                  # 基础设施模块
-│   └── src/main/java/com/enterprise/kb/infrastructure/
-│       ├── vectorstore/                # 向量库双后端配置（pgvector + Milvus 可切换）
-│       ├── milvus/                     # MilvusServiceClient 配置
-│       ├── elasticsearch/              # ElasticsearchClient 配置
-│       ├── redis/                      # Redis 配置 + ChatMemory 实现
-│       ├── minio/                      # MinIO OSS 适配
-│       └── ocr/                        # 解析服务客户端（DocMind / qwen3.5-ocr 解析 API + 云 OCR 兜底，可插拔后端）
-├── kb-etl/                             # ETL 管道模块（独立可部署）
-│   └── src/main/java/com/enterprise/kb/etl/
-│       ├── reader/                     # SmartParsingRouter 等
-│       ├── transformer/                # HtmlProtectingSplitter、ContextualEnrichmentTransformer
-│       ├── writer/                     # EsIndexWriter（ES 双写）；向量写入经 VectorStore
-│       ├── pipeline/                   # EtlProgress / EtlStage
+kb-rag-agent/                           # 父工程（dependencyManagement + BOM + 插件）
+├── pom.xml
+├── kb-commons/                         # 通用层（无业务依赖）
+│   └── com/enterprise/kb/commons/
+│       ├── dto/                        # ApiResponse / PageResult
+│       ├── exception/                  # BusinessException 体系
+│       ├── constant/                   # Constants 嵌套分区
+│       ├── security/pii/               # PiiRecognizer 注册表（七类）
+│       ├── guardrail/                  # 词项模型 / 规则源 SPI / 热重载注册表
+│       └── util/                       # TextSanitizer 等
+├── kb-domain/                          # 领域层（JPA + schema 事实源）
+│   └── com/enterprise/kb/domain/
+│       ├── model/                      # 9 Entity（Document/Chunk/Session/Message/Audit/Feedback/Section/Prompt/GuardrailRule）
+│       ├── repository/                 # 9 Repository
+│       ├── enums/                      # 8 枚举（DocumentStatus/ChunkType/ParseRoute/GraphStatus/...）
+│       ├── spec/                       # Specification 动态谓词
+│       ├── guardrail/                  # DbGuardrailRulesSource / Seeder
+│       └── vo/                         # 领域视图
+├── kb-infrastructure/                  # 基础设施适配
+│   └── com/enterprise/kb/infrastructure/
+│       ├── vectorstore/                # pgvector / Milvus 条件装配
+│       ├── milvus/ · elasticsearch/ · redis/ · minio/
+│       ├── parsing/                    # DocMind / OCR 客户端
+│       └── graph/                      # Neo4j Driver / Gateway / Schema
+├── kb-etl/                             # 文档加工流水线
+│   └── com/enterprise/kb/etl/
+│       ├── reader/                     # SmartParsingRouter
+│       ├── transformer/                # HtmlProtectingSplitter / Sanitizing / ContextualEnrichment
+│       ├── writer/                     # EsIndexWriter
+│       ├── pipeline/                   # EtlProgress / 蓝绿 CLEANUP
+│       ├── pipeline/graph/             # 实体抽取 / 派发 / 监听 SPI
+│       ├── prompt/                     # 解析链 PromptTemplates
 │       └── service/                    # DocumentEtlService
-├── kb-ai-core/                         # AI 核心模块（纯 RAG 核心，3.19 起不含工具链）
-│   └── src/main/java/com/enterprise/kb/ai/
+├── kb-ai-core/                         # 纯 RAG 核心（无工具链）
+│   └── com/enterprise/kb/ai/
 │       ├── config/                     # ragAgentChatClient / RetrievalConfig / SmartRoutingConfig
-│       ├── advisor/                    # 护栏/配额/溯源 Advisor
+│       ├── advisor/                    # 审计/配额/护栏/路由/门控/缓存/溯源
 │       ├── routing/                    # SmartRoutingChatModel（主备熔断）
-│       ├── memory/                     # Redis 记忆装配 + FaultTolerantChatMemory
-│       ├── prompt/                     # PromptTemplateManager
-│       ├── retriever/                  # HybridDocumentRetriever, ElasticsearchDocumentRetriever, RrfFusion, RerankDocumentPostProcessor
-│       ├── service/                    # RagChatService（纯检索问答）
-│       └── metrics/                    # AiBusinessMetrics
-├── kb-ai-agent/                        # AI Agent 事务模块（3.19 拆出，Agent 事务域容器）
-│   └── src/main/java/com/enterprise/kb/ai/agent/
-│       ├── config/                     # toolAgentChatClient + ToolCallingAdvisor(1000)
-│       ├── tool/                       # @Tool 工具层 + HITL 审批账本（EnterpriseMockTools / ToolApprovalService）
-│       └── service/                    # ToolChatService（工具事务问答 + toolContext 通道）
-├── kb-api/                             # 对外 API 模块
-│   └── src/main/java/com/enterprise/kb/api/
-│       ├── controller/                 # REST Controller
-│       │   ├── AgentController         # SSE 流式对话
-│       │   ├── DocumentController      # 文档管理
-│       │   ├── KnowledgeController     # 知识检索
-│       │   └── SessionController       # 会话管理
-│       ├── dto/                        # API 专用 DTO
-│       └── config/                     # Web 配置（CORS, SSE 超时）
-├── kb-admin/                           # 运维后台模块
-│   └── src/main/java/com/enterprise/kb/admin/
-│       ├── controller/                 # Admin Controller
-│       │   ├── ChunkAdminController    # Chunk CRUD + 索引重建
-│       │   ├── AuditAdminController    # 审计日志查询
-│       │   └── PromptAdminController   # Prompt 版本管理
-│       └── dto/
-└── kb-eval/                            # AI 评估模块
-    └── src/main/java/com/enterprise/kb/eval/
-        ├── dataset/                    # Golden Dataset 加载
-        ├── metric/                     # ContextRelevance, Faithfulness 等指标
-        └── runner/                     # 评估执行器
+│       ├── cache/                      # SemanticCacheService + CacheCheckAdvisor
+│       ├── retriever/                  # Hybrid/ES/Graph retriever + RrfFusion + Rerank
+│       ├── memory/                     # Redis 记忆 + FaultTolerant
+│       ├── guardrail/                  # L2 语义判定 / 间接注入
+│       ├── prompt/                     # 对话链 PromptTemplates
+│       ├── metrics/                    # AiBusinessMetrics
+│       └── service/                    # RagChatService
+├── kb-ai-agent/                        # Agent 事务域
+│   └── com/enterprise/kb/ai/agent/
+│       ├── config/                     # toolAgentChatClient + orchestratorChatClient + ToolCallingAdvisor
+│       ├── tool/                       # Mock 读/写工具 + HITL 审批账本
+│       ├── orchestration/              # TaskTool / SubAgentRegistry / KnowledgeSearchTools
+│       ├── service/                    # ToolChatService / AgentOrchestratorService
+│       ├── mcp/                        # MCP 三件套 + 身份守卫 + 限流/审计
+│       ├── dingtalk/                   # Stream 群机器人
+│       └── a2a/                        # A2A 治理域
+├── kb-admin/                           # 运维后台（kb-api 聚合）
+│   └── com/enterprise/kb/admin/
+│       ├── controller/                 # Chunk / 重建 / Bad Case / 词表 / 图谱回填 / 反馈导出
+│       ├── service/                    # ChunkOps / Reindex / BadCase / GuardrailRuleOps / FeedbackExport / GraphBackfill
+│       └── gateway/                    # ReindexGateway 依赖倒置
+├── kb-api/                             # 对外 API + 启动入口
+│   └── com/enterprise/kb/api/
+│       ├── controller/                 # Chat / Document / Retrieval / Session / Feedback / Stats / A2A / Card
+│       ├── dto/ · security/ · observability/ · ws/ · exception/
+│       └── KbRagAgentApplication
+├── kb-eval/                            # AI 评估（非 Web，跑完即退）
+│   └── com/enterprise/kb/eval/
+│       ├── dataset/                    # Golden 加载 / 多跳 / 注入语料
+│       ├── metric/                     # 检索指标 / JudgePrompts / 校准
+│       ├── runner/                     # EvalRunner / 探针 / 草稿 / 导出 / 差异 / 图路 A-B
+│       └── config/                     # EvalProperties / JudgeModel
+└── kb-loadtest/                        # Gatling 压测（test 域，gatling:test 显式触发）
+    └── com/enterprise/kb/loadtest/
+        ├── simulation/                 # A 检索 / B 桩压 / C 真实 LLM / D SSE / E hub 图路
+        └── stub/                       # StubChatServer（纯 JDK）
 ```
 
 ## 6.2 模块依赖关系
 
 ```
-kb-commons            ← 无依赖（基础层）
+kb-commons                     ← 基础层（Spring Boot starter + JSON）
     ↑
-kb-domain             ← 依赖 kb-commons
+kb-domain                      ← 依赖 kb-commons（JPA + Flyway + schema.sql）
     ↑
-kb-infrastructure     ← 依赖 kb-domain（kb-commons 传递可得）
-    ↑          ↑
-kb-etl     kb-ai-core ← 依赖 kb-infrastructure（kb-domain + kb-commons 传递可得）
-    ↑          ↑  ↑
-    │          │  ├── kb-admin
-    │          │  ├── kb-eval      ← 依赖 kb-ai-core（kb-domain + kb-infrastructure 传递可得）
-    │          │  └── kb-ai-agent  ← 依赖 kb-ai-core（3.19：工具链/HITL/MCP 事务域）
-    └─────┬────┘        ↑
-          ↑             │
-       kb-api         ← 依赖 kb-etl + kb-ai-core + kb-ai-agent
+kb-infrastructure              ← 依赖 kb-domain（向量库/ES/Redis/MinIO/Neo4j/解析）
+    ↑                 ↑
+kb-etl           kb-ai-core    ← kb-etl / kb-ai-core 依赖 kb-infrastructure
+    ↑                 ↑   ↑
+    │                 │   ├── kb-ai-agent   ← 依赖 kb-ai-core（工具/编排/MCP/钉钉/A2A）
+    │                 │   ├── kb-admin      ← 依赖 kb-etl + kb-ai-core（运维后台）
+    │                 │   └── kb-eval       ← 依赖 kb-ai-core + kb-etl（评估/图路 IT）
+    └────────┬────────┘
+             ↑
+          kb-api               ← 聚合 kb-etl + kb-ai-core + kb-ai-agent + kb-admin
+
+kb-loadtest                    ← 独立 test 域（不依赖业务模块，HTTP/SSE 黑盒压测）
 ```
+
+**依赖纪律**：kb-api 只做聚合，不反向被业务模块依赖；kb-admin 经 Controller 前缀 `/api/v1/admin/**` 由 kb-api 统一安全收口；kb-eval 不装配 Web/Redis/护栏重载，保持测量独立性。
 
 ## 6.3 全局常量收敛规约（v2.12，2026-10-11 批9 收口；v2.11 2026-09-13 批5-8 续收；v2.10 2026-09-12 初立四批）
 

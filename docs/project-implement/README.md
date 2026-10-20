@@ -4,6 +4,8 @@
 >
 > **v2 修订日期**：2026-07-31 · v1 合订本（2026-07-27）归档于 [`archive/`](./archive/)（git 历史可溯）
 >
+> **v2.29 全量文档同步（2026-10-20）**：以当前代码/配置/进度为准，对全部章节做一次现状对齐——补齐 Phase 5 收官后增量（安全簇⑥ G1-G5、解析支线 SP1、GraphRAG v3.04-v3.06、压测场景 E）、更新模块/数据/接口/技术栈事实，并把已完结的规划语言改为「落地状态」。**各章现行版本**：01 v2.1 / 02 v2.1 / 03 v2.1 / 04 v2.14 / 05 v2.1 / 06 v2.13 / 07 v2.55 / 08 v2.67 / 09 v2.36 / 10 v3.06 / 11 v2.118 / 12 v2.115 / 13 v2.71 / 14 v2.39 / 15 v2.63 / 16 v3.01 / 17 v2.117 / 18 v2.119 / 19 v2.17。下表为历史修订索引（完整保留），以各章头部修订注记与上列为准。
+>
 > **v2.1 实现期修正（2026-08-02）**：簇 B/C 实现与 E2E 验证中对 v2 草图的源码级/实证修正，已回写各章：
 > 1. **RetrievalContext 请求作用域 → 参数化传递**（10.2.1 重写）：@RequestScope 代理在 MVC 异步请求完结后不可解析，流式路径租户过滤/trace 静默失效——改每请求实例经 advisor 参数→Query.context 传递
 > 2. **RetrievalTraceAdvisor 重写**（11.1.1）：v2 草图跨模块引用 kb-api JwtUtils（依赖方向不可逆）+ 作用域填充失效——瘦身为纯上下文 Map 操作，身份填充移至 Controller 请求线程
@@ -66,7 +68,7 @@
 > **v2.25 文档生命周期增量链路（2026-08-13，优化冲刺簇⑥ C1）**：① 增量重入库双端点——`POST /documents/{id}/reparse`（MinIO 原件重走 ETL，路由缺省复现原始路由）/ `POST /documents/{id}/replace`（新文件覆盖原件，路由缺省自动决策），状态守卫经 DB 级原子占用（仅 SUCCESS/FAILED 可占用为 REINDEXING，0 行 → DOC_NOT_READY 409）；② 蓝绿管线——确定性 chunk ID 令不变 chunk 三库同 ID 幂等覆写，管线统一「全量写入 → CLEANUP 阶段 diff 清理旧有新无」，重入库窗口检索不中断、失败重试幂等收敛（§9.3 v2.25）；③ kb_document.version 列（首次入库 1，重入库成功 +1）+ status 枚举增 REINDEXING（§7.1）；④ ChunkCleanupService 三库级联共享组件（文档删除/蓝绿 diff/Phase 4.5-4.6 复用）+ Chunk 软删写侧管道接通（markDeleted 零调用方历史终结，REST 门面归 4.4）（§14）；⑤ `rag.document.reindex.started/succeeded/failed` 指标 + EsIndexWriter.deleteByChunkIds（bulk，not_found 幂等）；⑥ 补零测盲区：DocumentService 删除级联/重入库守卫 + EsIndexWriter + ETL 蓝绿管线共 30 单测。
 > **v2.26 优化冲刺簇⑥ C1 E2E 缺陷修复批（2026-08-13）**：E2E 实测（reparse 正常 / replace version 不递增 + chunk created_at 全量刷新）定位两缺陷——① replace 占用态回写：acquireForReindex 的 @Modifying 只更新 DB 不同步内存实体（clearAutomatically 已脱管），replace 后续 save 回写陈旧 SUCCESS → ETL 误判首次入库；修复 = 占用成功后同步内存态（§9.3 v2.26）；② chunk created_at merge 覆写：手工 createdAt=now 随蓝绿同 ID merge 覆盖原创建时间；修复 = KbChunk.created_at @Column(updatable=false)（§9.3 v2.26/§7.1）。E2E 核验：reparse 确定性 ID 逐位复现 7/7（本地 nameUUID 重算全匹配，同 ID 幂等覆写实证）。
 > **v2.27 优化冲刺簇⑥ C1 收尾：删除处理期守卫（2026-08-13）**：E2E 复验四项全过（replace version 递增 + 处理期「重入库中」展示 / reparse 未变 chunk created_at 保留原值 / 处理中再发重入库 409 DOC_NOT_READY / `rag.document.reindex.*` 计数正确）——C1 闭环；收尾增项：处理期三态（UPLOADING/PARSING/REINDEXING）文档拒删 → DOC_NOT_READY 409（状态集经 `DocumentStatus.isProcessing()` domain 单一来源；SUCCESS/FAILED 放行），前端 Documents.vue 删除按钮同状态集 disable（§9.3 v2.27）。
-> **v2.28 冲刺簇⑥ D3：	Testcontainers 集成测试落地（2026-08-13）——冲刺簇⑥收官*：按 3.18 留档执行并全量回写实现差异——kb-eval 宿主 + failsafe `*IT.java`（`mvn verify`），三容器单例（pgvector/pg17 init script 直接复用 kb-domain schema.sql 自包含版 / redis-stack-server REDIS_ARGS 注密码 / minio）+ StubChatModel/StubEmbeddingModel（hashing trick 词袋向量，纯哈希桩相似度≈0 缺陷修正）+ 排除 SmartRoutingConfig 以桩重建 smartRoutingChatModel（真实路由包装器保留）；**33 用例 × 11 IT 全绿**（2 context）：租户隔离/跨租户泄露/接地+空证据拒答/注入+PII/输出黑名单/限流/Token 预算/多轮记忆/审计完整性/意图路由 L1+L2/**文档生命周期**（C1 回归保险：reparse ID 复现 + created_at 保留 + version 递增、replace 蓝绿 diff 清理、软删）；Testcontainers 1.20.1→2.0.5（docker-java API 版本与 Docker Engine 29 冲突实证）。**IT 挖出生产缺陷并修复**：PgVectorStore 默认 idType=UUID 与 kb_embeddings.id VARCHAR(36) 失配 → delete 静默失效，VectorStoreConfig 钉 idType(TEXT)（§7.2 v2.28 / §15 v2.28 / 3.18 留档实现回写节）。
+> **v2.28 冲刺簇⑥ D3：	Testcontainers 集成测试落地（2026-08-13）——冲刺簇⑥收官**：按 3.18 留档执行并全量回写实现差异——kb-eval 宿主 + failsafe `*IT.java`（`mvn verify`），三容器单例（pgvector/pg17 init script 直接复用 kb-domain schema.sql 自包含版 / redis-stack-server REDIS_ARGS 注密码 / minio）+ StubChatModel/StubEmbeddingModel（hashing trick 词袋向量，纯哈希桩相似度≈0 缺陷修正）+ 排除 SmartRoutingConfig 以桩重建 smartRoutingChatModel（真实路由包装器保留）；**33 用例 × 11 IT 全绿**（2 context）：租户隔离/跨租户泄露/接地+空证据拒答/注入+PII/输出黑名单/限流/Token 预算/多轮记忆/审计完整性/意图路由 L1+L2/**文档生命周期**（C1 回归保险：reparse ID 复现 + created_at 保留 + version 递增、replace 蓝绿 diff 清理、软删）；Testcontainers 1.20.1→2.0.5（docker-java API 版本与 Docker Engine 29 冲突实证）。**IT 挖出生产缺陷并修复**：PgVectorStore 默认 idType=UUID 与 kb_embeddings.id VARCHAR(36) 失配 → delete 静默失效，VectorStoreConfig 钉 idType(TEXT)（§7.2 v2.28 / §15 v2.28 / 3.18 留档实现回写节）。
 
 本目录是设计唯一依据。v1 原为 3794 行单文件，v2 按章拆分为独立文档，并对检索架构、Spring AI API、评估体系做了基于源码级核验的修订。
 
@@ -98,7 +100,7 @@
 
 | 章 | 文档 | 修订状态 |
 |---|---|---|
-| 第八章 | [五阶段实施路线图](./08-五阶段实施路线图.md) | v2 修订（**Phase 2 任务清单重写**，评估最小集前移）+ v2.5（3.5 验收一致性修正，L2 移交 12.4）+ v2.29（**Phase 4 任务清单调研实证重写**：MCP Server 提前、K8s/Milvus 集群否决、压测/可用性口径重定义、PromptTemplateManager 改 Git Ops）+ v2.30（**安全加固专项插入**：冲刺簇⑥前插入六簇专项，收尾 12.4 S5/S7/S8 + 平台层缺口 + 词表工程化，优化冲刺簇⑥ 顺延）+ v2.62（**Phase 4 全阶段收官**：Phase4簇⑦用户侧回传——Q1 新格式 E2E 通过 + Q2 文档评审通过，收口判据全达成；下一棒 Phase 5） + v2.66（Phase5簇④ GraphRAG 机器侧收口——五批落地，用户侧 E2E 待执行） |
+| 第八章 | [五阶段实施路线图](./08-五阶段实施路线图.md) | v2 修订（**Phase 2 任务清单重写**，评估最小集前移）+ v2.5（3.5 验收一致性修正，L2 移交 12.4）+ v2.29（**Phase 4 任务清单调研实证重写**：MCP Server 提前、K8s/Milvus 集群否决、压测/可用性口径重定义、PromptTemplateManager 改 Git Ops）+ v2.30（**安全加固专项插入**：冲刺簇⑥前插入六簇专项，收尾 12.4 S5/S7/S8 + 平台层缺口 + 词表工程化，优化冲刺簇⑥ 顺延）+ v2.62（**Phase 4 全阶段收官**：Phase4簇⑦用户侧回传——Q1 新格式 E2E 通过 + Q2 文档评审通过，收口判据全达成；下一棒 Phase 5） + v2.66（Phase5簇④ GraphRAG 机器侧收口——五批落地，用户侧 E2E（后已收官）） |
 
 ### 第五卷：核心模块技术实现（实现层）
 
@@ -124,7 +126,7 @@
 
 | 文档 | 修订状态 |
 |---|---|
-| [附录 A-E](./19-附录.md)（依赖清单 / 配置模板 / API 清单 / 避坑指南 / 实证坑位台账） | v2 修订（新增反模式 21-23）+ v2.1（安全专项收口批：新增附录 E 实证坑位台账 ①-㉜ 自 CLAUDE.md 迁入）+ v2.10（坑位㊹：yml 配置段误挂平级节点 Binder 静默不命中——记忆配置自 3.1 从未生效，11 章 v2.98 纠偏） + v2.11-v2.16（坑位㊺-㊿ 续编六连：容器内 ExecutorService Bean 歧义㊺ / AppCDS 消费侧 SIGSEGV㊻ / 监控镜像 latest 本地缓存老版×exemplars 整次抓取作废㊼ / promtool 合成单测基线绑定引擎版本㊽ / 钉钉 Stream 监听器匿名类约束㊾ / 外部会话域前缀标识×审计列宽 36 预算㊿） |
+| [附录 A-E](./19-附录.md)（依赖清单 / 配置单一来源 / API 清单 / 避坑指南 / 实证坑位台账） | v2 修订（新增反模式 21-23）+ v2.1（安全专项收口批：新增附录 E 实证坑位台账 ①-㉜ 自 CLAUDE.md 迁入）+ v2.10（坑位㊹：yml 配置段误挂平级节点 Binder 静默不命中——记忆配置自 3.1 从未生效，11 章 v2.98 纠偏） + v2.11-v2.16（坑位㊺-㊿ 续编六连：容器内 ExecutorService Bean 歧义㊺ / AppCDS 消费侧 SIGSEGV㊻ / 监控镜像 latest 本地缓存老版×exemplars 整次抓取作废㊼ / promtool 合成单测基线绑定引擎版本㊽ / 钉钉 Stream 监听器匿名类约束㊾ / 外部会话域前缀标识×审计列宽 36 预算㊿） |
 
 ## v2 修订摘要
 
@@ -145,10 +147,12 @@ v1 设计为「ES BM25 + Milvus 向量 + 手搓并行管道 + 自研 RRF」。�
 
 ### 未修订部分
 
-Phase 3-5 章节内容（第十二、十四章除外）保持 v1 原貌，待 Phase 2 收尾时按同样标准复审——远期设计不宜过早细化。路线图总体五阶段排期不变。
+**无**。v2.29 全量同步（2026-10-20）后，全部 19 章均已按实现现状回写；v1 原文仅保留在 [`archive/`](./archive/) 作为历史底稿，不再作为当前设计依据。
 
 ## 配套文档
 
-- [项目阶段推进任务清单完成记录](../project-progress/项目阶段推进任务清单完成记录.md) — 进度追踪（Phase 1 已完成，Phase 2 任务清单已与 v2 对齐）
+- [项目阶段推进任务清单完成记录](../project-progress/项目阶段推进任务清单完成记录.md) — 进度追踪（索引 + 按阶段/专项拆分子卷）
+- [用户侧待执行项清单](../project-progress/用户侧待执行项清单.md) — 用户侧动作唯一源
+- [交付文档](../delivery/README.md) · [未来扩展](../project-future/README.md) · [docs 总索引](../README.md)
 - 项目根 `CLAUDE.md` — 工程约定与当前实现要点
 - v1 合订本：[archive/](./archive/) — 修订前完整原文

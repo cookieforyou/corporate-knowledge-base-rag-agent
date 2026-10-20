@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-04 · v2.117（ctx 读取统一入口族：Advisor/检索/工具侧 instanceof 判据归一到 10 章 §10.2.1 v3.06，语义零变化，§11.2）· v2.116（Phase5簇⑥ 批3：5.4 剩余两项与 5.5 设计稿归档登记——跨链 mode=auto/复杂度三级路由/多知识库路由，触发条件与复活路径入档 §11.4.1）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.118 增 §11.11 外部通道**（钉钉 Stream 群机器人 + A2A v1.0 端点；此前交付但未入设计章，本次补齐）· v2.117（ctx 读取统一入口族归一到 10 章 v3.06，§11.2）· v2.116（Phase5簇⑥ 批3 归档登记，§11.4.1）
 >
 > **v2.108（2026-09-07，Phase5簇⑤ 收官注记① 三轮：消息层任务边界注记 + 记忆逃生舱）**：v2.107 程序式两分支纪律复验仍被无视（id=462 七连委派：旧任务检索 ×2+委派+新任务检索 ×2+委派+旧任务 report-writer；答案开篇「我将并行委派两个知识检索子任务」——模型甚至把两问整合为复合叙事，旧任务产物被当作新任务的佐证材料）。定谳：system prompt 层静态纪律对消息层历史惯性的压制已达上限，治理位置必须移到消息层。修复 = `TaskBoundaryAdvisor`（order 420，Memory(400) 后 ToolCalling(1000) 前，编排链独有）：历史在场（UserMessage 数>1）时在最后一条用户消息前插入 SystemMessage 结构分隔注记（「──── 历史轮次到此结束：其中所有任务均已交付完结 ────当前轮次：仅处理下一条用户消息所述任务；历史内容仅当该消息明确引用时使用」）——注意力位置从 system 层移至消息层紧贴当前任务（热修五「停止指令入 SearchOutcome 载荷」同款位置治理逻辑；结构信号优先于禁令措辞）；首轮零注入零变化。**记忆零污染**（源码核验 MessageChatMemoryAdvisor：user 写入发生于其 before 阶段取原始形态、assistant 写入取自 response，420 注入不进回写，逐轮幂等）。伴生**逃生舱** `rag.orchestrator.memory-enabled`（缺省 true；false = 编排链摘除 Memory 每轮独立上下文——跨任务污染物理消除、多轮指代延续失效，env RAG_ORCHESTRATOR_MEMORY_ENABLED）。单测 +5（注入形态/首轮透传/双路径透传 chain/逃生舱缺省钉死）。详 §11.5.5 补注。
 >
@@ -50,7 +50,7 @@
 > Usage 映射不携带 `prompt_cache_hit_tokens`——应用层不新增映射耦合，观测面 =
 > E2E 直调对照 + DeepSeek 控制台账单）+ 前缀稳定性纪律（Prompt Git Ops 天然契合；
 > canary 每进程随机 → 重启重建一次缓存）；百炼侧留口（支持清单不含 qwen3 系列，
-> 备用/评估链无缓存，触发条件登记）。Phase5簇③（5.6 + N1）机器侧闭环，用户侧 E2E 待回传。
+> 备用/评估链无缓存，触发条件登记）。Phase5簇③（5.6 + N1）用户侧 E2E **2026-08-26 通过**（索引/命中/守卫/失效演练全过），簇③收官；命中率随真实流量观察。
 >
 > **v2.72（2026-08-25，Phase5簇③ 5.6 批2：链序接线与事件失效）**：§11.9 扩充批2
 > 落地 + §11.5.1 链序表 460 插入——`CacheCheckAdvisor`（kb-ai-core/cache，直实现
@@ -641,7 +641,7 @@ ToolCallingAdvisor.builder()
 > 为防御位（防未来误引 chat starter）；接棒测试 `ProviderSwitchWiringTest`
 > 三态钉死（缺省 glm / 显式 deepseek / 非法值启动失败）；
 > ⑦ **门禁复跑（E1 纪律）**——主答模型切换属跨模型漂移，chain 探针门禁须
-> 复跑定档（用户侧项，见用户侧待执行项清单）；L2/Judge/图抽取不受影响
+> 复跑定档（用户侧项，后经 MB1/E1 全量门禁复跑完成，16 章 v2.99）；L2/Judge/图抽取不受影响
 > （批A 已对齐 qwen3.8-flash）。
 
 > **v2.78 补充（2026-09-01，MB1 冒烟回传：GLM effort 生产档 low 定案）**：
@@ -1399,3 +1399,34 @@ SmartRoutingChatModel 转发异构备用须重建 Prompt（坑位⑭），且百
 **质量**：批3 零代码变更（默认开启即生效）——全反应器 817 单测绿基线不变；
 定案依据全部入档本节。用户侧 E2E（启用开关 → 相似问重放 → 命中/延迟对照
 18 §18.4 → 失效演练 → N1 直调对照）登记于用户侧待执行项清单（唯一源）。
+
+## 11.11 外部通道：钉钉群机器人与 A2A 端点（v2.118 新增，Phase5簇⑥ 批1/批2）
+
+> 两条通道定位相同：把「知识库问答」作为服务供给外部系统；均**缺省关**，开启后复用 `chatRag` 同步链（检索/重排/护栏/审计/记忆/租户隔离零减配），不改动主链协议。
+
+### 11.11.1 钉钉 Stream 群机器人（5.12 收窄版）
+
+| 面 | 形态 |
+|---|---|
+| 开关/前置 | `rag.dingtalk.enabled=false` 缺省；开启态三要素 `client-id` / `client-secret` / `tenant-id` 缺失即启动 fail-closed（服务账号单租户绑定） |
+| 接入 | 官方 `dingtalk-stream` SDK（shaded jar，零传递）；**WebSocket 出站长连接**，无入站端点——SecurityConfig / 安全组零改动 |
+| 装配 | 服务域 Bean 恒装配；唯一副作用的 `SmartLifecycle` Stream 客户端条件装配（关闭态零连接、零 meter） |
+| 问答 | @ 机器人 → 消息监听 → `chatRag` 同步问答 → markdown 回复；正文含 `[ref-N]`，尾部附溯源列表（`[ref-N] 文件名（p.X）`；Markdown 语料 page_num=0/缺失时省略页码段） |
+| 会话 | `dingtalk-{conversationId}`（同群多轮；前缀 + 钉钉会话 ID，长度受外部 ID 约束，超宽由审计旁路容错承接，坑位㊿） |
+| 治理 | 独立限流桶 `rag:ratelimit:dingtalk:{tenant}` fail-open；轻量审计 `mode=dingtalk`（默认关）+ traceId 复用当轮 ctx；指标 `rag.dingtalk.*`；非打断式超时（迟到结果丢弃，不 cancel） |
+| 实现约束 | SDK 注册监听器经反射读具体化泛型签名——**必须匿名内部类**，lambda 会被拒绝（坑位㊾） |
+
+### 11.11.2 A2A v1.0 协议端点（N3 最小形态）
+
+| 面 | 形态 |
+|---|---|
+| 开关/端点 | `rag.a2a.enabled=false` 缺省（Controller 条件装配，关闭态 404）；`POST /a2a` + `GET /.well-known/agent-card.json` |
+| 协议 | 自研 v1.0 协议层（零新增依赖）：JSON-RPC 2.0 `SendMessage` **同步应答**；`A2A-Version: 1.0` 必须，空/非 1.0 → -32009；v0.3 兼容挂起（触发 = 真实 v0.3 client） |
+| 发现 | Agent Card（v1.0，`supportedInterfaces` + `securitySchemes` bearer；能力位如实双 false）；**authenticated**（含内网信息，不做公开发现）；Cache-Control 1h + ETag |
+| 身份 | JWT 认证（与 `/mcp` 同款 matcher）+ `A2aIdentityGuard` fail-closed 三层 + `rag.a2a.scope.required` 二次收敛（`A2A_SCOPE_DENIED`） |
+| 问答 | 文本 part 拼接 → `chatRag` → `result.task`（`TASK_STATE_COMPLETED` + artifact 文本，含 `[ref-N]`）；空证据走拒答话术 |
+| 会话 | `a2a-{contextId 去横线}`——前缀 4 + 32 = 36 恰好（kb_audit_log.session_id VARCHAR(36)，坑位㊿）；contextId 协议面原形态回显 |
+| 治理 | 独立限流桶 `rag:ratelimit:a2a:{tenant}` fail-open；轻量审计 `mode=a2a` 默认关；指标 `rag.a2a.*`；错误码 -32009/-32601/-32602/-32603；业务异常固定话术零泄露 |
+| 互操作 | 官方 `a2a-sdk` 1.1.2 Python client 实测闭环（`tools/other/a2a_client_check.py`） |
+
+**安全边界**：两通道均经同一 `RetrievalContext` 租户/用户链与护栏 Advisor；MCP 的 HITL 工具**不暴露**给钉钉/A2A（仅问答，无写操作面）。外部会话键长度预算与审计列宽约束见 19 章坑位㊿。

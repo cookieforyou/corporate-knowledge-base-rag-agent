@@ -16,7 +16,7 @@
 
 区别于 Dify / RAGFlow / MaxKB 等通用平台方案，本项目聚焦 Spring AI 生态内的三件事：**深度可溯源**（多路得分透明的检索调试台）、**企业权限集成**（Casdoor 认证 / 多租户 fail-closed 隔离 / 三层角色分级）、**运维闭环**（评估门禁 / 全链路审计 / 护栏体系 / 可观测性）——适合对审计与溯源有强需求、以 Java 为技术栈的企业。
 
-> **项目状态**：**全阶段收官**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并通过用户侧验收（2026-09-16）；全阶段验收复盘矩阵见[全景实现报告 §18.6](docs/project-implement/18-交付验收标准.md)。后续演进规划见 [未来扩展方案](docs/project-future/README.md)。
+> **项目状态**：**全阶段收官**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并通过用户侧验收（2026-09-16）；全阶段验收复盘矩阵见[全景实现报告 §18.6](docs/project-implement/18-交付验收标准.md)。**收官后增量（2026-09/10）**：安全簇⑥ G1-G5（红队首跑 → 词表升格 → 热重载链路加固）、解析支线 SP1（HtmlProtectingSplitter 七批修复）、GraphRAG v3.04-v3.06（hub 采样 / 方向 A/B / 读取侧收敛）、压测场景 E 均已闭环并入各章与进度卷；**文档于 2026-10-20 完成全量现状同步**（设计 19 章 + 交付五件 + 模块 README + 工具/前端/infra 索引）。后续演进规划见 [未来扩展方案](docs/project-future/README.md)。
 
 ## 目录
 
@@ -64,9 +64,9 @@
 
 - 📈 **评估门禁（kb-eval）**：Golden Dataset 267 条三分区契约——干净集护栏零命中、注入防域拦截率分区阈值（L1 ≥95% / L2 ≥90%）、多跳问答专项集准确率门禁（≥80%）+ 三维质量门禁（答案完整度 / 引用准确率 / 幻觉率）；Judge 结构化输出剥壳容错，畸形不静默给分
 - 🔁 **Bad Case 运营闭环**：审计日志多条件查询 → 根因四分类标注 → Golden Set 回灌（Git Ops 通道，幂等 upsert）→ CI 复跑验证——数据飞轮内建
-- 📊 **全链路可观测**：17+ 项 `rag.*` 业务指标（Micrometer）+ Prometheus 14 条告警 + Grafana 五面板（含双供应商 SLA）+ Micrometer Observation → OTLP → Langfuse LLM trace 树（缺省关，零噪音）
+- 📊 **全链路可观测**：80 个 `rag.*` 业务 meter（Micrometer）+ Prometheus 14 条告警 + Grafana 五面板（含双供应商 SLA）+ Micrometer Observation → OTLP → Langfuse LLM trace 树（缺省关，零噪音）
 - 🗂️ **Chunk 运维与索引重建**：Chunk 编辑（同源消毒 → 异步重嵌入 → ES 覆写）/ 软删 / 恢复 + 全量重建（PG 事实源重解析 + ES 孤儿清扫，任务表重启保留）
-- 🧪 **压测资产（kb-loadtest）**：Gatling Java DSL 四场景——检索真压 / 生成桩压（内置纯 JDK 桩服务零计费）/ 真实 LLM TTFT·TPOT 采样 / SSE 并发会话
+- 🧪 **压测资产（kb-loadtest）**：Gatling Java DSL 五场景——检索真压 / 生成桩压（内置纯 JDK 桩服务零计费）/ 真实 LLM TTFT·TPOT 采样 / SSE 并发会话 / hub 图路（高连接度实体，GraphRAG 邻域采样路径）
 - 🏭 **生产形态**：Flyway 版本化迁移（schema.sql 双源守卫单测）+ 容器化（compose healthcheck / 自动重启 / AppCDS 训练服务）+ 灾备最小集（备份 + 恢复演练）+ 依赖扫描（OWASP dependency-check + CycloneDX SBOM）
 
 ## 架构概览
@@ -171,7 +171,7 @@ flowchart TB
 ├── kb-api/            # REST + SSE + MCP 端点 + SecurityConfig + JWT（启动入口）
 ├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环 + 护栏词表管理）
 ├── kb-eval/           # 评估：EvalRunner + 探针 + Golden Dataset 267 + CI 门禁
-├── kb-loadtest/       # Gatling 压测四场景 + 生成桩（显式触发）
+├── kb-loadtest/       # Gatling 压测五场景 + 生成桩（显式触发）
 ├── infra/             # 部署资产（docker-compose 应用/监控双栈 + .env 模板 + 备份脚本 + 告警规则）
 ├── frontend/          # Vue3 前端（Login + Chat 溯源对话 + Documents + Debug 检索调试台 + Chunks 观测台 + Admin 运维中心）
 └── docs/              # 设计文档 + 进度追踪 + 交付文档 + 复盘优化
@@ -213,16 +213,17 @@ export DASHSCOPE_API_KEY=sk-xxx    # Embedding / Rerank / 备用模型
 
 ```bash
 # 后端（spring-boot:run fork JVM 必须带 --enable-preview）
+# 本项目本地开发约定端口 8090（8080 常被占用）：export SERVER_PORT=8090
 mvn spring-boot:run -pl kb-api -Dspring-boot.run.jvmArguments="--enable-preview"
 
-# 前端（Vite dev server，经 .env BACKEND_URL 指向后端）
+# 前端（Vite dev server，经 .env BACKEND_URL 指向后端；示例缺省 http://localhost:8090）
 cd frontend && npm install && npm run dev
 ```
 
 ### 4. 验证
 
 ```bash
-curl http://localhost:8080/actuator/health
+curl http://localhost:8090/actuator/health   # 未设 SERVER_PORT 时用 8080
 # {"status":"UP",...}
 ```
 
@@ -244,7 +245,10 @@ curl http://localhost:8080/actuator/health
 | `rag.retrieval.rewrite.enabled` | `true` | 多轮查询改写（指代消解） |
 | `rag.cache.enabled` | `false` | 语义缓存全族（关闭态零变化） |
 | `rag.graph.enabled` | `false` | GraphRAG 全族（关闭态链形态逐字节不变） |
-| `rag.guardrail.rules.source` | `file` | 护栏词表单轨（file = Git Ops 回滚阀门 / db = 运维台管理） |
+| `rag.guardrail.rules.source` | `file` | 护栏词表单轨（file = Git Ops 回滚阀门 / db = 运维台管理；file 态写路径 400 `GUARDRAIL_RULE_SOURCE_READONLY`） |
+| `rag.orchestrator.enabled` | `false` | Multi-Agent 编排链（关闭态 `mode: agent` 400 `ORCHESTRATOR_DISABLED`） |
+| `rag.dingtalk.enabled` | `false` | 钉钉 Stream 群机器人（开启态三要素 fail-closed） |
+| `rag.a2a.enabled` | `false` | A2A v1.0 协议端点（关闭态端点 404 缺位） |
 | `rag.audit.enabled` | `true` | 全链路审计落库 |
 | `tracing.otlp.enabled` | `false` | OTLP → Langfuse LLM trace（缺省零导出零噪音） |
 
@@ -267,10 +271,11 @@ curl http://localhost:8080/actuator/health
 
 - **评估门禁三分区**（CI 退出码契约）：干净集护栏零命中 / 注入防域拦截率分区阈值（L1 ≥95%、L2 ≥90%）/ 观察集只报告；多跳专项集 30 例准确率门禁 ≥80%；三维质量门禁（AC ≥4.0 / CA ≥0.75 / HR ≤8%）
 - **探针组**：`eval.probe` = auto / vector / hybrid / chain 四形态，A/B = 快照 + 内容盲比
-- **业务指标**：`rag.feedback / retrieval / tool.call / token / routing / guardrail / request / rerank / cache.*` 等 17+ 计数族 + 双供应商 SLA 族（熔断/接管计数，供告警面板）
+- **业务指标**：`AiBusinessMetrics` 80 个 meter——feedback / retrieval / tool.call / token / routing / guardrail / request / rerank / cache.* / graph.* / orchestrator.* / a2a.* / dingtalk.* / chunk.* / badcase.* + 双供应商 SLA 族（熔断/接管计数，供告警面板）
 - **面板与告警**：Grafana 五面板（含 supplier-sla）+ Prometheus 告警 14 条（真触发自检 + promtool 合成单测）
 - **LLM Trace**：Observation → otel bridge → OTLP Langfuse，双链 trace 合树（含流式主生成），内容捕获单源开关
-- **压测四场景**：检索真压 / 生成桩压（零计费）/ 真实 LLM TTFT·TPOT / SSE 并发会话（Gatling Java DSL）
+- **回归基线**：单测 1164（2026-10-20，JDK 21 全绿）+ Testcontainers IT 69（kb-eval 61 含 Neo4j 网关 23 例 / kb-admin 8 真 Redis）——`mvn verify -pl kb-eval,kb-admin -am`
+- **压测五场景**：检索真压 / 生成桩压（零计费）/ 真实 LLM TTFT·TPOT / SSE 并发会话 / hub 图路（Gatling Java DSL；场景 E 为 GraphRAG 高连接度路径补盲，建议线 P95 < 800ms 待实测复核）
 
 ## API 概览
 
@@ -282,7 +287,7 @@ curl http://localhost:8080/actuator/health
 | 会话与反馈 | `/api/v1/sessions`、`/api/v1/feedback` | 全员（租户+用户双过滤） |
 | 工具审批 | `POST /api/v1/tools/approvals/{id}/approve` | 全员 |
 | 统计 | `GET /api/v1/stats/overview`、`/documents/processing` | 全员 |
-| 运维 | `/api/v1/admin/**`：Chunk 运维 / 索引重建 / 审计查询 / Bad Case 闭环 | 租户管理员 |
+| 运维 | `/api/v1/admin/**`：Chunk 运维 / 索引重建 / 审计查询 / Bad Case 闭环 / 图谱回填 / 反馈导出 | 租户管理员 |
 | 护栏词表 | `/api/v1/admin/guardrail/**`：CRUD / reload / 命中演练 | 系统超管 |
 | MCP | `/mcp`（Streamable HTTP，search / get_document / ask 三工具） | JWT |
 | A2A | `GET /.well-known/agent-card.json` + `POST /a2a`（JSON-RPC `SendMessage` 同步应答，v1.0 单版本） | JWT |
@@ -305,11 +310,14 @@ curl http://localhost:8080/actuator/health
 
 ## 文档
 
-- [全景实现报告（按章拆分，设计唯一依据）](docs/project-implement/README.md)——含历次修订注记（各章头部版本递增）与 [§18.6 全阶段验收复盘矩阵](docs/project-implement/18-交付验收标准.md)
+- [docs 总索引](docs/README.md)——按用途导航全部文档
+- [全景实现报告（按章拆分，设计唯一依据）](docs/project-implement/README.md)——含历次修订注记（各章头部版本递增）与 [§18.6 全阶段验收复盘矩阵 / §18.7 收官后增量](docs/project-implement/18-交付验收标准.md)
 - [交付文档](docs/delivery/README.md)——运维手册 / 生产部署实操手册 / API 文档 / 用户使用手册
 - [MCP 集成指南](docs/delivery/MCP集成指南.md) · [A2A 集成指南](docs/delivery/A2A集成指南.md)——外部 Agent / 系统对接
 - [未来扩展方案](docs/project-future/README.md)——面向下一阶段的演进设计与规划
 - [进度追踪（按任务行定位）](docs/project-progress/项目阶段推进任务清单完成记录.md)
+- [用户侧待执行项清单（唯一源）](docs/project-progress/用户侧待执行项清单.md) · [99.5% 兜底自检清单](docs/project-operations/99.5-兜底自检清单.md)
+- [压测报告](docs/reports/loadtest/Gatling压测报告（Phase4簇⑥4.12）.md) · [红队首跑报告](docs/reports/redteam/redteam-report-g1-2026-08-31.md) · [供应链扫描报告](docs/reports/supply-chain/)
 - [Phase 4 复审与规划方案（调研实证版）](docs/project-optimization/Phase%204%20复审与规划方案（调研实证版）.md) · [Phase 5 复审与规划方案（调研实证版）](docs/project-optimization/Phase%205%20复审与规划方案（调研实证版）.md)
 
 ## License

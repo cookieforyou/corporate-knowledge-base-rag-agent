@@ -1,5 +1,7 @@
 # 词表带外导入 inbox 模板（安全簇① T4）
 
+> **运行时口径（2026-10）**：生产 `RAG_GUARDRAIL_RULES_SOURCE=db` 时，`kb_guardrail_rule` 是运行时唯一事实源；`import_words.py` 维护的是 **file 侧词表档案**（Git Ops 回滚阀门/带外成批通道），写入后仍需经 CRUD/Seeder/重启同步至 DB 才生效。单条在线运营优先走前端第五 Tab 或 `/admin/guardrail/rules` API（自动 reload + 存档）。详见 12 章 §12.7 与 G2 段。
+
 `import_words.py` 消费的本目录形态说明。**inbox 建议放仓库外本地路径**
 （如 `~/guardrail-inbox/`），明文词面永不进仓库；导入完成后 inbox 自行处置。
 

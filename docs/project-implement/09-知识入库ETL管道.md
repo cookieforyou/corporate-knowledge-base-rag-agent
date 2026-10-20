@@ -2,7 +2,7 @@
 
 > 本章为《企业知识库 RAG Agent 工作台：Spring AI 2.0 全景实现报告》v2 拆分版的一部分（原第五卷「核心模块技术实现」）
 >
-> [📑 返回目录](./README.md) · 最后更新：2026-10-04（v2.35 修复批7：AST 视图预处理——结构标签配平 + 行内 code 屏蔽；详 9.2 v2.30）
+> [📑 返回目录](./README.md) · 最后更新：2026-10-20 · **v2.36 补记 §9.6 图谱抽取异步旁路**（Phase5簇④；此前仅散见 10/17 章）· v2.35 修复批7：AST 视图预处理（9.2 v2.30）
 >
 > **v2 修订**：① 解析路由深度链路调整为 API 化解析（DocMind 文档解析大模型版为主；v2.1 按 ECS 资源约束定案，详见 9.1 决策注记）；② 新增 9.4 ES 双写环节（v1 缺失，混合检索的前置依赖）；③ 新增 9.5 Contextual Retrieval 可选增强；④ 管道编排与 Phase 1 已落地实现对齐（`DocumentEtlService`）。
 >
@@ -609,3 +609,14 @@ public class ContextualEnrichmentTransformer implements DocumentTransformer {
 - 进度写入 Redis（`etl:progress:{docId}` Hash，TTL 24h，键规划见第七章 7.5）；
 - WebSocket 端点 `/ws/etl/progress` 向前端推送 `EtlProgress`（stage/chunkCount/processedChunks/percentage）；
 - 前端文档上传组件订阅进度条，完成后自动刷新文档列表状态。
+
+## 9.6 图谱抽取异步旁路（Phase5簇④，v2.36 补记）
+
+> 图谱是**检索增强件**，不改变 ETL 事实源链路：chunk/向量/ES 写入完成后，由 ETL `COMPLETED` 终态帧触发异步抽取，失败不影响文档入库。
+
+- **触发点**：`DocumentService.upload()` 首次入库回调 + `reindexProgressCallback()` 终态帧（覆盖 reparse/replace/重建；同帧兼语义缓存失效）。`rag.graph.enabled=false` 时派发器整体缺位，零副作用。
+- **状态机**：`kb_document.graph_status`（PENDING/EXTRACTING/COMPLETED/FAILED，V2 迁移）；回填任务按 PENDING/FAILED 选目标，RUNNING 超 6h 判陈旧可重发。
+- **抽取**：窗口语境 → qwen3.8-flash 结构化（温度 0 + 关思考）→ 确定性实体 ID 合并 → 描述嵌入（1024 维）→ 幂等写 Neo4j；越集关系丢弃、单 chunk 失败隔离。
+- **限流**：Redisson 令牌桶双档（增量 20/min/租户、回填 60/min/租户独立桶）+ JVM 信号量 3 在飞；嵌入 10 条/批。
+- **生命周期**：删除清引用、软删翻锚点标记、编辑按文档重抽取、孤儿清扫；存量回填 `POST /api/v1/admin/graph/backfill`；备份 `infra/scripts/neo4j-backup.sh`。
+- **观测**：`rag.graph.extraction.total/succeeded/failed` + `rag.retrieval.graph.*`；设计细节见 10 章 §10.9、部署见 17 章 §17.6。

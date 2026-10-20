@@ -1,6 +1,6 @@
 # API 文档 · 企业知识库 RAG Agent 工作台
 
-> 版本：1.2（2026-09-16，Phase5簇⑥ 批3 增量：mode=agent 三链 / graph 回填端点 / sessions.mode 与 toolCalls / stats Bad Case 双计数 / 钉钉·A2A 端点登记；1.1 = 2026-08-22 随 Phase4簇⑦交付，契约逐字核对源码：kb-api / kb-admin / kb-ai-agent / kb-commons）
+> 版本：1.3（2026-10-20，G5 词表重载链路增量：`GUARDRAIL_RULE_SOURCE_READONLY` 错误码 / 修订号兜底与写路径本地记账 / 图谱字段补齐；1.2 = 2026-09-16 Phase5簇⑥ 批3；1.1 = 2026-08-22 随 Phase4簇⑦交付，契约逐字核对源码）
 > 基地址：`http://<host>:8090` · 配套：[运维手册](./运维手册.md) · [用户使用手册](./用户使用手册.md)
 
 ---
@@ -45,7 +45,7 @@ OAuth2 Resource Server JWT Bearer：`Authorization: Bearer <token>`（无状态�
 | 会话/反馈 | `SESSION_NOT_FOUND`、`MESSAGE_NOT_FOUND`、`INVALID_FEEDBACK`、`FEEDBACK_NOT_FOUND` |
 | 审计/回灌 | `AUDIT_LOG_NOT_FOUND`、`INVALID_ROOT_CAUSE`、`INVALID_TIME_FORMAT`、`GOLDEN_ENTRY_INVALID`、`GOLDEN_FILE_CORRUPT`、`GOLDEN_DIR_UNAVAILABLE` |
 | 重建 | `REBUILD_TASK_NOT_FOUND`、`REBUILD_STORE_UNAVAILABLE`（503） |
-| 词表 | `GUARDRAIL_RULE_NOT_FOUND`、`GUARDRAIL_RULE_INVALID`、`GUARDRAIL_RULE_DUPLICATE` |
+| 词表 | `GUARDRAIL_RULE_NOT_FOUND`、`GUARDRAIL_RULE_INVALID`、`GUARDRAIL_RULE_DUPLICATE`、`GUARDRAIL_RULE_SOURCE_READONLY`（file 回退态写路径拒收） |
 | MCP | `MCP_QUERY_EMPTY`、`MCP_DOC_NOT_FOUND`、`MCP_SCOPE_DENIED`、`RATE_LIMITED`（429） |
 | 工具 | `APPROVAL_STORE_UNAVAILABLE`（503） |
 
@@ -91,7 +91,7 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 | `POST /{id}/reparse` | path + `parseRoute` 可选 | `{docId, status:"REINDEXING"}` |
 | `POST /{id}/replace` | path + multipart `file` + `parseRoute` 可选 | `{docId, status:"REINDEXING"}` |
 
-**KbDocument**：`id, tenantId, name, originalName, type(PDF/DOCX/PPTX/XLSX/MD/TXT/HTML), size, ossPath, status, parseRoute, pageCount, tableCount, imageCount, chunkCount, errorMessage, version, createdBy, createdAt, updatedAt`。
+**KbDocument**：`id, tenantId, name, originalName, type(PDF/DOCX/PPTX/XLSX/MD/TXT/HTML), size, ossPath, status, parseRoute, pageCount, tableCount, imageCount, chunkCount, errorMessage, version, graphStatus(PENDING/EXTRACTING/COMPLETED/FAILED), graphUpdatedAt, createdBy, createdAt, updatedAt`。
 **状态机**：`UPLOADING → PARSING → SUCCESS/FAILED`；重入库窗口 `REINDEXING`（处理期禁删/禁重入）。
 **KbChunk**：`id, docId, sectionId, chunkIndex, content, originalContent, pageNum, tokenCount, metadata, chunkType, vectorId, isDeleted, createdAt, updatedAt, headingPath`。
 
@@ -101,8 +101,8 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 
 直调检索链（不经 LLM、不写审计）。请求体 `{query}`。
 
-响应 `data`：`{query, rewrittenQuery, latencyMs{rewrite,retrieval,rerank,total}, candidates[], degradation{vector:"OK|DEGRADED", bm25:"OK|DEGRADED"}}`。
-`Candidate`：`{chunkId, fileName, pageNum, chunkType, content, vectorScore, vectorRank, bm25Score, bm25Rank, fusionScore, rerankScore, rerankRank, finalRank}`（未出现的路其字段为 null）。改写结果恒展示（不受 `rag.retrieval.rewrite.enabled` 影响）。
+响应 `data`：`{query, rewrittenQuery, latencyMs{rewrite,retrieval,rerank,total}, candidates[], degradation{vector:"OK|DEGRADED", bm25:"OK|DEGRADED", graph:"OK|DEGRADED"}}`（graph 键仅图路条件在场时出现）。
+`Candidate`：`{chunkId, fileName, pageNum, chunkType, content, vectorScore, vectorRank, bm25Score, bm25Rank, graphScore, graphRank, graphEntityHits, fusionScore, rerankScore, rerankRank, finalRank}`（未出现的路其字段为 null）。改写结果恒展示（不受 `rag.retrieval.rewrite.enabled` 影响）。
 
 ### 2.4 会话（SessionController，`/api/v1/sessions`，tenant+user 双过滤）
 
@@ -191,7 +191,7 @@ HTTP 401/403 由安全过滤器层产生（无业务错误码）。
 | `POST /reload` | — | 手动重载：`{source, reloaded, injectionCount, outputCount}`（本地同步 + 就地落账 + pub/sub 广播；file 态亦可用） |
 | `POST /drill` | `{text}`（@NotBlank） | 命中演练：`{injectionMatches[], outputMatches[]}`（同运行时口径，不计指标不落审计） |
 
-写路径闭环：**源守卫**（v2.113：仅 `RAG_GUARDRAIL_RULES_SOURCE=db` 可用——`source=file` 回退态下写库对运行时词表无效，故写前 fail-loud 拒收，不再回误导性的 `reloaded=true`；只读列表/演练与 `POST /reload` 不受限）→ 校验（Base64 → 解码非空 ≤500 字符 → family 枚举 → REGEX 预编译）→ 保存 → 自动重载（fail-keep 不阻断；**就地落 `rag.guardrail.reload.*` 账**，v2.112）→ 广播（载荷带实例标识，自身回环跳过，v2.112）→ 编码 YAML 存档导出。错误：`GUARDRAIL_RULE_NOT_FOUND` / `GUARDRAIL_RULE_INVALID` / `GUARDRAIL_RULE_DUPLICATE` / `GUARDRAIL_RULE_SOURCE_READONLY`（非 db 源拒写）。
+写路径闭环：**源守卫**（v2.113：仅 `RAG_GUARDRAIL_RULES_SOURCE=db` 可用——`source=file` 回退态下写库对运行时词表无效，故写前 fail-loud 拒收，不再回误导性的 `reloaded=true`；只读列表/演练与 `POST /reload` 不受限）→ 校验（Base64 → 解码非空 ≤500 字符 → family 枚举 → REGEX 预编译）→ 保存 → 自动重载（fail-keep 不阻断；**就地落 `rag.guardrail.reload.*` 账**，v2.112）→ 广播（载荷带实例标识，自身回环跳过，v2.112）→ 编码 YAML 存档导出。错误：`GUARDRAIL_RULE_NOT_FOUND` / `GUARDRAIL_RULE_INVALID` / `GUARDRAIL_RULE_DUPLICATE` / `GUARDRAIL_RULE_SOURCE_READONLY`（非 db 源拒写）。**v2.113/v2.115 增补**：`source=db` 时另有修订号轮询兜底（内容指纹 `count(*):md5(...)`，缺省 60s），Redis pub/sub 丢信号时自动收敛；`source=file` 重启后注册表 `修订号兜底=false`，写路径三动词均 400（错误码按全仓约定落日志，响应体为 code=400 + message）。
 
 ---
 

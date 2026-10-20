@@ -4,7 +4,7 @@
 
 企业知识库 RAG Agent 工作台。基于 Spring AI 2.0 的企业级 RAG 平台：文档解析、混合检索（向量+BM25[+Graph] RRF 三路）、带溯源的 Agent 对话、全链路可观测。
 
-**当前阶段**：**项目全阶段收官（2026-09-16，批3 文档评审通过）**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并经用户侧验收；收官总账本 = 18 章 §18.6 验收复盘矩阵。Phase 5 基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）；Phase5簇⑥ = 体验批/钉钉批1/A2A 批2/文档收口批3 全收官（基线 = Phase5簇⑥实施方案）。**后续演进**：`docs/project-future/`（扩展规划分册——真实工具链/协议互通/模型层/检索演进/规模化）。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
+**当前阶段**：**项目全阶段收官（2026-09-16，批3 文档评审通过）**——Phase 1-5 五阶段 + 优化冲刺 + 安全加固两专项全部完成并经用户侧验收；收官总账本 = 18 章 §18.6 验收复盘矩阵。**收官后增量（2026-09/10）**：安全簇⑥ G1-G5（红队/词表升格/热重载链路加固）、解析支线 SP1（切分器七批修复）、GraphRAG v3.04-v3.06、压测场景 E 均已闭环。Phase 5 基线 `docs/project-optimization/Phase 5 复审与规划方案（调研实证版）.md`；模型层批B 主模型 GLM-5.3-Flash（门禁 CA≥0.75/HR≤8%，基线 md1-final-3，生产 temperature 0.2 + effort low）；Phase5簇⑥ = 体验批/钉钉批1/A2A 批2/文档收口批3 全收官（基线 = Phase5簇⑥实施方案）。**后续演进**：`docs/project-future/`（扩展规划分册——真实工具链/协议互通/模型层/检索演进/规模化）。**用户侧待执行项唯一源** `docs/project-progress/用户侧待执行项清单.md`。设计依据 `docs/project-implement/README.md`；**过程细节与 E2E 在** `docs/project-progress/` 拆分文档集（索引 = `项目阶段推进任务清单完成记录.md`，按子卷任务行定位，勿整读）。
 
 ## 技术栈
 
@@ -21,14 +21,14 @@
 ```
 kb-rag-agent/
 ├── kb-commons/        # ApiResponse/BusinessException/TextSanitizer/Constants（常量收敛十一分区；kb-eval 值域落本地 EvalConstants）
-├── kb-domain/         # 8 Entity + 8 Repository + 6 枚举 + schema.sql + db/migration/（Flyway V1 基线）
+├── kb-domain/         # 9 Entity + 9 Repository + 8 枚举 + schema.sql + db/migration/（Flyway V1-V3）
 ├── kb-infrastructure/ # vectorstore/（双向量库条件装配）、MinIO、elasticsearch/、parsing/（DocMind+OCR）
 ├── kb-etl/            # MinIO→SmartParsingRouter(NATIVE/DEEP/OCR)→切分→PG→向量化→ES 双写
 ├── kb-ai-core/        # 纯 RAG（无工具链）：retriever/（双路+RRF+重排）、advisor/、routing/（主备熔断）、memory/、metrics/、ragAgentChatClient
 ├── kb-ai-agent/       # Agent 事务域：tool/（Mock 读/写拆类+HITL 账本）、config/（toolAgent+orchestrator 两 ChatClient）、orchestration/（Phase5簇⑤ 编排：TaskTool+SubAgentRegistry+KnowledgeSearchTools）、service/、mcp/（4.10 三件套+身份守卫）、dingtalk/（5.12 群机器人）、a2a/（批2 A2A 治理域）
-├── kb-api/            # Controller + SSE + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
-├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环，kb-api 聚合）
-├── kb-eval/           # EvalRunner + 探针 + Golden Dataset + CI 门禁
+├── kb-api/            # Controller + SSE + /mcp + /a2a + SecurityConfig + JwtUtils（启动入口 KbRagAgentApplication）
+├── kb-admin/          # 运维后台（Chunk 运维与重建 + Bad Case 闭环 + 图谱回填 + 词表运营 + 反馈导出，kb-api 聚合）
+├── kb-eval/           # EvalRunner + 探针 + Golden 267 + 校准/导出/图路 A-B 工具 + CI 门禁
 ├── kb-loadtest/       # Gatling 压测五场景
 ├── frontend/          # Vue3（Login/Chat 溯源对话/Documents/Debug 检索台/Chunks 观测台/Admin 运维中心五 Tab）
 └── docs/              # 设计章 + 进度
@@ -45,7 +45,7 @@ kb-rag-agent/
 
 **三链路架构**：`ragAgentChatClient`（kb-ai-core，纯检索零工具）+ `toolAgentChatClient`（kb-ai-agent，纯工具零检索 + defaultTools）+ `orchestratorChatClient`（kb-ai-agent，**Phase5簇⑤ 编排链**，`rag.orchestrator.enabled` 缺省关）；请求体 `mode: rag|tool|agent` 显式分流（agent 关闭态 400 ORCHESTRATOR_DISABLED）；共享 smartRoutingChatModel / agentChatMemory / 护栏配额 Advisor / RetrievalContext；toolContext 仅 ToolChatService / AgentOrchestratorService 组装（物理消除 HITL 凭证泄露）；链序见 11.2/§11.5.5
 
-**Multi-Agent 编排（Phase5簇⑤ 收窄版）**：Orchestrator-Workers——主 Agent 仅持 `TaskTool` 委派工具（SSE TOOL_CALL/审计/rag.tool.call.* 零变更）；`orchestration/` = SubAgentSpec（工具集不含 task 防递归）/ SubAgentRegistry（静态注册 + roster 注入主 Agent prompt = 真实工具挂接点）/ TaskTool（身份三键下传、凭证不下传、失败文本化回流、非打断式超时、委派预算硬闸）/ KnowledgeSearchTools（检索同构 MCP 零 LLM，治理:收敛+截断+检索闸）/ TaskBoundaryAdvisor(420 边界注记)+memory-enabled 逃生舱；三子代理差异化模型；Mock 拆 Read/Write；指标 `rag.orchestrator.*`；真实工具挂接契约六条 §11.5.5
+**Multi-Agent 编排（Phase5簇⑤ 收窄版）**：Orchestrator-Workers——主 Agent 仅持 `TaskTool` 委派工具；`orchestration/` = SubAgentSpec/ SubAgentRegistry（静态注册 + roster 注入）/ TaskTool（身份三键下传、凭证不下传、失败文本化回流、非打断式超时、委派预算硬闸）/ KnowledgeSearchTools/ TaskBoundaryAdvisor(420 边界注记)+memory-enabled 逃生舱；三子代理差异化模型；Mock 拆 Read/Write；指标 `rag.orchestrator.*`；真实工具挂接契约六条 §11.5.5
 
 **全链路审计**：`AuditTraceAdvisor`(order 10)挂双链，异步落 kb_audit_log（旁路容错）；三态 SUCCESS/REJECTED(errorCode)/ERROR；query 脱敏、改写经装饰器捕获；`rag.audit.enabled` 可关；kb-eval 不挂
 
@@ -57,7 +57,7 @@ kb-rag-agent/
 
 **语义缓存（Phase5簇③）**：`CacheCheckAdvisor(460)` 挂路由后门控前（`rag.cache.enabled` 缺省关，关闭态零变化）：命中短路重放+溯源同形 / 未命中流末五闸异步写入；Redis 8 内建搜索经 Redisson RSearch 零新增依赖（租户隔离 + KNN 0.95 + docIds TAG 失效反查接四处写路径）；指标 `rag.retrieval.cache.*`；§11.9/11.10
 
-**GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态条件装配缺位，双路零变化）。图 = Neo4j Community（第二台 ECS 独占）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫**实体段/关系段两条独立语句**——串联被 Cypher 空结果短路，v3.00 修复）。图路检索**零 LLM**：查询嵌入→实体匹配（**索引过取 ×`entity-over-fetch` + 租户过滤后种子封顶**——Neo4j 5.26 无索引内过滤，后过滤会被他租户占满名额致零召回，v3.00 实证修复；空召回三态指标 `seed_starved/anchor_gap`）→1 跳展开（**方向可配** `expand-direction` BOTH/OUTGOING/INCOMING，候选按 hop/贡献/中心度/id 全序截断 `candidate-limit` 且**种子恒在**，v3.02；**单种子邻居按 `mention_count` 采样 `neighbor-limit`（缺省 256）**——子查询 `Top→collect` 使邻域收集有界，v3.04）→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`。**维度契约与描述（v3.01）**：1024 维三处同源（图常量 × 向量库 × 缓存），守卫三层——写入拒异维/null（异维写入成功却对索引不可见，真库实证）+ 读路径异维前置返空 + 启动期索引维度自省与 `kb.vector-store.*` 交叉校验（缓存维度跨模块不可见，由缓存自身兜底）；实体/关系描述 `ON MATCH` 取「信息量更大者胜」（原「取最新」会被空描述冲掉长描述）；计数语义 `mention_count`=去重片段数、`weight`=关联文档数（v3.02 幂等重算，原为写入次数）；写路径超时独立 `write-timeout-seconds`（30s）；Chunk 锚点镜像 PG 全量 chunk 且**锚点与 MENTIONS 边共存活**（重写只删已离开 PG 的锚点 + 孤儿清扫延后至重写后 → 软删期重抽取后 restore 即恢复图路召回）。§10.9/13.3/17.5-17.6/18.5
+**GraphRAG（Phase5簇④）**：`rag.graph.enabled` 缺省关（关闭态条件装配缺位，双路零变化）。图 = Neo4j Community（第二台 ECS 独占）：Entity 节点（确定性 ID + 描述嵌入同源向量索引 + doc/chunk 溯源）+ Chunk 锚点 + MENTIONS/RELATED_TO。抽取 = ETL COMPLETED 帧异步派发（`graph_status` 独立状态机；qwen3.8-flash 结构化 + 令牌桶双档 + 嵌入批量 + 幂等重写 + 孤儿清扫**实体段/关系段两条独立语句**——串联被 Cypher 空结果短路，v3.00 修复）。图路检索**零 LLM**：查询嵌入→实体匹配（**索引过取 ×`entity-over-fetch` + 租户过滤后种子封顶**——Neo4j 5.26 无索引内过滤，后过滤会被他租户占满名额致零召回，v3.00 实证修复；空召回三态指标 `seed_starved/anchor_gap`）→1 跳展开（**方向可配** `expand-direction` BOTH/OUTGOING/INCOMING，候选按 hop/贡献/中心度/id 全序截断 `candidate-limit` 且**种子恒在**，v3.02；v3.05 方向 A/B 实测判「差异不显著」→ 缺省 **BOTH** 定调；**单种子邻居按 `mention_count` 采样 `neighbor-limit`（缺省 256）**——子查询 `Top→collect` 使邻域收集有界，v3.04）→chunk 反查 + 租户纵深；`RrfFusion` 三路融合；单路容错降级。生命周期：删清引用/软删翻标记/编辑重抽取；回填 `POST /api/v1/admin/graph/backfill`。**维度契约与描述（v3.01）**：1024 维三处同源（图常量 × 向量库 × 缓存），守卫三层——写入拒异维/null+ 读路径异维前置返空 + 启动期索引维度自省与 `kb.vector-store.*` 交叉校验；实体/关系描述 `ON MATCH` 取「信息量更大者胜」；计数语义 `mention_count`=去重片段数、`weight`=关联文档数（v3.02 幂等重算，原为写入次数）；写路径超时独立 `write-timeout-seconds`（30s）；Chunk 锚点镜像 PG 全量 chunk 且**锚点与 MENTIONS 边共存活**。§10.9/13.3/17.5-17.6/18.5
 
 **Chunk 运维与重建（Phase4簇③）**：kb-admin 首建（kb-api 聚合禁反向依赖；Jwt 直消费防成环）。Chunk CRUD：编辑 = 同源消毒→PG→异步重嵌入（**delete→add 两步**，Milvus 非 upsert）+ ES 覆写（联动图重抽取/锚点翻转）；守卫 fail-closed。重建：ReindexGateway 委派 reparse（PG 事实源全量重解析 + ES 孤儿清扫；Redis 租户域任务表）
 
@@ -74,9 +74,9 @@ kb-rag-agent/
 
 **意图路由**：`QueryRoutingAdvisor`(440) 双层分类（正则快路 / 分类+改写合并单次调用）→ skipRetrieval；`RetrievalGateAdvisor`(500) 门控包裹检索链（skip 旁路携记忆直答，fail-open 回落）；可关；路由/改写模型经局部 Builder 挂 fallback（不注册 Bean 防顶全局）
 
-**工具链与 HITL（kb-ai-agent）**：`EnterpriseMockReadTools`/`EnterpriseMockWriteTools`（Phase5簇⑤ 拆类，契约对齐真实 OA/ERP）；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + tenant/user 绑定，故障 fail-closed；**ToolCallingAdvisor 自建 order 1000（tool/orchestrator 两链共享）**
+**工具链与 HITL（kb-ai-agent）**：`EnterpriseMockReadTools`/`EnterpriseMockWriteTools`；读工具自动执行、写工具 HITL 三段式（挂起 approvalId → approve → 二次对话带 `approvedToolCallId` 一次性消费）；Redis 账本 TTL 10 分钟 + tenant/user 绑定，故障 fail-closed；**ToolCallingAdvisor 自建 order 1000（tool/orchestrator 两链共享）**
 
-**多模型路由**：主模型双形态 `rag.routing.primary.provider`=glm|deepseek（缺省 glm = GLM-5.3-Flash 强制思考 + effort 透传；deepseek 思考关）互斥条件装配 + `primaryChatModel` 桥（非法值启动失败）；`SmartRoutingChatModel`（@Primary）包 primary + 备用 `fallbackChatModel`（qwen3.8-flash）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发（异构须重建 Prompt 坑位⑭）；`rag.routing.fallback.enabled=false` 单模型透传；deepseek starter 退役（chat=none 防御位）
+**多模型路由**：主模型双形态 `rag.routing.primary.provider`=glm|deepseek（缺省 glm = GLM-5.3-Flash 强制思考 + effort 透传；deepseek 思考关）互斥条件装配 + `primaryChatModel` 桥（非法值启动失败）；`SmartRoutingChatModel`（@Primary）包 primary + 备用 `fallbackChatModel`（qwen3.8-flash）；熔断三态无锁原子 + SLA 计数；失败即切，流式整段重发；`rag.routing.fallback.enabled=false` 单模型透传；deepseek starter 退役（chat=none 防御位）
 
 **检索与对话链路**
 
@@ -86,10 +86,10 @@ kb-rag-agent/
 - 前端对话窗：sessionId 多轮 + rag/tool/agent 三模式切换 + TOOL_CALL 审批/委派卡片
 - 租户隔离 fail-closed 两层：① 入口身份守卫（tenantId 缺失抛 `IDENTITY_INCOMPLETE`）；② 检索器有 ctx 无租户返回空多路零触达
 - 护栏与配额：`InputSanitizeAdvisor`(300) 归一化+PII 掩码（七类）+注入拦截；`SemanticInjectionAdvisor`(320) **L2 语义判定**（备用模型二判 fail-open，剥壳判据；触发=REGEX∧无干词，压制面 `suppressed.*`；**装配前提=L1 同链**）；`OutputGuardrailAdvisor`(110) 黑名单整段替换+**流式增量放行+REPLACE 追回**+PII 回显观察；`TokenBudgetAdvisor`(30) 日账本；`RateLimitAdvisor`(100) 令牌桶；配额码 429；Redis 故障 fail-open（配额）/fail-closed（审批账本）；间接注入扫描 rerank 前 warn/exclude；§12.8
-- **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1）**：双 volatile 快照原子替换 + pub/sub/mtime 双触发（v2.112/113 自跳板+记账归位+修订号兜底）；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload；写路径仅 db 态，file 态 400）；前端第五 Tab 写路径；§12.7
+- **词表工程（安全簇①）**：词项模型（value 逐条编码加载层解码）+ 双源合并（结构化∪CSV；file: 源整文件覆盖）；REGEX 轨；带外导入脚本（AI 零接触词面）；**FLAG 观察**（命中只计数，新词默认 FLAG 方转 BLOCK）；**热重载（安全簇⑥ F1/G5）**：双 volatile 快照原子替换 + pub/sub/mtime/DB 修订号三触发；v2.112 自跳板+记账归位；v2.113 修订号兜底（G5 修正取**内容指纹**，时间戳型对直改库无感）+ file 态写 400 `GUARDRAIL_RULE_SOURCE_READONLY`；v2.114 指标 `rule.create` 改名；**DB 单轨** `rag.guardrail.rules.source=file|db`（缺省 file=回滚阀门，kb-eval 恒 file）+ kb_guardrail_rule 唯一事实源（CRUD 只收 valueB64 + /reload）；前端第五 Tab 写路径；§12.7
 - **用户反馈闭环**：POST /api/v1/feedback（messageId upsert 可改评；归属经 message→session 校验 fail-closed）+ Bad Case 查询；audit_log.feedback 凭 trace_id 回填
 - 多轮记忆：`agentChatMemory` 显式装配 RedisChatMemoryRepository（坑位⑦，显式装配必须保留）；`FaultTolerantChatMemory` 降级；窗口 20 条；PG 归档异步旁路；续聊回填；kb-eval 零 Redis 依赖
-- 评估（kb-eval）：探针 `eval.probe`；Golden 267（干净110+注入127+多跳30）；门禁三分区契约 16 章（L1 ≥95% / L2 ≥90% / 观察集只报告）+ Phase 5 指标线 AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3 重锚）；judge 剥壳容错；干净集 BLOCK+FLAG 零命中；间接注入默认关；A/B 快照 eval-diff；图路方向 A/B 扫描 `--eval.graph-direction-ab`；导出 JSONL SFT/DPO
+- 评估（kb-eval）：探针 `eval.probe`；Golden 267（干净110+注入127+多跳30；注入分类 44/12/26/26/19 为 G4 重归终态）；门禁三分区契约 16 章（L1 ≥95% / L2 ≥90% / 观察集只报告）+ Phase 5 指标线 AC≥4.0 / CA≥0.75 / HR≤0.08（md1-final-3 重锚）；judge 剥壳容错；干净集 BLOCK+FLAG 零命中；间接注入默认关；A/B 快照 eval-diff；图路方向 A/B 扫描 `--eval.graph-direction-ab`；导出 JSONL SFT/DPO
 
 **压测资产（kb-loadtest）**：五场景 = 检索真压 / 生成桩压（纯 JDK StubChatServer）/ 真实 LLM TTFT·TPOT（缺省关）/ SSE 多轮 / hub 图路（v3.04）；语料 = Golden 干净集；§15.4/§18.4
 
@@ -101,7 +101,7 @@ kb-rag-agent/
 - 认证：`SecurityConfig`（actuator 白名单 permitAll，/api/** authenticated，其余 denyAll，无状态）；**运维面三层分级（§12.12）**：isAdmin → ROLE_ADMIN，owner=built-in 超管追加 ROLE_SUPER_ADMIN 独占 guardrail 运维端点；`/api/v1/admin/**` hasRole(ADMIN) + 治理写 @PreAuthorize；统计/上传/列表全员；`JwtUtils` Casdoor claims：`sub→userId`、`name→username`、`owner→tenantId`
 - 双向量库：`spring.ai.vectorstore.type=custom` 禁原生 auto-config，按 `kb.vector-store.provider` 条件装配；**pgvector 钉 idType=TEXT**（默认 UUID 致 delete 静默失效）
 - 配置：kb-api application.yml 经 `spring.config.import` 导入 infra + ai yml；**Redis 单一来源**：application-infra.yml `spring.data.redis.*` 被 Redisson 与会话记忆（占位符桥接）共消费**不可移除**；**Neo4j**（Phase5簇④）`spring.neo4j.*` 手工装配 Driver 受 `rag.graph.enabled` 门控；生产 `bolt+s://` 经 nginx `stream` 块 L4 TLS 终结（坑位㊱）+ 出借前探活（坑位㊴）
-- 测试：全模块单测绿 + Testcontainers IT 两宿主入门禁（kb-eval 61 含 Neo4j 网关真跑 23 例钉 5.26.29；kb-admin 8 真 Redis）——`mvn verify -pl kb-eval,kb-admin -am`，Docker 必需，无则 -DskipITs
+- 测试：全模块单测 1164（2026-10-20 JDK21 全绿）+ Testcontainers IT 两宿主入门禁（kb-eval 61 含 Neo4j 网关真跑 23 例钉 5.26.29；kb-admin 8 真 Redis）——`mvn verify -pl kb-eval,kb-admin -am`，Docker 必需，无则 -DskipITs
 
 ## 注意事项
 

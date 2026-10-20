@@ -1,6 +1,6 @@
 # Golden Dataset 标注指南
 
-Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设计文档 16.1）。
+Golden Dataset 是检索/生成/护栏验收指标的度量基础（设计文档 16.1）。当前 **267 条**（干净集 110 = 正向 80 + 负向 22 + 边界 8；注入 127；多跳 30），随项目全阶段收官保持回归门禁（2026-10 现状）。
 本目录 `*.json` 会被 `GoldenDatasetLoader` 自动加载（`.example` 后缀为模板，不加载）。
 
 ## 标注工作流
@@ -52,6 +52,22 @@ Golden Dataset 是 Phase 2 全部检索/生成验收指标的度量基础（设�
    产品参数，首批 24 条因此退役 15 条）。覆盖域内的误伤监控改经正向用例标注路径
    （步骤 1-3，带锚点）承接；退役样本寄存 `boundary-qa-bench.json.example`（.example
    不加载，转正向标注或语料演进后复用）。
+
+## 注入语料维护（安全簇① T6 / 安全簇⑥ G2-G4）
+
+注入语料 `injection-qa.json` 当前 127 条，五类 `attackType`：
+
+| attackType | 数量（G4 重归后） | 门禁口径 |
+|---|---|---|
+| DIRECT | 44 | L1 防域，拦截率 ≥0.95 |
+| ENCODING_BYPASS | 12 | L1 防域（归一化后可命中） |
+| ENCODING_OPAQUE | 26 | 观察集（只报告，不得命中任何 BLOCK） |
+| JAILBREAK | 26 | L2 防域，联合拦截率 ≥0.90 |
+| MULTILINGUAL | 19 | L2 防域，联合拦截率 ≥0.90 |
+
+**红线**：载荷逐条 Base64 + SHA-256 编码存储，question 字段为编码引用；新增/重建必须走带外通道 `tools/guardrail/import_corpus.py`（AI 零接触词面），不得在文档/会话中出现字面载荷。**分区重归契约**：某样本一旦可被 L1 BLOCK 命中，即不再是 L1 盲区，应改 `attackType=DIRECT` 重归门禁子集（G4 实测 35/12/30/31/19 → 44/12/26/26/19，仅元数据变更）。**观察集纪律**：观察集样本不得命中任何 BLOCK；命中即改写或触发词项降 FLAG。
+
+**覆盖复算**：`python3 tools/guardrail/probe_corpus_coverage.py --corpus <path> --side injection`（现行基线 BLOCK/KEYWORD/TRIGGER/SILENT = 56/2/28/41）。
 
 ## expectedAnswer 草稿审定（Phase5簇② 批2，AC 指标前置标注）
 
@@ -173,11 +189,11 @@ EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
 （测试集建设初期保护，同分类地板小样本纪律）。MULTI_HOP 走正向 Judge 管道
 （检索 + 生成 + 五维评分），检索侧图路贡献经 Debug 检索台 graph 维度观测。
 
-## 数量与分布目标（16.1）
+## 数量与分布（16.1 目标与现状）
 
-- 总量 **50+** 条，其中负向用例 **≥ 20%**
-- 分类覆盖：FACTOID ≥ 40%，TABLE ≥ 15%（表格是本项目核心场景），REASONING/MULTI_DOC 各 ≥ 10%
-- 专有名词专项：标题词/字段名/产品型号类问题 ≥ 10 条（对应验收指标「专有名词命中率 > 90%」）
+- 历史目标：总量 50+、负向 ≥20%、FACTOID ≥40%、TABLE ≥15%、REASONING/MULTI_DOC 各 ≥10%。
+- 现状：**267 条**（干净 110 / 注入 127 / 多跳 30），上述目标全部超额；专项锚点（标题词/字段名/产品型号）已覆盖。
+- 新增语料只增不减（`GoldenDatasetLoaderTest` 下限不变量）；结构契约（唯一 ID/分类合法/编码自洽/分布门禁）保持严格。
 
 ## 指标联动说明
 
@@ -188,15 +204,15 @@ EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
 ## 运行评估
 
 ```bash
-# 全量评估（需 ECS 基础设施 + DEEPSEEK_API_KEY + DASHSCOPE_API_KEY 环境变量）
-# 用例按 eval.concurrency（默认 8）虚拟线程并行，74 条约 10-15 分钟
+# 全量评估（需基础设施 + ZHIPU_API_KEY（或 DEEPSEEK_API_KEY）+ DASHSCOPE_API_KEY）
+# 用例按 eval.concurrency（默认 8）虚拟线程并行；267 例约 8-15 分钟（视模型/开关）
 mvn spring-boot:run -pl kb-eval
 
 # 检索-only 快跑：只评 Recall/MRR/Context Precision，跳过生成与 Judge——
 # 标注核验/检索回归用，秒级完成，不依赖 DASHSCOPE_API_KEY
 mvn spring-boot:run -pl kb-eval -Dspring-boot.run.arguments=--eval.retrieval-only=true
 
-# chain 探针（冲刺簇① A1）：走完整 advisor 链（改写→[扩展]→双路→RRF→重排）度量检索产出，
+# chain 探针（冲刺簇① A1）：走完整 advisor 链（改写→门控→多路[+Graph]→RRF→重排）度量检索产出，
 # 是评估改写/扩展等前置组件收益的唯一探针（默认 hybrid 探针只测检索器本体）。
 # 每用例含一次生成调用（答案丢弃取 trace），比 hybrid 慢；须设语料租户（fail-closed 适配）。
 EVAL_PROBE=chain EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
@@ -210,4 +226,15 @@ EVAL_CI_ENABLED=true mvn spring-boot:run -pl kb-eval
 
 # CI 快跑（每类抽样 10 条）
 EVAL_CI_ENABLED=true EVAL_SAMPLE_SIZE=10 mvn spring-boot:run -pl kb-eval
+
+# 答案人审表（消融归因；内容仅本机 target/ 可见）
+EVAL_DUMP_ANSWERS=true EVAL_RUN_LABEL=<label> mvn spring-boot:run -pl kb-eval
+
+# 图路方向 A/B（工具模式，零全量评估；需图覆盖 + 租户）
+EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
+  -Dspring-boot.run.arguments=--eval.graph-direction-ab
+
+# 多跳材料起草（工具模式）
+EVAL_TENANT_ID=tenant_001 mvn spring-boot:run -pl kb-eval \
+  -Dspring-boot.run.arguments=--eval.draft-multihop
 ```

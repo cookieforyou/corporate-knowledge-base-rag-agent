@@ -1,5 +1,7 @@
 # tools/redteam — 对抗自动化通道（安全簇⑥ G1）
 
+> **执行状态（2026-08-31）**：G1 首跑已收官——small-scale 108 条：防御成功 101 / 突破 6 / error 1；确定性 TRIGGER 7/7/7 与运行时拦截一一对应；聚合器 error 桶口径已修正。高价值变体暂缓，后续合适时机再跑。报告入档 `docs/reports/redteam/`。
+
 专项方案 §4.7 G1 落地：Promptfoo red-team 对接 `POST /api/v1/chat` 同步端点
 （护栏拒绝 HTTP 400 + message，断言面清晰），配置化广扫注入/越狱/信息套取
 三场景族，离线按需跑，摘要入档 `docs/project-progress/`。
