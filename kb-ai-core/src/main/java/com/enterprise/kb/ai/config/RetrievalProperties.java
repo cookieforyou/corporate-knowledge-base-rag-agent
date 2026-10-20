@@ -32,7 +32,7 @@ public class RetrievalProperties {
     /** 向量路相似度阈值（与 Phase 1 QuestionAnswerAdvisor 基线一致） */
     private double similarityThreshold = 0.5;
 
-    /** 单路检索超时（秒）：超时即降级为空，不阻塞另一路（设计文档 10.8） */
+    /** 单路检索超时（秒）：超时即降级为空，不阻塞其余各路（设计文档 10.8） */
     private int pathTimeoutSeconds = 5;
 
     /** 多查询扩展（pre-retrieval） */

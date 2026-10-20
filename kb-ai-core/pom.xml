@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-ai-core</artifactId>
     <name>kb-ai-core</name>
-    <description>AI 核心模块：ChatClient 配置、Advisor、Prompt 管理、混合检索</description>
+    <description>AI 核心模块：RAG ChatClient、Advisor 链、多路混合检索、模型路由、记忆与指标</description>
 
     <dependencies>
         <dependency>

@@ -6,7 +6,7 @@
 #
 # 阈值口径：规划调研参考值（拒答率 >15% / 好评比 <70% / 空检索率 >10% / Token 突增 /
 # LLM 错误率 >5% / rerank 降级率 >10% / 配额命中率 >3%）——均为首次落档参考值，
-# 待生产基线数据 1 周后按实际分布校准（各 alert annotation 内标注校准锚点）。
+# 待生产基线数据按实际分布校准（各 alert annotation 内标注校准锚点）。
 #
 # 挂载方式（v2.56 批2 已接线）：prometheus.yml 的 rule_files 指向本文件；
 # scrape 目标 actuator prometheus 端点（8090，SecurityConfig 已放行）。

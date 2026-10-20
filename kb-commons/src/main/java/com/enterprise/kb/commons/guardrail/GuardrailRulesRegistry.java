@@ -128,7 +128,7 @@ public class GuardrailRulesRegistry {
 
     /**
      * 热重载：双侧全量重载成功后原子替换 + 推送监听器；任一失败保旧快照（fail-keep）。
-     * synchronized 防 pub/sub 信号与 mtime 轮询并发双触发重复装载。
+     * synchronized 防 pub/sub 信号与 mtime/修订号轮询并发触发重复装载。
      *
      * @return 替换成功 true；装载失败保旧 false
      */

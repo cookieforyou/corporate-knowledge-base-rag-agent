@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-commons</artifactId>
     <name>kb-commons</name>
-    <description>通用工具模块：DTO、异常、常量、工具类</description>
+    <description>通用基础模块：DTO、异常、常量、工具类、护栏词表、PII 识别器</description>
 
     <dependencies>
         <dependency>

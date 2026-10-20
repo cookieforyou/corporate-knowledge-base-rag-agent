@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import com.enterprise.kb.eval.config.EvalProperties;
 
 /**
- * kb-eval 独立启动入口 —— Phase 2.16 最小评估基线
+ * kb-eval 独立启动入口 —— Golden 267 + 检索/生成/安全门禁 + 校准/导出/图路 A-B 工具
  *
  * <p>运行模式：
  * <ul>

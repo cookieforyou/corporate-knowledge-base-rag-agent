@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * 审计日志表
  *
- * <p>v2.10 扩展（3.12）：mode（双链路问答模式）/ status（SUCCESS/REJECTED/ERROR）/
+ * <p>v2.10 扩展（3.12）：mode（问答模式 rag/tool/agent）/ status（SUCCESS/REJECTED/ERROR）/
  * error_code（拒绝错误码）/ tool_calls（工具调用记录 JSON）。
  * <p>v2.34 扩展（Phase4簇④ 4.7）：root_cause（Bad Case 根因四分类人工标注）。
  * <p>v2.43 扩展（安全簇① T7）：guardrail_flags（FLAG 观察标记，side:FAMILY 分号拼接）。
@@ -37,7 +37,7 @@ public class KbAuditLog {
     @Column(name = "tenant_id", length = 36)
     private String tenantId;
 
-    /** 问答模式（3.19 双链路）：rag | tool */
+    /** 问答模式（3.19 双链 → Phase5簇⑤ 5.3 三链）：rag | tool | agent */
     @Column(name = "mode", length = 10)
     private String mode;
 

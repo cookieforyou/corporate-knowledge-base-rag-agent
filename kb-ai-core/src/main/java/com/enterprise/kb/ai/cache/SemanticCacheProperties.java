@@ -16,9 +16,9 @@ import java.time.Duration;
  * 类型化 API 消费，零新增依赖（复审定案：否决 Spring AI redis 向量存储模块——
  * 其底层 Jedis 与项目 Redisson 形成双客户端）。
  *
- * <p><b>缺省关纪律</b>：与 eval L2 / 间接注入评估同族——新能力默认关，用户侧
- * E2E 验证后按环境启用收真实流量（验收线：命中率 >30% + 命中延迟 P95 降 >40%，
- * 对照 18 §18.4 LT1 基线，08 章Phase5簇③验收）。
+ * <p><b>缺省关纪律</b>：与 eval L2 / 间接注入评估同族——新能力默认关；E2E
+ * 2026-08-26 已通过，生产启用按环境与流量策略决策（验收线：命中率 >30% +
+ * 命中延迟 P95 降 >40%，对照 18 §18.4 LT1 基线，08 章Phase5簇③验收）。
  *
  * <p><b>误命中风险控制（调研实证基线）</b>：企业问答场景生产阈值甜点区间
  * 余弦 0.90-0.95——缺省 0.95 保守起步，命中率不足时经配置下调观察，不做
@@ -30,7 +30,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "rag.cache")
 public class SemanticCacheProperties {
 
-    /** 总开关（缺省关——用户侧 E2E 验证后启用，同族缺省关纪律） */
+    /** 总开关（缺省关——E2E 已通过；生产启用为运营决策，同族缺省关纪律） */
     private boolean enabled = false;
 
     /**

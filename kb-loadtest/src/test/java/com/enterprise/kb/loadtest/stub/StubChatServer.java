@@ -16,8 +16,9 @@ import java.util.regex.Pattern;
 /**
  * OpenAI 兼容 SSE 生成桩（Phase4簇⑥ 批5 v2.59，场景 B / D-桩形态）
  *
- * <p><b>职责</b>：压测期替代主模型端点（kb-api {@code DEEPSEEK_BASE_URL} 指向本服务），
- * 对应用层并发模型（虚拟线程 / SSE 转发 / 护栏 Advisor 链 / Redis 配额 / 双路检索）施加
+ * <p><b>职责</b>：压测期替代主模型端点（按 provider 将 {@code ZHIPU_BASE_URL} 或
+ * {@code DEEPSEEK_BASE_URL} 指向本服务），
+ * 对应用层并发模型（虚拟线程 / SSE 转发 / 护栏 Advisor 链 / Redis 配额 / 多路检索）施加
  * 真实压力而**不消耗真实 LLM token**。契约对齐 OpenAI {@code chat.completion.chunk} 形态
  * （Spring AI OpenAI 兼容客户端消费，SmartRoutingChatModel 主链路）：
  * delta chunks → finish_reason stop → usage chunk（{@code stream_options.include_usage}

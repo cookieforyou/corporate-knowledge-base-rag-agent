@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>缺省值 = 保守形态（与双路基线共存不扰动）：种子实体 5 个 + 相似度阈值 0.7
  * + 1 跳邻域展开 + 过取 8 倍（v2.85 起）。检索期零 LLM 调用——全管线延迟预算
- * ~100ms 量级（10.8 扩表）。调参须配三路融合 kb-eval 基线对比（同双路调参纪律）。
+ * ~100ms 量级（10.8 扩表）。调参须配三路融合 kb-eval 基线对比（同向量/BM25 调参纪律）。
  */
 @Data
 @ConfigurationProperties(prefix = "rag.graph.retrieval")

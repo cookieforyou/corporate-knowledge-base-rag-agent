@@ -51,7 +51,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 全程线程模型无关（2026-08-02 重构：取代请求作用域代理，其于 MVC 异步请求完结后
  * 不可解析，曾致流式路径租户过滤与 trace 静默失效、SSE 尾帧崩溃）。
  *
- * <p>事件协议：TOKEN/ERROR/DONE 为无名事件；TRACE 为命名事件（流末推送完整溯源）。
+ * <p>事件协议：TOKEN/ERROR/DONE 为无名事件；TRACE/TOOL_CALL/REPLACE/PROGRESS 为命名
+ * 事件（TRACE 流末完整溯源；TOOL_CALL 实时快照+流末兜底；REPLACE 护栏追回；
+ * PROGRESS 阶段/检索进度）。
  * DONE 帧自 3.17 起携带 JSON 载荷 {messageId, traceId}（原字面量 "[DONE]"，
  * 反馈闭环的定位句柄，协议修订见 AgentStreamEvent 类注与 11.3 v2.14）。
  *
@@ -164,7 +166,7 @@ public class AgentController {
         String assistantMessageId = UUID.randomUUID().toString();
         // 累积流式 token 为完整回答（归档用；旁路数据，不影响帧转发）
         StringBuilder answerBuffer = new StringBuilder();
-        // TTFT 计量（rag.ttft，Phase4簇② 4.3）：请求进入 → 首个非空 token，双链共记；
+        // TTFT 计量（rag.ttft，Phase4簇② 4.3）：请求进入 → 首个非空 token，三链共记；
         // 计时起点取 Controller 入口（含 Advisor 链前置开销，端到端口径）
         long requestStartNanos = System.nanoTime();
         AtomicBoolean ttftRecorded = new AtomicBoolean();

@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * 评估报告 —— 聚合指标 + 门禁判定（设计文档 16.4 阈值表）
  *
  * <p>NaN 语义：检索侧指标对无期望标注的用例返回 NaN，聚合时仅统计非 NaN 样本，
- * 样本数为 0 的指标不参与门禁（如 Phase 2.16 初期 corpus 尚未标注时 Recall/MRR 不门禁）。
+ * 样本数为 0 的指标不参与门禁（如负向/边界用例无检索期望标注时 Recall/MRR 不门禁）。
  */
 public record EvalReport(
     String probeName,
@@ -132,7 +132,7 @@ public record EvalReport(
                 negativeRejectionRate, t.getNegativeRejection(), negativeEvaluated));
         }
         // 多跳准确率门禁（Phase5簇④ 5.2）：MULTI_HOP 分类 AC 通过率 ≥80%；
-        // 样本不足最小样本数只报告不门禁（测试集建设初期保护，同分类地板纪律）
+        // 样本不足最小样本数只报告不门禁（小样本保护，同分类地板纪律）
         List<EvalResult> multiHop = results.stream()
             .filter(r -> r.pair().category() == QACategory.MULTI_HOP).toList();
         if (multiHop.size() >= t.getMultiHopMinSamples()) {
@@ -374,9 +374,8 @@ public record EvalReport(
                 fmt(avgDocRecall), fmt(avgDocMrr), fmt(avgDocContextPrecision)));
         }
 
-        // MULTI_DOC 文档级召回观察带（MD1 B1，16 章 v2.86）：docRecall ≥ 0.5 通过率
-        // 只报告不门禁——转正判据 = 连续 2 轮 ≥0.80 后接线（CA 0.90 收紧转正同构）；
-        // 判读线与 EvalProperties.Thresholds 缺省同源（契约锚定 16 章 v2.86）。
+        // MULTI_DOC 文档级召回门禁视图（MD1 B1，16 章 v2.86 观察带 → v2.89 转正）：
+        // docRecall ≥ 0.5 通过率行与门禁同源；样本不足时只报告不门禁（同分类地板纪律）。
         // 口径依据：md1-b3 实证「文档对、块错」（docRecall/docMrr 双 1.00 而锚点 chunk
         // 全灭）——跨文档聚合业务本位 = 文档找齐，chunk R 留逐用例明细行作观察。
         List<EvalResult> multiDocDoc = results.stream()

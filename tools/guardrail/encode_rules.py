@@ -10,7 +10,7 @@
        → kb-commons resources guardrail/injection-rules.yml（编码区）
   2. kb-ai-core application-ai.yml 两 CSV 键（input.injection-keywords / output.blacklist）
        → injection-rules.yml / output-rules.yml 编码区（按值哈希去重），原键值清空
-  3. kb-eval golden/injection-qa.json 48 条样本
+  3. kb-eval golden/injection-qa.json 首批 48 条样本（现 127 条均已编码）
        → 原地改写为引用形态：question=Base64 + questionEncoding=base64
          + questionSha256 哈希锚点（id/category/attackType 保留）
   4. 指纹清单 → tools/guardrail/migration-manifest.json（仅元数据，无值）

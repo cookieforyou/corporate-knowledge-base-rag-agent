@@ -17,7 +17,7 @@ import reactor.core.publisher.Flux;
  * <p>读 {@link RetrievalContext#isSkipRetrieval()} 标记（QueryRoutingAdvisor 440 写入）：
  * <ul>
  *   <li>skip=true → 不调 delegate，{@code chain.nextCall/nextStream} 直接放行——
- *       改写/双路检索/RRF/重排/grounding 全套旁路，模型携记忆直答</li>
+ *       改写/多路检索/RRF/重排/grounding 全套旁路，模型携记忆直答</li>
  *   <li>skip=false / 无上下文 → 委托 {@code delegate.adviseCall/adviseStream}（完整 RAG 管线）</li>
  * </ul>
  *

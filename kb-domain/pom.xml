@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-domain</artifactId>
     <name>kb-domain</name>
-    <description>领域模块：JPA Entity、Repository、VO、枚举</description>
+    <description>领域模块：JPA Entity、Repository、Specification、枚举、schema/Flyway</description>
 
     <dependencies>
         <dependency>

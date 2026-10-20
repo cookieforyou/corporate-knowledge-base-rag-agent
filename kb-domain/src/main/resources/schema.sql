@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS kb_message (
 CREATE INDEX IF NOT EXISTS idx_session_msg ON kb_message (session_id, created_at);
 
 -- 6. 审计日志表
--- v2.10 扩展（3.12 审计落地，双链路时代补列）：mode/status/error_code/tool_calls
+-- v2.10 扩展（3.12 审计落地，双链路时代补列；现由 rag/tool/agent 三链复用）：mode/status/error_code/tool_calls
 -- v2.34 扩展（Phase4簇④ 4.7 Bad Case 闭环）：root_cause 根因标注
 -- v2.43 扩展（安全簇① T7 FLAG 观察语义）：guardrail_flags 观察标记
 -- 存量库升级 DDL：

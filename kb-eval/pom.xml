@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-eval</artifactId>
     <name>kb-eval</name>
-    <description>AI 评估模块：Golden Dataset、评估指标、CI 自动评估（Phase 2.16 最小基线）</description>
+    <description>AI 评估模块：Golden 267、检索/生成/安全指标、CI 门禁、校准/导出/图路 A-B 工具</description>
 
     <dependencies>
         <dependency>

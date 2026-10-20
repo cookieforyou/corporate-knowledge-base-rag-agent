@@ -8,7 +8,7 @@ import com.enterprise.kb.ai.retriever.RetrievalContext;
  * <p>确认态与身份信息经 ChatClient 的 {@code .toolContext(Map)} 通道传递——
  * 与 advisor 参数是两条独立通道（advisor 参数进 request.context()，toolContext
  * 进 ToolCallingChatOptions 随工具执行注入 {@code ToolContext.getContext()}）。
- * ChatService 统一组装，工具侧只读。
+ * ToolChatService / AgentOrchestratorService 统一组装（RAG 链零工具不组装），工具侧只读。
  */
 public final class ToolContextKeys {
 

@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
  * 钉钉群机器人装配（Phase5簇⑥ 5.12）
  *
  * <p><b>装配分界</b>：服务域组件（Properties/RateLimiter/AuditRecorder/ReplyClient/
- * ChatService）恒装配（无副作用，关闭态仅闲置——MCP 四件同款）；唯一有副作用
+ * DingTalkChatService）恒装配（无副作用，关闭态仅闲置——MCP 四件同款）；唯一有副作用
  * 的 Stream 客户端经 {@code rag.dingtalk.enabled} 条件装配——关闭态 Bean 缺位，
  * 三链与既有端点逐字节不变（缺省关纪律）。
  *
@@ -30,7 +30,7 @@ import java.util.concurrent.Executors;
 public class DingTalkStreamConfig {
 
     /**
-     * 钉钉对话执行器（恒装配：ChatService 编译期依赖，条件化会破恒装配服务域；
+     * 钉钉对话执行器（恒装配：DingTalkChatService 编译期依赖，条件化会破恒装配服务域；
      * 虚拟线程执行器零任务零资源，关闭态闲置无害）。destroyMethod 推断自动
      * shutdown（Spring @Bean 缺省推断 public 无参 close/shutdown）。
      */

@@ -16,7 +16,7 @@ import java.util.List;
  *
  * <p>与 {@link HybridRetrievalProbe} 的分工：hybrid 探针直调检索器本体，度量
  * 「检索本征质量」（无改写、无扩展、无重排）；本探针走 eval {@code chatClient}
- * 生产等价链（改写 → [多查询扩展] → 双路检索 → RRF → 重排）全链，经
+ * 生产等价链（改写 → [多查询扩展] → 多路检索（向量+BM25[+Graph]）→ RRF → 重排）全链，经
  * {@link RetrievalContext} 参数链取重排后 {@code source=final} trace 条目——
  * 与生产 SSE TRACE / [ref-N] 序列同源。是度量查询改写/扩展等**前置检索组件**
  * 收益的唯一探针（hybrid 探针结构性绕过 advisor 链，A/B 对其不可见）。

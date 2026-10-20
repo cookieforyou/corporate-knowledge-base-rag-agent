@@ -392,7 +392,7 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${auth.token}`
       },
-      // 会话协议（3.1/11.5）：sessionId 前端自备多轮回传；mode 双链显式分流；
+      // 会话协议（3.1/11.5）：sessionId 前端自备多轮回传；mode 三链显式分流；
       // approvedToolCallId 仅 tool 链 HITL 确认轮携带
       body: JSON.stringify({
         query,
@@ -414,7 +414,7 @@ async function ask(raw: string | undefined, opts: AskOpts = {}) {
 
     const decoder = new TextDecoder()
     let buffer = ''
-    let currentEvent = ''   // SSE 命名事件（TRACE / TOOL_CALL）
+    let currentEvent = ''   // SSE 命名事件（TRACE / TOOL_CALL / REPLACE / PROGRESS）
 
     while (true) {
       const { done, value } = await reader.read()

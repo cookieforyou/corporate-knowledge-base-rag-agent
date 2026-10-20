@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * 护栏词表热重载协调器（安全簇⑥ F1，设计 12.4 S8 Git Ops 词表运营）
  *
- * <p>双触发通道驱动 {@link GuardrailRulesRegistry#reload()}：
+ * <p>三触发通道驱动 {@link GuardrailRulesRegistry#reload()}：
  * <ul>
  *   <li><b>pub/sub 即时信号</b>：Redis 频道 {@value #RELOAD_CHANNEL}（应用内触发方
  *       = CRUD 写后闭环 / 迁移灌库，运营侧 = {@code tools/guardrail/publish_reload_signal.py}
@@ -37,11 +37,11 @@ import java.util.concurrent.TimeUnit;
  *   <li><b>mtime 轮询回落</b>：仅对 {@code file:} 前缀外部词表源启用（jar 内
  *       classpath 资源 mtime 为构建时刻不可靠，且重部署必经进程重启自然重装载），
  *       覆盖信号丢失/Redis 不可达窗口（pub/sub fire-and-forget 无 backlog）；</li>
- *   <li><b>修订号轮询兜底（v2.113）</b>：{@code db} 源 location 为空串 ⇒ mtime 通道
- *       不适用，丢信号即长期陈旧（直到下次信号或重启）。改用
+ *   <li><b>修订号轮询兜底（v2.113，G5 修正）</b>：{@code db} 源 location 为空串 ⇒
+ *       mtime 通道不适用，丢信号即长期陈旧（直到下次信号或重启）。改用
  *       {@link GuardrailRulesRegistry#revisionChanged()}（db 源 =
- *       {@code count(*):max(updated_at)} 单行聚合）低频比对，变更才全量装载
- *       ——兜底通道与「无冗余装载」两者兼得（本实例自己写库也已刷新标记）。</li>
+ *       {@code count(*):内容指纹} 单行聚合，非 updated_at 时间戳）低频比对，
+ *       变更才全量装载——兜底通道与「无冗余装载」两者兼得（本实例自己写库也已刷新标记）。</li>
  * </ul>
  *
  * <p><b>装配边界（三层防护，kb-eval 测量一致性）</b>：
@@ -51,8 +51,8 @@ import java.util.concurrent.TimeUnit;
  * RTopic 订阅启动失败 try/catch fail-open（降级纯轮询不击穿启动）。
  *
  * <p><b>fail-keep 语义承接</b>：reload 返回 false（装载失败保旧快照）时只计
- * {@code rag.guardrail.reload.failed}——防线不因词表运营故障降级；下一次文件
- * mtime 变化（运维修复词表）自然重试。
+ * {@code rag.guardrail.reload.failed}——防线不因词表运营故障降级；下一次
+ * mtime/修订号变化（运维修复词表）自然重试。
  */
 @Slf4j
 @Component
@@ -104,7 +104,7 @@ public class GuardrailReloadCoordinator {
                 reload("pub/sub 信号");
             });
         } catch (RuntimeException e) {
-            log.warn("护栏词表热重载信号频道订阅失败，降级 mtime 轮询单通道: {}", e.getMessage());
+            log.warn("护栏词表热重载信号频道订阅失败，降级轮询兜底通道（file mtime / db 修订号）: {}", e.getMessage());
         }
         // 2. file: 源 mtime 轮询回落（classpath 源不轮询——jar 内资源 mtime 不可靠）
         watch(registry.injectionLocation());

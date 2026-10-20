@@ -64,7 +64,7 @@ class TenantIsolationIT extends AbstractAdvisorChainIT {
     @Test
     void noTenant_failClosed_emptyRetrieval() {
         stub.setResponseRouter(knowledgeRouter(StubChatModel.DEFAULT_ANSWER));
-        // 有 ctx 无租户：检索器双路零触达返回空（fail-closed 第二层，3.9/3.10）
+        // 有 ctx 无租户：检索器多路零触达返回空（fail-closed 第二层，3.9/3.10）
         RetrievalContext ctx = new RetrievalContext();
         ctx.setUserId("U-ANON");
 

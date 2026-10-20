@@ -22,7 +22,7 @@ import static io.gatling.javaapi.http.HttpDsl.sse;
 /**
  * 场景 C：真实 LLM 小样本采样（Phase4簇⑥ 4.12 验收线：TTFT P95 &lt; 2s、TPOT &lt; 100ms）
  *
- * <p><b>计费敏感</b>：直压真实主模型（DeepSeek），缺省关闭——构造期即拒绝运行，
+ * <p><b>计费敏感</b>：直压真实主模型（缺省 GLM-5.3-Flash），缺省关闭——构造期即拒绝运行，
  * 须 {@code -Dloadtest.c.enabled=true} 显式确认（用户侧执行前确认口径）。
  *
  * <p>采样形态：1 虚拟用户串行 N 条（缺省 10，n 小为抽样体检非统计基准）。

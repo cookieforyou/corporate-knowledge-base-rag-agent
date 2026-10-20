@@ -4,7 +4,7 @@
 
 词表文件经 import_words.py 带外更新 + git 同步至运行环境外部路径后，
 发布 Redis pub/sub 信号触发在线实例免重启重载（GuardrailReloadCoordinator
-频道 rag:guardrail:reload）；无信号时 file: 源 mtime 轮询（默认 60s）兜底。
+频道 rag:guardrail:reload）；无信号时 file: 源 mtime 轮询 / db 源修订号轮询（默认 60s）兜底。
 
 用法：
     python3 publish_reload_signal.py

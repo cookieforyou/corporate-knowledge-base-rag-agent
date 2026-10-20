@@ -3,7 +3,7 @@ package com.enterprise.kb.commons.guardrail;
 import java.util.List;
 
 /**
- * 护栏词表源 SPI（v2.53 词表 DB 单轨，设计 12.7 词表工程）——
+ * 护栏词表源 SPI（v2.53 词表双形态：file Git Ops / db PG 单轨，设计 12.7 词表工程）——
  * {@link GuardrailRulesRegistry} 的装载抽象，实现按
  * {@code rag.guardrail.rules.source} 条件装配择一：
  * <ul>
@@ -32,7 +32,7 @@ public interface GuardrailRulesSource {
 
     /**
      * 注入侧词表源位置（重载协调器 mtime 轮询判定 {@code file:} 源用）；
-     * 非文件源返回空串 → 协调器不轮询（DB 源经 pub/sub 与运营端点触发）。
+     * 非文件源返回空串 → mtime 通道不适用（DB 源经 pub/sub、运营端点与修订号轮询触发）。
      */
     default String injectionLocation() {
         return "";
@@ -44,8 +44,8 @@ public interface GuardrailRulesSource {
     }
 
     /**
-     * 词表修订号（v2.113 丢信号兜底轮询）：内容变更即应变化的廉价标识
-     * （db 源 = {@code count(*):max(updated_at)}）。<b>缺省 null = 该源不支持修订号</b>
+     * 词表修订号（v2.113 丢信号兜底轮询，G5 修正为内容指纹）：内容变更即应变化的廉价标识
+     * （db 源 = {@code count(*):内容指纹}；时间戳型对直改库无感）。<b>缺省 null = 该源不支持修订号</b>
      * ——file 源由 mtime 轮询覆盖，不重复实现；null 时协调器不启用修订轮询。
      */
     default String revision() {

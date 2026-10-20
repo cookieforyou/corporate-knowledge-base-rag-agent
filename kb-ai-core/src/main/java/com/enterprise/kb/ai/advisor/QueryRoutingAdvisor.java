@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * 之前执行，分类结果经请求级 {@link RetrievalContext} 参数链下传：
  * <ul>
  *   <li><b>CHITCHAT</b>（寒暄/致谢/道别/对话元问题）→ {@code skipRetrieval=true}，
- *       门控旁路改写/双路检索/重排/grounding 全套，模型携多轮记忆直答——
+ *       门控旁路改写/多路检索/重排/grounding 全套，模型携多轮记忆直答——
  *       根治 grounding 强约束（「必须且只能基于【参考资料】」）压过历史记忆
  *       导致的元问题拒答（2026-08-08 E2E 实锤）与简单提问的检索开销</li>
  *   <li><b>KNOWLEDGE</b> → 分类器同步产出的改写文本**预写入**

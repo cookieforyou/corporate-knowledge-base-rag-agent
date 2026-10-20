@@ -20,7 +20,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p><b>实用形态定稿（2026-08-05 用户拍板）</b>：设计稿的 ECONOMY/STANDARD/PREMIUM
  * 三级复杂度路由在「主 + 备」双模型现状下三档形同虚设，且复杂度分类器引入误路由
- * 风险——复杂度分级移交 Phase 5.4 查询意图识别统一做；本期落地验收相关形态：
+ * 风险——三级分级维持挂起（2026-08-08 5.4 收窄版只落 rag 链免检索短路，不承担
+ * 模型档位分级）；本类只落地验收相关形态：
  * 主模型故障自动切换备用（验收「Failover 切换时间 < 5s」）+ 熔断器保护。
  *
  * <p><b>熔断器三态（无锁原子实现）</b>：
@@ -55,8 +56,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * （rag.routing.circuit.* / rag.routing.fallback.invoked），供供应商 SLA 面板与
  * KbPrimaryModelDegraded 告警消费。
  *
- * <p>模型层路由对上层零感知：chatClient（评估）与 ragAgentChatClient/toolAgentChatClient（生产双链）注入
- * 本 Bean 即同时获得容灾；kb-eval 度量链路在模型故障时同样受保护。
+ * <p>模型层路由对上层零感知：chatClient（评估）与 ragAgentChatClient/toolAgentChatClient/
+ * orchestratorChatClient（生产三链）注入本 Bean 即同时获得容灾；kb-eval 度量链路在
+ * 模型故障时同样受保护。
  */
 @Slf4j
 public class SmartRoutingChatModel implements ChatModel {

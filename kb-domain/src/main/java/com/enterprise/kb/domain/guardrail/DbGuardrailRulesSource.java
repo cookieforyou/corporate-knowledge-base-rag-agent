@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  *
  * <p>kb-eval 上下文 source 缺省 file，本源永不装配（测量锁版 + 零 Redis/DB
  * 运营面漂移）；{@link #injectionLocation()} / {@link #outputLocation()} 返回
- * 空串 → 重载协调器 mtime 轮询自然不启动（DB 源经 pub/sub 与运营端点触发）。
+ * 空串 → mtime 通道不适用（DB 源经 pub/sub、运营端点与修订号轮询触发）。
  */
 @Slf4j
 @Component

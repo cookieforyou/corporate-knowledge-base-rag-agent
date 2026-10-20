@@ -14,7 +14,7 @@ import java.util.Set;
  * （InputSanitizeAdvisor）、ETL 入库（SanitizingTransformer）、审计脱敏
  * （AuditTraceAdvisor/McpAuditRecorder/AgentController）全部消费 Spring 上下文
  * 内同一注册表 Bean（kb-commons {@code PiiConfiguration} 装配），类型扩容与
- * 开关变更单点生效，双链护栏永不漂移。
+ * 开关变更单点生效，三链护栏永不漂移。
  *
  * <p><b>顺序语义</b>：识别器按注册顺序依次应用（PHONE → ID_CARD → EMAIL →
  * BANK_CARD → LANDLINE → LICENSE_PLATE → IPV4）——既有三类顺序逐字保留

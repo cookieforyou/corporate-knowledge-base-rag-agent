@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
  * ChatClient 装配 —— 被测主链路（设计文档 11.2）
  *
  * <p>2.10 起以模块化 RAG（RetrievalAugmentationAdvisor）替代 Phase 1 的
- * QuestionAnswerAdvisor：查询改写 + 双路混合检索 + RRF 融合 + 精排 + Grounding 注入。
+ * QuestionAnswerAdvisor：查询改写 + 多路混合检索（向量+BM25[+Graph]）+ RRF 融合 + 精排 + Grounding 注入。
  * Bean 名保持 {@code chatClient}：kb-eval 经 @Qualifier 注入本 Bean，被测链路
  * 切换对评估器零感知（16.5 承诺）。
  *

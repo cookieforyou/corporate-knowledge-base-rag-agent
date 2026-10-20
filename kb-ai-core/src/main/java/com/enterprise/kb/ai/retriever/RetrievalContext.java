@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  * <ul>
  *   <li>安全过滤：tenant_id 隔离 + 软删除过滤（Phase 3 追加 doc_id/dept_id ACL），
  *       向量路消费 {@link #getSecurityFilter()}，ES 路直接读 tenantId 拼 term 过滤</li>
- *   <li>溯源 trace：双路命中 + 重排后最终序列，供 SSE TRACE 事件与审计消费。
+ *   <li>溯源 trace：各路命中（向量/BM25/Graph）+ 重排后最终序列，供 SSE TRACE 事件与审计消费。
  *       双检索路径并行写入，容器取 CopyOnWriteArrayList 保证线程安全</li>
  * </ul>
  *
@@ -123,7 +123,7 @@ public class RetrievalContext {
     /**
      * 免检索短路标记（5.4 收窄版意图分类）：QueryRoutingAdvisor(440) 判定
      * CHITCHAT（寒暄/致谢/对话元问题）时置 true，RetrievalGateAdvisor(500)
-     * 读取后旁路 RetrievalAugmentationAdvisor——改写/双路检索/重排/grounding
+     * 读取后旁路 RetrievalAugmentationAdvisor——改写/多路检索/重排/grounding
      * 全套跳过，模型携多轮记忆直答。volatile：写请求线程（分类器），读在链
      * 后续 advisor（流式路径跨线程）。
      */

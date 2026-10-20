@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "rag.dingtalk")
 public class DingTalkProperties {
 
-    /** 总开关（缺省关——用户侧 E2E 验证后启用，同族缺省关纪律） */
+    /** 总开关（缺省关——E2E 已通过；生产启用为运营决策，同族缺省关纪律） */
     private boolean enabled = false;
 
     /** 企业内部应用 AppKey（钉钉开发者后台） */

@@ -25,8 +25,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * 工具事务链装配（设计文档 11.5，任务 3.19 双链路拆分）
  *
- * <p><b>模块定位</b>：kb-ai-agent 承载 Agent 事务域（工具编排 + HITL + 未来
- * MCP 5.11 / Multi-Agent 5.3）；本链与 kb-ai-core 的 ragAgentChatClient 物理隔离——
+ * <p><b>模块定位</b>：kb-ai-agent 承载 Agent 事务域（工具编排 + HITL + MCP 4.10 +
+ * Multi-Agent 编排 5.3 + 钉钉 5.12 + A2A 批2）；本链与 kb-ai-core 的
+ * ragAgentChatClient 物理隔离——
  * 工具请求零检索消耗（不挂 RetrievalTrace/RetrievalAugmentation），RAG 请求零工具
  * schema 干扰（rag 链不挂 defaultTools）。
  *
@@ -45,7 +46,7 @@ public class ToolAgentChatClientConfig {
 
     /**
      * 工具调用 Advisor（order 1000 自建，自动注册让位）——源起 3.3，随双链路
-     * 拆分迁入本模块。详见原 AgentChatClientConfig 注记：自动注册默认序
+     * 拆分迁入本模块。原因（单链时代实证）：自动注册默认序
      * HIGHEST_PRECEDENCE+300（链最外层）致工具循环重复穿越内层 Advisor。
      */
     @Bean

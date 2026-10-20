@@ -292,7 +292,7 @@ public class EvalRunner {
      *   <li>{@code target/judge-agreement-sheet.csv}：打分表（长表，每行 = 用例×维度，
      *       human_a/human_b 双标注列），人工填写后经 --eval.calibration-readback
      *       回读——名义一致率主判（对照 agreement-target，「连续 2 轮」达标为
-     *       观察带接入门禁的前置判据；Cohen's κ 三对降观察报告，16 章 v2.80）。</li>
+     *       四新指标门禁前置判据（v2.82 已接线）；Cohen's κ 三对降观察报告，16 章 v2.80）。</li>
      * </ul>
      * 检索-only 模式无意义，跳过。
      */

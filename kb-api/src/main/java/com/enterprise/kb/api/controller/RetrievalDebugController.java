@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * 检索调试 API（设计文档 10.7，任务 2.14）
  *
- * <p>直调检索链路（<b>不经 LLM</b>）：改写 → 双路召回 → RRF 融合 → 重排，
+ * <p>直调检索链路（<b>不经 LLM</b>）：改写 → 多路召回（向量+BM25[+Graph]）→ RRF 融合 → 重排，
  * 输出每个候选 Chunk 的全维度得分与各阶段耗时，供前端检索调试台与 Bad Case 排查。
  * 检索上下文（租户过滤 + trace 收集）复用主链路的参数化机制（RetrievalContext）。
  */
@@ -52,7 +52,7 @@ public class RetrievalDebugController {
         RetrievalContext ctx = new RetrievalContext();
         ctx.setTenantId(jwtUtils.getCurrentTenantId());
         ctx.setUserId(jwtUtils.getCurrentUserId());
-        // 身份完整性守卫（3.9+3.10，与 AgentController 同策）：调试台可见双路原始命中，
+        // 身份完整性守卫（3.9+3.10，与 AgentController 同策）：调试台可见多路原始命中，
         // 无租户过滤时泄露面更大，tenantId 缺失直接拒绝
         if (ctx.getTenantId() == null || ctx.getTenantId().isBlank()) {
             throw new BusinessException(Constants.ErrorCodes.IDENTITY_INCOMPLETE, "身份不完整：缺少租户信息");
@@ -77,7 +77,7 @@ public class RetrievalDebugController {
     }
 
     /**
-     * 合并双路原始命中（含未进最终 Top-N 的候选）+ 最终序列得分为统一候选视图。
+     * 合并多路原始命中（含未进最终 Top-N 的候选）+ 最终序列得分为统一候选视图。
      * 降级判据（10.2 降级矩阵的可观测投影）：trace 条目缺失即该路失败。
      */
     private RetrievalDebugResult assemble(String query, String rewrittenQuery, Latency latency,
@@ -196,7 +196,7 @@ public class RetrievalDebugController {
             fillCommon(doc);
         }
 
-        /** 图路得分/排名/命中实体（Phase5簇④）：元数据键族同双路契约 */
+        /** 图路得分/排名/命中实体（Phase5簇④）：元数据键族与向量/BM25 同契约 */
         void fillGraph(Document doc) {
             Map<String, Object> meta = doc.getMetadata();
             if (meta.get(Constants.Retrieval.META_GRAPH_SCORE) instanceof Number n) this.graphScore = n.doubleValue();

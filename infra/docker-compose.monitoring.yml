@@ -3,7 +3,7 @@
 #
 # 职责：
 #   1. Prometheus 抓 kb-api（/actuator/prometheus）+ node_exporter 主机层
-#   2. Grafana provisioning 四面板（infra/grafana/）
+#   2. Grafana provisioning 五面板（infra/grafana/）
 #   3. Jaeger all-in-one 收 OTLP HTTP——trace 残余诊断通道 + 通用
 #      OTLP 后端（Langfuse 仍是 LLM 观测主平台，互补不替代）
 #

@@ -16,7 +16,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 检索调试台身份守卫测试（3.9+3.10）——调试台可见双路原始命中，
+ * 检索调试台身份守卫测试（3.9+3.10）——调试台可见多路原始命中，
  * 无租户过滤时泄露面大于主链路，同样 fail-closed。
  */
 class RetrievalDebugControllerTenantGuardTest {

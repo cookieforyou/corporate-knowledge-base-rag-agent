@@ -180,9 +180,9 @@ class EvalReportThresholdTest {
             .hasMessageContaining("3.0");
     }
 
-    // ── MULTI_DOC 文档级召回观察带（MD1 B1，16 章 v2.86）──
+    // ── MULTI_DOC 文档级召回门禁（MD1 B1，16 章 v2.86 观察带 → v2.89 转正）──
 
-    /** MULTI_DOC 用例（B1 观察带测试用）：携文档级召回读数，chunk 级 NaN，生成侧过线隔离变量 */
+    /** MULTI_DOC 用例（B1 门禁测试用）：携文档级召回读数，chunk 级 NaN，生成侧过线隔离变量 */
     private static EvalResult multiDoc(String id, double docRecall) {
         GoldenQAPair pair = new GoldenQAPair(id, QACategory.MULTI_DOC, "跨文档-" + id,
             null, null, null, null, null, null, null);

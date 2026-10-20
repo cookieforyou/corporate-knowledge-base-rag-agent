@@ -9,7 +9,7 @@ import java.util.UUID;
  * 系统提示金丝雀（安全簇① T5，设计 12.2/12.7；OWASP LLM01 缓解手段、Rebuff 同款机制）
  *
  * <p>应用启动时生成随机金丝雀 token（UUID 形态，运行时值、非载荷），经
- * {@link #embed} 内嵌双链系统提示装配点；模型若在回答中回显该 token，即<b>确证
+ * {@link #embed} 内嵌生产三链系统提示装配点；模型若在回答中回显该 token，即<b>确证
  * 系统提示泄露</b>——{@code OutputGuardrailAdvisor} 聚合后验阶段校验命中，
  * 整段替换 + 独立指标 {@code rag.guardrail.output.canary}。
  *
@@ -18,8 +18,8 @@ import java.util.UUID;
  * （token 为空串，embed 恒等、leakedIn 恒 false）。
  *
  * <p>评估链（kb-eval chatClient）不挂金丝雀——评估须确定性可复现，且评估链
- * 不挂输出护栏无校验侧；仅生产双链（ragAgentChatClient / toolAgentChatClient）
- * 装配，MCP ask 经 ragAgentChatClient 复用自动继承。
+ * 不挂输出护栏无校验侧；生产三链（ragAgentChatClient / toolAgentChatClient /
+ * orchestratorChatClient）装配，MCP ask 经 ragAgentChatClient 复用自动继承。
  */
 @Component
 public class PromptCanary {

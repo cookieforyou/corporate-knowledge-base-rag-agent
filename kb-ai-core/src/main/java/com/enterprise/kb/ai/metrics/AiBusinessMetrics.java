@@ -59,8 +59,8 @@ import java.util.Map;
  *   <li>{@code rag.document.reindex.started / succeeded / failed}——文档增量重入库
  *       计数（优化冲刺簇⑥ C1）：started 于 reparse/replace 占用成功计，succeeded/failed
  *       经 ETL 进度回调 COMPLETED/FAILED 终态计（异步管线的观测点在回调层）</li>
- *   <li>{@code rag.request.total / rejected / error}——双链问答请求结果计数
- *       （Phase4簇①）：AuditTraceAdvisor 遍历双链全量请求旁路计数；
+ *   <li>{@code rag.request.total / rejected / error}——三链问答请求结果计数
+ *       （Phase4簇①）：AuditTraceAdvisor 遍历三链全量请求旁路计数；
  *       rejected = BusinessException（护栏/配额拒绝，审计 REJECTED），
  *       error = 其他异常（供应商/系统，审计 ERROR）；为告警规则提供
  *       拒绝率/错误率分母（4.2）</li>
@@ -70,7 +70,7 @@ import java.util.Map;
  *       endpoint 未配置的静态降级不计入（配置态非运行态）</li>
  *   <li>{@code rag.ttft}——流式首 Token 延迟 Timer（p50/p95/p99，Phase4簇② 4.3）：
  *       AgentController 流式路径自请求进入至首个非空 token 送达的端到端时延，
- *       双链共记（无 mode 标签，延续零标签纪律）；同步路径无首 token 语义不记</li>
+ *       三链共记（无 mode 标签，延续零标签纪律）；同步路径无首 token 语义不记</li>
  *   <li>{@code rag.chunk.edit / soft.delete / restore}——Chunk 运维操作计数
  *       （Phase4簇③ 4.4）：kb-admin ChunkOpsService 成功路径计；操作类型经
  *       recordChunkOps(String) 收口为独立 Counter（不加 operation 标签）</li>
@@ -337,7 +337,7 @@ public class AiBusinessMetrics {
         this.documentReindexFailed = Counter.builder("rag.document.reindex.failed")
             .description("文档增量重入库失败次数（ETL 进度回调 FAILED，优化冲刺簇⑥ C1）").register(registry);
         this.requestTotal = Counter.builder("rag.request.total")
-            .description("双链问答请求总数（审计旁路计数，Phase4簇①）").register(registry);
+            .description("三链问答请求总数（审计旁路计数，Phase4簇①）").register(registry);
         this.requestRejected = Counter.builder("rag.request.rejected")
             .description("护栏/配额拒绝请求数（BusinessException → 审计 REJECTED，Phase4簇①）").register(registry);
         this.requestError = Counter.builder("rag.request.error")
@@ -582,7 +582,7 @@ public class AiBusinessMetrics {
         }
     }
 
-    /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，双链共记） */
+    /** 流式首 Token 延迟（AgentController 流式路径：请求进入 → 首个非空 token，三链共记） */
     public void recordTtft(Duration elapsed) {
         ttft.record(elapsed);
     }

@@ -43,15 +43,16 @@ import java.util.stream.Collectors;
  * doOnComplete/doOnError 旁路捕获——内层任意 Advisor 抛错（限流 429 / 注入拦截 /
  * 预算超额）均落审计，错误语义原样上抛不吞。
  *
- * <p><b>双链路形态（3.19 后）</b>：ragAgentChatClient 与 toolAgentChatClient 均挂
- * 本 Advisor；mode 经 ChatService advisor 参数（{@link #MODE_KEY}）区分。kb-eval
- * 评估链不挂（评估流量不污染审计）。
+ * <p><b>三链形态（3.19 双链 + Phase5簇⑤ 5.3 第三链）</b>：ragAgentChatClient、
+ * toolAgentChatClient 与 orchestratorChatClient 均挂本 Advisor；mode 经各链
+ * Service advisor 参数（{@link #MODE_KEY}）区分。kb-eval 评估链不挂
+ * （评估流量不污染审计）。
  *
  * <p><b>数据源</b>：query_text 取 Prompt 末条用户消息——order 10 先于
  * InputSanitize(300)，落库前经同款 sanitize 规则脱敏（3.5 PII 不绕过审计落库，
  * 与 Controller 归档同策）；rewritten_query 经 RewriteCapturingQueryTransformer
  * 写回的 RetrievalContext 捕获；检索/重排 chunk 与工具调用记录来自
- * RetrievalContext（双路 trace + toolCalls）；usage 取响应 metadata（v2.19 冲刺簇③ D1
+ * RetrievalContext（各路 trace + toolCalls）；usage 取响应 metadata（v2.19 冲刺簇③ D1
  * 起主/备模型均开 include_usage，流式末块携带 usage；缺失时仍 null 降级）。
  *
  * <p><b>容错策略</b>：审计是旁路增值数据——构建/落库任何环节失败仅告警丢弃，
@@ -62,7 +63,7 @@ import java.util.stream.Collectors;
 @Component
 public class AuditTraceAdvisor implements BaseAdvisor {
 
-    /** advisor 参数键：问答模式（rag|tool），RagChatService/ToolChatService 注入 */
+    /** advisor 参数键：问答模式（rag|tool|agent），Rag/Tool/AgentOrchestrator 三服务注入 */
     public static final String MODE_KEY = "kb.audit_mode";
 
     private static final String STATUS_SUCCESS = Constants.AuditStatus.SUCCESS;
@@ -226,7 +227,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
     }
 
     /**
-     * 业务指标旁路计数（3.13）：审计 Advisor 天然遍历双链全量请求且可读 trace/
+     * 业务指标旁路计数（3.13）：审计 Advisor 天然遍历三链全量请求且可读 trace/
      * toolCalls 快照，命中率与工具成功率在此统计——
      * <ul>
      *   <li>检索命中率：rag 模式且产生过 trace 条目（到达过检索层）计 total，
@@ -263,7 +264,7 @@ public class AuditTraceAdvisor implements BaseAdvisor {
         return (int) Math.min(System.currentTimeMillis() - startMs, Integer.MAX_VALUE);
     }
 
-    /** 检索 trace 轻量投影：final 源为重排序列，其余为双路原始命中 */
+    /** 检索 trace 轻量投影：final 源为重排序列，其余为各路原始命中 */
     private List<Map<String, Object>> retrievalProjection(List<RetrievalContext.TraceEntry> entries, boolean reranked) {
         List<Map<String, Object>> projection = new ArrayList<>();
         for (RetrievalContext.TraceEntry entry : entries) {

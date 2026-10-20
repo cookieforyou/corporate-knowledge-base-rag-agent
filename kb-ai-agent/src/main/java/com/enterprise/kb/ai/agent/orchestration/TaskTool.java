@@ -25,7 +25,7 @@ import java.util.concurrent.TimeoutException;
  * 主 Agent 综合作答。委派即工具调用——SSE TOOL_CALL 事件 / 审计 tool_calls
  * 快照 / rag.tool.call 指标自然承载，协议零变更。
  *
- * <p><b>身份链（11.5 双链路纪律延伸）</b>：主请求身份（tenantId/userId/
+ * <p><b>身份链（11.5 三链身份纪律延伸）</b>：主请求身份（tenantId/userId/
  * RetrievalContext）经 toolContext 传入本工具，再下传子代理调用——子代理内
  * 检索/数据工具消费同一身份，租户隔离 fail-closed 语义全链不断；
  * {@code APPROVED_TOOL_CALL_ID} 不下传（编排链无 HITL，凭证不可跨越委派层）。

@@ -24,21 +24,22 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
- * 混合检索器（设计文档 10.2）—— 双路并行召回 + RRF 融合
+ * 混合检索器（设计文档 10.2）—— 多路并行召回（向量 + BM25，图路条件第三路）+ RRF 融合
  *
  * <p>实现 Spring AI {@link DocumentRetriever}，作为 RetrievalAugmentationAdvisor（2.10）
  * 的 documentRetriever 挂载点。内部编排：
  * <ol>
- *   <li>虚拟线程（Java 21 正式 API）并行执行向量路（直连 {@link VectorStore}）
- *       与 BM25 路（{@link ElasticsearchDocumentRetriever}），单路超时降级（10.8）</li>
+ *   <li>虚拟线程（Java 21 正式 API）并行执行向量路（直连 {@link VectorStore}）、
+ *       BM25 路（{@link ElasticsearchDocumentRetriever}）与图路（条件在场，
+ *       {@link GraphDocumentRetriever}），单路超时降级（10.8）</li>
  *   <li>单路容错：任一路失败/超时返回空列表并告警，不拖垮整体（降级矩阵见 10.2）</li>
- *   <li>{@link RrfFusion} 融合双路排名，输出 recallSize（topK×倍数）条带溯源元数据的结果</li>
+ *   <li>{@link RrfFusion} 融合各路排名（关闭态双路），输出 recallSize（topK×倍数）条带溯源元数据的结果</li>
  * </ol>
  *
  * <p>调优参数（topK/召回倍数/相似度阈值/单路超时）经 {@link RetrievalProperties}
  * （rag.retrieval.*）注入，默认值 = Phase 2 基线形态，调参须配 kb-eval 基线对比。
  *
- * <p>双路并行执行器为共享 Bean {@code hybridRetrievalExecutor}（RetrievalConfig，
+ * <p>多路并行执行器为共享 Bean {@code hybridRetrievalExecutor}（RetrievalConfig，
  * v2.19 冲刺簇③ D2）——此前每请求 new 虚拟线程 executor，高频请求下重复创建/关闭。
  *
  * <p>租户/软删过滤与 trace 的 {@link RetrievalContext} 经 Query.context 参数化传入
@@ -60,7 +61,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
     private final AiBusinessMetrics metrics;
     /** 检索调优参数（rag.retrieval.*，默认值 = Phase 2 基线形态） */
     private final RetrievalProperties properties;
-    /** 双路并行共享执行器（v2.19 冲刺簇③ D2 收编为 Bean，取代每请求 new） */
+    /** 多路并行共享执行器（v2.19 冲刺簇③ D2 收编为 Bean，取代每请求 new） */
     private final ExecutorService executor;
     /**
      * Graph 路检索器（Phase5簇④ 5.2，三路融合第三路）：{@code rag.graph.enabled=true}
@@ -173,7 +174,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         return vectorStore.similaritySearch(builder.build());
     }
 
-    /** 单路容错：失败不扩散，返回空列表（降级矩阵 10.2：双路全空时由空证据路径兜底） */
+    /** 单路容错：失败不扩散，返回空列表（降级矩阵 10.2：各路全空时由空证据路径兜底） */
     private List<Document> retrieveSafely(Supplier<List<Document>> call, String route) {
         try {
             return call.get();
@@ -183,7 +184,7 @@ public class HybridDocumentRetriever implements DocumentRetriever {
         }
     }
 
-    /** 等待单路结果：超时即非打断式取消并降级为空，不阻塞另一路 */
+    /** 等待单路结果：超时即非打断式取消并降级为空，不阻塞其余各路 */
     private List<Document> await(Future<List<Document>> future, String route) {
         int timeoutSeconds = properties.getPathTimeoutSeconds();
         try {

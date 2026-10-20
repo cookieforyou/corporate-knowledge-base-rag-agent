@@ -7,12 +7,14 @@ import java.util.List;
 /**
  * 检索探针抽象 —— 评估器与被测检索链路的解耦点
  *
- * <p>演进路径（与 Phase 2 主线联动）：
+ * <p>实现形态（auto 模式按 order 最小者胜出）：
  * <ul>
- *   <li>Phase 2.16（当前）：{@link VectorStoreRetrievalProbe}（order=100），
- *       度量 Phase 1 单路向量检索基线</li>
- *   <li>Phase 2.7+ ：提供 HybridRetrievalProbe（order=0，自动胜出），
- *       直接注入 HybridDocumentRetriever 度量混合检索——评估器代码零改动</li>
+ *   <li>{@link HybridRetrievalProbe}（order=0）：默认探针，直接注入
+ *       HybridDocumentRetriever 度量向量+BM25[+Graph] 多路检索</li>
+ *   <li>{@link VectorStoreRetrievalProbe}（order=100）：单路向量基线，
+ *       显式 {@code eval.probe=vector} 选用</li>
+ *   <li>{@link ChainRetrievalProbe}（order=50）：完整 advisor 链，
+ *       显式 {@code eval.probe=chain} 选用</li>
  * </ul>
  */
 public interface RetrievalProbe extends Ordered {

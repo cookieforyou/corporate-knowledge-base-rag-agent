@@ -30,8 +30,9 @@ import org.springframework.context.annotation.Primary;
  * <ul>
  *   <li><b>GLM-5.3-Flash</b>：强制思考不可关（官方文档：{@code thinking.type} 仅支持
  *       enabled，传 disabled 直接报错）；{@code reasoning_effort} 支持 low/high/max
- *       （缺省 max，其余值报错）——经 OpenAiChatOptions 原生字段透传，空=不传=服务端
- *       默认 max，生产档位经冒烟定档。采样参数缺省按官方推荐 temperature 1.0。</li>
+ *       （服务端缺省 max，其余值报错）——经 OpenAiChatOptions 原生字段透传，空=不传=
+ *       服务端默认 max；生产档位 low 已定档（2026-09-01，v2.78）。采样参数按生产档
+ *       temperature 0.2（2026-09-02 门禁消融定案，16 章 v2.95）。</li>
  *   <li><b>DeepSeek-V4.1-Flash</b>：官方文档实证「思考模式默认打开且 effort 默认 high」
  *       「思考模式静默忽略 temperature/top_p 等采样参数（设值不报错不生效）」——
  *       历史形态（v2.76 前）主路一直以思考开 high 运行，temperature 0.1 从未生效。
@@ -128,8 +129,8 @@ public class SmartRoutingConfig {
             .baseUrl(baseUrl)
             .apiKey(apiKey)
             .model(model)
-            // 官方推荐采样参数（temperature 1.0）；思考模式下采样参数生效性未证，
-            // 不构成退化基线——DeepSeek 思考形态下 temperature 同样静默不生效
+            // 采样参数（v2.95 门禁消融：GLM 思考态生效，生产档 0.2；1.0 仅配置缺失兜底）；
+            // 与 DeepSeek 思考态静默忽略不同，不可按跨模型同值对齐
             .temperature(temperature)
             .maxTokens(maxTokens)
             // D1：智谱 OpenAI 兼容端点支持 stream_options.include_usage（官方文档）；

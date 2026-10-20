@@ -50,9 +50,9 @@ import java.util.concurrent.Executors;
 /**
  * 检索组件 + RetrievalAugmentationAdvisor 装配（设计文档 10.6，任务 2.10）
  *
- * <p>替代 Phase 1 的 QuestionAnswerAdvisor：查询改写（默认开）→ 双路混合检索 →
- * RRF 融合 → qwen3.7-text-rerank 精排 → Grounding 证据注入。kb-eval 注入的
- * {@code chatClient} Bean 名不变，被测链路切换对评估器零感知。
+ * <p>替代 Phase 1 的 QuestionAnswerAdvisor：查询改写（默认开）→ 多路混合检索
+ * （向量 + BM25[+ Graph]）→ RRF 融合 → qwen3.7-text-rerank 精排 → Grounding 证据注入。
+ * kb-eval 注入的 {@code chatClient} Bean 名不变，被测链路切换对评估器零感知。
  */
 @Configuration
 @EnableConfigurationProperties({RetrievalProperties.class, GraphRetrievalProperties.class})
@@ -105,7 +105,7 @@ public class RetrievalConfig {
      */
 
     /*
-     * 模块化 RAG 主 Advisor（10.6）：改写 → 双路检索 → 融合 → 精排 → 证据注入。
+     * 模块化 RAG 主 Advisor（10.6）：改写 → 多路检索 → 融合 → 精排 → 证据注入。
      * Order 500：RetrievalTraceAdvisor(450) 之后、工具调用(1000) 之前（11.2 链序表）。
      *
      * <p>多查询扩展默认关闭：检索与 embedding 调用放大 N 倍，对 TTFT（目标 < 1.5s）
@@ -198,8 +198,8 @@ public class RetrievalConfig {
     /**
      * 轻任务 ChatClient.Builder（v2.77 模型层批B）：意图路由(440)/查询改写/多查询
      * 扩展的 LLM 调用统一挂备用模型（qwen3.8-flash 思考关，L2 二判同款载体）——
-     * GLM-5.3-Flash 主答强制思考（effort 缺省 max），路由/改写是每请求检索前的
-     * 硬前置，走主模型等于每问先烧一段思维链，TTFT 不可接受；改写模型恒定后
+     * GLM-5.3-Flash 主答强制思考（effort 生产档 low，仍非零思维链），路由/改写是
+     * 每请求检索前的硬前置，走主模型等于每问先烧一段思维链，TTFT 不可接受；改写模型恒定后
      * 主模型切换（provider 开关）不再引起检索形态漂移。备用缺席（单模型形态）
      * 回落主链 ChatModel；kb-eval IT 桩上下文按 @Primary 解析到桩——形态自动正确。
      *
@@ -239,7 +239,7 @@ public class RetrievalConfig {
     }
 
     /**
-     * 混合检索双路并行执行器（v2.19 冲刺簇③ D2）：此前 HybridDocumentRetriever 每请求
+     * 混合检索多路并行执行器（v2.19 冲刺簇③ D2）：此前 HybridDocumentRetriever 每请求
      * {@code new} 虚拟线程 executor——收编为共享 Bean（与 etlExecutor 同形态），
      * 消除高频请求下的重复创建/关闭开销。
      *

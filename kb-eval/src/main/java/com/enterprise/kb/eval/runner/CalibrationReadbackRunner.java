@@ -117,7 +117,7 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
      *  （与 {@code eval.calibration.observation-dimensions} 默认值一致） */
     static final List<String> DEFAULT_OBSERVATION_DIMENSIONS = EvalConstants.DEFAULT_OBSERVATION_DIMENSIONS;
 
-    /** 名义一致率主判目标缺省（κ 悖论治理裁决，16 章 v2.80；终值随 G1 校准窗口） */
+    /** 名义一致率主判目标缺省（κ 悖论治理裁决，16 章 v2.80；终值定案 0.90，v2.84 G1 校准收官） */
     static final double DEFAULT_AGREEMENT_TARGET = 0.90;
 
     /** 兼容入口：观察带维度取缺省集（noise_robustness，M3 裁决，16 章 v2.79） */
@@ -157,7 +157,7 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
         StringBuilder sb = new StringBuilder();
         sb.append("═══ 人类校准报告（Phase5簇② 批2） ═══").append(System.lineSeparator());
         sb.append(String.format(Locale.ROOT,
-            "名义一致率目标：%.2f（主判；F/AC=|差|≤1，CA/HR/NRob=全一致；观察带接入门禁前置判据）%n",
+            "名义一致率目标：%.2f（主判；F/AC=|差|≤1，CA/HR/NRob=全一致；四新指标门禁前置，v2.82 已接线）%n",
             agreementTarget));
         sb.append(String.format(Locale.ROOT, "κ 目标：%.2f（观察报告不阻断——κ 悖论治理裁决，16 章 v2.80）%n",
             kappaTarget));

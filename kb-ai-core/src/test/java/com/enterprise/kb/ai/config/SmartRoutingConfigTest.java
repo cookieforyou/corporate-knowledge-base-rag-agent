@@ -124,7 +124,7 @@ class SmartRoutingConfigTest {
         assertThat(options.getBaseUrl()).isEqualTo("https://open.bigmodel.cn/api/paas/v4");
         assertThat(options.getTemperature()).isEqualTo(1.0);
         // thinking 零配置：官方唯一合法值 enabled 即服务端默认（传 disabled 报错）；
-        // effort 空不透传（缺省 max 由服务端决定，生产档位经冒烟定档）
+        // effort 空不透传（缺省 max 由服务端决定；生产档位 low 已定档 v2.78）
         assertThat(options.getExtraBody()).isNullOrEmpty();
         assertThat(options.getReasoningEffort()).isNull();
     }

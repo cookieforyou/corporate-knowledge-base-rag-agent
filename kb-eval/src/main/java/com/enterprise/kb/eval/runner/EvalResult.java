@@ -35,7 +35,7 @@ public record EvalResult(
                                 // （RAW_FAIL_OPEN/RAW_NOT_JUDGED）与 L2Verdict（VERDICT_*）；
                                 // null = 联合链未判定（L2 关闭 或 L1 直拦免二判）
     // ── Phase 5 扩展指标（Phase5簇② 5.8，16 章 §16.2；接线落地 16 章 v2.82：AC/CA/HR 门禁，NRob 观察）──
-    Double answerCorrectness,   // 1-5 Judge；expectedAnswer 为空 → null 跳过（当前语料零标注）
+    Double answerCorrectness,   // 1-5 Judge；expectedAnswer 为空 → null 跳过（正向 80 例已标注）
     String citationVerdict,     // Citation Attribution 三步判定：SUPPORTED / NOT_SUPPORTED / NO_CITATION
     Double citationResolvableRate, // 第二步可解析率（未发出引用 → null）
     Double hallucinationRate,   // 无依据声明占比 0-1（Judge 声明级核查）

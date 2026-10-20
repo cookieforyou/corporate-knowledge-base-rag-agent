@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-admin</artifactId>
     <name>kb-admin</name>
-    <description>运维后台模块：Chunk 管理（4.4）、索引重建（4.5）；经 kb-api 聚合装配
+    <description>运维后台模块：Chunk 运维（4.4）、索引重建（4.5）、Bad Case（4.7）、图谱回填、词表运营、反馈导出；经 kb-api 聚合装配
         （scanBasePackages 全域扫描），租户守卫沿用 fail-closed 口径</description>
 
     <dependencies>
@@ -16,7 +16,7 @@
             <groupId>com.enterprise</groupId>
             <artifactId>kb-etl</artifactId>
         </dependency>
-        <!-- AiBusinessMetrics 业务指标（chunk 运维计数） -->
+        <!-- AiBusinessMetrics 业务指标（chunk/BadCase/词表运维计数） -->
         <dependency>
             <groupId>com.enterprise</groupId>
             <artifactId>kb-ai-core</artifactId>

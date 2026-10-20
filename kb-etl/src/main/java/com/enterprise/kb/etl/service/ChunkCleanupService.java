@@ -14,7 +14,7 @@ import java.util.List;
  * Chunk 三库级联清理组件（优化冲刺簇⑥ C1）—— PG kb_chunk / 向量库 / ES 的统一清理原语。
  *
  * <p><b>共享基座</b>：文档删除级联（DocumentService.delete）、蓝绿重入库 diff 清理
- * （DocumentEtlService）与未来 Phase 4.5 物理删除级联 / 4.6 索引重建复用同一组件，
+ * （DocumentEtlService）与 Phase4簇③ 4.4 物理删除级联 / 4.5 索引重建复用同一组件，
  * 避免三库清理逻辑散点漂移（优化报告 C1「先做 C1 为 4.4-4.6 铺路」）。
  *
  * <p><b>一致性模型</b>（9.4）：PG kb_chunk 是唯一事实源——PG 删除为必须项，
@@ -64,8 +64,8 @@ public class ChunkCleanupService {
      * Chunk 软删除管道（优化冲刺簇⑥ C1「只通管道不建门面」，REST 门面归 Phase 4.4 Chunk 运维 API）：
      * PG is_deleted=true + ES is_deleted=true（markDeleted）+ 向量库物理删除。
      *
-     * <p><b>向量库无软删形态</b>：检索双路均过滤 is_deleted（ES term filter +
-     * RetrievalContext FilterExpression），软删 chunk 本已检索不可见；向量库不留
+     * <p><b>向量库无软删形态</b>：检索各路均过滤 is_deleted（ES term filter +
+     * 向量 FilterExpression + 图锚点 is_deleted=false），软删 chunk 本已检索不可见；向量库不留
      * 死数据，恢复（4.4 门面职责）需经重嵌入。PG 事实源保留行即软删语义本体。
      *
      * @return 软删成功后的实体；chunk 不存在返回 null

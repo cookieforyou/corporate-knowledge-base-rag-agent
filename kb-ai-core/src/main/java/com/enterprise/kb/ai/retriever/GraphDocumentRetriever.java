@@ -84,7 +84,7 @@ public class GraphDocumentRetriever {
     /**
      * Graph 路召回。
      *
-     * @param recallSize 召回上限（与双路同口径 = topK × recallMultiplier）
+     * @param recallSize 召回上限（与向量/BM25 同口径 = topK × recallMultiplier）
      */
     public List<Document> retrieve(Query query, int recallSize) {
         RetrievalContext ctx = RetrievalContext.from(query);
@@ -220,7 +220,7 @@ public class GraphDocumentRetriever {
         return documents;
     }
 
-    /** 元数据契约与双路同键族（调试台/审计/溯源消费面零分叉） */
+    /** 元数据契约与向量/BM25 同键族（调试台/审计/溯源消费面零分叉） */
     private Document toDocument(KbChunk chunk, KbDocument doc, GraphRecords.GraphChunkHit hit, int rank) {
         Map<String, Object> meta = new HashMap<>();
         meta.put(Constants.Retrieval.META_CHUNK_ID, chunk.getId());

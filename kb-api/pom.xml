@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-api</artifactId>
     <name>kb-api</name>
-    <description>API 模块：REST Controller、SSE 接口（Spring Boot 启动入口）</description>
+    <description>API 模块：REST/SSE、/mcp、/a2a、安全配置（Spring Boot 启动入口）</description>
 
     <dependencies>
         <dependency>
@@ -21,8 +21,8 @@
             <groupId>com.enterprise</groupId>
             <artifactId>kb-ai-agent</artifactId>
         </dependency>
-        <!-- 运维后台（Phase4簇③ 首建）：Chunk 运维 4.4 + 索引重建 4.5；
-             scanBasePackages 全域扫描自动装配其 Controller/Service -->
+        <!-- 运维后台（Phase4簇③ 首建，后续扩 Bad Case/图谱/词表/反馈）：
+             Chunk 运维 4.4 + 索引重建 4.5 等全域；scanBasePackages 自动装配其 Controller/Service -->
         <dependency>
             <groupId>com.enterprise</groupId>
             <artifactId>kb-admin</artifactId>

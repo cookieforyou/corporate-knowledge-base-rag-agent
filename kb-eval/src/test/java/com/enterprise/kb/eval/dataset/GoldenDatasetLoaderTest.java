@@ -60,7 +60,7 @@ class GoldenDatasetLoaderTest {
     void loadsFullDatasetWithNegativeShare() {
         // v2.43/T6：规模断言演进为下限不变量——语料经带外通道持续扩充只增不减，
         // 硬编码总量会在每批扩容时失效；结构契约（占比/锚点/分布）保持严格
-        assertTrue(pairs.size() >= 150, "Golden 总量下限 150 条（80 正向 + 22 负向 + 48 注入攻击基线）");
+        assertTrue(pairs.size() >= 150, "Golden 总量下限 150 条（初始基线；当前 267 条，持续扩充只增不减）");
         long negatives = pairs.stream().filter(GoldenQAPair::isNegative).count();
         assertTrue(negatives >= 22, "负向用例下限 22 条");
         long injections = pairs.stream().filter(GoldenQAPair::isInjection).count();

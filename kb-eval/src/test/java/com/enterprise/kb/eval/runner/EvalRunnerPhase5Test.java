@@ -149,7 +149,7 @@ class EvalRunnerPhase5Test {
             .isSameAs(EvalReport.Phase5Metrics.EMPTY);
     }
 
-    // ── 报告渲染：观察带小节 ──
+    // ── 报告渲染：生成侧扩展小节（门禁/观察分标）──
 
     private static EvalReport reportWith(EvalReport.Phase5Metrics phase5) {
         return new EvalReport(EvalConstants.PROBE_CHAIN, 3, 0, 3, 0,

@@ -42,10 +42,10 @@ import java.util.List;
  *   <li><b>toolAgentChatClient</b>（kb-ai-agent ToolAgentChatClientConfig）：
  *       纯工具事务，零检索</li>
  * </ul>
- * 两链共享 smartRoutingChatModel（主备容灾）、agentChatMemory（同 sessionId
+ * 三链共享 smartRoutingChatModel（主备容灾）、agentChatMemory（同 sessionId
  * 跨链历史互通）、护栏/配额 Advisor（安全与成本管控不分流）；Controller 经
- * 请求体 {@code mode: rag|tool} 显式分流（缺省 rag，跨链自动路由仍预留 5.4；
- * rag 链内免检索短路已随 5.4 收窄版提前落地——QueryRoutingAdvisor 440）。
+ * 请求体 {@code mode: rag|tool|agent} 显式分流（缺省 rag，跨链自动路由无触发条件
+ * 已归档；rag 链内免检索短路已随 5.4 收窄版提前落地——QueryRoutingAdvisor 440）。
  *
  * <p><b>Bean 拆分决策（3.1 复审定稿，延续）</b>：记忆 Advisor 不挂共享
  * {@code chatClient}（kb-eval 评估用纯 RAG 链，缺失 CONVERSATION_ID 为 Assert
@@ -62,7 +62,7 @@ import java.util.List;
 public class RagAgentChatClientConfig {
 
     /**
-     * 会话记忆：Redis 仓储 + 滑动窗口 + 容错装饰。**两链共享本 Bean**（同
+     * 会话记忆：Redis 仓储 + 滑动窗口 + 容错装饰。**三链共享本 Bean**（同
      * sessionId 跨链历史互通）。
      *
      * <p>maxMessages 默认 20（≈10 轮）：对齐 Phase 3 验收项「多轮对话（10轮）

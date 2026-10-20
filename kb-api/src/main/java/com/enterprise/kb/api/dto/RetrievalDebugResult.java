@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * 检索调试结果（设计文档 10.7）：直调检索链路（不经 LLM）的全维度得分快照
  *
- * <p>面向检索调试台（2.14）与 Bad Case 排查：candidates 为双路原始命中的并集
+ * <p>面向检索调试台（2.14）与 Bad Case 排查：candidates 为多路原始命中的并集（图路条件在场）
  * （含未进最终 Top-N 的候选），得分全部来自 10.1 元数据约定，零额外埋点。
  */
 public record RetrievalDebugResult(

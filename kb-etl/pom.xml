@@ -6,7 +6,7 @@
     <parent/>
     <artifactId>kb-etl</artifactId>
     <name>kb-etl</name>
-    <description>ETL 管道模块：文档解析、切分、向量化写入（可独立部署）</description>
+    <description>ETL 管道模块：文档解析、切分、向量化/ES 双写、图谱抽取</description>
 
     <dependencies>
         <dependency>

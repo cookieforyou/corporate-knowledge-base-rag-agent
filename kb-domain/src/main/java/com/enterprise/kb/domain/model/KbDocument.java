@@ -9,7 +9,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 文档主表实体（Phase 1 最小字段集）
+ * 文档主表实体（Phase 1 核心字段 + 增量重入库/图谱状态扩展）
  */
 @Data
 @Entity

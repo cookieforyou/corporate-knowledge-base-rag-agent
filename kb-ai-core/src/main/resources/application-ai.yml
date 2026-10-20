@@ -271,7 +271,7 @@ rag:
     output:
       # 输出检测兼容词表（CSV 并入结构化基线）：留空 → 仅 bundled 基线词表
       blacklist:
-      # 系统提示金丝雀（安全簇① T5）：启动时随机 token 内嵌双链系统提示，
+      # 系统提示金丝雀（安全簇① T5）：启动时随机 token 内嵌生产三链系统提示，
       # 输出回显即确证提示泄露 → 整段替换 + 指标 rag.guardrail.output.canary
       canary:
         enabled: ${RAG_GUARDRAIL_OUTPUT_CANARY_ENABLED:true}
@@ -285,7 +285,7 @@ rag:
       strategy: ${RAG_GUARDRAIL_INDIRECT_STRATEGY:warn}   # warn | exclude
     # L2 语义判定层（安全簇⑤ E1，设计 §12.1.1/12.4 S5）：REGEX 结构模式可疑、且无
     # 「干词」（术语：KEYWORD 轨**字面短语型**词项，非停用/干扰词）命中的输入，经备用模型
-    # qwen3.8-flash 结构化二判（PASS/SUSPECT/BLOCK）；order 320 挂双链（L1 300 之后、
+    # qwen3.8-flash 结构化二判（PASS/SUSPECT/BLOCK）；order 320 挂三链（L1 300 之后、
     # 记忆 400 之前）；超时/失败 fail-open 回落 L1 结论。
     # 指标 rag.guardrail.l2.triggered/blocked/suspect/error（触发率 = triggered/request.total）
     # + v2.110 观测族 suppressed.regex_keyword/keyword_only（触发条件的排除项显式成账：
@@ -296,16 +296,16 @@ rag:
       enabled: ${RAG_GUARDRAIL_L2_ENABLED:true}                    # 总开关（运维回退阀门）
       timeout-seconds: ${RAG_GUARDRAIL_L2_TIMEOUT_SECONDS:3}       # 二判超时（秒），超时 fail-open
       history-size: ${RAG_GUARDRAIL_L2_HISTORY_SIZE:6}             # 跨轮信号与判定上下文的历史条数
-    # 词表热重载（安全簇⑥ F1，设计 12.4 S8 Git Ops 词表运营）：词表文件以 Git 为
-    # 单一事实源，经 file: 外部覆盖 + 重载信号免重启生效。双触发通道——pub/sub 即时
+    # 词表热重载（安全簇⑥ F1，设计 12.4 S8）：源择一见 rag.guardrail.rules.source
+    # （file=Git Ops / db=PG 唯一事实源），均经重载信号免重启生效。三触发通道——pub/sub 即时
     # 信号（频道 rag:guardrail:reload，tools/guardrail/publish_reload_signal.py 发布）
-    # + file: 源 mtime 轮询回落（信号丢失/Redis 不可达窗口兜底；jar 内 classpath 源
-    # 不轮询）。装载失败 fail-keep 保旧快照。kb-eval 经 web-none 结构隔离天然不装配
-    # （测量一致性）。指标 rag.guardrail.reload.succeeded/failed。
+    # + file: 源 mtime 轮询回落 + db 源内容指纹修订号轮询回落（信号丢失/Redis 不可达
+    # 窗口兜底；jar 内 classpath 源不轮询）。装载失败 fail-keep 保旧快照。kb-eval 经
+    # web-none 结构隔离天然不装配（测量一致性）。指标 rag.guardrail.reload.succeeded/failed。
     reload:
       enabled: ${RAG_GUARDRAIL_RELOAD_ENABLED:true}                          # 总开关（运维回退阀门）
-      poll-interval-seconds: ${RAG_GUARDRAIL_RELOAD_POLL_INTERVAL_SECONDS:60}  # file: 源 mtime 轮询间隔
-    # 词表文件外部覆盖位置（classpath:/file: 前缀；资源缺失回落内置缺省文件）。
+      poll-interval-seconds: ${RAG_GUARDRAIL_RELOAD_POLL_INTERVAL_SECONDS:60}  # file mtime / db 修订号轮询间隔
+    # 词表文件外部覆盖位置（仅 source=file；classpath:/file: 前缀，资源缺失回落内置缺省文件）。
     # **覆盖语义（v2.50 E2E 实证钉死）**：外部文件整体顶替内置缺省词表，非增量
     # 并入——外部路径必须持完整词表文件（仓库词表经 import_words.py 增量改后整文件同步）。
     rules:
@@ -390,8 +390,9 @@ rag:
       # 边界：只约束中间结果规模，Neo4j 展开遍历的扫描代价仍与度数成正比（耗时观测见 loadtest 场景 E）
       neighbor-limit: ${RAG_GRAPH_NEIGHBOR_LIMIT:256}
   # ── 语义缓存（Phase5簇③ 5.6）：查询级语义缓存，Redis 8 内建搜索引擎（FT.* VECTOR）──
-  # 命中短路「检索+重排+生成」全链重放缓存回答与溯源；缺省关（用户侧 E2E 验证后启用，
-  # 同 eval L2 / 间接注入缺省关族纪律）；验收线 = 命中率 >30% + 命中延迟 P95 降 >40%（对照 18 §18.4）
+  # 命中短路「检索+重排+生成」全链重放缓存回答与溯源；缺省关（E2E 2026-08-26 已通过，
+  # 生产启用为运营决策；同 eval L2 / 间接注入缺省关族纪律）；验收线 = 命中率 >30% +
+  # 命中延迟 P95 降 >40%（对照 18 §18.4）
   cache:
     enabled: ${RAG_CACHE_ENABLED:false}
     # 命中判定余弦相似度阈值（KNN 距离 ≤ 1 - 阈值判命中）；行业生产区间 0.90-0.95，

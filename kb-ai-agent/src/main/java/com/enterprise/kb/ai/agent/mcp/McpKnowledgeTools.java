@@ -35,7 +35,7 @@ import java.util.UUID;
  * Streamable HTTP /mcp）。工具粒度对齐业界共识（Vectara/Notion 形态）：
  * {@code search}（混合检索）+ {@code get_document}（文档全文）+ {@code ask}（RAG 问答）。
  *
- * <p><b>链复用</b>：search 直调检索链（改写 → 双路召回 → RRF → 重排，同
+ * <p><b>链复用</b>：search 直调检索链（改写 → 多路召回（向量+BM25[+Graph]） → RRF → 重排，同
  * RetrievalDebugController 形态，租户过滤经 RetrievalContext 参数链）；
  * ask 经 ragAgentChatClient 全链——意图路由/护栏/配额/审计/多模型路由**自动复用**
  * （注入载荷 → PROMPT_INJECTION 拒答经 MCP 错误帧回传，DoD 护栏验证项）；
@@ -93,7 +93,7 @@ public class McpKnowledgeTools {
         this.documentMaxChunks = Math.max(1, documentMaxChunks);
     }
 
-    /** 混合检索：改写 → 双路召回 → RRF 融合 → 重排，返回 Top-K 候选（不经 LLM） */
+    /** 混合检索：改写 → 多路召回（向量+BM25[+Graph]）→ RRF 融合 → 重排，返回 Top-K 候选（不经 LLM） */
     @McpTool(name = Constants.McpTool.SEARCH,
         description = "在企业知识库中执行混合检索（向量 + BM25 + 重排序），返回与查询最相关的文档片段列表（含文件名/页码/标题路径/正文）。适用于查找事实、定位证据文档。",
         annotations = @McpTool.McpAnnotations(readOnlyHint = true))

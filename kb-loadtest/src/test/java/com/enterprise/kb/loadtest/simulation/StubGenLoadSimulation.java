@@ -18,8 +18,9 @@ import static io.gatling.javaapi.http.HttpDsl.sse;
 /**
  * 场景 B：生成桩压（Phase4簇⑥ 4.12：50 并发无 OOM/线程耗尽）
  *
- * <p>前置（ECS）：{@code StubChatServer} 宿主侧启动 + kb-api {@code DEEPSEEK_BASE_URL}
- * 指向桩（容器经 host.docker.internal）+ 对话限流/Token 预算调额或停用
+ * <p>前置（ECS）：{@code StubChatServer} 宿主侧启动 + kb-api 主模型 base-url
+ * （{@code ZHIPU_BASE_URL} 或 {@code DEEPSEEK_BASE_URL}）指向桩（容器经 host.docker.internal）
+ * + 对话限流/Token 预算调额或停用
  * （缺省 60 次/60s/租户必被打穿，步骤见用户侧清单 LT1）+ 重启。
  *
  * <p>closed 注入模型维持 50 并发虚拟用户持续对话（每轮 = SSE 连接 → DONE 收口 →

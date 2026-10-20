@@ -213,7 +213,7 @@ class DocumentLifecycleIT extends AbstractAdvisorChainIT {
 
         KbChunk reloaded = chunkRepository.findById(victim.getId()).orElseThrow();
         assertThat(reloaded.getIsDeleted()).isTrue();
-        // 向量库无软删形态：物理删除（读侧双路 is_deleted 过滤为兜底）
+        // 向量库无软删形态：物理删除（读侧多路 is_deleted 过滤为兜底）
         assertThat(embeddingCountOf(victim.getId())).isZero();
     }
 }

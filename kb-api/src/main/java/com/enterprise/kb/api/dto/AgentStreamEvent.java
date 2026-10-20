@@ -9,7 +9,8 @@ import java.util.Map;
  * <p>协议兼容策略（11.3 v2 注「与 Phase 1 兼容」）：TOKEN/ERROR 保持 Phase 1
  * 线形（无名 message 事件 + 原数据形状 {"token":...} / {"error":...}）；
  * TRACE 为**新增命名事件**（event: TRACE），旧前端忽略，簇 D 前端切换
- * EventSource 命名监听后消费溯源。TOOL_CALL 事件随 2.13 工具调用落地时追加。
+ * EventSource 命名监听后消费溯源。TOOL_CALL（2.13 工具调用）、REPLACE（v2.109
+ * 护栏追回）、PROGRESS（Phase5簇⑥ 体验批3 进度播报）均按链能力追加。
  *
  * <p><b>DONE 帧协议修订（3.17，v2.14）</b>：DONE 由字面量 "[DONE]" 演进为
  * JSON 载荷 {"messageId":..., "traceId":...}——终帧天然携带本轮句柄：
@@ -45,13 +46,14 @@ public sealed interface AgentStreamEvent {
     record ProgressFrame(String kind, String text) implements AgentStreamEvent {}
 
     /**
-     * 检索溯源（命名事件 TRACE，流末推送）：双路原始命中 + final 最终注入序列。
+     * 检索溯源（命名事件 TRACE，流末推送）：多路原始命中（向量/BM25[/Graph]）+ final 最终注入序列。
      * final 序列下标与回答中 [ref-N] 标注一一对应（11.1.2），前端溯源卡片按此渲染。
      */
     record TraceEvent(List<SourceTrace> sources) implements AgentStreamEvent {}
 
     /**
-     * 工具调用状态（命名事件 TOOL_CALL，流末先于 TRACE 推送，任务 3.4 复审要素③）：
+     * 工具调用状态（命名事件 TOOL_CALL，实时快照 + 流末兜底，任务 3.4 复审要素③；
+     * Phase5簇⑥ 体验批3 实时化）：
      * 写工具挂起时 status=PENDING_APPROVAL 携带 approvalId，前端弹确认卡片；
      * 用户确认后经 /chat 请求体 approvedToolCallId 回传触发真正执行（EXECUTED）。
      */
@@ -60,12 +62,12 @@ public sealed interface AgentStreamEvent {
     /** 工具调用投影：与 RetrievalContext.ToolCall 同形（SSE 载荷独立 record，与 ChunkTrace 投影同策） */
     record ToolCallInfo(String toolName, String status, String approvalId, String summary) {}
 
-    /** 单路 trace：source ∈ {vector, bm25, final}；latencyMs 该路耗时（10.8 时延观测） */
+    /** 单路 trace：source ∈ {vector, bm25, graph, final}；latencyMs 该路耗时（10.8 时延观测） */
     record SourceTrace(String source, List<ChunkTrace> chunks, Long latencyMs) {}
 
     /**
      * Chunk 轻量投影（不序列化全文，控制 SSE 帧体积）：
-     * scores 按路透传（bm25_score/bm25_rank、vector_rank、fusion_score、rerank_score/rerank_rank）。
+     * scores 按路透传（bm25_score/bm25_rank、vector_rank、graph_score/graph_rank、fusion_score、rerank_score/rerank_rank）。
      * docId 为「查看原文」数据通道（3.15）：前端凭 docId+chunkId 经
      * GET /documents/{docId}/chunks（租户隔离）按需拉全文，不经 SSE 帧下传。
      */
