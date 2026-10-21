@@ -56,7 +56,7 @@ kb-eval/src/main/java/com/enterprise/kb/eval/
 │   └── ChainRetrievalProbe.java          # 完整 advisor 链（含改写/门控/图路）
 ├── runner/
 │   ├── EvalRunner.java                   # 核心编排 + ci 门禁 + 工具模式豁免
-│   ├── EvalDiffRunner.java               # A/B 双跑差异报表生成器
+│   ├── EvalDiffRunner.java               # --eval.diff=baseline,candidate（A/B 双跑差异报表生成）
 │   ├── AnnotationRunner.java             # --eval.annotate-query / --eval.annotate-all
 │   ├── AnswerDraftRunner.java            # --eval.draft-answers（AC 草稿）
 │   ├── MultiHopDraftRunner.java          # --eval.draft-multihop（多跳材料）

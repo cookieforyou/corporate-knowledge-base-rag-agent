@@ -40,6 +40,8 @@ import java.util.function.ToDoubleFunction;
 @Component
 public class EvalDiffRunner implements ApplicationRunner {
 
+    static final String OPTION = "eval.diff";
+
     private final EvalProperties props;
     private final JsonMapper jsonMapper;
 
@@ -50,7 +52,7 @@ public class EvalDiffRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        List<String> values = args.getOptionValues("eval.diff");
+        List<String> values = args.getOptionValues(OPTION);
         String spec = values == null ? null : values.stream().findFirst().orElse(null);
         if (spec == null || spec.isBlank()) {
             return;

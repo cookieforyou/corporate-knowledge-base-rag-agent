@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 @Component
 public class AnswerDraftRunner implements ApplicationRunner {
 
+    static final String OPTION = "eval.draft-answers";
+
     /** 草稿真值材料来源 */
     static final String SOURCE_EXPECTED_CHUNKS = "EXPECTED_CHUNKS";
     static final String SOURCE_RETRIEVAL_FALLBACK = "RETRIEVAL_FALLBACK";
@@ -70,7 +72,7 @@ public class AnswerDraftRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!args.containsOption("eval.draft-answers")) {
+        if (!args.containsOption(OPTION)) {
             return;
         }
         List<GoldenQAPair> targets = datasetLoader.loadAll().stream()

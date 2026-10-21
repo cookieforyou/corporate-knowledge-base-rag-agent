@@ -322,8 +322,12 @@ class GraphDirectionAbRunnerTest {
             .contains(MultiHopDraftRunner.OPTION);
         assertThat(EvalRunner.TOOL_MODE_OPTIONS)
             .as("既有工具开关不得被本次收敛误删")
-            .contains("eval.annotate-query", "eval.annotate-all", "eval.draft-answers",
-                "eval.calibration-readback", "eval.diff");
+            .contains(
+                AnnotationRunner.OPTION_ANNOTATE_QUERY,
+                AnnotationRunner.OPTION_ANNOTATE_ALL,
+                AnswerDraftRunner.OPTION,
+                CalibrationReadbackRunner.OPTION,
+                EvalDiffRunner.OPTION);
     }
 
     @Test

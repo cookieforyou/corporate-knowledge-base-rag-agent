@@ -31,6 +31,9 @@ import java.util.List;
 @Component
 public class AnnotationRunner implements ApplicationRunner {
 
+    static final String OPTION_ANNOTATE_QUERY = "eval.annotate-query";
+    static final String OPTION_ANNOTATE_ALL = "eval.annotate-all";
+
     private final RetrievalProbe probe;
     private final GoldenDatasetLoader datasetLoader;
 
@@ -43,12 +46,12 @@ public class AnnotationRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (args.containsOption("eval.annotate-all")) {
+        if (args.containsOption(OPTION_ANNOTATE_ALL)) {
             writeReannotateSheet();
             return;
         }
-        String query = args.getOptionValues("eval.annotate-query") == null ? null
-            : args.getOptionValues("eval.annotate-query").stream().findFirst().orElse(null);
+        String query = args.getOptionValues(OPTION_ANNOTATE_QUERY) == null ? null
+            : args.getOptionValues(OPTION_ANNOTATE_QUERY).stream().findFirst().orElse(null);
         if (query == null || query.isBlank()) return;
 
         log.info("═══ 标注辅助：query = [{}]，探针 = {} ═══", query, probe.name());

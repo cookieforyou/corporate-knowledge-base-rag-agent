@@ -59,14 +59,13 @@ public class EvalRunner {
      * 并以单测钉住「每个工具 runner 的开关都在清单内」（见 {@code GraphDirectionAbRunnerTest}）。
      */
     static final Set<String> TOOL_MODE_OPTIONS = Set.of(
-        "eval.annotate-query",
-        "eval.annotate-all",
-        "eval.draft-answers",
-        "eval.calibration-readback",
-        "eval.diff",
+        AnnotationRunner.OPTION_ANNOTATE_QUERY,
+        AnnotationRunner.OPTION_ANNOTATE_ALL,
+        AnswerDraftRunner.OPTION,
+        CalibrationReadbackRunner.OPTION,
+        EvalDiffRunner.OPTION,
         MultiHopDraftRunner.OPTION,
         GraphDirectionAbRunner.OPTION);
-
 
     private final GoldenDatasetLoader datasetLoader;
     private final RetrievalProbe retrievalProbe;

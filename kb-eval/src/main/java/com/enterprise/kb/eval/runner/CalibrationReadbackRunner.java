@@ -41,6 +41,8 @@ import java.util.Map;
 @Component
 public class CalibrationReadbackRunner implements ApplicationRunner {
 
+    static final String OPTION = "eval.calibration-readback";
+
     /** 报告维度顺序（固定，跨次复跑可比）——单源 {@link EvalConstants#DIMENSIONS} */
     static final List<String> DIMENSIONS = EvalConstants.DIMENSIONS;
 
@@ -52,8 +54,8 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        String path = args.getOptionValues("eval.calibration-readback") == null ? null
-            : args.getOptionValues("eval.calibration-readback").stream().findFirst().orElse(null);
+        String path = args.getOptionValues(OPTION) == null ? null
+            : args.getOptionValues(OPTION).stream().findFirst().orElse(null);
         if (path == null || path.isBlank()) {
             return;
         }
