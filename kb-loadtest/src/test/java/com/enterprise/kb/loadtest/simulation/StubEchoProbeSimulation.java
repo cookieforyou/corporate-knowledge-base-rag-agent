@@ -11,9 +11,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static io.gatling.javaapi.core.CoreDsl.details;
-import static io.gatling.javaapi.core.CoreDsl.asLongAs;
 import static io.gatling.javaapi.core.CoreDsl.atOnceUsers;
-import static io.gatling.javaapi.core.CoreDsl.exec;
 import static io.gatling.javaapi.core.CoreDsl.pause;
 import static io.gatling.javaapi.core.CoreDsl.scenario;
 import static io.gatling.javaapi.core.CoreDsl.StringBody;
@@ -57,6 +55,7 @@ public class StubEchoProbeSimulation extends Simulation {
                 for (SseInboundMessage message : messages) {
                     if (message.message().contains("[DONE]")) {
                         done = true;
+                        break;
                     }
                 }
                 return session.set("stubDone", done);

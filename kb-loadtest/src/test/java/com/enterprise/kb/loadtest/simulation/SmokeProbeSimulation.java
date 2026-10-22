@@ -9,9 +9,7 @@ import io.gatling.javaapi.http.HttpProtocolBuilder;
 import java.time.Duration;
 
 import static io.gatling.javaapi.core.CoreDsl.details;
-import static io.gatling.javaapi.core.CoreDsl.asLongAs;
 import static io.gatling.javaapi.core.CoreDsl.atOnceUsers;
-import static io.gatling.javaapi.core.CoreDsl.exec;
 import static io.gatling.javaapi.core.CoreDsl.jsonFile;
 import static io.gatling.javaapi.core.CoreDsl.pause;
 import static io.gatling.javaapi.core.CoreDsl.scenario;

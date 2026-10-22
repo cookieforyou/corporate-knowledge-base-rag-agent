@@ -4,11 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>com.enterprise</groupId>
-        <artifactId>kb-rag-agent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </parent>
+    <parent/>
 
     <artifactId>kb-loadtest</artifactId>
     <name>kb-loadtest（Gatling 压测）</name>

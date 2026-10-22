@@ -67,7 +67,6 @@ public class CalibrationReadbackRunner implements ApplicationRunner {
         }
         String report = buildReport(parseCsv(content), props.getCalibration().getKappaTarget(),
             props.getCalibration().getObservationDimensions(), props.getCalibration().getAgreementTarget());
-        System.out.println(report);
         log.info("\n{}", report);
         try {
             String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();

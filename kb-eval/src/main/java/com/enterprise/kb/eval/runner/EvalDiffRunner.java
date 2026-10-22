@@ -62,7 +62,6 @@ public class EvalDiffRunner implements ApplicationRunner {
         EvalSnapshot b = load(sources.get(1));
         String report = buildReport(a, b, sources.get(0).label(), sources.get(1).label(),
             props.getThresholds().getRegression());
-        System.out.println(report);
         log.info("\n{}", report);
         try {
             Path out = Path.of("target",

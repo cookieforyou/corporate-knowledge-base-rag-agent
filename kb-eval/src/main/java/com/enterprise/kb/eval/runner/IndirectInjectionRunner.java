@@ -225,7 +225,6 @@ public class IndirectInjectionRunner {
         }
         String report = sb.toString();
         log.info(System.lineSeparator() + report);
-        System.out.println(report);
 
         String labelSuffix = props.getRunLabel() == null || props.getRunLabel().isBlank()
             ? "" : "-" + props.getRunLabel();

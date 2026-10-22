@@ -11,7 +11,6 @@ import java.util.UUID;
 
 import static io.gatling.javaapi.core.CoreDsl.details;
 import static io.gatling.javaapi.core.CoreDsl.constantConcurrentUsers;
-import static io.gatling.javaapi.core.CoreDsl.doIf;
 import static io.gatling.javaapi.core.CoreDsl.exec;
 import static io.gatling.javaapi.core.CoreDsl.jsonFile;
 import static io.gatling.javaapi.core.CoreDsl.rampConcurrentUsers;

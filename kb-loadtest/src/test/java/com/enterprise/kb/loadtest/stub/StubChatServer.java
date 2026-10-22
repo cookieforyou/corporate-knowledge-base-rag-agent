@@ -186,7 +186,7 @@ public final class StubChatServer {
         System.out.println("[StubChatServer] " + Instant.now() + " " + line);
     }
 
-    public static void main(String[] args) throws IOException {
+    static void main(String[] args) throws IOException {
         int port = argInt(args, "--port", "STUB_PORT", 9988);
         int tokens = argInt(args, "--tokens", "STUB_TOKENS", 40);
         long interval = argInt(args, "--interval", "STUB_INTERVAL_MS", 10);

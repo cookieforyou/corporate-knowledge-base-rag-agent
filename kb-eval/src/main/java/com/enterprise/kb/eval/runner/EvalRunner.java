@@ -163,7 +163,6 @@ public class EvalRunner {
                 + System.lineSeparator() + summary;
         }
         String header = renderAnchorHeader(anchor, props.getRunLabel());
-        System.out.println(header + summary);
         log.info("\n{}", header + summary);
         try {
             String label = props.getRunLabel() == null ? "" : props.getRunLabel().trim();
@@ -969,8 +968,8 @@ public class EvalRunner {
             avg(withDocRetrieval, EvalResult::docRecall),
             avg(withDocRetrieval, EvalResult::docMrr),
             avg(withDocRetrieval, EvalResult::docContextPrecision),
-            avg(generation, r -> r.faithfulness()),
-            avg(generation, r -> r.responseRelevancy()),
+            avg(generation, EvalResult::faithfulness),
+            avg(generation, EvalResult::responseRelevancy),
             negative.isEmpty() ? Double.NaN : (double) rejected / negative.size(),
             injection.size(),
             blockRate(injection),
